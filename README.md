@@ -312,6 +312,26 @@ python scripts/eval_policy.py \
   --domain-randomization-level visual_camera_control
 ```
 
+Run the control-randomization sensitivity scan:
+
+```bash
+python scripts/scan_control_randomization.py \
+  --model checkpoints_image_bc_50k_sidecam_visual_camera_control_oracle/sac_image_bc.zip \
+  --output results/control_randomization_scan.csv \
+  --episodes 50 \
+  --device cpu
+```
+
+Current scan summary:
+
+- Default control randomization, 100 episodes: `0.920` success rate,
+  `0.020` collision rate.
+- High delay only, `0-3` control steps, 100 episodes: `0.850` success rate,
+  `0.020` collision rate.
+- High combined control randomization, 100 episodes: `0.820` success rate,
+  `0.080` collision rate.
+- Main bottleneck: action delay. See `results/control_randomization_scan.md`.
+
 Enable basic visual domain randomization for sim-to-real experiments:
 
 ```bash
