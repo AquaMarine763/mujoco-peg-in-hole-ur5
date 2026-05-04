@@ -1,0 +1,39 @@
+{
+  "samples": 50000,
+  "episodes_completed": 1977,
+  "successes": 1963,
+  "collisions": 14,
+  "expert": "oracle",
+  "expert_action_gain": 0.22,
+  "rollout_noise_std": 0.0005,
+  "success_xy_tolerance": 0.005,
+  "success_z_tolerance": 0.01,
+  "domain_randomization": false,
+  "domain_randomization_level": "visual_camera_control",
+  "control_action_scale_range": [
+    1.0,
+    1.0
+  ],
+  "control_action_noise_std_range": [
+    0.0,
+    0.0
+  ],
+  "control_action_delay_range": [
+    0,
+    3
+  ],
+  "control_action_filter_alpha_range": [
+    1.0,
+    1.0
+  ],
+  "target_low": [
+    0.5,
+    0.0,
+    0.65
+  ],
+  "target_high": [
+    0.6,
+    0.1,
+    0.65
+  ]
+}
