@@ -16,7 +16,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--domain-randomization", action="store_true")
     parser.add_argument(
         "--domain-randomization-level",
-        choices=["none", "visual", "visual_camera", "visual_camera_control", "full"],
+        choices=["none", "visual", "visual_camera", "visual_camera_control", "full_light_geometry", "full"],
         default="none",
     )
     parser.add_argument("--control-action-scale-range", nargs=2, type=float, default=(0.8, 1.2))
@@ -33,6 +33,11 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=(0.55, 1.0),
     )
+    parser.add_argument("--geometry-hole-center-xy-jitter", nargs=2, type=float, default=(0.002, 0.002))
+    parser.add_argument("--geometry-fixture-height-jitter", type=float, default=0.001)
+    parser.add_argument("--geometry-table-height-jitter", type=float, default=0.001)
+    parser.add_argument("--geometry-hole-half-size-range", nargs=2, type=float, default=(0.025, 0.029))
+    parser.add_argument("--geometry-peg-radius-range", nargs=2, type=float, default=(0.0115, 0.0125))
     parser.add_argument("--save-first-frame", type=Path, default=None)
     return parser.parse_args()
 
@@ -47,6 +52,11 @@ def main() -> None:
         control_action_noise_std_range=tuple(args.control_action_noise_std_range),
         control_action_delay_range=tuple(args.control_action_delay_range),
         control_action_filter_alpha_range=tuple(args.control_action_filter_alpha_range),
+        geometry_hole_center_xy_jitter=tuple(args.geometry_hole_center_xy_jitter),
+        geometry_fixture_height_jitter=args.geometry_fixture_height_jitter,
+        geometry_table_height_jitter=args.geometry_table_height_jitter,
+        geometry_hole_half_size_range=tuple(args.geometry_hole_half_size_range),
+        geometry_peg_radius_range=tuple(args.geometry_peg_radius_range),
         render_mode="rgb_array",
     )
 

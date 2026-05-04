@@ -197,6 +197,8 @@ Current image BC baseline:
   `0.950` success rate, `0.020` collision rate.
 - Delay-robust model, high combined control DR env, 100 evaluation episodes:
   `0.970` success rate, `0.010` collision rate.
+- Delay-robust model, full light geometry env, 100 evaluation episodes:
+  `0.960` success rate, `0.010` collision rate.
 
 Domain randomization levels:
 
@@ -206,7 +208,11 @@ Domain randomization levels:
   contrast, and Gaussian noise.
 - `visual_camera_control`: `visual_camera` plus per-episode action scale jitter,
   action execution noise, 0-2 step action delay, and low-pass action filtering.
-- `full`: reserved for adding dynamics and contact randomization.
+- `full_light_geometry`: `visual_camera_control` plus light geometry
+  randomization: hole center offset, fixture/table height jitter, hole opening
+  size jitter, and peg radius jitter.
+- `full`: currently aliases the light-geometry path; future work should add
+  friction, joint damping, and contact randomization here.
 
 Train the domain-randomized image BC baseline:
 
@@ -394,6 +400,23 @@ Current scan summary:
   success rate, and high combined control randomization improves from `0.820`
   to `0.970` success rate.
 
+Evaluate the delay-robust model under light geometry randomization:
+
+```bash
+python scripts/eval_policy.py \
+  --agent sac \
+  --observation-mode image \
+  --model checkpoints_image_bc_50k_sidecam_visual_camera_control_delay3_oracle/sac_image_bc.zip \
+  --episodes 100 \
+  --success-xy-tolerance 0.005 \
+  --success-z-tolerance 0.01 \
+  --domain-randomization-level full_light_geometry
+```
+
+With the current default light-geometry ranges, the delay-robust model reaches
+`0.960` success rate and `0.010` collision rate, so no additional BC dataset is
+needed for this first geometry-randomization stage.
+
 Enable basic visual domain randomization for sim-to-real experiments:
 
 ```bash
@@ -432,16 +455,12 @@ python scripts/demo_policy.py \
   --agent sac \
   --observation-mode image \
   --model checkpoints_image_bc_50k_sidecam_visual_camera_control_delay3_oracle/sac_image_bc.zip \
-  --output demos/image_bc_sidecam_visual_camera_control_delay3.gif \
+  --output demos/image_bc_sidecam_full_light_geometry.gif \
   --width 100 \
   --height 100 \
   --success-xy-tolerance 0.005 \
   --success-z-tolerance 0.01 \
-  --domain-randomization-level visual_camera_control \
-  --control-action-scale-range 0.75 1.25 \
-  --control-action-noise-std-range 0 0.0015 \
-  --control-action-delay-range 0 3 \
-  --control-action-filter-alpha-range 0.4 1.0
+  --domain-randomization-level full_light_geometry
 ```
 
 Current checked result for the state behavior-cloned baseline:
@@ -481,6 +500,13 @@ Current checked result for the delay-robust visual+camera+control baseline:
   `0.020` collision rate.
 - 100 high combined control randomization episodes: `0.970` success rate,
   `0.010` collision rate.
+
+Current checked result for the first light-geometry randomized baseline:
+
+- Model: `checkpoints_image_bc_50k_sidecam_visual_camera_control_delay3_oracle/sac_image_bc.zip`
+- 100 `full_light_geometry` evaluation episodes: `0.960` success rate,
+  `0.010` collision rate.
+- Demo: `demos/image_bc_sidecam_full_light_geometry.gif`
 
 ## Important Design Notes
 

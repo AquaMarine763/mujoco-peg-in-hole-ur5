@@ -30,8 +30,18 @@ DomainRandomizationLevel = Literal[
     "visual",
     "visual_camera",
     "visual_camera_control",
+    "full_light_geometry",
     "full",
 ]
+
+DOMAIN_RANDOMIZATION_LEVELS = (
+    "none",
+    "visual",
+    "visual_camera",
+    "visual_camera_control",
+    "full_light_geometry",
+    "full",
+)
 
 
 @dataclass(frozen=True)
@@ -123,19 +133,19 @@ class PegInHoleMujocoEnv(gym.Env):
         control_action_noise_std_range: tuple[float, float] = (0.0, 0.0008),
         control_action_delay_range: tuple[int, int] = (0, 2),
         control_action_filter_alpha_range: tuple[float, float] = (0.55, 1.0),
+        geometry_hole_center_xy_jitter: tuple[float, float] = (0.002, 0.002),
+        geometry_fixture_height_jitter: float = 0.001,
+        geometry_table_height_jitter: float = 0.001,
+        geometry_hole_half_size_range: tuple[float, float] = (0.025, 0.029),
+        geometry_peg_radius_range: tuple[float, float] = (0.0115, 0.0125),
     ):
         if observation_mode not in ("image", "state"):
             raise ValueError("observation_mode must be 'image' or 'state'.")
-        if domain_randomization_level not in (
-            "none",
-            "visual",
-            "visual_camera",
-            "visual_camera_control",
-            "full",
-        ):
+        if domain_randomization_level not in DOMAIN_RANDOMIZATION_LEVELS:
             raise ValueError(
                 "domain_randomization_level must be one of: "
-                "none, visual, visual_camera, visual_camera_control, full."
+                + ", ".join(DOMAIN_RANDOMIZATION_LEVELS)
+                + "."
             )
 
         self.observation_mode = observation_mode
@@ -179,6 +189,16 @@ class PegInHoleMujocoEnv(gym.Env):
         self.control_action_filter_alpha_range = tuple(
             float(v) for v in control_action_filter_alpha_range
         )
+        self.geometry_hole_center_xy_jitter = np.asarray(
+            geometry_hole_center_xy_jitter,
+            dtype=np.float64,
+        )
+        self.geometry_fixture_height_jitter = float(geometry_fixture_height_jitter)
+        self.geometry_table_height_jitter = float(geometry_table_height_jitter)
+        self.geometry_hole_half_size_range = tuple(
+            float(v) for v in geometry_hole_half_size_range
+        )
+        self.geometry_peg_radius_range = tuple(float(v) for v in geometry_peg_radius_range)
         self._validate_randomization_ranges()
         self.current_image_brightness = 1.0
         self.current_image_contrast = 1.0
@@ -191,6 +211,11 @@ class PegInHoleMujocoEnv(gym.Env):
         self.previous_filtered_action = np.zeros(3, dtype=np.float64)
         self.last_commanded_action = np.zeros(3, dtype=np.float64)
         self.last_applied_action = np.zeros(3, dtype=np.float64)
+        self.current_hole_center_offset = np.zeros(2, dtype=np.float64)
+        self.current_fixture_height_offset = 0.0
+        self.current_table_height_offset = 0.0
+        self.current_hole_half_size = 0.027
+        self.current_peg_radius = 0.012
 
         asset_path = (
             Path(model_path)
@@ -227,14 +252,24 @@ class PegInHoleMujocoEnv(gym.Env):
         self.hole_mocap_id = int(self.model.body_mocapid[self.hole_body_id])
         if self.hole_mocap_id < 0:
             raise RuntimeError("hole_body must be a mocap body.")
+        self.table_geom_id = self._geom_id("table_top")
+        self.peg_geom_id = self._geom_id("peg_geom")
+        self.hole_wall_geom_ids = {
+            name: self._geom_id(name)
+            for name in ("hole_north", "hole_south", "hole_east", "hole_west")
+        }
 
         self.base_geom_rgba = self.model.geom_rgba.copy()
+        self.base_geom_pos = self.model.geom_pos.copy()
+        self.base_geom_size = self.model.geom_size.copy()
+        self.base_site_pos = self.model.site_pos.copy()
         self.base_light_diffuse = self.model.light_diffuse.copy()
         self.base_cam_pos = self.model.cam_pos.copy()
         self.base_cam_quat = self.model.cam_quat.copy()
 
         self.renderer: mujoco.Renderer | None = None
         self.step_count = 0
+        self.fixture_pos = self.target_low.copy()
         self.target_pos = self.target_low.copy()
         self.previous_shaped_distance = 0.0
 
@@ -338,6 +373,8 @@ class PegInHoleMujocoEnv(gym.Env):
             ("control_action_scale_range", self.control_action_scale_range),
             ("control_action_noise_std_range", self.control_action_noise_std_range),
             ("control_action_filter_alpha_range", self.control_action_filter_alpha_range),
+            ("geometry_hole_half_size_range", self.geometry_hole_half_size_range),
+            ("geometry_peg_radius_range", self.geometry_peg_radius_range),
         )
         for name, value_range in ranges:
             if len(value_range) != 2 or value_range[0] > value_range[1]:
@@ -357,6 +394,18 @@ class PegInHoleMujocoEnv(gym.Env):
             raise ValueError("control_action_filter_alpha_range must be positive.")
         if self.control_action_filter_alpha_range[1] > 1.0:
             raise ValueError("control_action_filter_alpha_range cannot exceed 1.0.")
+        if self.geometry_hole_center_xy_jitter.shape != (2,):
+            raise ValueError("geometry_hole_center_xy_jitter must contain two values.")
+        if np.any(self.geometry_hole_center_xy_jitter < 0.0):
+            raise ValueError("geometry_hole_center_xy_jitter cannot be negative.")
+        if self.geometry_fixture_height_jitter < 0.0:
+            raise ValueError("geometry_fixture_height_jitter cannot be negative.")
+        if self.geometry_table_height_jitter < 0.0:
+            raise ValueError("geometry_table_height_jitter cannot be negative.")
+        if self.geometry_hole_half_size_range[0] <= 0.0:
+            raise ValueError("geometry_hole_half_size_range must stay positive.")
+        if self.geometry_peg_radius_range[0] <= 0.0:
+            raise ValueError("geometry_peg_radius_range must stay positive.")
 
     def _joint_id(self, name: str) -> int:
         return self._named_id(mujoco.mjtObj.mjOBJ_JOINT, name)
@@ -388,9 +437,28 @@ class PegInHoleMujocoEnv(gym.Env):
         self.data.ctrl[self.arm_actuator_ids] = qpos
 
     def _sample_target(self) -> None:
-        self.target_pos = self.np_random.uniform(self.target_low, self.target_high)
-        self.data.mocap_pos[self.hole_mocap_id] = self.target_pos
+        self.fixture_pos = self.np_random.uniform(self.target_low, self.target_high)
+        self.target_pos = self.fixture_pos.copy()
+        self.data.mocap_pos[self.hole_mocap_id] = self.fixture_pos
         self.data.mocap_quat[self.hole_mocap_id] = np.asarray([1.0, 0.0, 0.0, 0.0])
+
+    def _uses_visual_camera_randomization(self) -> bool:
+        return self.domain_randomization_level in (
+            "visual_camera",
+            "visual_camera_control",
+            "full_light_geometry",
+            "full",
+        )
+
+    def _uses_control_randomization(self) -> bool:
+        return self.domain_randomization_level in (
+            "visual_camera_control",
+            "full_light_geometry",
+            "full",
+        )
+
+    def _uses_light_geometry_randomization(self) -> bool:
+        return self.domain_randomization_level in ("full_light_geometry", "full")
 
     def _maybe_randomize_domain(self) -> None:
         self._restore_domain()
@@ -406,7 +474,7 @@ class PegInHoleMujocoEnv(gym.Env):
         self.model.geom_rgba[self._geom_id("peg_geom"), :3] = peg_color
         self.model.light_diffuse[:, :3] = self.np_random.uniform(0.45, 1.05, size=(self.model.nlight, 3))
 
-        if self.domain_randomization_level in ("visual_camera", "visual_camera_control", "full"):
+        if self._uses_visual_camera_randomization():
             self._randomize_wrist_camera()
             self.current_image_brightness = float(
                 self.np_random.uniform(*self.image_brightness_range)
@@ -418,14 +486,23 @@ class PegInHoleMujocoEnv(gym.Env):
                 self.np_random.uniform(*self.image_noise_std_range)
             )
 
-        if self.domain_randomization_level in ("visual_camera_control", "full"):
+        if self._uses_control_randomization():
             self._randomize_control_channel()
+
+        if self._uses_light_geometry_randomization():
+            self._randomize_light_geometry()
 
     def _restore_domain(self) -> None:
         self.model.geom_rgba[:] = self.base_geom_rgba
+        self.model.geom_pos[:] = self.base_geom_pos
+        self.model.geom_size[:] = self.base_geom_size
+        self.model.site_pos[:] = self.base_site_pos
         self.model.light_diffuse[:] = self.base_light_diffuse
         self.model.cam_pos[:] = self.base_cam_pos
         self.model.cam_quat[:] = self.base_cam_quat
+        self.data.mocap_pos[self.hole_mocap_id] = self.fixture_pos
+        self.data.mocap_quat[self.hole_mocap_id] = np.asarray([1.0, 0.0, 0.0, 0.0])
+        self.target_pos = self.fixture_pos.copy()
         self.current_image_brightness = 1.0
         self.current_image_contrast = 1.0
         self.current_image_noise_std = 0.0
@@ -437,6 +514,15 @@ class PegInHoleMujocoEnv(gym.Env):
         self.previous_filtered_action = np.zeros(3, dtype=np.float64)
         self.last_commanded_action = np.zeros(3, dtype=np.float64)
         self.last_applied_action = np.zeros(3, dtype=np.float64)
+        self.current_hole_center_offset = np.zeros(2, dtype=np.float64)
+        self.current_fixture_height_offset = 0.0
+        self.current_table_height_offset = 0.0
+        self.current_hole_half_size = float(
+            self.base_site_pos[self.hole_site_id, 0]
+            + self.base_geom_pos[self.hole_wall_geom_ids["hole_north"], 1]
+            - self.base_geom_size[self.hole_wall_geom_ids["hole_north"], 1]
+        )
+        self.current_peg_radius = float(self.base_geom_size[self.peg_geom_id, 0])
 
     def _randomize_control_channel(self) -> None:
         self.current_action_scale_multiplier = float(
@@ -459,7 +545,7 @@ class PegInHoleMujocoEnv(gym.Env):
 
     def _apply_control_randomization(self, action: np.ndarray) -> np.ndarray:
         self.last_commanded_action = action.copy()
-        if self.domain_randomization_level not in ("visual_camera_control", "full"):
+        if not self._uses_control_randomization():
             self.last_applied_action = action.copy()
             return action
 
@@ -490,6 +576,88 @@ class PegInHoleMujocoEnv(gym.Env):
         self.previous_filtered_action = applied_action.copy()
         self.last_applied_action = applied_action.copy()
         return applied_action
+
+    def _randomize_light_geometry(self) -> None:
+        self.current_hole_center_offset = self.np_random.uniform(
+            -self.geometry_hole_center_xy_jitter,
+            self.geometry_hole_center_xy_jitter,
+        )
+        self.current_fixture_height_offset = float(
+            self.np_random.uniform(
+                -self.geometry_fixture_height_jitter,
+                self.geometry_fixture_height_jitter,
+            )
+        )
+        self.current_table_height_offset = float(
+            self.np_random.uniform(
+                -self.geometry_table_height_jitter,
+                self.geometry_table_height_jitter,
+            )
+        )
+        self.current_hole_half_size = float(
+            self.np_random.uniform(*self.geometry_hole_half_size_range)
+        )
+        self.current_peg_radius = float(
+            self.np_random.uniform(*self.geometry_peg_radius_range)
+        )
+
+        fixture_pos = self.fixture_pos.copy()
+        fixture_pos[2] += self.current_fixture_height_offset
+        self.data.mocap_pos[self.hole_mocap_id] = fixture_pos
+        self.data.mocap_quat[self.hole_mocap_id] = np.asarray([1.0, 0.0, 0.0, 0.0])
+
+        table_pos = self.base_geom_pos[self.table_geom_id].copy()
+        table_pos[2] += self.current_table_height_offset
+        self.model.geom_pos[self.table_geom_id] = table_pos
+
+        self.model.geom_size[self.peg_geom_id, 0] = self.current_peg_radius
+        self._set_hole_opening_geometry(self.current_hole_center_offset, self.current_hole_half_size)
+
+        target_offset = np.asarray(
+            [
+                self.current_hole_center_offset[0],
+                self.current_hole_center_offset[1],
+                0.0,
+            ],
+            dtype=np.float64,
+        )
+        self.target_pos = fixture_pos + target_offset
+
+    def _set_hole_opening_geometry(
+        self,
+        center_xy: np.ndarray,
+        half_size: float,
+    ) -> None:
+        center_x, center_y = center_xy
+        north_id = self.hole_wall_geom_ids["hole_north"]
+        south_id = self.hole_wall_geom_ids["hole_south"]
+        east_id = self.hole_wall_geom_ids["hole_east"]
+        west_id = self.hole_wall_geom_ids["hole_west"]
+
+        north_pos = self.base_geom_pos[north_id].copy()
+        south_pos = self.base_geom_pos[south_id].copy()
+        east_pos = self.base_geom_pos[east_id].copy()
+        west_pos = self.base_geom_pos[west_id].copy()
+
+        north_pos[0] = center_x
+        north_pos[1] = center_y + half_size + self.base_geom_size[north_id, 1]
+        south_pos[0] = center_x
+        south_pos[1] = center_y - half_size - self.base_geom_size[south_id, 1]
+        east_pos[0] = center_x + half_size + self.base_geom_size[east_id, 0]
+        east_pos[1] = center_y
+        west_pos[0] = center_x - half_size - self.base_geom_size[west_id, 0]
+        west_pos[1] = center_y
+
+        self.model.geom_pos[north_id] = north_pos
+        self.model.geom_pos[south_id] = south_pos
+        self.model.geom_pos[east_id] = east_pos
+        self.model.geom_pos[west_id] = west_pos
+        self.model.geom_size[east_id, 1] = half_size
+        self.model.geom_size[west_id, 1] = half_size
+
+        site_pos = self.base_site_pos[self.hole_site_id].copy()
+        site_pos[:2] = center_xy
+        self.model.site_pos[self.hole_site_id] = site_pos
 
     def _randomize_wrist_camera(self) -> None:
         pos_jitter = self.np_random.uniform(
@@ -748,4 +916,9 @@ class PegInHoleMujocoEnv(gym.Env):
             "control_action_noise_std": self.current_action_noise_std,
             "control_action_delay": self.current_action_delay,
             "control_action_filter_alpha": self.current_action_filter_alpha,
+            "hole_center_offset": self.current_hole_center_offset.astype(np.float32),
+            "fixture_height_offset": self.current_fixture_height_offset,
+            "table_height_offset": self.current_table_height_offset,
+            "hole_half_size": self.current_hole_half_size,
+            "peg_radius": self.current_peg_radius,
         }
