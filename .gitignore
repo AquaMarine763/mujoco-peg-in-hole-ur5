@@ -12,4 +12,5 @@ checkpoints*/
 logs*/
 videos/
 datasets/*.npz
+datasets/*smoke*.npz.json
 *.zip

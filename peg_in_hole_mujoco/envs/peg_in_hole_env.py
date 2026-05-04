@@ -119,6 +119,10 @@ class PegInHoleMujocoEnv(gym.Env):
         image_brightness_range: tuple[float, float] = (0.75, 1.25),
         image_contrast_range: tuple[float, float] = (0.75, 1.25),
         image_noise_std_range: tuple[float, float] = (0.0, 8.0),
+        control_action_scale_range: tuple[float, float] = (0.8, 1.2),
+        control_action_noise_std_range: tuple[float, float] = (0.0, 0.0008),
+        control_action_delay_range: tuple[int, int] = (0, 2),
+        control_action_filter_alpha_range: tuple[float, float] = (0.55, 1.0),
     ):
         if observation_mode not in ("image", "state"):
             raise ValueError("observation_mode must be 'image' or 'state'.")
@@ -167,9 +171,26 @@ class PegInHoleMujocoEnv(gym.Env):
         self.image_brightness_range = tuple(float(v) for v in image_brightness_range)
         self.image_contrast_range = tuple(float(v) for v in image_contrast_range)
         self.image_noise_std_range = tuple(float(v) for v in image_noise_std_range)
+        self.control_action_scale_range = tuple(float(v) for v in control_action_scale_range)
+        self.control_action_noise_std_range = tuple(
+            float(v) for v in control_action_noise_std_range
+        )
+        self.control_action_delay_range = tuple(int(v) for v in control_action_delay_range)
+        self.control_action_filter_alpha_range = tuple(
+            float(v) for v in control_action_filter_alpha_range
+        )
+        self._validate_randomization_ranges()
         self.current_image_brightness = 1.0
         self.current_image_contrast = 1.0
         self.current_image_noise_std = 0.0
+        self.current_action_scale_multiplier = 1.0
+        self.current_action_noise_std = 0.0
+        self.current_action_delay = 0
+        self.current_action_filter_alpha = 1.0
+        self.action_delay_buffer: list[np.ndarray] = []
+        self.previous_filtered_action = np.zeros(3, dtype=np.float64)
+        self.last_commanded_action = np.zeros(3, dtype=np.float64)
+        self.last_applied_action = np.zeros(3, dtype=np.float64)
 
         asset_path = (
             Path(model_path)
@@ -274,10 +295,11 @@ class PegInHoleMujocoEnv(gym.Env):
         self.step_count += 1
         action = np.asarray(action, dtype=np.float64)
         action = np.clip(action, self.action_space.low, self.action_space.high)
+        applied_action = self._apply_control_randomization(action)
 
         current_tip_pos = self._site_xpos(self.data, self.peg_tip_site_id)
         target_tip_pos = np.clip(
-            current_tip_pos + action,
+            current_tip_pos + applied_action,
             self.workspace_low,
             self.workspace_high,
         )
@@ -288,7 +310,7 @@ class PegInHoleMujocoEnv(gym.Env):
             mujoco.mj_step(self.model, self.data)
 
         collision = self._check_collision()
-        terms = self._compute_reward(collision, action)
+        terms = self._compute_reward(collision, applied_action)
         self.previous_shaped_distance = terms.shaped_distance
         terminated = bool(terms.inserted or collision)
         truncated = bool(self.step_count >= self.max_steps)
@@ -307,6 +329,34 @@ class PegInHoleMujocoEnv(gym.Env):
         if self.renderer is not None:
             self.renderer.close()
             self.renderer = None
+
+    def _validate_randomization_ranges(self) -> None:
+        ranges: tuple[tuple[str, tuple[float, float]], ...] = (
+            ("image_brightness_range", self.image_brightness_range),
+            ("image_contrast_range", self.image_contrast_range),
+            ("image_noise_std_range", self.image_noise_std_range),
+            ("control_action_scale_range", self.control_action_scale_range),
+            ("control_action_noise_std_range", self.control_action_noise_std_range),
+            ("control_action_filter_alpha_range", self.control_action_filter_alpha_range),
+        )
+        for name, value_range in ranges:
+            if len(value_range) != 2 or value_range[0] > value_range[1]:
+                raise ValueError(f"{name} must be a two-value increasing range.")
+
+        if len(self.control_action_delay_range) != 2:
+            raise ValueError("control_action_delay_range must contain two integer values.")
+        if self.control_action_delay_range[0] > self.control_action_delay_range[1]:
+            raise ValueError("control_action_delay_range must be increasing.")
+        if self.control_action_delay_range[0] < 0:
+            raise ValueError("control_action_delay_range cannot be negative.")
+        if self.control_action_scale_range[0] <= 0.0:
+            raise ValueError("control_action_scale_range must stay positive.")
+        if self.control_action_noise_std_range[0] < 0.0:
+            raise ValueError("control_action_noise_std_range cannot be negative.")
+        if self.control_action_filter_alpha_range[0] <= 0.0:
+            raise ValueError("control_action_filter_alpha_range must be positive.")
+        if self.control_action_filter_alpha_range[1] > 1.0:
+            raise ValueError("control_action_filter_alpha_range cannot exceed 1.0.")
 
     def _joint_id(self, name: str) -> int:
         return self._named_id(mujoco.mjtObj.mjOBJ_JOINT, name)
@@ -368,6 +418,9 @@ class PegInHoleMujocoEnv(gym.Env):
                 self.np_random.uniform(*self.image_noise_std_range)
             )
 
+        if self.domain_randomization_level in ("visual_camera_control", "full"):
+            self._randomize_control_channel()
+
     def _restore_domain(self) -> None:
         self.model.geom_rgba[:] = self.base_geom_rgba
         self.model.light_diffuse[:] = self.base_light_diffuse
@@ -376,6 +429,67 @@ class PegInHoleMujocoEnv(gym.Env):
         self.current_image_brightness = 1.0
         self.current_image_contrast = 1.0
         self.current_image_noise_std = 0.0
+        self.current_action_scale_multiplier = 1.0
+        self.current_action_noise_std = 0.0
+        self.current_action_delay = 0
+        self.current_action_filter_alpha = 1.0
+        self.action_delay_buffer = []
+        self.previous_filtered_action = np.zeros(3, dtype=np.float64)
+        self.last_commanded_action = np.zeros(3, dtype=np.float64)
+        self.last_applied_action = np.zeros(3, dtype=np.float64)
+
+    def _randomize_control_channel(self) -> None:
+        self.current_action_scale_multiplier = float(
+            self.np_random.uniform(*self.control_action_scale_range)
+        )
+        self.current_action_noise_std = float(
+            self.np_random.uniform(*self.control_action_noise_std_range)
+        )
+        delay_low, delay_high = self.control_action_delay_range
+        self.current_action_delay = int(
+            self.np_random.integers(delay_low, delay_high + 1)
+        )
+        self.current_action_filter_alpha = float(
+            self.np_random.uniform(*self.control_action_filter_alpha_range)
+        )
+        self.action_delay_buffer = [
+            np.zeros(3, dtype=np.float64) for _ in range(self.current_action_delay)
+        ]
+        self.previous_filtered_action = np.zeros(3, dtype=np.float64)
+
+    def _apply_control_randomization(self, action: np.ndarray) -> np.ndarray:
+        self.last_commanded_action = action.copy()
+        if self.domain_randomization_level not in ("visual_camera_control", "full"):
+            self.last_applied_action = action.copy()
+            return action
+
+        scaled_action = action * self.current_action_scale_multiplier
+        if self.current_action_delay > 0:
+            self.action_delay_buffer.append(scaled_action.copy())
+            delayed_action = self.action_delay_buffer.pop(0)
+        else:
+            delayed_action = scaled_action
+
+        noisy_action = delayed_action.copy()
+        if self.current_action_noise_std > 0.0:
+            noisy_action += self.np_random.normal(
+                0.0,
+                self.current_action_noise_std,
+                size=noisy_action.shape,
+            )
+
+        alpha = self.current_action_filter_alpha
+        filtered_action = (
+            alpha * noisy_action + (1.0 - alpha) * self.previous_filtered_action
+        )
+        applied_action = np.clip(
+            filtered_action,
+            self.action_space.low,
+            self.action_space.high,
+        )
+        self.previous_filtered_action = applied_action.copy()
+        self.last_applied_action = applied_action.copy()
+        return applied_action
 
     def _randomize_wrist_camera(self) -> None:
         pos_jitter = self.np_random.uniform(
@@ -628,4 +742,10 @@ class PegInHoleMujocoEnv(gym.Env):
             "target_pos": self.target_pos.astype(np.float32),
             "peg_tip_pos": tip_pos.astype(np.float32),
             "step_count": self.step_count,
+            "commanded_action": self.last_commanded_action.astype(np.float32),
+            "applied_action": self.last_applied_action.astype(np.float32),
+            "control_action_scale_multiplier": self.current_action_scale_multiplier,
+            "control_action_noise_std": self.current_action_noise_std,
+            "control_action_delay": self.current_action_delay,
+            "control_action_filter_alpha": self.current_action_filter_alpha,
         }

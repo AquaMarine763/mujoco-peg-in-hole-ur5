@@ -156,6 +156,10 @@ Current image BC baseline:
   `checkpoints_image_bc_50k_sidecam_visual_camera_oracle_e20/sac_image_bc.zip`
 - Visual+camera DR dataset:
   `datasets/image_expert_50k_sidecam_visual_camera_oracle.npz`
+- Visual+camera+control DR model:
+  `checkpoints_image_bc_50k_sidecam_visual_camera_control_oracle/sac_image_bc.zip`
+- Visual+camera+control DR dataset:
+  `datasets/image_expert_50k_sidecam_visual_camera_control_oracle.npz`
 - Wrist camera: side-mounted `100x100` grayscale view.
 - Evaluation threshold: `success_xy_tolerance=0.005`,
   `success_z_tolerance=0.01`
@@ -171,6 +175,16 @@ Current image BC baseline:
   `1.000` success rate, `0.000` collision rate.
 - Visual+camera DR model, visual+camera DR env, 100 evaluation episodes:
   `0.950` success rate, `0.030` collision rate.
+- Visual+camera DR model, visual+camera+control DR env, 100 evaluation episodes:
+  `0.670` success rate, `0.100` collision rate.
+- Visual+camera+control DR model, clean env, 100 evaluation episodes:
+  `1.000` success rate, `0.000` collision rate.
+- Visual+camera+control DR model, visual DR env, 100 evaluation episodes:
+  `0.980` success rate, `0.010` collision rate.
+- Visual+camera+control DR model, visual+camera DR env, 100 evaluation episodes:
+  `0.970` success rate, `0.010` collision rate.
+- Visual+camera+control DR model, visual+camera+control DR env,
+  100 evaluation episodes: `0.920` success rate, `0.020` collision rate.
 
 Domain randomization levels:
 
@@ -178,7 +192,8 @@ Domain randomization levels:
 - `visual`: randomizes table, peg, hole colors, and light diffuse color.
 - `visual_camera`: `visual` plus wrist-camera pose jitter and image brightness,
   contrast, and Gaussian noise.
-- `visual_camera_control`: reserved for adding control-channel randomization.
+- `visual_camera_control`: `visual_camera` plus per-episode action scale jitter,
+  action execution noise, 0-2 step action delay, and low-pass action filtering.
 - `full`: reserved for adding dynamics and contact randomization.
 
 Train the domain-randomized image BC baseline:
@@ -258,6 +273,45 @@ python scripts/eval_policy.py \
   --domain-randomization-level visual_camera
 ```
 
+Train the visual+camera+control DR baseline:
+
+```bash
+python scripts/collect_image_expert_dataset.py \
+  --output datasets/image_expert_50k_sidecam_visual_camera_control_oracle.npz \
+  --samples 50000 \
+  --expert-action-gain 0.25 \
+  --rollout-noise-std 0.0005 \
+  --success-xy-tolerance 0.005 \
+  --success-z-tolerance 0.01 \
+  --domain-randomization-level visual_camera_control \
+  --compressed
+```
+
+```bash
+python scripts/pretrain_image_actor_bc.py \
+  --dataset datasets/image_expert_50k_sidecam_visual_camera_control_oracle.npz \
+  --model checkpoints_image_bc_50k_sidecam_visual_camera_oracle_e20/sac_image_bc.zip \
+  --output checkpoints_image_bc_50k_sidecam_visual_camera_control_oracle/sac_image_bc.zip \
+  --epochs 10 \
+  --batch-size 256 \
+  --learning-rate 0.000015 \
+  --success-xy-tolerance 0.005 \
+  --success-z-tolerance 0.01
+```
+
+Evaluate the control-randomized baseline:
+
+```bash
+python scripts/eval_policy.py \
+  --agent sac \
+  --observation-mode image \
+  --model checkpoints_image_bc_50k_sidecam_visual_camera_control_oracle/sac_image_bc.zip \
+  --episodes 100 \
+  --success-xy-tolerance 0.005 \
+  --success-z-tolerance 0.01 \
+  --domain-randomization-level visual_camera_control
+```
+
 Enable basic visual domain randomization for sim-to-real experiments:
 
 ```bash
@@ -295,13 +349,13 @@ size, currently `100x100`:
 python scripts/demo_policy.py \
   --agent sac \
   --observation-mode image \
-  --model checkpoints_image_bc_50k_sidecam_visual_camera_oracle_e20/sac_image_bc.zip \
-  --output demos/image_bc_sidecam_visual_camera.gif \
+  --model checkpoints_image_bc_50k_sidecam_visual_camera_control_oracle/sac_image_bc.zip \
+  --output demos/image_bc_sidecam_visual_camera_control.gif \
   --width 100 \
   --height 100 \
   --success-xy-tolerance 0.005 \
   --success-z-tolerance 0.01 \
-  --domain-randomization-level visual_camera
+  --domain-randomization-level visual_camera_control
 ```
 
 Current checked result for the state behavior-cloned baseline:
@@ -317,6 +371,18 @@ Current checked result for the visual+camera image BC baseline:
 - 100 clean evaluation episodes: `1.000` success rate, `0.000` collision rate.
 - 100 `visual_camera` evaluation episodes: `0.950` success rate,
   `0.030` collision rate.
+
+Current checked result for the visual+camera+control image BC baseline:
+
+- Dataset collection with `expert_action_gain=0.25`: `0.998` success rate,
+  `0.002` collision rate across 2062 expert episodes.
+- 100 clean evaluation episodes: `1.000` success rate, `0.000` collision rate.
+- 100 `visual` evaluation episodes: `0.980` success rate,
+  `0.010` collision rate.
+- 100 `visual_camera` evaluation episodes: `0.970` success rate,
+  `0.010` collision rate.
+- 100 `visual_camera_control` evaluation episodes: `0.920` success rate,
+  `0.020` collision rate.
 
 ## Important Design Notes
 

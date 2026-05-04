@@ -15,6 +15,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--samples", type=int, default=50_000)
     parser.add_argument("--expert-model", type=Path, default=None)
+    parser.add_argument("--expert-action-gain", type=float, default=1.0)
     parser.add_argument("--rollout-noise-std", type=float, default=0.0005)
     parser.add_argument("--seed", type=int, default=30_000)
     parser.add_argument("--compressed", action="store_true")
@@ -28,6 +29,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--image-height", type=int, default=100)
     parser.add_argument("--max-steps", type=int, default=200)
     parser.add_argument("--action-scale", type=float, default=0.005)
+    parser.add_argument("--control-action-scale-range", nargs=2, type=float, default=(0.8, 1.2))
+    parser.add_argument(
+        "--control-action-noise-std-range",
+        nargs=2,
+        type=float,
+        default=(0.0, 0.0008),
+    )
+    parser.add_argument("--control-action-delay-range", nargs=2, type=int, default=(0, 2))
+    parser.add_argument(
+        "--control-action-filter-alpha-range",
+        nargs=2,
+        type=float,
+        default=(0.55, 1.0),
+    )
     parser.add_argument("--target-low", nargs=3, type=float, default=(0.50, 0.00, 0.65))
     parser.add_argument("--target-high", nargs=3, type=float, default=(0.60, 0.10, 0.65))
     parser.add_argument("--success-xy-tolerance", type=float, default=0.005)
@@ -70,14 +85,22 @@ def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
         action_alignment_scale=args.action_alignment_scale,
         randomize_domain=args.domain_randomization,
         domain_randomization_level=args.domain_randomization_level,
+        control_action_scale_range=tuple(args.control_action_scale_range),
+        control_action_noise_std_range=tuple(args.control_action_noise_std_range),
+        control_action_delay_range=tuple(args.control_action_delay_range),
+        control_action_filter_alpha_range=tuple(args.control_action_filter_alpha_range),
     )
 
 
-def oracle_action(env: PegInHoleMujocoEnv, info: dict) -> np.ndarray:
+def oracle_action(env: PegInHoleMujocoEnv, info: dict, action_gain: float) -> np.ndarray:
     tip = info["peg_tip_pos"].astype(np.float64)
     target = info["target_pos"].astype(np.float64)
     desired = np.asarray([target[0], target[1], info["desired_z"]], dtype=np.float64)
-    return np.clip(desired - tip, -env.action_scale, env.action_scale).astype(np.float32)
+    return np.clip(
+        action_gain * (desired - tip),
+        -env.action_scale,
+        env.action_scale,
+    ).astype(np.float32)
 
 
 def main() -> None:
@@ -102,7 +125,7 @@ def main() -> None:
     try:
         while len(images) < args.samples:
             if expert is None:
-                action = oracle_action(env, info)
+                action = oracle_action(env, info, args.expert_action_gain)
             else:
                 state_obs = env._get_state_obs()
                 action, _ = expert.predict(state_obs, deterministic=True)
@@ -151,11 +174,16 @@ def main() -> None:
         "successes": successes,
         "collisions": collisions,
         "expert": "oracle" if expert is None else str(args.expert_model),
+        "expert_action_gain": args.expert_action_gain,
         "rollout_noise_std": args.rollout_noise_std,
         "success_xy_tolerance": args.success_xy_tolerance,
         "success_z_tolerance": args.success_z_tolerance,
         "domain_randomization": args.domain_randomization,
         "domain_randomization_level": args.domain_randomization_level,
+        "control_action_scale_range": list(args.control_action_scale_range),
+        "control_action_noise_std_range": list(args.control_action_noise_std_range),
+        "control_action_delay_range": list(args.control_action_delay_range),
+        "control_action_filter_alpha_range": list(args.control_action_filter_alpha_range),
         "target_low": list(args.target_low),
         "target_high": list(args.target_high),
     }

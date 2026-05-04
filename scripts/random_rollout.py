@@ -14,6 +14,25 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--episodes", type=int, default=3)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--domain-randomization", action="store_true")
+    parser.add_argument(
+        "--domain-randomization-level",
+        choices=["none", "visual", "visual_camera", "visual_camera_control", "full"],
+        default="none",
+    )
+    parser.add_argument("--control-action-scale-range", nargs=2, type=float, default=(0.8, 1.2))
+    parser.add_argument(
+        "--control-action-noise-std-range",
+        nargs=2,
+        type=float,
+        default=(0.0, 0.0008),
+    )
+    parser.add_argument("--control-action-delay-range", nargs=2, type=int, default=(0, 2))
+    parser.add_argument(
+        "--control-action-filter-alpha-range",
+        nargs=2,
+        type=float,
+        default=(0.55, 1.0),
+    )
     parser.add_argument("--save-first-frame", type=Path, default=None)
     return parser.parse_args()
 
@@ -23,6 +42,11 @@ def main() -> None:
     env = PegInHoleMujocoEnv(
         observation_mode=args.observation_mode,
         randomize_domain=args.domain_randomization,
+        domain_randomization_level=args.domain_randomization_level,
+        control_action_scale_range=tuple(args.control_action_scale_range),
+        control_action_noise_std_range=tuple(args.control_action_noise_std_range),
+        control_action_delay_range=tuple(args.control_action_delay_range),
+        control_action_filter_alpha_range=tuple(args.control_action_filter_alpha_range),
         render_mode="rgb_array",
     )
 

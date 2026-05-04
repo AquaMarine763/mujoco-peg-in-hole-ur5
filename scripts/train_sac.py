@@ -153,6 +153,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ent-coef", default="auto")
     parser.add_argument("--max-steps", type=int, default=200)
     parser.add_argument("--action-scale", type=float, default=0.005)
+    parser.add_argument("--control-action-scale-range", nargs=2, type=float, default=(0.8, 1.2))
+    parser.add_argument(
+        "--control-action-noise-std-range",
+        nargs=2,
+        type=float,
+        default=(0.0, 0.0008),
+    )
+    parser.add_argument("--control-action-delay-range", nargs=2, type=int, default=(0, 2))
+    parser.add_argument(
+        "--control-action-filter-alpha-range",
+        nargs=2,
+        type=float,
+        default=(0.55, 1.0),
+    )
     parser.add_argument("--target-low", nargs=3, type=float, default=(0.50, 0.00, 0.65))
     parser.add_argument("--target-high", nargs=3, type=float, default=(0.60, 0.10, 0.65))
     parser.add_argument("--success-xy-tolerance", type=float, default=0.02)
@@ -193,6 +207,10 @@ def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
         action_alignment_scale=args.action_alignment_scale,
         randomize_domain=args.domain_randomization,
         domain_randomization_level=args.domain_randomization_level,
+        control_action_scale_range=tuple(args.control_action_scale_range),
+        control_action_noise_std_range=tuple(args.control_action_noise_std_range),
+        control_action_delay_range=tuple(args.control_action_delay_range),
+        control_action_filter_alpha_range=tuple(args.control_action_filter_alpha_range),
     )
 
 
