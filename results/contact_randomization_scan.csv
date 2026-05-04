@@ -1,0 +1,10 @@
+name,level,episodes,success_rate,collision_rate,timeout_rate,mean_return,mean_steps,friction_range,solref_time_range,solref_damping_range,solimp_width_range,joint_damping_range,actuator_kp_range
+full_light_geometry_reference,full_light_geometry,50,0.9,0.08,0.02,120.03998075757868,27.88,1.0:1.0,1.0:1.0,1.0:1.0,1.0:1.0,1.0:1.0,1.0:1.0
+friction_only,full_contact_light,50,0.9,0.06,0.04,126.06510476278606,30.04,0.7:1.3,1.0:1.0,1.0:1.0,1.0:1.0,1.0:1.0,1.0:1.0
+solref_time_only,full_contact_light,50,0.9,0.06,0.04,126.03373417530285,30.0,1.0:1.0,0.8:1.25,1.0:1.0,1.0:1.0,1.0:1.0,1.0:1.0
+solref_damping_only,full_contact_light,50,0.9,0.06,0.04,125.86708098941874,30.34,1.0:1.0,1.0:1.0,0.8:1.2,1.0:1.0,1.0:1.0,1.0:1.0
+solimp_width_only,full_contact_light,50,0.9,0.06,0.04,125.88900882014033,30.3,1.0:1.0,1.0:1.0,1.0:1.0,0.8:1.2,1.0:1.0,1.0:1.0
+joint_damping_only,full_contact_light,50,0.9,0.06,0.04,126.06428581784188,30.48,1.0:1.0,1.0:1.0,1.0:1.0,1.0:1.0,0.8:1.2,1.0:1.0
+actuator_kp_only,full_contact_light,50,0.9,0.06,0.04,125.94214398631914,30.08,1.0:1.0,1.0:1.0,1.0:1.0,1.0:1.0,1.0:1.0,0.8:1.2
+default_contact_light,full_contact_light,50,0.9,0.08,0.02,122.12621405150128,27.06,0.7:1.3,0.8:1.25,0.8:1.2,0.8:1.2,0.8:1.2,0.8:1.2
+high_contact_light,full_contact_light,50,0.88,0.08,0.04,118.17223687591418,31.84,0.5:1.5,0.6:1.6,0.6:1.5,0.5:1.5,0.6:1.5,0.6:1.4

@@ -31,6 +31,7 @@ DomainRandomizationLevel = Literal[
     "visual_camera",
     "visual_camera_control",
     "full_light_geometry",
+    "full_contact_light",
     "full",
 ]
 
@@ -40,6 +41,7 @@ DOMAIN_RANDOMIZATION_LEVELS = (
     "visual_camera",
     "visual_camera_control",
     "full_light_geometry",
+    "full_contact_light",
     "full",
 )
 
@@ -138,6 +140,12 @@ class PegInHoleMujocoEnv(gym.Env):
         geometry_table_height_jitter: float = 0.001,
         geometry_hole_half_size_range: tuple[float, float] = (0.025, 0.029),
         geometry_peg_radius_range: tuple[float, float] = (0.0115, 0.0125),
+        contact_friction_multiplier_range: tuple[float, float] = (0.7, 1.3),
+        contact_solref_time_multiplier_range: tuple[float, float] = (0.8, 1.25),
+        contact_solref_damping_multiplier_range: tuple[float, float] = (0.8, 1.2),
+        contact_solimp_width_multiplier_range: tuple[float, float] = (0.8, 1.2),
+        dynamics_joint_damping_multiplier_range: tuple[float, float] = (0.8, 1.2),
+        dynamics_actuator_kp_multiplier_range: tuple[float, float] = (0.8, 1.2),
     ):
         if observation_mode not in ("image", "state"):
             raise ValueError("observation_mode must be 'image' or 'state'.")
@@ -199,6 +207,24 @@ class PegInHoleMujocoEnv(gym.Env):
             float(v) for v in geometry_hole_half_size_range
         )
         self.geometry_peg_radius_range = tuple(float(v) for v in geometry_peg_radius_range)
+        self.contact_friction_multiplier_range = tuple(
+            float(v) for v in contact_friction_multiplier_range
+        )
+        self.contact_solref_time_multiplier_range = tuple(
+            float(v) for v in contact_solref_time_multiplier_range
+        )
+        self.contact_solref_damping_multiplier_range = tuple(
+            float(v) for v in contact_solref_damping_multiplier_range
+        )
+        self.contact_solimp_width_multiplier_range = tuple(
+            float(v) for v in contact_solimp_width_multiplier_range
+        )
+        self.dynamics_joint_damping_multiplier_range = tuple(
+            float(v) for v in dynamics_joint_damping_multiplier_range
+        )
+        self.dynamics_actuator_kp_multiplier_range = tuple(
+            float(v) for v in dynamics_actuator_kp_multiplier_range
+        )
         self._validate_randomization_ranges()
         self.current_image_brightness = 1.0
         self.current_image_contrast = 1.0
@@ -216,6 +242,12 @@ class PegInHoleMujocoEnv(gym.Env):
         self.current_table_height_offset = 0.0
         self.current_hole_half_size = 0.027
         self.current_peg_radius = 0.012
+        self.current_contact_friction_multiplier = 1.0
+        self.current_contact_solref_time_multiplier = 1.0
+        self.current_contact_solref_damping_multiplier = 1.0
+        self.current_contact_solimp_width_multiplier = 1.0
+        self.current_joint_damping_multiplier = 1.0
+        self.current_actuator_kp_multiplier = 1.0
 
         asset_path = (
             Path(model_path)
@@ -258,14 +290,29 @@ class PegInHoleMujocoEnv(gym.Env):
             name: self._geom_id(name)
             for name in ("hole_north", "hole_south", "hole_east", "hole_west")
         }
+        self.contact_geom_ids = np.asarray(
+            [
+                self.table_geom_id,
+                self.peg_geom_id,
+                self._geom_id("hole_plate"),
+                *self.hole_wall_geom_ids.values(),
+            ],
+            dtype=np.int32,
+        )
 
         self.base_geom_rgba = self.model.geom_rgba.copy()
         self.base_geom_pos = self.model.geom_pos.copy()
         self.base_geom_size = self.model.geom_size.copy()
+        self.base_geom_friction = self.model.geom_friction.copy()
+        self.base_geom_solref = self.model.geom_solref.copy()
+        self.base_geom_solimp = self.model.geom_solimp.copy()
         self.base_site_pos = self.model.site_pos.copy()
         self.base_light_diffuse = self.model.light_diffuse.copy()
         self.base_cam_pos = self.model.cam_pos.copy()
         self.base_cam_quat = self.model.cam_quat.copy()
+        self.base_dof_damping = self.model.dof_damping.copy()
+        self.base_actuator_gainprm = self.model.actuator_gainprm.copy()
+        self.base_actuator_biasprm = self.model.actuator_biasprm.copy()
 
         self.renderer: mujoco.Renderer | None = None
         self.step_count = 0
@@ -375,6 +422,12 @@ class PegInHoleMujocoEnv(gym.Env):
             ("control_action_filter_alpha_range", self.control_action_filter_alpha_range),
             ("geometry_hole_half_size_range", self.geometry_hole_half_size_range),
             ("geometry_peg_radius_range", self.geometry_peg_radius_range),
+            ("contact_friction_multiplier_range", self.contact_friction_multiplier_range),
+            ("contact_solref_time_multiplier_range", self.contact_solref_time_multiplier_range),
+            ("contact_solref_damping_multiplier_range", self.contact_solref_damping_multiplier_range),
+            ("contact_solimp_width_multiplier_range", self.contact_solimp_width_multiplier_range),
+            ("dynamics_joint_damping_multiplier_range", self.dynamics_joint_damping_multiplier_range),
+            ("dynamics_actuator_kp_multiplier_range", self.dynamics_actuator_kp_multiplier_range),
         )
         for name, value_range in ranges:
             if len(value_range) != 2 or value_range[0] > value_range[1]:
@@ -406,6 +459,17 @@ class PegInHoleMujocoEnv(gym.Env):
             raise ValueError("geometry_hole_half_size_range must stay positive.")
         if self.geometry_peg_radius_range[0] <= 0.0:
             raise ValueError("geometry_peg_radius_range must stay positive.")
+        positive_multiplier_ranges = (
+            ("contact_friction_multiplier_range", self.contact_friction_multiplier_range),
+            ("contact_solref_time_multiplier_range", self.contact_solref_time_multiplier_range),
+            ("contact_solref_damping_multiplier_range", self.contact_solref_damping_multiplier_range),
+            ("contact_solimp_width_multiplier_range", self.contact_solimp_width_multiplier_range),
+            ("dynamics_joint_damping_multiplier_range", self.dynamics_joint_damping_multiplier_range),
+            ("dynamics_actuator_kp_multiplier_range", self.dynamics_actuator_kp_multiplier_range),
+        )
+        for name, value_range in positive_multiplier_ranges:
+            if value_range[0] <= 0.0:
+                raise ValueError(f"{name} must stay positive.")
 
     def _joint_id(self, name: str) -> int:
         return self._named_id(mujoco.mjtObj.mjOBJ_JOINT, name)
@@ -447,6 +511,7 @@ class PegInHoleMujocoEnv(gym.Env):
             "visual_camera",
             "visual_camera_control",
             "full_light_geometry",
+            "full_contact_light",
             "full",
         )
 
@@ -454,11 +519,19 @@ class PegInHoleMujocoEnv(gym.Env):
         return self.domain_randomization_level in (
             "visual_camera_control",
             "full_light_geometry",
+            "full_contact_light",
             "full",
         )
 
     def _uses_light_geometry_randomization(self) -> bool:
-        return self.domain_randomization_level in ("full_light_geometry", "full")
+        return self.domain_randomization_level in (
+            "full_light_geometry",
+            "full_contact_light",
+            "full",
+        )
+
+    def _uses_contact_light_randomization(self) -> bool:
+        return self.domain_randomization_level in ("full_contact_light", "full")
 
     def _maybe_randomize_domain(self) -> None:
         self._restore_domain()
@@ -492,14 +565,23 @@ class PegInHoleMujocoEnv(gym.Env):
         if self._uses_light_geometry_randomization():
             self._randomize_light_geometry()
 
+        if self._uses_contact_light_randomization():
+            self._randomize_contact_dynamics()
+
     def _restore_domain(self) -> None:
         self.model.geom_rgba[:] = self.base_geom_rgba
         self.model.geom_pos[:] = self.base_geom_pos
         self.model.geom_size[:] = self.base_geom_size
+        self.model.geom_friction[:] = self.base_geom_friction
+        self.model.geom_solref[:] = self.base_geom_solref
+        self.model.geom_solimp[:] = self.base_geom_solimp
         self.model.site_pos[:] = self.base_site_pos
         self.model.light_diffuse[:] = self.base_light_diffuse
         self.model.cam_pos[:] = self.base_cam_pos
         self.model.cam_quat[:] = self.base_cam_quat
+        self.model.dof_damping[:] = self.base_dof_damping
+        self.model.actuator_gainprm[:] = self.base_actuator_gainprm
+        self.model.actuator_biasprm[:] = self.base_actuator_biasprm
         self.data.mocap_pos[self.hole_mocap_id] = self.fixture_pos
         self.data.mocap_quat[self.hole_mocap_id] = np.asarray([1.0, 0.0, 0.0, 0.0])
         self.target_pos = self.fixture_pos.copy()
@@ -523,6 +605,12 @@ class PegInHoleMujocoEnv(gym.Env):
             - self.base_geom_size[self.hole_wall_geom_ids["hole_north"], 1]
         )
         self.current_peg_radius = float(self.base_geom_size[self.peg_geom_id, 0])
+        self.current_contact_friction_multiplier = 1.0
+        self.current_contact_solref_time_multiplier = 1.0
+        self.current_contact_solref_damping_multiplier = 1.0
+        self.current_contact_solimp_width_multiplier = 1.0
+        self.current_joint_damping_multiplier = 1.0
+        self.current_actuator_kp_multiplier = 1.0
 
     def _randomize_control_channel(self) -> None:
         self.current_action_scale_multiplier = float(
@@ -658,6 +746,61 @@ class PegInHoleMujocoEnv(gym.Env):
         site_pos = self.base_site_pos[self.hole_site_id].copy()
         site_pos[:2] = center_xy
         self.model.site_pos[self.hole_site_id] = site_pos
+
+    def _randomize_contact_dynamics(self) -> None:
+        self.current_contact_friction_multiplier = float(
+            self.np_random.uniform(*self.contact_friction_multiplier_range)
+        )
+        self.current_contact_solref_time_multiplier = float(
+            self.np_random.uniform(*self.contact_solref_time_multiplier_range)
+        )
+        self.current_contact_solref_damping_multiplier = float(
+            self.np_random.uniform(*self.contact_solref_damping_multiplier_range)
+        )
+        self.current_contact_solimp_width_multiplier = float(
+            self.np_random.uniform(*self.contact_solimp_width_multiplier_range)
+        )
+        self.current_joint_damping_multiplier = float(
+            self.np_random.uniform(*self.dynamics_joint_damping_multiplier_range)
+        )
+        self.current_actuator_kp_multiplier = float(
+            self.np_random.uniform(*self.dynamics_actuator_kp_multiplier_range)
+        )
+
+        self.model.geom_friction[self.contact_geom_ids] = (
+            self.base_geom_friction[self.contact_geom_ids]
+            * self.current_contact_friction_multiplier
+        )
+        self.model.geom_solref[self.contact_geom_ids, 0] = np.clip(
+            self.base_geom_solref[self.contact_geom_ids, 0]
+            * self.current_contact_solref_time_multiplier,
+            0.002,
+            0.05,
+        )
+        self.model.geom_solref[self.contact_geom_ids, 1] = np.clip(
+            self.base_geom_solref[self.contact_geom_ids, 1]
+            * self.current_contact_solref_damping_multiplier,
+            0.2,
+            3.0,
+        )
+        self.model.geom_solimp[self.contact_geom_ids, 2] = np.clip(
+            self.base_geom_solimp[self.contact_geom_ids, 2]
+            * self.current_contact_solimp_width_multiplier,
+            1e-5,
+            0.02,
+        )
+        self.model.dof_damping[self.arm_dof_ids] = (
+            self.base_dof_damping[self.arm_dof_ids]
+            * self.current_joint_damping_multiplier
+        )
+        self.model.actuator_gainprm[self.arm_actuator_ids, 0] = (
+            self.base_actuator_gainprm[self.arm_actuator_ids, 0]
+            * self.current_actuator_kp_multiplier
+        )
+        self.model.actuator_biasprm[self.arm_actuator_ids, 1] = (
+            self.base_actuator_biasprm[self.arm_actuator_ids, 1]
+            * self.current_actuator_kp_multiplier
+        )
 
     def _randomize_wrist_camera(self) -> None:
         pos_jitter = self.np_random.uniform(
@@ -921,4 +1064,10 @@ class PegInHoleMujocoEnv(gym.Env):
             "table_height_offset": self.current_table_height_offset,
             "hole_half_size": self.current_hole_half_size,
             "peg_radius": self.current_peg_radius,
+            "contact_friction_multiplier": self.current_contact_friction_multiplier,
+            "contact_solref_time_multiplier": self.current_contact_solref_time_multiplier,
+            "contact_solref_damping_multiplier": self.current_contact_solref_damping_multiplier,
+            "contact_solimp_width_multiplier": self.current_contact_solimp_width_multiplier,
+            "joint_damping_multiplier": self.current_joint_damping_multiplier,
+            "actuator_kp_multiplier": self.current_actuator_kp_multiplier,
         }

@@ -22,7 +22,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--domain-randomization", action="store_true")
     parser.add_argument(
         "--domain-randomization-level",
-        choices=["none", "visual", "visual_camera", "visual_camera_control", "full_light_geometry", "full"],
+        choices=["none", "visual", "visual_camera", "visual_camera_control", "full_light_geometry", "full_contact_light", "full"],
         default="none",
     )
     parser.add_argument("--image-width", type=int, default=100)
@@ -48,6 +48,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--geometry-table-height-jitter", type=float, default=0.001)
     parser.add_argument("--geometry-hole-half-size-range", nargs=2, type=float, default=(0.025, 0.029))
     parser.add_argument("--geometry-peg-radius-range", nargs=2, type=float, default=(0.0115, 0.0125))
+    parser.add_argument("--contact-friction-multiplier-range", nargs=2, type=float, default=(0.7, 1.3))
+    parser.add_argument("--contact-solref-time-multiplier-range", nargs=2, type=float, default=(0.8, 1.25))
+    parser.add_argument("--contact-solref-damping-multiplier-range", nargs=2, type=float, default=(0.8, 1.2))
+    parser.add_argument("--contact-solimp-width-multiplier-range", nargs=2, type=float, default=(0.8, 1.2))
+    parser.add_argument("--dynamics-joint-damping-multiplier-range", nargs=2, type=float, default=(0.8, 1.2))
+    parser.add_argument("--dynamics-actuator-kp-multiplier-range", nargs=2, type=float, default=(0.8, 1.2))
     parser.add_argument("--target-low", nargs=3, type=float, default=(0.50, 0.00, 0.65))
     parser.add_argument("--target-high", nargs=3, type=float, default=(0.60, 0.10, 0.65))
     parser.add_argument("--success-xy-tolerance", type=float, default=0.005)
@@ -99,6 +105,12 @@ def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
         geometry_table_height_jitter=args.geometry_table_height_jitter,
         geometry_hole_half_size_range=tuple(args.geometry_hole_half_size_range),
         geometry_peg_radius_range=tuple(args.geometry_peg_radius_range),
+        contact_friction_multiplier_range=tuple(args.contact_friction_multiplier_range),
+        contact_solref_time_multiplier_range=tuple(args.contact_solref_time_multiplier_range),
+        contact_solref_damping_multiplier_range=tuple(args.contact_solref_damping_multiplier_range),
+        contact_solimp_width_multiplier_range=tuple(args.contact_solimp_width_multiplier_range),
+        dynamics_joint_damping_multiplier_range=tuple(args.dynamics_joint_damping_multiplier_range),
+        dynamics_actuator_kp_multiplier_range=tuple(args.dynamics_actuator_kp_multiplier_range),
     )
 
 
@@ -199,6 +211,12 @@ def main() -> None:
         "geometry_table_height_jitter": args.geometry_table_height_jitter,
         "geometry_hole_half_size_range": list(args.geometry_hole_half_size_range),
         "geometry_peg_radius_range": list(args.geometry_peg_radius_range),
+        "contact_friction_multiplier_range": list(args.contact_friction_multiplier_range),
+        "contact_solref_time_multiplier_range": list(args.contact_solref_time_multiplier_range),
+        "contact_solref_damping_multiplier_range": list(args.contact_solref_damping_multiplier_range),
+        "contact_solimp_width_multiplier_range": list(args.contact_solimp_width_multiplier_range),
+        "dynamics_joint_damping_multiplier_range": list(args.dynamics_joint_damping_multiplier_range),
+        "dynamics_actuator_kp_multiplier_range": list(args.dynamics_actuator_kp_multiplier_range),
         "target_low": list(args.target_low),
         "target_high": list(args.target_high),
     }

@@ -199,6 +199,10 @@ Current image BC baseline:
   `0.970` success rate, `0.010` collision rate.
 - Delay-robust model, full light geometry env, 100 evaluation episodes:
   `0.960` success rate, `0.010` collision rate.
+- Delay-robust model, full contact light env, 100 evaluation episodes:
+  `0.970` success rate, `0.010` collision rate.
+- Delay-robust model, high full contact light env, 100 evaluation episodes:
+  `0.970` success rate, `0.010` collision rate.
 
 Domain randomization levels:
 
@@ -211,8 +215,11 @@ Domain randomization levels:
 - `full_light_geometry`: `visual_camera_control` plus light geometry
   randomization: hole center offset, fixture/table height jitter, hole opening
   size jitter, and peg radius jitter.
-- `full`: currently aliases the light-geometry path; future work should add
-  friction, joint damping, and contact randomization here.
+- `full_contact_light`: `full_light_geometry` plus light contact and dynamics
+  randomization: contact friction, MuJoCo contact solver parameters, arm joint
+  damping, and actuator position-gain multipliers.
+- `full`: currently aliases the `full_contact_light` path; future work should
+  make this a stronger calibrated contact/dynamics randomization profile.
 
 Train the domain-randomized image BC baseline:
 
@@ -417,6 +424,39 @@ With the current default light-geometry ranges, the delay-robust model reaches
 `0.960` success rate and `0.010` collision rate, so no additional BC dataset is
 needed for this first geometry-randomization stage.
 
+Evaluate the delay-robust model under light contact/dynamics randomization:
+
+```bash
+python scripts/eval_policy.py \
+  --agent sac \
+  --observation-mode image \
+  --model checkpoints_image_bc_50k_sidecam_visual_camera_control_delay3_oracle/sac_image_bc.zip \
+  --episodes 100 \
+  --success-xy-tolerance 0.005 \
+  --success-z-tolerance 0.01 \
+  --domain-randomization-level full_contact_light
+```
+
+Run the contact/dynamics sensitivity scan:
+
+```bash
+python scripts/scan_contact_randomization.py \
+  --model checkpoints_image_bc_50k_sidecam_visual_camera_control_delay3_oracle/sac_image_bc.zip \
+  --output results/contact_randomization_scan.csv \
+  --episodes 50 \
+  --device cpu
+```
+
+Current contact/dynamics summary:
+
+- Default `full_contact_light`, 100 episodes: `0.970` success rate,
+  `0.010` collision rate.
+- High `full_contact_light`, 100 episodes: `0.970` success rate,
+  `0.010` collision rate.
+- 50-episode factor scan did not identify a dominant contact/dynamics
+  bottleneck; all isolated factors were close to the reference result. See
+  `results/contact_randomization_scan.md`.
+
 Enable basic visual domain randomization for sim-to-real experiments:
 
 ```bash
@@ -455,12 +495,12 @@ python scripts/demo_policy.py \
   --agent sac \
   --observation-mode image \
   --model checkpoints_image_bc_50k_sidecam_visual_camera_control_delay3_oracle/sac_image_bc.zip \
-  --output demos/image_bc_sidecam_full_light_geometry.gif \
+  --output demos/image_bc_sidecam_full_contact_light.gif \
   --width 100 \
   --height 100 \
   --success-xy-tolerance 0.005 \
   --success-z-tolerance 0.01 \
-  --domain-randomization-level full_light_geometry
+  --domain-randomization-level full_contact_light
 ```
 
 Current checked result for the state behavior-cloned baseline:
@@ -507,6 +547,15 @@ Current checked result for the first light-geometry randomized baseline:
 - 100 `full_light_geometry` evaluation episodes: `0.960` success rate,
   `0.010` collision rate.
 - Demo: `demos/image_bc_sidecam_full_light_geometry.gif`
+
+Current checked result for the light contact/dynamics randomized baseline:
+
+- Model: `checkpoints_image_bc_50k_sidecam_visual_camera_control_delay3_oracle/sac_image_bc.zip`
+- 100 `full_contact_light` evaluation episodes: `0.970` success rate,
+  `0.010` collision rate.
+- 100 high `full_contact_light` evaluation episodes: `0.970` success rate,
+  `0.010` collision rate.
+- Demo: `demos/image_bc_sidecam_full_contact_light.gif`
 
 ## Important Design Notes
 
