@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.venv/
+.deps/
+.tmp/
+.pip-cache/
+debug/
+build/
+dist/
+*.egg-info/
+checkpoints*/
+logs*/
+videos/
+datasets/*.npz
+*.zip

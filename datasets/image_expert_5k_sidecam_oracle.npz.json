@@ -1,0 +1,20 @@
+{
+  "samples": 5000,
+  "episodes_completed": 245,
+  "successes": 245,
+  "collisions": 0,
+  "expert": "oracle",
+  "rollout_noise_std": 0.0005,
+  "success_xy_tolerance": 0.005,
+  "success_z_tolerance": 0.01,
+  "target_low": [
+    0.5,
+    0.0,
+    0.65
+  ],
+  "target_high": [
+    0.6,
+    0.1,
+    0.65
+  ]
+}

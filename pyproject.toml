@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mujoco-peg-in-hole"
+version = "0.1.0"
+description = "MuJoCo/Gymnasium reproduction of a visual UR5 peg-in-hole RL task."
+requires-python = ">=3.10"
+dependencies = [
+  "mujoco>=3.2.0",
+  "gymnasium>=1.0.0",
+  "stable-baselines3>=2.3.0",
+  "numpy>=1.24.0",
+  "torch>=2.2.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["peg_in_hole_mujoco*"]

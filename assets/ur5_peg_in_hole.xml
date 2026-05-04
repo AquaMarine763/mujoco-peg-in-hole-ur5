@@ -1,0 +1,92 @@
+<mujoco model="ur5_peg_in_hole">
+  <compiler angle="radian" autolimits="true"/>
+  <option timestep="0.002" gravity="0 0 -9.81" integrator="RK4"/>
+
+  <default>
+    <joint damping="2.0" armature="0.02" limited="true"/>
+    <geom friction="1.0 0.005 0.0001" solref="0.01 1" solimp="0.95 0.95 0.001"/>
+    <default class="arm">
+      <geom type="capsule" size="0.035" rgba="0.36 0.54 0.68 1" density="650"/>
+    </default>
+    <default class="wrist">
+      <geom type="capsule" size="0.024" rgba="0.62 0.66 0.68 1" density="650"/>
+    </default>
+  </default>
+
+  <asset>
+    <material name="mat_floor" rgba="0.42 0.43 0.44 1"/>
+    <material name="mat_table" rgba="0.22 0.25 0.27 1"/>
+    <material name="mat_hole" rgba="0.55 0.55 0.52 1"/>
+    <material name="mat_peg" rgba="0.1 0.28 0.85 1"/>
+    <material name="mat_camera" rgba="0.02 0.02 0.02 1"/>
+  </asset>
+
+  <worldbody>
+    <light name="key_light" pos="0.2 -0.5 1.7" dir="-0.2 0.4 -1" diffuse="0.9 0.9 0.85"/>
+    <light name="fill_light" pos="0.8 0.6 1.2" dir="-0.5 -0.4 -1" diffuse="0.35 0.38 0.42"/>
+    <camera name="overview" pos="1.05 -0.85 1.05" xyaxes="0.65 0.76 0 -0.32 0.27 0.91" fovy="45"/>
+
+    <geom name="floor" type="plane" size="2 2 0.02" material="mat_floor"/>
+    <geom name="table_top" type="box" pos="0.45 0 0.60" size="0.45 0.35 0.025" material="mat_table"/>
+
+    <body name="hole_body" mocap="true" pos="0.55 0.05 0.65">
+      <geom name="hole_plate" type="box" pos="0 0 -0.012" size="0.065 0.065 0.008" material="mat_hole"/>
+      <geom name="hole_north" type="box" pos="0 0.039 0.012" size="0.065 0.012 0.026" material="mat_hole"/>
+      <geom name="hole_south" type="box" pos="0 -0.039 0.012" size="0.065 0.012 0.026" material="mat_hole"/>
+      <geom name="hole_east" type="box" pos="0.039 0 0.012" size="0.012 0.027 0.026" material="mat_hole"/>
+      <geom name="hole_west" type="box" pos="-0.039 0 0.012" size="0.012 0.027 0.026" material="mat_hole"/>
+      <site name="hole_site" pos="0 0 0" size="0.008" rgba="0.9 0.1 0.1 1"/>
+    </body>
+
+    <body name="robot_base" pos="0 0 0.625" gravcomp="1">
+      <geom name="base_geom" type="cylinder" size="0.08 0.055" rgba="0.18 0.2 0.22 1" density="900"/>
+
+      <body name="shoulder_pan_link" pos="0 0 0.07" gravcomp="1">
+        <joint name="shoulder_pan" type="hinge" axis="0 0 1" range="-3.14159 3.14159"/>
+        <geom name="shoulder_geom" type="sphere" size="0.06" rgba="0.62 0.66 0.68 1" density="700"/>
+
+        <body name="upper_arm_link" pos="0 0 0.08" gravcomp="1">
+          <joint name="shoulder_lift" type="hinge" axis="0 1 0" range="-2.8 2.8"/>
+          <geom name="upper_arm_geom" class="arm" fromto="0 0 0 0.32 0 0"/>
+
+          <body name="forearm_link" pos="0.32 0 0" gravcomp="1">
+            <joint name="elbow" type="hinge" axis="0 1 0" range="-2.8 2.8"/>
+            <geom name="forearm_geom" class="arm" fromto="0 0 0 0.30 0 0"/>
+
+            <body name="wrist_1_link" pos="0.30 0 0" gravcomp="1">
+              <joint name="wrist_1" type="hinge" axis="0 1 0" range="-3.14159 3.14159"/>
+              <geom name="wrist_1_geom" class="wrist" fromto="0 0 0 0.10 0 0"/>
+
+              <body name="wrist_2_link" pos="0.10 0 0" gravcomp="1">
+                <joint name="wrist_2" type="hinge" axis="1 0 0" range="-3.14159 3.14159"/>
+                <geom name="wrist_2_geom" class="wrist" fromto="0 0 0 0.08 0 0"/>
+
+                <body name="wrist_3_link" pos="0.08 0 0" gravcomp="1">
+                  <joint name="wrist_3" type="hinge" axis="0 0 1" range="-3.14159 3.14159"/>
+                  <geom name="wrist_3_geom" class="wrist" fromto="0 0 0 0.06 0 0"/>
+
+                  <body name="tool0" pos="0.06 0 0" gravcomp="1">
+                    <geom name="camera_geom" type="box" pos="-0.02 0 0.055" size="0.018 0.018 0.018" material="mat_camera" density="200"/>
+                    <geom name="peg_geom" type="capsule" fromto="0 0 0 0 0 -0.11" size="0.012" material="mat_peg" density="780"/>
+                    <site name="eef_site" pos="0 0 0" size="0.01" rgba="0 0.8 0.2 1"/>
+                    <site name="peg_tip" pos="0 0 -0.11" size="0.008" rgba="0.1 0.9 0.1 1"/>
+                    <camera name="wrist_cam" pos="-0.03 0.06 0.10" fovy="100"/>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <position name="shoulder_pan_ctrl" joint="shoulder_pan" kp="600" ctrlrange="-3.14159 3.14159"/>
+    <position name="shoulder_lift_ctrl" joint="shoulder_lift" kp="700" ctrlrange="-2.8 2.8"/>
+    <position name="elbow_ctrl" joint="elbow" kp="650" ctrlrange="-2.8 2.8"/>
+    <position name="wrist_1_ctrl" joint="wrist_1" kp="350" ctrlrange="-3.14159 3.14159"/>
+    <position name="wrist_2_ctrl" joint="wrist_2" kp="250" ctrlrange="-3.14159 3.14159"/>
+    <position name="wrist_3_ctrl" joint="wrist_3" kp="250" ctrlrange="-3.14159 3.14159"/>
+  </actuator>
+</mujoco>
