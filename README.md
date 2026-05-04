@@ -41,6 +41,8 @@ The public repository keeps the source code, MuJoCo XML asset, training/eval
 scripts, dataset metadata, and small demo GIFs. Large generated files are not
 tracked in Git: checkpoints, TensorBoard logs, and `.npz` expert datasets can
 be regenerated with the commands below. See `ARTIFACTS.md` for the full policy.
+For the current recommended training, evaluation, demo, and scan commands, see
+`COMMANDS.md`.
 
 ## Quick Check
 
