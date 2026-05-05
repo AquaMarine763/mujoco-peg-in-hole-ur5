@@ -72,6 +72,38 @@ All main environment scripts accept the same override:
 --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml
 ```
 
+## UR5e Adapter Smoke Baseline
+
+The first usable UR5e adapter image baseline uses the fixed wrist-camera pose
+in `assets\ur5e_adapter\ur5e_peg_in_hole.xml` and trains from scratch. Starting
+from the old side-camera policy was tested and gave poor clean performance
+because it kept an early-descent bias.
+
+Collect the 5k fixed-camera oracle dataset:
+
+```powershell
+python scripts\collect_image_expert_dataset.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --output datasets\image_expert_ur5e_adapter_fixedcam_5k_oracle.npz --samples 5000 --expert-action-gain 1.0 --rollout-noise-std 0.0005 --success-xy-tolerance 0.005 --success-z-tolerance 0.01 --compressed
+```
+
+Train the scratch image BC smoke model:
+
+```powershell
+python scripts\pretrain_image_actor_bc.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --dataset datasets\image_expert_ur5e_adapter_fixedcam_5k_oracle.npz --output checkpoints_image_bc_ur5e_adapter_fixedcam_5k_scratch\sac_image_bc.zip --epochs 50 --batch-size 256 --learning-rate 0.0001 --success-xy-tolerance 0.005 --success-z-tolerance 0.01
+```
+
+Evaluate and render the smoke model:
+
+```powershell
+python scripts\eval_policy.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --agent sac --observation-mode image --model checkpoints_image_bc_ur5e_adapter_fixedcam_5k_scratch\sac_image_bc.zip --episodes 100 --device cpu --success-xy-tolerance 0.005 --success-z-tolerance 0.01
+python scripts\demo_policy.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --agent sac --observation-mode image --model checkpoints_image_bc_ur5e_adapter_fixedcam_5k_scratch\sac_image_bc.zip --output demos\image_bc_ur5e_adapter_fixedcam_5k_scratch_hd.gif --trajectory-output results\demo_ur5e_adapter_fixedcam_5k_scratch_trace.csv --width 100 --height 100 --render-width 640 --render-height 480 --render-cameras overview wrist_cam --fps 20 --device cpu --success-xy-tolerance 0.005 --success-z-tolerance 0.01
+```
+
+Current smoke result:
+
+| Model | Episodes | Success | Collision |
+| --- | ---: | ---: | ---: |
+| `checkpoints_image_bc_ur5e_adapter_fixedcam_5k_scratch\sac_image_bc.zip` | 100 clean | 0.790 | 0.200 |
+
 ## Current Best Model
 
 ```text
@@ -262,3 +294,9 @@ Current best model:
 | full_light_geometry | 0.960 | 0.010 |
 | full_contact_light | 0.970 | 0.010 |
 | high full_contact_light | 0.970 | 0.010 |
+
+UR5e adapter smoke model:
+
+| Environment | Success | Collision |
+| --- | ---: | ---: |
+| clean fixedcam 5k scratch | 0.790 | 0.200 |

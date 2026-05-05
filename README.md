@@ -50,6 +50,10 @@ adapter is available at `assets/ur5e_adapter/ur5e_peg_in_hole.xml`; it can be
 checked with `scripts/inspect_robot_model.py` and passed to training/evaluation
 scripts via `--model-path`.
 
+The current UR5e adapter image smoke baseline is documented in `COMMANDS.md`.
+It uses `checkpoints_image_bc_ur5e_adapter_fixedcam_5k_scratch/sac_image_bc.zip`
+when regenerated locally.
+
 ## Quick Check
 
 Start with the low-dimensional state mode. This avoids camera-rendering issues
