@@ -19,6 +19,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--expert-action-gain", type=float, default=1.0)
     parser.add_argument("--rollout-noise-std", type=float, default=0.0005)
     parser.add_argument("--seed", type=int, default=30_000)
+    parser.add_argument(
+        "--success-only",
+        action="store_true",
+        help="Keep samples only from episodes that terminate with insertion success.",
+    )
     parser.add_argument("--compressed", action="store_true")
     parser.add_argument("--domain-randomization", action="store_true")
     parser.add_argument(
@@ -144,6 +149,15 @@ def main() -> None:
     successes = 0
     collisions = 0
     episodes = 0
+    episodes_kept = 0
+    episode_images: list[np.ndarray] = []
+    episode_actions: list[np.ndarray] = []
+    episode_raw_actions: list[np.ndarray] = []
+    episode_target_positions: list[np.ndarray] = []
+    episode_peg_tip_positions: list[np.ndarray] = []
+    episode_desired_zs: list[float] = []
+    episode_ids_buffer: list[int] = []
+    episode_step_ids: list[int] = []
 
     obs, info = env.reset(seed=args.seed)
     try:
@@ -155,23 +169,62 @@ def main() -> None:
                 action, _ = expert.predict(state_obs, deterministic=True)
                 action = np.asarray(action, dtype=np.float32)
 
-            images.append(obs["cam_image"].copy())
-            raw_actions.append(action.copy())
-            actions.append((action / env.action_scale).astype(np.float32))
-            target_positions.append(info["target_pos"].copy())
-            peg_tip_positions.append(info["peg_tip_pos"].copy())
-            desired_zs.append(float(info["desired_z"]))
-            episode_ids.append(episodes)
-            step_ids.append(int(info["step_count"]))
+            sample_image = obs["cam_image"].copy()
+            sample_raw_action = action.copy()
+            sample_action = (action / env.action_scale).astype(np.float32)
+            sample_target_pos = info["target_pos"].copy()
+            sample_peg_tip_pos = info["peg_tip_pos"].copy()
+            sample_desired_z = float(info["desired_z"])
+            sample_episode_id = episodes_kept if args.success_only else episodes
+            sample_step_id = int(info["step_count"])
+
+            if args.success_only:
+                episode_images.append(sample_image)
+                episode_raw_actions.append(sample_raw_action)
+                episode_actions.append(sample_action)
+                episode_target_positions.append(sample_target_pos)
+                episode_peg_tip_positions.append(sample_peg_tip_pos)
+                episode_desired_zs.append(sample_desired_z)
+                episode_ids_buffer.append(sample_episode_id)
+                episode_step_ids.append(sample_step_id)
+            else:
+                images.append(sample_image)
+                raw_actions.append(sample_raw_action)
+                actions.append(sample_action)
+                target_positions.append(sample_target_pos)
+                peg_tip_positions.append(sample_peg_tip_pos)
+                desired_zs.append(sample_desired_z)
+                episode_ids.append(sample_episode_id)
+                step_ids.append(sample_step_id)
 
             rollout_action = action + rng.normal(0.0, args.rollout_noise_std, size=action.shape)
             rollout_action = np.clip(rollout_action, env.action_space.low, env.action_space.high)
             obs, _, terminated, truncated, info = env.step(rollout_action.astype(np.float32))
 
             if terminated or truncated:
-                successes += int(info["insertion_success"])
+                success = bool(info["insertion_success"])
+                successes += int(success)
                 collisions += int(info["collision"])
                 episodes += 1
+                if args.success_only and success:
+                    keep = min(args.samples - len(images), len(episode_images))
+                    images.extend(episode_images[:keep])
+                    raw_actions.extend(episode_raw_actions[:keep])
+                    actions.extend(episode_actions[:keep])
+                    target_positions.extend(episode_target_positions[:keep])
+                    peg_tip_positions.extend(episode_peg_tip_positions[:keep])
+                    desired_zs.extend(episode_desired_zs[:keep])
+                    episode_ids.extend(episode_ids_buffer[:keep])
+                    step_ids.extend(episode_step_ids[:keep])
+                    episodes_kept += 1
+                episode_images = []
+                episode_actions = []
+                episode_raw_actions = []
+                episode_target_positions = []
+                episode_peg_tip_positions = []
+                episode_desired_zs = []
+                episode_ids_buffer = []
+                episode_step_ids = []
                 obs, info = env.reset(seed=args.seed + episodes)
     finally:
         env.close()
@@ -201,6 +254,8 @@ def main() -> None:
         "expert": "oracle" if expert is None else str(args.expert_model),
         "expert_action_gain": args.expert_action_gain,
         "rollout_noise_std": args.rollout_noise_std,
+        "success_only": args.success_only,
+        "episodes_kept": episodes_kept if args.success_only else episodes,
         "success_xy_tolerance": args.success_xy_tolerance,
         "success_z_tolerance": args.success_z_tolerance,
         "domain_randomization": args.domain_randomization,
