@@ -54,6 +54,11 @@ The current UR5e adapter fixed-camera baseline is documented in `COMMANDS.md`.
 It uses `checkpoints_image_bc_ur5e_adapter_fixedcam_50k_scratch/sac_image_bc.zip`
 when regenerated locally.
 
+The current UR5e visual-camera mixed baseline is also documented in
+`COMMANDS.md`. It uses
+`checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_100k_oracle_e35/sac_image_bc.zip`
+when regenerated locally.
+
 ## Quick Check
 
 Start with the low-dimensional state mode. This avoids camera-rendering issues

@@ -130,6 +130,52 @@ The 50k clean baseline is strong, but the same model is not yet robust to
 visual/camera/control randomization. See
 `results\eval_matrix_ur5e_adapter_fixedcam_50k_scratch.md`.
 
+## UR5e Adapter Visual-Camera Baseline
+
+The current recommended UR5e visual-camera baseline is trained on a mixed
+dataset: 50k clean fixed-camera oracle samples plus 50k `visual_camera`
+randomized oracle samples.
+
+Collect the visual-camera oracle dataset:
+
+```powershell
+python scripts\collect_image_expert_dataset.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --output datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_50k_oracle.npz --samples 50000 --expert-action-gain 1.0 --rollout-noise-std 0.0005 --success-xy-tolerance 0.005 --success-z-tolerance 0.01 --domain-randomization-level visual_camera --compressed
+```
+
+Merge clean and visual-camera datasets:
+
+```powershell
+python scripts\merge_image_expert_datasets.py --inputs datasets\image_expert_ur5e_adapter_fixedcam_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_50k_oracle.npz --output datasets\image_expert_ur5e_adapter_fixedcam_clean_visual_camera_100k_oracle.npz --compressed
+```
+
+Train from the clean 50k model, then continue with a lower learning rate:
+
+```powershell
+python scripts\pretrain_image_actor_bc.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --dataset datasets\image_expert_ur5e_adapter_fixedcam_clean_visual_camera_100k_oracle.npz --model checkpoints_image_bc_ur5e_adapter_fixedcam_50k_scratch\sac_image_bc.zip --output checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_100k_oracle\sac_image_bc.zip --epochs 20 --batch-size 512 --learning-rate 0.00003 --success-xy-tolerance 0.005 --success-z-tolerance 0.01
+python scripts\pretrain_image_actor_bc.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --dataset datasets\image_expert_ur5e_adapter_fixedcam_clean_visual_camera_100k_oracle.npz --model checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_100k_oracle\sac_image_bc.zip --output checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_100k_oracle_e35\sac_image_bc.zip --epochs 15 --batch-size 512 --learning-rate 0.00001 --success-xy-tolerance 0.005 --success-z-tolerance 0.01
+```
+
+Evaluate and render the visual-camera model:
+
+```powershell
+python scripts\eval_matrix.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --agent sac --observation-mode image --model checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_100k_oracle_e35\sac_image_bc.zip --episodes 100 --device cpu --output-csv results\eval_matrix_ur5e_adapter_fixedcam_clean_visual_camera_100k_oracle_e35.csv --output-md results\eval_matrix_ur5e_adapter_fixedcam_clean_visual_camera_100k_oracle_e35.md --success-xy-tolerance 0.005 --success-z-tolerance 0.01
+python scripts\demo_policy.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --agent sac --observation-mode image --model checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_100k_oracle_e35\sac_image_bc.zip --output demos\image_bc_ur5e_adapter_visual_camera_100k_e35_hd.gif --trajectory-output results\demo_ur5e_adapter_visual_camera_100k_e35_trace.csv --width 100 --height 100 --render-width 640 --render-height 480 --render-cameras overview wrist_cam --fps 20 --device cpu --domain-randomization-level visual_camera --success-xy-tolerance 0.005 --success-z-tolerance 0.01
+```
+
+Current visual-camera result:
+
+| Environment | Success | Collision |
+| --- | ---: | ---: |
+| clean | 0.960 | 0.040 |
+| visual_camera | 0.660 | 0.340 |
+| visual_camera_control | 0.440 | 0.560 |
+| full_light_geometry | 0.120 | 0.880 |
+| full_contact_light | 0.110 | 0.890 |
+
+The next UR5e step should improve visual-camera robustness before moving to
+control or contact randomization. The current failure mode is still collision
+under image/camera perturbations.
+
 ## Current Best Model
 
 ```text
@@ -329,4 +375,7 @@ UR5e adapter fixedcam models:
 | clean fixedcam 50k scratch eval_matrix | 0.950 | 0.050 |
 | visual_camera fixedcam 50k scratch | 0.040 | 0.850 |
 | visual_camera_control fixedcam 50k scratch | 0.070 | 0.840 |
+| clean clean+visual_camera 100k e35 | 0.960 | 0.040 |
+| visual_camera clean+visual_camera 100k e35 | 0.660 | 0.340 |
+| visual_camera_control clean+visual_camera 100k e35 | 0.440 | 0.560 |
 | clean fixedcam 5k scratch | 0.790 | 0.200 |
