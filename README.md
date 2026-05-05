@@ -59,6 +59,10 @@ The current UR5e visual-camera mixed baseline is also documented in
 `checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_150k_oracle_e20/sac_image_bc.zip`
 when regenerated locally.
 
+The current UR5e mild-control baseline uses
+`checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_control_mild_200k_oracle_e20/sac_image_bc.zip`
+when regenerated locally.
+
 ## Quick Check
 
 Start with the low-dimensional state mode. This avoids camera-rendering issues

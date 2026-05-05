@@ -189,6 +189,49 @@ The next UR5e step should improve visual-camera robustness before moving to
 control or contact randomization. The current failure mode is still collision
 under image/camera perturbations.
 
+## UR5e Adapter Mild Control Baseline
+
+Default `visual_camera_control` data collection was tested first, but the
+oracle only reached `0.910` success and `0.089` collision. For the first
+control-stage baseline, use a milder control randomization range:
+
+```powershell
+python scripts\collect_image_expert_dataset.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --output datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_control_mild_50k_oracle.npz --samples 50000 --seed 190000 --expert-action-gain 1.0 --rollout-noise-std 0.0005 --success-xy-tolerance 0.005 --success-z-tolerance 0.01 --domain-randomization-level visual_camera_control --control-action-scale-range 0.9 1.1 --control-action-noise-std-range 0 0.0004 --control-action-delay-range 0 1 --control-action-filter-alpha-range 0.75 1.0 --compressed
+```
+
+Merge clean, visual-camera, and mild-control data:
+
+```powershell
+python scripts\merge_image_expert_datasets.py --inputs datasets\image_expert_ur5e_adapter_fixedcam_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_50k_seed130k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_control_mild_50k_oracle.npz --output datasets\image_expert_ur5e_adapter_fixedcam_clean_visual_camera_control_mild_200k_oracle.npz --compressed
+```
+
+Continue from the 150k visual-camera model:
+
+```powershell
+python scripts\pretrain_image_actor_bc.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --dataset datasets\image_expert_ur5e_adapter_fixedcam_clean_visual_camera_control_mild_200k_oracle.npz --model checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_150k_oracle_e20\sac_image_bc.zip --output checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_control_mild_200k_oracle_e20\sac_image_bc.zip --epochs 20 --batch-size 512 --learning-rate 0.00001 --success-xy-tolerance 0.005 --success-z-tolerance 0.01
+```
+
+Evaluate and render:
+
+```powershell
+python scripts\eval_matrix.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --agent sac --observation-mode image --model checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_control_mild_200k_oracle_e20\sac_image_bc.zip --episodes 100 --device cpu --output-csv results\eval_matrix_ur5e_adapter_fixedcam_clean_visual_camera_control_mild_200k_oracle_e20.csv --output-md results\eval_matrix_ur5e_adapter_fixedcam_clean_visual_camera_control_mild_200k_oracle_e20.md --success-xy-tolerance 0.005 --success-z-tolerance 0.01
+python scripts\demo_policy.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --agent sac --observation-mode image --model checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_control_mild_200k_oracle_e20\sac_image_bc.zip --output demos\image_bc_ur5e_adapter_visual_camera_control_mild_200k_e20_hd.gif --trajectory-output results\demo_ur5e_adapter_visual_camera_control_mild_200k_e20_trace.csv --width 100 --height 100 --render-width 640 --render-height 480 --render-cameras overview wrist_cam --fps 20 --device cpu --domain-randomization-level visual_camera_control --success-xy-tolerance 0.005 --success-z-tolerance 0.01
+```
+
+Current mild-control result:
+
+| Environment | Success | Collision |
+| --- | ---: | ---: |
+| clean | 0.930 | 0.070 |
+| visual_camera | 0.920 | 0.080 |
+| visual_camera_control | 0.600 | 0.400 |
+| full_light_geometry | 0.200 | 0.790 |
+| full_contact_light | 0.200 | 0.770 |
+
+This is a useful control-stage improvement, not the final control-robust
+policy. The next target is to improve default `visual_camera_control` above
+`0.70` without pushing clean below `0.95`.
+
 ## Current Best Model
 
 ```text
@@ -394,4 +437,7 @@ UR5e adapter fixedcam models:
 | clean clean+visual_camera 150k e20 | 0.960 | 0.040 |
 | visual_camera clean+visual_camera 150k e20 | 0.810 | 0.190 |
 | visual_camera_control clean+visual_camera 150k e20 | 0.480 | 0.520 |
+| clean mild-control 200k e20 | 0.930 | 0.070 |
+| visual_camera mild-control 200k e20 | 0.920 | 0.080 |
+| visual_camera_control mild-control 200k e20 | 0.600 | 0.400 |
 | clean fixedcam 5k scratch | 0.790 | 0.200 |

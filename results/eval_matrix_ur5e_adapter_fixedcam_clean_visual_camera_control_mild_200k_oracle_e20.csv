@@ -1,0 +1,6 @@
+name,level,episodes,success_rate,collision_rate,timeout_rate,mean_return,mean_steps,mean_final_dist_xy,mean_final_dist_z,control_scale_range,control_noise_std_range,control_delay_range,control_filter_alpha_range,contact_friction_range,contact_solref_time_range,contact_solref_damping_range,contact_solimp_width_range,joint_damping_range,actuator_kp_range
+clean,none,100,0.93,0.07,0.0,149.588972666221,24.85,0.006526555043339369,0.012084538870994668,1.0:1.0,0.0:0.0,0:0,1.0:1.0,1.0:1.0,1.0:1.0,1.0:1.0,1.0:1.0,1.0:1.0,1.0:1.0
+visual_camera,visual_camera,100,0.92,0.08,0.0,140.14194322561488,26.57,0.008764147528212383,0.011587976938079492,1.0:1.0,0.0:0.0,0:0,1.0:1.0,1.0:1.0,1.0:1.0,1.0:1.0,1.0:1.0,1.0:1.0,1.0:1.0
+visual_camera_control,visual_camera_control,100,0.6,0.4,0.0,45.25622198436868,58.69,0.01909817589974851,0.03341217001214813,0.8:1.2,0.0:0.0008,0:2,0.55:1.0,1.0:1.0,1.0:1.0,1.0:1.0,1.0:1.0,1.0:1.0,1.0:1.0
+full_light_geometry,full_light_geometry,100,0.2,0.79,0.01,-173.3703869796712,37.4,0.03831560071023202,0.03214384195230042,0.8:1.2,0.0:0.0008,0:2,0.55:1.0,1.0:1.0,1.0:1.0,1.0:1.0,1.0:1.0,1.0:1.0,1.0:1.0
+full_contact_light,full_contact_light,100,0.2,0.77,0.03,-176.22581349443354,36.3,0.037028261655255953,0.031163142927137823,0.8:1.2,0.0:0.0008,0:2,0.55:1.0,0.7:1.3,0.8:1.25,0.8:1.2,0.8:1.2,0.8:1.2,0.8:1.2
