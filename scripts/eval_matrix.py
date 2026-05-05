@@ -101,6 +101,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Evaluate a trained policy across the standard environment matrix.")
     parser.add_argument("--agent", choices=AGENTS.keys(), default="sac")
     parser.add_argument("--model", type=Path, required=True)
+    parser.add_argument("--model-path", type=Path, default=None)
     parser.add_argument("--observation-mode", choices=["image", "state"], default="image")
     parser.add_argument("--episodes", type=int, default=100)
     parser.add_argument("--device", default="cpu")
@@ -130,6 +131,7 @@ def parse_args() -> argparse.Namespace:
 
 def make_env(args: argparse.Namespace, scenario: Scenario) -> PegInHoleMujocoEnv:
     return PegInHoleMujocoEnv(
+        model_path=args.model_path,
         observation_mode=args.observation_mode,
         image_width=args.width,
         image_height=args.height,
@@ -242,6 +244,7 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         "",
         f"- Generated: `{datetime.now().isoformat(timespec='seconds')}`",
         f"- Model: `{args.model}`",
+        f"- MuJoCo model path: `{args.model_path or 'default'}`",
         f"- Observation mode: `{args.observation_mode}`",
         f"- Episodes per scenario: `{args.episodes}`",
         f"- Seed: `{args.seed}`",

@@ -34,6 +34,30 @@ Current strongest randomized environment smoke test:
 python scripts\random_rollout.py --observation-mode state --episodes 1 --domain-randomization-level full_contact_light
 ```
 
+## Robot Model Compatibility / UR5e Adapter
+
+The default simulator still uses the simplified UR5-like model at
+`assets\ur5_peg_in_hole.xml`. Before replacing it with a real UR5/UR5e MJCF,
+check that the candidate model exposes the task interface names used by the
+environment:
+
+```powershell
+python scripts\inspect_robot_model.py --model-path assets\ur5_peg_in_hole.xml --output-md results\robot_model_current.md --fail-on-missing
+```
+
+For a future UR5e adapter XML, place the file under `assets\ur5e_adapter\` and
+run:
+
+```powershell
+python scripts\inspect_robot_model.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --output-md results\robot_model_ur5e_adapter.md --fail-on-missing
+```
+
+All main environment scripts now accept the same override:
+
+```powershell
+--model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml
+```
+
 ## Current Best Model
 
 ```text

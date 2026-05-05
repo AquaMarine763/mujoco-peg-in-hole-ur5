@@ -53,6 +53,7 @@ CONTACT_SCAN_CONFIGS = (
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Scan contact/dynamics randomization sensitivity.")
+    parser.add_argument("--model-path", type=Path, default=None)
     parser.add_argument("--model", type=Path, required=True)
     parser.add_argument("--output", type=Path, default=Path("results/contact_randomization_scan.csv"))
     parser.add_argument("--episodes", type=int, default=50)
@@ -67,6 +68,7 @@ def parse_args() -> argparse.Namespace:
 
 def make_env(args: argparse.Namespace, config: ContactScanConfig) -> PegInHoleMujocoEnv:
     return PegInHoleMujocoEnv(
+        model_path=args.model_path,
         observation_mode="image",
         max_steps=args.max_steps,
         action_scale=args.action_scale,
@@ -116,6 +118,7 @@ def evaluate_config(args: argparse.Namespace, config: ContactScanConfig) -> dict
 
     return {
         "name": config.name,
+        "model_path": str(args.model_path) if args.model_path is not None else "default",
         "level": config.level,
         "episodes": args.episodes,
         "success_rate": successes / args.episodes,

@@ -23,6 +23,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Render a trained policy rollout to a GIF or video.")
     parser.add_argument("--agent", choices=AGENTS.keys(), default="sac")
     parser.add_argument("--model", type=Path, required=True)
+    parser.add_argument("--model-path", type=Path, default=None)
     parser.add_argument("--output", type=Path, default=Path("demo_state.gif"))
     parser.add_argument("--observation-mode", choices=["image", "state"], default="state")
     parser.add_argument("--episodes", type=int, default=1)
@@ -94,6 +95,7 @@ def parse_args() -> argparse.Namespace:
 
 def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
     return PegInHoleMujocoEnv(
+        model_path=args.model_path,
         observation_mode=args.observation_mode,
         render_mode="rgb_array",
         image_width=args.width,

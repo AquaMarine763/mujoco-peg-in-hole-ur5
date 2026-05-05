@@ -124,6 +124,7 @@ def get_tensorboard_log(log_dir: Path) -> str | None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train an SB3 agent on the MuJoCo peg-in-hole env.")
     parser.add_argument("--agent", choices=AGENTS.keys(), default="sac")
+    parser.add_argument("--model-path", type=Path, default=None)
     parser.add_argument("--observation-mode", choices=["image", "state"], default="image")
     parser.add_argument("--total-timesteps", type=int, default=250_000)
     parser.add_argument("--save-freq", type=int, default=10_000)
@@ -198,6 +199,7 @@ def parse_args() -> argparse.Namespace:
 
 def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
     return PegInHoleMujocoEnv(
+        model_path=args.model_path,
         observation_mode=args.observation_mode,
         max_steps=args.max_steps,
         action_scale=args.action_scale,

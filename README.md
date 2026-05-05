@@ -45,6 +45,11 @@ For the current recommended training, evaluation, demo, and scan commands, see
 `COMMANDS.md`. For the real-robot migration checklist, see
 `REAL_ROBOT_PLAN.md`.
 
+The default model is still a simplified UR5-like MJCF. Candidate calibrated
+UR5/UR5e adapter XML files can be checked with
+`scripts/inspect_robot_model.py` and passed to training/evaluation scripts via
+`--model-path`.
+
 ## Quick Check
 
 Start with the low-dimensional state mode. This avoids camera-rendering issues
@@ -660,7 +665,8 @@ so the RL task can run independently from PyBullet/CoppeliaSim assets.
 
 For sim-to-real work, the next steps should be:
 
-1. Replace `assets/ur5_peg_in_hole.xml` with a calibrated UR5 MJCF.
+1. Add a calibrated UR5/UR5e adapter MJCF under `assets/ur5e_adapter/` and
+   check it with `scripts/inspect_robot_model.py`.
 2. Match the real end-effector frame, peg length/radius, camera intrinsics, and
    camera-to-tool transform.
 3. Use the same action interface in sim and real: small Cartesian displacement

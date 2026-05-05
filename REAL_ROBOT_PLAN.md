@@ -36,6 +36,11 @@ Current implementation:
 - `scripts/preprocess_camera_frames.py`: offline checker for camera frame
   preprocessing and image statistics.
 - `configs/real_ur5_dryrun.yaml`: conservative placeholder configuration.
+- `scripts/inspect_robot_model.py`: checks whether a candidate MJCF exposes
+  the joint, actuator, body, site, camera, and task-geometry names expected by
+  the current environment.
+- `assets/ur5e_adapter/`: placeholder location for a future calibrated UR5e
+  MJCF adapter.
 
 The action is a Cartesian peg-tip displacement in meters. The default step
 limit is `0.005 m`. The current MuJoCo session logs a `50 Hz` control
@@ -57,6 +62,21 @@ measured.
 - Validate that the policy action unit is meters, not controller-specific
   speed or joint increments.
 
+## MuJoCo UR5e Model Adapter
+
+Do not replace the working simplified model in-place. Add a candidate UR5/UR5e
+MJCF under `assets/ur5e_adapter/`, then run:
+
+```powershell
+python scripts\inspect_robot_model.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --output-md results\robot_model_ur5e_adapter.md --fail-on-missing
+```
+
+The adapter must preserve the current task-facing names, including
+`peg_tip`, `eef_site`, `tool0`, `hole_body`, `hole_site`, `wrist_cam`, and the
+six joint/actuator names. If the source UR5e MJCF uses different internal link
+or collision names, wrap it with adapter sites/bodies/actuators instead of
+changing the training scripts.
+
 ## Safety Checklist
 
 - Start with a dry run that computes actions but sends zero motion.
@@ -76,8 +96,9 @@ measured.
    real wrist-camera frames.
 3. Add a UR5 action executor that can run in explicit dry-run mode first, then
    guarded motion mode.
-4. Replace or calibrate the simplified MuJoCo arm with a UR5/UR5e model before
-   relying on dynamics results.
+4. Build and inspect a UR5/UR5e adapter MJCF with `scripts/inspect_robot_model.py`.
+5. Run the existing eval/demo pipeline with `--model-path` pointing at the
+   adapter before relying on dynamics results.
 
 ## Do Not Assume
 

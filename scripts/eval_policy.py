@@ -19,6 +19,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Evaluate a trained SB3 policy.")
     parser.add_argument("--agent", choices=AGENTS.keys(), default="sac")
     parser.add_argument("--model", type=Path, required=True)
+    parser.add_argument("--model-path", type=Path, default=None)
     parser.add_argument("--observation-mode", choices=["image", "state"], default="image")
     parser.add_argument("--episodes", type=int, default=100)
     parser.add_argument("--device", default="auto")
@@ -76,6 +77,7 @@ def parse_args() -> argparse.Namespace:
 
 def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
     return PegInHoleMujocoEnv(
+        model_path=args.model_path,
         observation_mode=args.observation_mode,
         max_steps=args.max_steps,
         action_scale=args.action_scale,

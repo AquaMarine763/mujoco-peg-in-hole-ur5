@@ -10,6 +10,7 @@ from peg_in_hole_mujoco import PegInHoleMujocoEnv
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run random actions in the MuJoCo peg-in-hole env.")
+    parser.add_argument("--model-path", type=Path, default=None)
     parser.add_argument("--observation-mode", choices=["image", "state"], default="state")
     parser.add_argument("--episodes", type=int, default=3)
     parser.add_argument("--seed", type=int, default=42)
@@ -51,6 +52,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     env = PegInHoleMujocoEnv(
+        model_path=args.model_path,
         observation_mode=args.observation_mode,
         randomize_domain=args.domain_randomization,
         domain_randomization_level=args.domain_randomization_level,

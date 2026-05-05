@@ -12,6 +12,7 @@ from peg_in_hole_mujoco import PegInHoleMujocoEnv
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Collect wrist-camera images with expert Cartesian actions.")
+    parser.add_argument("--model-path", type=Path, default=None)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--samples", type=int, default=50_000)
     parser.add_argument("--expert-model", type=Path, default=None)
@@ -74,6 +75,7 @@ def parse_args() -> argparse.Namespace:
 
 def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
     return PegInHoleMujocoEnv(
+        model_path=args.model_path,
         observation_mode="image",
         image_width=args.image_width,
         image_height=args.image_height,
@@ -192,6 +194,7 @@ def main() -> None:
 
     metadata = {
         "samples": len(images),
+        "model_path": str(args.model_path) if args.model_path is not None else "default",
         "episodes_completed": episodes,
         "successes": successes,
         "collisions": collisions,

@@ -13,6 +13,7 @@ from peg_in_hole_mujoco import PegInHoleMujocoEnv
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Behavior-clone the SAC actor from a staged oracle.")
+    parser.add_argument("--model-path", type=Path, default=None)
     parser.add_argument("--model", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--samples", type=int, default=50_000)
@@ -44,6 +45,7 @@ def parse_args() -> argparse.Namespace:
 
 def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
     return PegInHoleMujocoEnv(
+        model_path=args.model_path,
         observation_mode="state",
         max_steps=args.max_steps,
         action_scale=args.action_scale,
