@@ -146,6 +146,7 @@ class PegInHoleMujocoEnv(gym.Env):
         contact_solimp_width_multiplier_range: tuple[float, float] = (0.8, 1.2),
         dynamics_joint_damping_multiplier_range: tuple[float, float] = (0.8, 1.2),
         dynamics_actuator_kp_multiplier_range: tuple[float, float] = (0.8, 1.2),
+        ik_joint_count: int | None = None,
     ):
         if observation_mode not in ("image", "state"):
             raise ValueError("observation_mode must be 'image' or 'state'.")
@@ -269,6 +270,7 @@ class PegInHoleMujocoEnv(gym.Env):
             [self.model.jnt_dofadr[joint_id] for joint_id in self.arm_joint_ids],
             dtype=np.int32,
         )
+        self.ik_joint_count = self._resolve_ik_joint_count(ik_joint_count)
         self.arm_actuator_ids = np.asarray(
             [self._actuator_id(f"{name}_ctrl") for name in self.ARM_JOINT_NAMES],
             dtype=np.int32,
@@ -491,6 +493,26 @@ class PegInHoleMujocoEnv(gym.Env):
         if obj_id < 0:
             raise RuntimeError(f"MuJoCo object not found: {name}")
         return int(obj_id)
+
+    def _resolve_ik_joint_count(self, requested_count: int | None) -> int:
+        if requested_count is None:
+            numeric_id = mujoco.mj_name2id(
+                self.model,
+                mujoco.mjtObj.mjOBJ_NUMERIC,
+                "ik_joint_count",
+            )
+            if numeric_id >= 0:
+                adr = int(self.model.numeric_adr[numeric_id])
+                requested_count = int(round(float(self.model.numeric_data[adr])))
+            else:
+                requested_count = self.IK_JOINT_COUNT
+
+        count = int(requested_count)
+        if count < 1 or count > len(self.ARM_JOINT_NAMES):
+            raise ValueError(
+                f"ik_joint_count must be between 1 and {len(self.ARM_JOINT_NAMES)}, got {count}."
+            )
+        return count
 
     def _set_arm_qpos(self, data: mujoco.MjData, qpos: np.ndarray) -> None:
         data.qpos[self.arm_qpos_ids] = qpos
@@ -862,12 +884,11 @@ class PegInHoleMujocoEnv(gym.Env):
         data.mocap_quat[:] = self.data.mocap_quat
 
         q = data.qpos[self.arm_qpos_ids].copy()
-        q[self.IK_JOINT_COUNT :] = self.rest_qpos[self.IK_JOINT_COUNT :]
+        q[self.ik_joint_count :] = self.rest_qpos[self.ik_joint_count :]
 
-        ik_dof_ids = self.arm_dof_ids[: self.IK_JOINT_COUNT]
-        ik_qpos_ids = self.arm_qpos_ids[: self.IK_JOINT_COUNT]
-        lower = self.joint_ranges[: self.IK_JOINT_COUNT, 0]
-        upper = self.joint_ranges[: self.IK_JOINT_COUNT, 1]
+        ik_dof_ids = self.arm_dof_ids[: self.ik_joint_count]
+        lower = self.joint_ranges[: self.ik_joint_count, 0]
+        upper = self.joint_ranges[: self.ik_joint_count, 1]
 
         jacp = np.zeros((3, self.model.nv), dtype=np.float64)
         jacr = np.zeros((3, self.model.nv), dtype=np.float64)
@@ -887,13 +908,13 @@ class PegInHoleMujocoEnv(gym.Env):
             dq = jpos.T @ np.linalg.solve(lhs, error)
             dq = np.clip(dq, -0.06, 0.06)
 
-            q[: self.IK_JOINT_COUNT] = np.clip(
-                q[: self.IK_JOINT_COUNT] + dq,
+            q[: self.ik_joint_count] = np.clip(
+                q[: self.ik_joint_count] + dq,
                 lower,
                 upper,
             )
 
-        q[self.IK_JOINT_COUNT :] = self.rest_qpos[self.IK_JOINT_COUNT :]
+        q[self.ik_joint_count :] = self.rest_qpos[self.ik_joint_count :]
         return q
 
     def _staged_distance(self) -> tuple[float, float]:
@@ -956,7 +977,14 @@ class PegInHoleMujocoEnv(gym.Env):
     def _check_collision(self) -> bool:
         tip_pos = self._site_xpos(self.data, self.peg_tip_site_id)
         dist_xy = np.linalg.norm(tip_pos[:2] - self.target_pos[:2])
-        close_to_hole = dist_xy < 0.02 and abs(tip_pos[2] - self.target_pos[2]) < 0.15
+        insertion_clearance_xy = max(
+            0.02,
+            self.current_hole_half_size - self.current_peg_radius + 0.005,
+        )
+        close_to_hole = (
+            dist_xy < insertion_clearance_xy
+            and abs(tip_pos[2] - self.target_pos[2]) < 0.15
+        )
         if close_to_hole:
             return False
 

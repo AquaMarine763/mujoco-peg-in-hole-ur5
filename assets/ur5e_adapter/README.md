@@ -1,10 +1,17 @@
-# UR5e Adapter Placeholder
+# UR5e Adapter
 
-This directory is reserved for a future calibrated UR5/UR5e MJCF adapter.
-The project still runs on `assets/ur5_peg_in_hole.xml` by default.
+This directory contains a lightweight UR5e MJCF adapter. The project still
+runs on `assets/ur5_peg_in_hole.xml` by default unless scripts are called with
+`--model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml`.
 
-To use a real UR5/UR5e model with the current environment, create an adapter
-MJCF that exposes the same task interface names expected by the code:
+`ur5e_peg_in_hole.xml` is derived from the DeepMind MuJoCo Menagerie
+`universal_robots_ur5e/ur5e.xml` model. It keeps the UR5e joint chain,
+inertials, actuator style, and simplified collision geometry, but does not
+vendor the large visual mesh assets. See `LICENSE` in this directory for the
+upstream BSD-3-Clause license notice.
+
+To use another real UR5/UR5e model with the current environment, create an
+adapter MJCF that exposes the same task interface names expected by the code:
 
 ## Required Names
 
@@ -36,3 +43,8 @@ evaluation, demo, and dataset commands with:
 --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml
 ```
 
+Run a quick staged-oracle check after changing transforms:
+
+```powershell
+python scripts\oracle_rollout.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --observation-mode state --episodes 3
+```

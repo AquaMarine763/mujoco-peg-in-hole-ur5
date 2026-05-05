@@ -45,10 +45,10 @@ For the current recommended training, evaluation, demo, and scan commands, see
 `COMMANDS.md`. For the real-robot migration checklist, see
 `REAL_ROBOT_PLAN.md`.
 
-The default model is still a simplified UR5-like MJCF. Candidate calibrated
-UR5/UR5e adapter XML files can be checked with
-`scripts/inspect_robot_model.py` and passed to training/evaluation scripts via
-`--model-path`.
+The default model is still a simplified UR5-like MJCF. A lightweight UR5e
+adapter is available at `assets/ur5e_adapter/ur5e_peg_in_hole.xml`; it can be
+checked with `scripts/inspect_robot_model.py` and passed to training/evaluation
+scripts via `--model-path`.
 
 ## Quick Check
 
@@ -63,6 +63,14 @@ Check the visual observation path:
 
 ```bash
 python scripts/random_rollout.py --observation-mode image --episodes 1
+```
+
+Check the lightweight UR5e adapter:
+
+```bash
+python scripts/inspect_robot_model.py --model-path assets/ur5e_adapter/ur5e_peg_in_hole.xml --output-md results/robot_model_ur5e_adapter.md --fail-on-missing
+python scripts/random_rollout.py --model-path assets/ur5e_adapter/ur5e_peg_in_hole.xml --observation-mode state --episodes 1
+python scripts/oracle_rollout.py --model-path assets/ur5e_adapter/ur5e_peg_in_hole.xml --observation-mode state --episodes 3
 ```
 
 ## Train
@@ -665,8 +673,8 @@ so the RL task can run independently from PyBullet/CoppeliaSim assets.
 
 For sim-to-real work, the next steps should be:
 
-1. Add a calibrated UR5/UR5e adapter MJCF under `assets/ur5e_adapter/` and
-   check it with `scripts/inspect_robot_model.py`.
+1. Calibrate or extend `assets/ur5e_adapter/ur5e_peg_in_hole.xml` and check it
+   with `scripts/inspect_robot_model.py`.
 2. Match the real end-effector frame, peg length/radius, camera intrinsics, and
    camera-to-tool transform.
 3. Use the same action interface in sim and real: small Cartesian displacement

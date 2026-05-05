@@ -37,22 +37,36 @@ python scripts\random_rollout.py --observation-mode state --episodes 1 --domain-
 ## Robot Model Compatibility / UR5e Adapter
 
 The default simulator still uses the simplified UR5-like model at
-`assets\ur5_peg_in_hole.xml`. Before replacing it with a real UR5/UR5e MJCF,
-check that the candidate model exposes the task interface names used by the
+`assets\ur5_peg_in_hole.xml`. A lightweight UR5e adapter is available at
+`assets\ur5e_adapter\ur5e_peg_in_hole.xml`. It is derived from the DeepMind
+MuJoCo Menagerie UR5e model and keeps the UR5e joint chain, inertials,
+actuator style, and simplified collision geoms without vendoring large visual
+mesh assets.
+
+Check that the default model exposes the task interface names used by the
 environment:
 
 ```powershell
 python scripts\inspect_robot_model.py --model-path assets\ur5_peg_in_hole.xml --output-md results\robot_model_current.md --fail-on-missing
 ```
 
-For a future UR5e adapter XML, place the file under `assets\ur5e_adapter\` and
-run:
+Check the UR5e adapter:
 
 ```powershell
 python scripts\inspect_robot_model.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --output-md results\robot_model_ur5e_adapter.md --fail-on-missing
 ```
 
-All main environment scripts now accept the same override:
+Smoke-test the UR5e adapter through reset, IK, stepping, and rendering. Random
+actions are not expected to succeed; use the oracle command to verify that the
+model can complete the task:
+
+```powershell
+python scripts\random_rollout.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --observation-mode state --episodes 1
+python scripts\random_rollout.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --observation-mode image --episodes 1
+python scripts\oracle_rollout.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --observation-mode state --episodes 3
+```
+
+All main environment scripts accept the same override:
 
 ```powershell
 --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml

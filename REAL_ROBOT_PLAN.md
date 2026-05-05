@@ -39,8 +39,10 @@ Current implementation:
 - `scripts/inspect_robot_model.py`: checks whether a candidate MJCF exposes
   the joint, actuator, body, site, camera, and task-geometry names expected by
   the current environment.
-- `assets/ur5e_adapter/`: placeholder location for a future calibrated UR5e
-  MJCF adapter.
+- `assets/ur5e_adapter/ur5e_peg_in_hole.xml`: lightweight UR5e adapter derived
+  from DeepMind MuJoCo Menagerie. It keeps the UR5e joint chain, inertials,
+  actuator style, and simplified collision geoms, but does not include the
+  large visual mesh assets.
 
 The action is a Cartesian peg-tip displacement in meters. The default step
 limit is `0.005 m`. The current MuJoCo session logs a `50 Hz` control
@@ -64,8 +66,8 @@ measured.
 
 ## MuJoCo UR5e Model Adapter
 
-Do not replace the working simplified model in-place. Add a candidate UR5/UR5e
-MJCF under `assets/ur5e_adapter/`, then run:
+Do not replace the working simplified model in-place. The current lightweight
+UR5e adapter can be checked with:
 
 ```powershell
 python scripts\inspect_robot_model.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --output-md results\robot_model_ur5e_adapter.md --fail-on-missing
@@ -76,6 +78,11 @@ The adapter must preserve the current task-facing names, including
 six joint/actuator names. If the source UR5e MJCF uses different internal link
 or collision names, wrap it with adapter sites/bodies/actuators instead of
 changing the training scripts.
+
+Current limitation: this adapter is useful for validating UR5e kinematics and
+the model-selection pipeline, but it is not yet a calibrated visual/dynamics
+digital twin. Before real-robot transfer, replace or extend it with measured
+tool, camera, peg, table, and fixture transforms.
 
 ## Safety Checklist
 
@@ -96,7 +103,7 @@ changing the training scripts.
    real wrist-camera frames.
 3. Add a UR5 action executor that can run in explicit dry-run mode first, then
    guarded motion mode.
-4. Build and inspect a UR5/UR5e adapter MJCF with `scripts/inspect_robot_model.py`.
+4. Calibrate the UR5e adapter transforms against the physical setup.
 5. Run the existing eval/demo pipeline with `--model-path` pointing at the
    adapter before relying on dynamics results.
 
