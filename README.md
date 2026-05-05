@@ -467,6 +467,24 @@ python scripts/train_sac.py --agent sac --observation-mode image --domain-random
 
 ## Evaluate
 
+Run the standard evaluation matrix for the current image baseline:
+
+```bash
+python scripts/eval_matrix.py \
+  --agent sac \
+  --observation-mode image \
+  --model checkpoints_image_bc_50k_sidecam_visual_camera_control_delay3_oracle/sac_image_bc.zip \
+  --episodes 100 \
+  --device cpu \
+  --output-csv results/eval_matrix_latest.csv \
+  --output-md results/eval_matrix_latest.md \
+  --success-xy-tolerance 0.005 \
+  --success-z-tolerance 0.01
+```
+
+Add `--include-stress` to also evaluate high delay, high combined control
+randomization, and high contact/dynamics randomization.
+
 ```bash
 python scripts/eval_policy.py \
   --agent sac \
