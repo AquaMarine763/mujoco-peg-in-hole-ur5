@@ -493,7 +493,8 @@ python scripts/demo_policy.py \
 
 For an image policy, keep the demo observation size at the model's training
 size, currently `100x100`. Use `--render-width` and `--render-height` for the
-saved GIF resolution:
+saved GIF resolution. Use `--trajectory-output` for per-step diagnostics and
+`--render-cameras` for side-by-side camera views:
 
 ```bash
 python scripts/demo_policy.py \
@@ -505,6 +506,25 @@ python scripts/demo_policy.py \
   --height 100 \
   --render-width 640 \
   --render-height 480 \
+  --success-xy-tolerance 0.005 \
+  --success-z-tolerance 0.01 \
+  --domain-randomization-level full_contact_light
+```
+
+Multi-camera diagnostic demo:
+
+```bash
+python scripts/demo_policy.py \
+  --agent sac \
+  --observation-mode image \
+  --model checkpoints_image_bc_50k_sidecam_visual_camera_control_delay3_oracle/sac_image_bc.zip \
+  --output demos/image_bc_sidecam_full_contact_light_multicam_hd.gif \
+  --trajectory-output results/demo_full_contact_light_trace.csv \
+  --width 100 \
+  --height 100 \
+  --render-width 640 \
+  --render-height 480 \
+  --render-cameras overview wrist_cam \
   --success-xy-tolerance 0.005 \
   --success-z-tolerance 0.01 \
   --domain-randomization-level full_contact_light

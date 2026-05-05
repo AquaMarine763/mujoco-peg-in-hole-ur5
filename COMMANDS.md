@@ -105,11 +105,19 @@ python scripts\eval_policy.py --agent sac --observation-mode image --model check
 
 `--width` and `--height` are the policy observation image size. Use
 `--render-width` and `--render-height` to control the saved GIF resolution.
+Use `--trajectory-output` to save per-step diagnostics as CSV. Use
+`--render-cameras overview wrist_cam` to concatenate multiple camera views.
 
 Recommended full-contact-light image demo:
 
 ```powershell
 python scripts\demo_policy.py --agent sac --observation-mode image --model checkpoints_image_bc_50k_sidecam_visual_camera_control_delay3_oracle\sac_image_bc.zip --output demos\image_bc_sidecam_full_contact_light_hd.gif --width 100 --height 100 --render-width 640 --render-height 480 --fps 20 --device cpu --success-xy-tolerance 0.005 --success-z-tolerance 0.01 --domain-randomization-level full_contact_light
+```
+
+Multi-camera diagnostic demo with trajectory CSV:
+
+```powershell
+python scripts\demo_policy.py --agent sac --observation-mode image --model checkpoints_image_bc_50k_sidecam_visual_camera_control_delay3_oracle\sac_image_bc.zip --output demos\image_bc_sidecam_full_contact_light_multicam_hd.gif --trajectory-output results\demo_full_contact_light_trace.csv --width 100 --height 100 --render-width 640 --render-height 480 --render-cameras overview wrist_cam --fps 20 --device cpu --success-xy-tolerance 0.005 --success-z-tolerance 0.01 --domain-randomization-level full_contact_light
 ```
 
 High combined control demo:
