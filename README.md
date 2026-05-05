@@ -42,7 +42,8 @@ scripts, dataset metadata, and small demo GIFs. Large generated files are not
 tracked in Git: checkpoints, TensorBoard logs, and `.npz` expert datasets can
 be regenerated with the commands below. See `ARTIFACTS.md` for the full policy.
 For the current recommended training, evaluation, demo, and scan commands, see
-`COMMANDS.md`.
+`COMMANDS.md`. For the real-robot migration checklist, see
+`REAL_ROBOT_PLAN.md`.
 
 ## Quick Check
 
@@ -484,6 +485,27 @@ python scripts/eval_matrix.py \
 
 Add `--include-stress` to also evaluate high delay, high combined control
 randomization, and high contact/dynamics randomization.
+
+Run the deployment-style MuJoCo inference interface:
+
+```bash
+python scripts/run_policy_inference.py \
+  --agent sac \
+  --observation-mode image \
+  --model checkpoints_image_bc_50k_sidecam_visual_camera_control_delay3_oracle/sac_image_bc.zip \
+  --episodes 1 \
+  --output results/policy_inference_trace.csv \
+  --device cpu \
+  --domain-randomization-level full_contact_light \
+  --success-xy-tolerance 0.005 \
+  --success-z-tolerance 0.01
+```
+
+This path uses `SB3PolicyAdapter`, `SafetyFilter`, and `MujocoPolicySession`.
+It keeps policy output as Cartesian `dx, dy, dz`, applies action/workspace
+limits, and writes a per-step trace for sim-to-real debugging. The default
+`--control-frequency-hz 50` matches the current MuJoCo control period of
+`0.02 s`; set it explicitly for real-robot dry-run experiments.
 
 ```bash
 python scripts/eval_policy.py \

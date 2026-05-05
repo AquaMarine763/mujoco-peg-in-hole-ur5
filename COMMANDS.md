@@ -132,6 +132,25 @@ State baseline demo:
 python scripts\demo_policy.py --agent sac --observation-mode state --model checkpoints_state_tuned_v21_bc_mid\sac_state_bc.zip --output demos\state_bc_high_precision_hd.gif --render-width 640 --render-height 480 --success-xy-tolerance 0.005 --success-z-tolerance 0.01
 ```
 
+## Policy Inference Interface
+
+Run the current best policy through the deployment-style MuJoCo inference
+interface with action limiting, workspace limiting, and per-step CSV logging:
+
+```powershell
+python scripts\run_policy_inference.py --agent sac --observation-mode image --model checkpoints_image_bc_50k_sidecam_visual_camera_control_delay3_oracle\sac_image_bc.zip --episodes 1 --output results\policy_inference_trace.csv --device cpu --domain-randomization-level full_contact_light --success-xy-tolerance 0.005 --success-z-tolerance 0.01
+```
+
+The default `--control-frequency-hz 50` matches the current MuJoCo control
+period of `0.02 s`. Use an explicit value such as `20` when prototyping a real
+robot dry-run loop.
+
+Use a smoother action safety layer:
+
+```powershell
+python scripts\run_policy_inference.py --agent sac --observation-mode image --model checkpoints_image_bc_50k_sidecam_visual_camera_control_delay3_oracle\sac_image_bc.zip --episodes 1 --output results\policy_inference_trace_smooth.csv --device cpu --domain-randomization-level full_contact_light --success-xy-tolerance 0.005 --success-z-tolerance 0.01 --safety-action-filter-alpha 0.6
+```
+
 ## Evaluation Matrix
 
 Run the standard five-environment matrix:

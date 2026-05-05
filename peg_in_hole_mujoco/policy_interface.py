@@ -1,0 +1,245 @@
+from __future__ import annotations
+
+import csv
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Protocol
+
+import numpy as np
+
+from peg_in_hole_mujoco.envs.peg_in_hole_env import PegInHoleMujocoEnv
+
+
+class PolicyAdapter(Protocol):
+    def predict(self, observation: Any) -> np.ndarray:
+        """Return a Cartesian delta action in meters."""
+
+
+@dataclass(frozen=True)
+class SafetyConfig:
+    max_action: float = 0.005
+    workspace_low: tuple[float, float, float] = (0.30, -0.25, 0.55)
+    workspace_high: tuple[float, float, float] = (0.75, 0.25, 0.85)
+    action_filter_alpha: float = 1.0
+
+
+@dataclass(frozen=True)
+class SafeAction:
+    raw_action: np.ndarray
+    limited_action: np.ndarray
+    filtered_action: np.ndarray
+    safe_action: np.ndarray
+    target_before_workspace_clip: np.ndarray
+    target_after_workspace_clip: np.ndarray
+    action_limited: bool
+    workspace_limited: bool
+
+
+@dataclass(frozen=True)
+class EpisodeResult:
+    episode: int
+    success: bool
+    collision: bool
+    truncated: bool
+    steps: int
+    episode_return: float
+    final_dist_xy: float
+    final_dist_z: float
+
+
+class SB3PolicyAdapter:
+    def __init__(self, model: Any, deterministic: bool = True):
+        self.model = model
+        self.deterministic = deterministic
+
+    def predict(self, observation: Any) -> np.ndarray:
+        action, _ = self.model.predict(observation, deterministic=self.deterministic)
+        return np.asarray(action, dtype=np.float64).reshape(3)
+
+
+class SafetyFilter:
+    def __init__(self, config: SafetyConfig):
+        if config.max_action <= 0.0:
+            raise ValueError("SafetyConfig.max_action must be positive.")
+        if not 0.0 < config.action_filter_alpha <= 1.0:
+            raise ValueError("SafetyConfig.action_filter_alpha must be in (0, 1].")
+        self.config = config
+        self.workspace_low = np.asarray(config.workspace_low, dtype=np.float64)
+        self.workspace_high = np.asarray(config.workspace_high, dtype=np.float64)
+        if self.workspace_low.shape != (3,) or self.workspace_high.shape != (3,):
+            raise ValueError("Safety workspace bounds must be 3D.")
+        if np.any(self.workspace_low >= self.workspace_high):
+            raise ValueError("Safety workspace low bounds must be lower than high bounds.")
+        self.previous_action = np.zeros(3, dtype=np.float64)
+
+    def reset(self) -> None:
+        self.previous_action = np.zeros(3, dtype=np.float64)
+
+    def filter(self, raw_action: np.ndarray, current_tip_pos: np.ndarray) -> SafeAction:
+        raw_action = np.asarray(raw_action, dtype=np.float64).reshape(3)
+        current_tip_pos = np.asarray(current_tip_pos, dtype=np.float64).reshape(3)
+
+        limited_action = np.clip(
+            raw_action,
+            -self.config.max_action,
+            self.config.max_action,
+        )
+        alpha = self.config.action_filter_alpha
+        filtered_action = alpha * limited_action + (1.0 - alpha) * self.previous_action
+        target_before_clip = current_tip_pos + filtered_action
+        target_after_clip = np.clip(target_before_clip, self.workspace_low, self.workspace_high)
+        safe_action = target_after_clip - current_tip_pos
+        self.previous_action = safe_action.copy()
+
+        return SafeAction(
+            raw_action=raw_action,
+            limited_action=limited_action,
+            filtered_action=filtered_action,
+            safe_action=safe_action,
+            target_before_workspace_clip=target_before_clip,
+            target_after_workspace_clip=target_after_clip,
+            action_limited=not np.allclose(raw_action, limited_action),
+            workspace_limited=not np.allclose(target_before_clip, target_after_clip),
+        )
+
+
+class MujocoPolicySession:
+    def __init__(
+        self,
+        env: PegInHoleMujocoEnv,
+        policy: PolicyAdapter,
+        safety_filter: SafetyFilter,
+        control_frequency_hz: float,
+    ):
+        if control_frequency_hz <= 0.0:
+            raise ValueError("control_frequency_hz must be positive.")
+        self.env = env
+        self.policy = policy
+        self.safety_filter = safety_filter
+        self.control_frequency_hz = float(control_frequency_hz)
+        self.control_period_sec = 1.0 / self.control_frequency_hz
+
+    def run_episode(self, episode: int, seed: int) -> tuple[EpisodeResult, list[dict[str, Any]]]:
+        self.safety_filter.reset()
+        obs, info = self.env.reset(seed=seed)
+        episode_return = 0.0
+        rows: list[dict[str, Any]] = [
+            self._row(
+                episode=episode,
+                step=0,
+                reward=0.0,
+                episode_return=episode_return,
+                raw_action=np.zeros(3, dtype=np.float64),
+                safe_action=SafeAction(
+                    raw_action=np.zeros(3, dtype=np.float64),
+                    limited_action=np.zeros(3, dtype=np.float64),
+                    filtered_action=np.zeros(3, dtype=np.float64),
+                    safe_action=np.zeros(3, dtype=np.float64),
+                    target_before_workspace_clip=np.asarray(info["peg_tip_pos"], dtype=np.float64),
+                    target_after_workspace_clip=np.asarray(info["peg_tip_pos"], dtype=np.float64),
+                    action_limited=False,
+                    workspace_limited=False,
+                ),
+                info=info,
+                terminated=False,
+                truncated=False,
+            )
+        ]
+
+        while True:
+            raw_action = self.policy.predict(obs)
+            safe_action = self.safety_filter.filter(raw_action, info["peg_tip_pos"])
+            obs, reward, terminated, truncated, info = self.env.step(safe_action.safe_action)
+            episode_return += float(reward)
+            rows.append(
+                self._row(
+                    episode=episode,
+                    step=int(info["step_count"]),
+                    reward=float(reward),
+                    episode_return=episode_return,
+                    raw_action=raw_action,
+                    safe_action=safe_action,
+                    info=info,
+                    terminated=terminated,
+                    truncated=truncated,
+                )
+            )
+            if terminated or truncated:
+                break
+
+        result = EpisodeResult(
+            episode=episode,
+            success=bool(info["insertion_success"]),
+            collision=bool(info["collision"]),
+            truncated=bool(truncated),
+            steps=int(info["step_count"]),
+            episode_return=episode_return,
+            final_dist_xy=float(info["dist_xy"]),
+            final_dist_z=float(info["dist_z"]),
+        )
+        return result, rows
+
+    def _row(
+        self,
+        *,
+        episode: int,
+        step: int,
+        reward: float,
+        episode_return: float,
+        raw_action: np.ndarray,
+        safe_action: SafeAction,
+        info: dict[str, Any],
+        terminated: bool,
+        truncated: bool,
+    ) -> dict[str, Any]:
+        row: dict[str, Any] = {
+            "episode": episode,
+            "step": step,
+            "control_period_sec": self.control_period_sec,
+            "reward": float(reward),
+            "episode_return": float(episode_return),
+            "terminated": bool(terminated),
+            "truncated": bool(truncated),
+            "success": bool(info.get("insertion_success", False)),
+            "collision": bool(info.get("collision", False)),
+            "dist_xy": float(info.get("dist_xy", float("nan"))),
+            "dist_z": float(info.get("dist_z", float("nan"))),
+            "shaped_distance": float(info.get("shaped_distance", float("nan"))),
+            "desired_z": float(info.get("desired_z", float("nan"))),
+            "action_limited": safe_action.action_limited,
+            "workspace_limited": safe_action.workspace_limited,
+            "control_action_scale_multiplier": float(info.get("control_action_scale_multiplier", float("nan"))),
+            "control_action_noise_std": float(info.get("control_action_noise_std", float("nan"))),
+            "control_action_delay": int(info.get("control_action_delay", -1)),
+            "control_action_filter_alpha": float(info.get("control_action_filter_alpha", float("nan"))),
+        }
+        row.update(vector_fields("target", info.get("target_pos", (float("nan"),) * 3), 3))
+        row.update(vector_fields("peg_tip", info.get("peg_tip_pos", (float("nan"),) * 3), 3))
+        row.update(vector_fields("raw_action", raw_action, 3))
+        row.update(vector_fields("limited_action", safe_action.limited_action, 3))
+        row.update(vector_fields("filtered_action", safe_action.filtered_action, 3))
+        row.update(vector_fields("safe_action", safe_action.safe_action, 3))
+        row.update(vector_fields("env_commanded_action", info.get("commanded_action", (float("nan"),) * 3), 3))
+        row.update(vector_fields("env_applied_action", info.get("applied_action", (float("nan"),) * 3), 3))
+        row.update(vector_fields("safe_target_before_clip", safe_action.target_before_workspace_clip, 3))
+        row.update(vector_fields("safe_target_after_clip", safe_action.target_after_workspace_clip, 3))
+        return row
+
+
+def vector_fields(prefix: str, value: Any, size: int) -> dict[str, float]:
+    labels = ("x", "y", "z") if size == 3 else tuple(str(index) for index in range(size))
+    array = np.asarray(value, dtype=np.float64).reshape(-1)
+    return {
+        f"{prefix}_{label}": float(array[index]) if index < array.size else float("nan")
+        for index, label in enumerate(labels)
+    }
+
+
+def write_trace_csv(path: Path, rows: list[dict[str, Any]]) -> None:
+    if not rows:
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=list(rows[0].keys()))
+        writer.writeheader()
+        writer.writerows(rows)
