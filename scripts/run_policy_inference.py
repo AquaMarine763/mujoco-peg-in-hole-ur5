@@ -7,7 +7,9 @@ from stable_baselines3 import A2C, PPO, SAC
 
 from peg_in_hole_mujoco import PegInHoleMujocoEnv
 from peg_in_hole_mujoco.policy_interface import (
-    MujocoPolicySession,
+    MujocoActionExecutor,
+    MujocoObservationProvider,
+    PolicyInferenceSession,
     SB3PolicyAdapter,
     SafetyConfig,
     SafetyFilter,
@@ -133,8 +135,9 @@ def main() -> None:
             action_filter_alpha=args.safety_action_filter_alpha,
         )
     )
-    session = MujocoPolicySession(
-        env=env,
+    session = PolicyInferenceSession(
+        observation_provider=MujocoObservationProvider(env),
+        action_executor=MujocoActionExecutor(env),
         policy=policy,
         safety_filter=safety_filter,
         control_frequency_hz=args.control_frequency_hz,
@@ -165,7 +168,7 @@ def main() -> None:
                 )
             )
     finally:
-        env.close()
+        session.close()
 
     write_trace_csv(args.output, rows)
     print(f"saved inference trace to {args.output}")

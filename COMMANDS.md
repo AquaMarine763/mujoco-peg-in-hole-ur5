@@ -144,11 +144,30 @@ python scripts\run_policy_inference.py --agent sac --observation-mode image --mo
 The default `--control-frequency-hz 50` matches the current MuJoCo control
 period of `0.02 s`. Use an explicit value such as `20` when prototyping a real
 robot dry-run loop.
+Internally this path uses `PolicyInferenceSession` plus
+`MujocoObservationProvider` and `MujocoActionExecutor`; real hardware should
+replace only the provider/executor layer.
 
 Use a smoother action safety layer:
 
 ```powershell
 python scripts\run_policy_inference.py --agent sac --observation-mode image --model checkpoints_image_bc_50k_sidecam_visual_camera_control_delay3_oracle\sac_image_bc.zip --episodes 1 --output results\policy_inference_trace_smooth.csv --device cpu --domain-randomization-level full_contact_light --success-xy-tolerance 0.005 --success-z-tolerance 0.01 --safety-action-filter-alpha 0.6
+```
+
+## Real Backend Dry Run
+
+Validate the real-robot provider/executor path without loading a model or moving
+hardware:
+
+```powershell
+python scripts\run_real_policy_dryrun.py --zero-policy --episodes 1 --max-steps 5 --output results\real_policy_dryrun_zero_trace.csv
+```
+
+Run the trained image policy against a real-camera image or image folder while
+still using a dry-run UR5 executor:
+
+```powershell
+python scripts\run_real_policy_dryrun.py --model checkpoints_image_bc_50k_sidecam_visual_camera_control_delay3_oracle\sac_image_bc.zip --image-dir path\to\camera_frames --episodes 1 --output results\real_policy_dryrun_trace.csv
 ```
 
 ## Evaluation Matrix

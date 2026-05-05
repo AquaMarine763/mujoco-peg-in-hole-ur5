@@ -501,11 +501,26 @@ python scripts/run_policy_inference.py \
   --success-z-tolerance 0.01
 ```
 
-This path uses `SB3PolicyAdapter`, `SafetyFilter`, and `MujocoPolicySession`.
-It keeps policy output as Cartesian `dx, dy, dz`, applies action/workspace
-limits, and writes a per-step trace for sim-to-real debugging. The default
-`--control-frequency-hz 50` matches the current MuJoCo control period of
-`0.02 s`; set it explicitly for real-robot dry-run experiments.
+This path uses `SB3PolicyAdapter`, `SafetyFilter`, `PolicyInferenceSession`,
+`MujocoObservationProvider`, and `MujocoActionExecutor`. It keeps policy output
+as Cartesian `dx, dy, dz`, applies action/workspace limits, and writes a
+per-step trace for sim-to-real debugging. The default `--control-frequency-hz
+50` matches the current MuJoCo control period of `0.02 s`; set it explicitly
+for real-robot dry-run experiments.
+
+Run the real-backend dry-run path without moving hardware:
+
+```bash
+python scripts/run_real_policy_dryrun.py \
+  --zero-policy \
+  --episodes 1 \
+  --max-steps 5 \
+  --output results/real_policy_dryrun_zero_trace.csv
+```
+
+For image-policy dry runs, pass a single camera frame with `--image-path` or a
+folder of frames with `--image-dir`. The dry-run executor logs actions only; it
+does not command a robot.
 
 ```bash
 python scripts/eval_policy.py \

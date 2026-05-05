@@ -15,6 +15,28 @@ class PolicyAdapter(Protocol):
         """Return a Cartesian delta action in meters."""
 
 
+class ObservationProvider(Protocol):
+    def reset(self, seed: int | None = None) -> tuple[Any, dict[str, Any]]:
+        """Reset the data source and return the first policy observation."""
+
+
+@dataclass(frozen=True)
+class StepResult:
+    observation: Any
+    reward: float
+    terminated: bool
+    truncated: bool
+    info: dict[str, Any]
+
+
+class ActionExecutor(Protocol):
+    def execute(self, action: np.ndarray) -> StepResult:
+        """Execute a safe Cartesian delta action."""
+
+    def close(self) -> None:
+        """Release backend resources."""
+
+
 @dataclass(frozen=True)
 class SafetyConfig:
     max_action: float = 0.005
@@ -103,17 +125,45 @@ class SafetyFilter:
         )
 
 
-class MujocoPolicySession:
+class MujocoObservationProvider:
+    def __init__(self, env: PegInHoleMujocoEnv):
+        self.env = env
+
+    def reset(self, seed: int | None = None) -> tuple[Any, dict[str, Any]]:
+        return self.env.reset(seed=seed)
+
+
+class MujocoActionExecutor:
+    def __init__(self, env: PegInHoleMujocoEnv):
+        self.env = env
+
+    def execute(self, action: np.ndarray) -> StepResult:
+        observation, reward, terminated, truncated, info = self.env.step(action)
+        return StepResult(
+            observation=observation,
+            reward=float(reward),
+            terminated=bool(terminated),
+            truncated=bool(truncated),
+            info=info,
+        )
+
+    def close(self) -> None:
+        self.env.close()
+
+
+class PolicyInferenceSession:
     def __init__(
         self,
-        env: PegInHoleMujocoEnv,
+        observation_provider: ObservationProvider,
+        action_executor: ActionExecutor,
         policy: PolicyAdapter,
         safety_filter: SafetyFilter,
         control_frequency_hz: float,
     ):
         if control_frequency_hz <= 0.0:
             raise ValueError("control_frequency_hz must be positive.")
-        self.env = env
+        self.observation_provider = observation_provider
+        self.action_executor = action_executor
         self.policy = policy
         self.safety_filter = safety_filter
         self.control_frequency_hz = float(control_frequency_hz)
@@ -121,7 +171,7 @@ class MujocoPolicySession:
 
     def run_episode(self, episode: int, seed: int) -> tuple[EpisodeResult, list[dict[str, Any]]]:
         self.safety_filter.reset()
-        obs, info = self.env.reset(seed=seed)
+        obs, info = self.observation_provider.reset(seed=seed)
         episode_return = 0.0
         rows: list[dict[str, Any]] = [
             self._row(
@@ -130,16 +180,7 @@ class MujocoPolicySession:
                 reward=0.0,
                 episode_return=episode_return,
                 raw_action=np.zeros(3, dtype=np.float64),
-                safe_action=SafeAction(
-                    raw_action=np.zeros(3, dtype=np.float64),
-                    limited_action=np.zeros(3, dtype=np.float64),
-                    filtered_action=np.zeros(3, dtype=np.float64),
-                    safe_action=np.zeros(3, dtype=np.float64),
-                    target_before_workspace_clip=np.asarray(info["peg_tip_pos"], dtype=np.float64),
-                    target_after_workspace_clip=np.asarray(info["peg_tip_pos"], dtype=np.float64),
-                    action_limited=False,
-                    workspace_limited=False,
-                ),
+                safe_action=zero_safe_action(info),
                 info=info,
                 terminated=False,
                 truncated=False,
@@ -149,35 +190,40 @@ class MujocoPolicySession:
         while True:
             raw_action = self.policy.predict(obs)
             safe_action = self.safety_filter.filter(raw_action, info["peg_tip_pos"])
-            obs, reward, terminated, truncated, info = self.env.step(safe_action.safe_action)
-            episode_return += float(reward)
+            step_result = self.action_executor.execute(safe_action.safe_action)
+            obs = step_result.observation
+            info = step_result.info
+            episode_return += step_result.reward
             rows.append(
                 self._row(
                     episode=episode,
                     step=int(info["step_count"]),
-                    reward=float(reward),
+                    reward=step_result.reward,
                     episode_return=episode_return,
                     raw_action=raw_action,
                     safe_action=safe_action,
                     info=info,
-                    terminated=terminated,
-                    truncated=truncated,
+                    terminated=step_result.terminated,
+                    truncated=step_result.truncated,
                 )
             )
-            if terminated or truncated:
+            if step_result.terminated or step_result.truncated:
                 break
 
         result = EpisodeResult(
             episode=episode,
             success=bool(info["insertion_success"]),
             collision=bool(info["collision"]),
-            truncated=bool(truncated),
+            truncated=bool(step_result.truncated),
             steps=int(info["step_count"]),
             episode_return=episode_return,
             final_dist_xy=float(info["dist_xy"]),
             final_dist_z=float(info["dist_z"]),
         )
         return result, rows
+
+    def close(self) -> None:
+        self.action_executor.close()
 
     def _row(
         self,
@@ -224,6 +270,38 @@ class MujocoPolicySession:
         row.update(vector_fields("safe_target_before_clip", safe_action.target_before_workspace_clip, 3))
         row.update(vector_fields("safe_target_after_clip", safe_action.target_after_workspace_clip, 3))
         return row
+
+
+class MujocoPolicySession(PolicyInferenceSession):
+    def __init__(
+        self,
+        env: PegInHoleMujocoEnv,
+        policy: PolicyAdapter,
+        safety_filter: SafetyFilter,
+        control_frequency_hz: float,
+    ):
+        super().__init__(
+            observation_provider=MujocoObservationProvider(env),
+            action_executor=MujocoActionExecutor(env),
+            policy=policy,
+            safety_filter=safety_filter,
+            control_frequency_hz=control_frequency_hz,
+        )
+
+
+def zero_safe_action(info: dict[str, Any]) -> SafeAction:
+    peg_tip_pos = np.asarray(info["peg_tip_pos"], dtype=np.float64)
+    zeros = np.zeros(3, dtype=np.float64)
+    return SafeAction(
+        raw_action=zeros,
+        limited_action=zeros,
+        filtered_action=zeros,
+        safe_action=zeros,
+        target_before_workspace_clip=peg_tip_pos,
+        target_after_workspace_clip=peg_tip_pos,
+        action_limited=False,
+        workspace_limited=False,
+    )
 
 
 def vector_fields(prefix: str, value: Any, size: int) -> dict[str, float]:

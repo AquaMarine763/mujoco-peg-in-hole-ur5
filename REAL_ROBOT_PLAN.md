@@ -18,10 +18,20 @@ Current implementation:
 - `SB3PolicyAdapter`: wraps a Stable-Baselines3 model.
 - `SafetyFilter`: limits per-step Cartesian motion and clips the target inside
   a workspace box.
-- `MujocoPolicySession`: runs the policy through the MuJoCo environment and
-  logs each inference step.
+- `PolicyInferenceSession`: runs the policy through backend-neutral
+  observation/action interfaces and logs each inference step.
+- `MujocoObservationProvider`: adapts MuJoCo reset/observation into the generic
+  interface.
+- `MujocoActionExecutor`: adapts safe Cartesian actions into MuJoCo `env.step`.
+- `RealCameraObservationProvider`: dry-run provider that loads a real camera
+  image or image folder and preprocesses it to the policy shape.
+- `DryRunUR5ActionExecutor`: accepts safe Cartesian actions and logs them
+  without moving hardware.
 - `scripts/run_policy_inference.py`: command-line entry point for the MuJoCo
   backend.
+- `scripts/run_real_policy_dryrun.py`: command-line entry point for the
+  real-backend dry-run path.
+- `configs/real_ur5_dryrun.yaml`: conservative placeholder configuration.
 
 The action is a Cartesian peg-tip displacement in meters. The default step
 limit is `0.005 m`. The current MuJoCo session logs a `50 Hz` control
@@ -56,13 +66,12 @@ measured.
 
 ## Next Engineering Steps
 
-1. Split `MujocoPolicySession` into backend-neutral provider/executor classes:
-   `ObservationProvider` and `ActionExecutor`.
-2. Add a real-camera observation provider that produces the same image tensor
-   shape as training: `100x100` grayscale.
-3. Add a UR5 action executor that accepts safe Cartesian `dx, dy, dz` commands.
-4. Add a dry-run mode for real hardware that logs actions without moving.
-5. Replace or calibrate the simplified MuJoCo arm with a UR5/UR5e model before
+1. Replace placeholder camera and tool transforms in
+   `configs/real_ur5_dryrun.yaml` with measured values.
+2. Validate real camera preprocessing with representative frames.
+3. Add a UR5 action executor that can run in explicit dry-run mode first, then
+   guarded motion mode.
+4. Replace or calibrate the simplified MuJoCo arm with a UR5/UR5e model before
    relying on dynamics results.
 
 ## Do Not Assume
