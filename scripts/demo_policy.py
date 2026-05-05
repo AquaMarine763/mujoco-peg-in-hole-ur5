@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+import mujoco
 from stable_baselines3 import A2C, PPO, SAC
 
 from peg_in_hole_mujoco import PegInHoleMujocoEnv
@@ -23,8 +24,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--observation-mode", choices=["image", "state"], default="state")
     parser.add_argument("--episodes", type=int, default=1)
     parser.add_argument("--fps", type=int, default=20)
-    parser.add_argument("--width", type=int, default=100)
-    parser.add_argument("--height", type=int, default=100)
+    parser.add_argument("--width", type=int, default=100, help="Policy observation image width.")
+    parser.add_argument("--height", type=int, default=100, help="Policy observation image height.")
+    parser.add_argument("--render-width", type=int, default=640, help="Output demo frame width.")
+    parser.add_argument("--render-height", type=int, default=480, help="Output demo frame height.")
+    parser.add_argument("--render-camera", default="overview", help="MuJoCo camera used for the output demo.")
     parser.add_argument("--device", default="auto")
     parser.add_argument("--seed", type=int, default=1000)
     parser.add_argument("--domain-randomization", action="store_true")
@@ -121,6 +125,11 @@ def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
     )
 
 
+def render_demo_frame(env: PegInHoleMujocoEnv, renderer: mujoco.Renderer, camera_name: str):
+    renderer.update_scene(env.data, camera=camera_name)
+    return renderer.render()
+
+
 def main() -> None:
     try:
         import imageio.v2 as imageio
@@ -130,18 +139,19 @@ def main() -> None:
     args = parse_args()
     env = make_env(args)
     model = AGENTS[args.agent].load(args.model, env=env, device=args.device)
+    demo_renderer = mujoco.Renderer(env.model, height=args.render_height, width=args.render_width)
     frames = []
 
     try:
         for episode in range(args.episodes):
             obs, _ = env.reset(seed=args.seed + episode)
-            frames.append(env.render())
+            frames.append(render_demo_frame(env, demo_renderer, args.render_camera))
             episode_return = 0.0
             while True:
                 action, _ = model.predict(obs, deterministic=True)
                 obs, reward, terminated, truncated, info = env.step(action)
                 episode_return += reward
-                frames.append(env.render())
+                frames.append(render_demo_frame(env, demo_renderer, args.render_camera))
                 if terminated or truncated:
                     print(
                         "episode={episode} return={ret:.3f} success={success} "
@@ -155,6 +165,7 @@ def main() -> None:
                     )
                     break
     finally:
+        demo_renderer.close()
         env.close()
 
     args.output.parent.mkdir(parents=True, exist_ok=True)

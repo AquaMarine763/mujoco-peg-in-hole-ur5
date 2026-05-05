@@ -484,22 +484,27 @@ python scripts/demo_policy.py \
   --agent sac \
   --observation-mode state \
   --model checkpoints_state_tuned_v21_bc_mid/sac_state_bc.zip \
-  --output demos/state_bc_high_precision.gif \
+  --output demos/state_bc_high_precision_hd.gif \
+  --render-width 640 \
+  --render-height 480 \
   --success-xy-tolerance 0.005 \
   --success-z-tolerance 0.01
 ```
 
 For an image policy, keep the demo observation size at the model's training
-size, currently `100x100`:
+size, currently `100x100`. Use `--render-width` and `--render-height` for the
+saved GIF resolution:
 
 ```bash
 python scripts/demo_policy.py \
   --agent sac \
   --observation-mode image \
   --model checkpoints_image_bc_50k_sidecam_visual_camera_control_delay3_oracle/sac_image_bc.zip \
-  --output demos/image_bc_sidecam_full_contact_light.gif \
+  --output demos/image_bc_sidecam_full_contact_light_hd.gif \
   --width 100 \
   --height 100 \
+  --render-width 640 \
+  --render-height 480 \
   --success-xy-tolerance 0.005 \
   --success-z-tolerance 0.01 \
   --domain-randomization-level full_contact_light
