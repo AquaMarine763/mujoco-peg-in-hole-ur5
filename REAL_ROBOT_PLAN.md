@@ -25,12 +25,16 @@ Current implementation:
 - `MujocoActionExecutor`: adapts safe Cartesian actions into MuJoCo `env.step`.
 - `RealCameraObservationProvider`: dry-run provider that loads a real camera
   image or image folder and preprocesses it to the policy shape.
+- `preprocess_camera_image`: shared preprocessing path for real frames:
+  `crop_xywh -> rotate_k -> flip -> resize -> grayscale uint8[100,100,1]`.
 - `DryRunUR5ActionExecutor`: accepts safe Cartesian actions and logs them
   without moving hardware.
 - `scripts/run_policy_inference.py`: command-line entry point for the MuJoCo
   backend.
 - `scripts/run_real_policy_dryrun.py`: command-line entry point for the
   real-backend dry-run path.
+- `scripts/preprocess_camera_frames.py`: offline checker for camera frame
+  preprocessing and image statistics.
 - `configs/real_ur5_dryrun.yaml`: conservative placeholder configuration.
 
 The action is a Cartesian peg-tip displacement in meters. The default step
@@ -68,7 +72,8 @@ measured.
 
 1. Replace placeholder camera and tool transforms in
    `configs/real_ur5_dryrun.yaml` with measured values.
-2. Validate real camera preprocessing with representative frames.
+2. Validate `crop_xywh`, `rotate_k`, and flip settings with representative
+   real wrist-camera frames.
 3. Add a UR5 action executor that can run in explicit dry-run mode first, then
    guarded motion mode.
 4. Replace or calibrate the simplified MuJoCo arm with a UR5/UR5e model before

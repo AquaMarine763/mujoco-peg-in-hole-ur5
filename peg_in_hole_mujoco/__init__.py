@@ -1,6 +1,7 @@
 """MuJoCo peg-in-hole environments."""
 
 from peg_in_hole_mujoco.envs.peg_in_hole_env import PegInHoleMujocoEnv
+from peg_in_hole_mujoco.image_preprocess import ImagePreprocessConfig, preprocess_camera_image
 from peg_in_hole_mujoco.policy_interface import (
     ActionExecutor,
     MujocoActionExecutor,
@@ -23,6 +24,7 @@ from peg_in_hole_mujoco.real_backend import (
 __all__ = [
     "ActionExecutor",
     "DryRunUR5ActionExecutor",
+    "ImagePreprocessConfig",
     "MujocoActionExecutor",
     "MujocoObservationProvider",
     "MujocoPolicySession",
@@ -36,4 +38,5 @@ __all__ = [
     "SafetyFilter",
     "StepResult",
     "ZeroPolicyAdapter",
+    "preprocess_camera_image",
 ]

@@ -522,6 +522,19 @@ For image-policy dry runs, pass a single camera frame with `--image-path` or a
 folder of frames with `--image-dir`. The dry-run executor logs actions only; it
 does not command a robot.
 
+Preview the real camera preprocessing path before running a policy:
+
+```bash
+python scripts/preprocess_camera_frames.py \
+  --input path/to/camera_frames \
+  --output-dir results/preprocessed_camera_frames \
+  --stats-output results/preprocessed_camera_frames_stats.csv \
+  --width 100 \
+  --height 100 \
+  --crop-xywh 0 0 640 480 \
+  --rotate-k 0
+```
+
 ```bash
 python scripts/eval_policy.py \
   --agent sac \

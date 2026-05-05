@@ -6,8 +6,8 @@ from typing import Any
 
 import numpy as np
 
-from peg_in_hole_mujoco.image_preprocess import load_image, preprocess_camera_image
-from peg_in_hole_mujoco.policy_interface import PolicyAdapter, StepResult
+from peg_in_hole_mujoco.image_preprocess import ImagePreprocessConfig, load_image, preprocess_camera_image
+from peg_in_hole_mujoco.policy_interface import StepResult
 
 
 IMAGE_SUFFIXES = {".bmp", ".jpeg", ".jpg", ".png", ".tif", ".tiff"}
@@ -17,9 +17,23 @@ IMAGE_SUFFIXES = {".bmp", ".jpeg", ".jpg", ".png", ".tif", ".tiff"}
 class RealCameraConfig:
     image_width: int = 100
     image_height: int = 100
+    crop_xywh: tuple[int, int, int, int] | None = None
+    rotate_k: int = 0
+    flip_horizontal: bool = False
+    flip_vertical: bool = False
     observation_key: str = "cam_image"
     peg_tip_pos: tuple[float, float, float] = (0.55, 0.05, 0.78)
     target_pos: tuple[float, float, float] = (0.55, 0.05, 0.65)
+
+    def preprocess_config(self) -> ImagePreprocessConfig:
+        return ImagePreprocessConfig(
+            width=self.image_width,
+            height=self.image_height,
+            crop_xywh=self.crop_xywh,
+            rotate_k=self.rotate_k,
+            flip_horizontal=self.flip_horizontal,
+            flip_vertical=self.flip_vertical,
+        )
 
 
 class ZeroPolicyAdapter:
@@ -84,8 +98,7 @@ class RealCameraObservationProvider:
         self.frame_index += 1
         return preprocess_camera_image(
             load_image(path),
-            width=self.config.image_width,
-            height=self.config.image_height,
+            config=self.config.preprocess_config(),
         )
 
     @staticmethod

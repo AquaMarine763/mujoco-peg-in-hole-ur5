@@ -1,0 +1,2 @@
+input,output,crop_xywh,rotate_k,flip_horizontal,flip_vertical,input_shape,input_dtype,input_min,input_max,input_mean,input_std,processed_shape,processed_dtype,processed_min,processed_max,processed_mean,processed_std
+synthetic_smoke.png,mujoco_peg_in_hole\results\preprocessed_camera_frames_smoke\synthetic_smoke_processed.png,"20,10,160,120",1,True,False,180x240x3,uint8,0.0,255.0,128.5172839506173,74.93859426985266,100x100x1,uint8,41.0,255.0,108.7833,37.42245503851932

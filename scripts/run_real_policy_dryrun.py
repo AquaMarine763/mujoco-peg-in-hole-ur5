@@ -32,6 +32,10 @@ DEFAULTS = {
     "control_frequency_hz": 20.0,
     "image_width": 100,
     "image_height": 100,
+    "crop_xywh": None,
+    "rotate_k": 0,
+    "flip_horizontal": False,
+    "flip_vertical": False,
     "max_steps": 50,
     "safety_max_action": 0.002,
     "safety_action_filter_alpha": 0.6,
@@ -58,6 +62,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--control-frequency-hz", type=float, default=None)
     parser.add_argument("--width", type=int, default=None)
     parser.add_argument("--height", type=int, default=None)
+    parser.add_argument("--crop-xywh", nargs=4, type=int, default=None)
+    parser.add_argument("--rotate-k", type=int, default=None)
+    parser.add_argument("--flip-horizontal", action="store_true", default=None)
+    parser.add_argument("--flip-vertical", action="store_true", default=None)
     parser.add_argument("--max-steps", type=int, default=None)
     parser.add_argument("--safety-max-action", type=float, default=None)
     parser.add_argument("--safety-action-filter-alpha", type=float, default=None)
@@ -72,8 +80,17 @@ def parse_scalar(text: str) -> Any:
     text = text.strip()
     if not text:
         return ""
+    if text.lower() in ("none", "null"):
+        return None
+    if text.lower() == "true":
+        return True
+    if text.lower() == "false":
+        return False
     if text.startswith("[") and text.endswith("]"):
-        return [parse_scalar(part) for part in text[1:-1].split(",")]
+        content = text[1:-1].strip()
+        if not content:
+            return []
+        return [parse_scalar(part) for part in content.split(",")]
     try:
         if any(char in text.lower() for char in (".", "e")):
             return float(text)
@@ -109,6 +126,15 @@ def get_tuple(args: argparse.Namespace, config: dict[str, Any], name: str) -> tu
     return tuple(float(item) for item in value)
 
 
+def get_optional_int_tuple(args: argparse.Namespace, config: dict[str, Any], name: str, size: int) -> tuple[int, ...] | None:
+    value = get_value(args, config, name)
+    if value is None:
+        return None
+    if len(value) != size:
+        raise ValueError(f"{name} must contain {size} values.")
+    return tuple(int(item) for item in value)
+
+
 def make_policy(args: argparse.Namespace):
     if args.zero_policy:
         return ZeroPolicyAdapter()
@@ -125,6 +151,10 @@ def main() -> None:
     camera_config = RealCameraConfig(
         image_width=int(get_value(args, config, "image_width") if args.width is None else args.width),
         image_height=int(get_value(args, config, "image_height") if args.height is None else args.height),
+        crop_xywh=get_optional_int_tuple(args, config, "crop_xywh", 4),
+        rotate_k=int(get_value(args, config, "rotate_k")),
+        flip_horizontal=bool(get_value(args, config, "flip_horizontal")),
+        flip_vertical=bool(get_value(args, config, "flip_vertical")),
         peg_tip_pos=get_tuple(args, config, "peg_tip_pos"),
         target_pos=get_tuple(args, config, "target_pos"),
     )

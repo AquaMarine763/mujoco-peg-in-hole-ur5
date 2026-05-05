@@ -4,6 +4,10 @@
 control_frequency_hz: 20
 image_width: 100
 image_height: 100
+crop_xywh: none
+rotate_k: 0
+flip_horizontal: false
+flip_vertical: false
 max_steps: 50
 
 safety_max_action: 0.002
