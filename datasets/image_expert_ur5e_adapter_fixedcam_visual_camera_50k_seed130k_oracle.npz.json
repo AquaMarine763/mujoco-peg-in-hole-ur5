@@ -1,0 +1,78 @@
+{
+  "samples": 50000,
+  "model_path": "assets\\ur5e_adapter\\ur5e_peg_in_hole.xml",
+  "episodes_completed": 2713,
+  "successes": 2680,
+  "collisions": 33,
+  "expert": "oracle",
+  "expert_action_gain": 1.0,
+  "rollout_noise_std": 0.0005,
+  "success_xy_tolerance": 0.005,
+  "success_z_tolerance": 0.01,
+  "domain_randomization": false,
+  "domain_randomization_level": "visual_camera",
+  "control_action_scale_range": [
+    0.8,
+    1.2
+  ],
+  "control_action_noise_std_range": [
+    0.0,
+    0.0008
+  ],
+  "control_action_delay_range": [
+    0,
+    2
+  ],
+  "control_action_filter_alpha_range": [
+    0.55,
+    1.0
+  ],
+  "geometry_hole_center_xy_jitter": [
+    0.002,
+    0.002
+  ],
+  "geometry_fixture_height_jitter": 0.001,
+  "geometry_table_height_jitter": 0.001,
+  "geometry_hole_half_size_range": [
+    0.025,
+    0.029
+  ],
+  "geometry_peg_radius_range": [
+    0.0115,
+    0.0125
+  ],
+  "contact_friction_multiplier_range": [
+    0.7,
+    1.3
+  ],
+  "contact_solref_time_multiplier_range": [
+    0.8,
+    1.25
+  ],
+  "contact_solref_damping_multiplier_range": [
+    0.8,
+    1.2
+  ],
+  "contact_solimp_width_multiplier_range": [
+    0.8,
+    1.2
+  ],
+  "dynamics_joint_damping_multiplier_range": [
+    0.8,
+    1.2
+  ],
+  "dynamics_actuator_kp_multiplier_range": [
+    0.8,
+    1.2
+  ],
+  "target_low": [
+    0.5,
+    0.0,
+    0.65
+  ],
+  "target_high": [
+    0.6,
+    0.1,
+    0.65
+  ]
+}
