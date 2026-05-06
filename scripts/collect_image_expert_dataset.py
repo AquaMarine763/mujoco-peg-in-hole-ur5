@@ -10,6 +10,126 @@ from stable_baselines3 import SAC
 from peg_in_hole_mujoco import OracleControllerConfig, PegInHoleMujocoEnv, oracle_action
 
 
+SCALAR_DIAGNOSTIC_KEYS = (
+    "hole_half_size",
+    "peg_radius",
+    "hole_clearance",
+    "control_action_scale_multiplier",
+    "control_action_noise_std",
+    "control_action_delay",
+    "control_action_filter_alpha",
+    "fixture_height_offset",
+    "table_height_offset",
+    "contact_friction_multiplier",
+    "contact_solref_time_multiplier",
+    "contact_solref_damping_multiplier",
+    "contact_solimp_width_multiplier",
+    "joint_damping_multiplier",
+    "actuator_kp_multiplier",
+)
+VECTOR_DIAGNOSTIC_KEYS = ("hole_center_offset",)
+DATASET_SCHEMA_VERSION = "image_expert_v2_diagnostics"
+
+
+def new_diagnostic_buffers() -> dict[str, list[float | np.ndarray]]:
+    return {key: [] for key in (*SCALAR_DIAGNOSTIC_KEYS, *VECTOR_DIAGNOSTIC_KEYS)}
+
+
+def read_sample_diagnostics(info: dict) -> dict[str, float | np.ndarray]:
+    hole_half_size = float(info.get("hole_half_size", np.nan))
+    peg_radius = float(info.get("peg_radius", np.nan))
+    if np.isfinite(hole_half_size) and np.isfinite(peg_radius):
+        hole_clearance = hole_half_size - peg_radius
+    else:
+        hole_clearance = np.nan
+
+    hole_center_offset = np.asarray(
+        info.get("hole_center_offset", [np.nan, np.nan]),
+        dtype=np.float32,
+    )
+    if hole_center_offset.shape != (2,):
+        hole_center_offset = np.full(2, np.nan, dtype=np.float32)
+
+    return {
+        "hole_half_size": hole_half_size,
+        "peg_radius": peg_radius,
+        "hole_clearance": float(hole_clearance),
+        "control_action_scale_multiplier": float(
+            info.get("control_action_scale_multiplier", np.nan)
+        ),
+        "control_action_noise_std": float(info.get("control_action_noise_std", np.nan)),
+        "control_action_delay": float(info.get("control_action_delay", -1)),
+        "control_action_filter_alpha": float(
+            info.get("control_action_filter_alpha", np.nan)
+        ),
+        "fixture_height_offset": float(info.get("fixture_height_offset", np.nan)),
+        "table_height_offset": float(info.get("table_height_offset", np.nan)),
+        "contact_friction_multiplier": float(
+            info.get("contact_friction_multiplier", np.nan)
+        ),
+        "contact_solref_time_multiplier": float(
+            info.get("contact_solref_time_multiplier", np.nan)
+        ),
+        "contact_solref_damping_multiplier": float(
+            info.get("contact_solref_damping_multiplier", np.nan)
+        ),
+        "contact_solimp_width_multiplier": float(
+            info.get("contact_solimp_width_multiplier", np.nan)
+        ),
+        "joint_damping_multiplier": float(info.get("joint_damping_multiplier", np.nan)),
+        "actuator_kp_multiplier": float(info.get("actuator_kp_multiplier", np.nan)),
+        "hole_center_offset": hole_center_offset.astype(np.float32, copy=True),
+    }
+
+
+def append_diagnostics(
+    buffers: dict[str, list[float | np.ndarray]],
+    sample: dict[str, float | np.ndarray],
+) -> None:
+    for key, value in sample.items():
+        buffers[key].append(value)
+
+
+def extend_diagnostics(
+    destination: dict[str, list[float | np.ndarray]],
+    source: dict[str, list[float | np.ndarray]],
+    keep: int,
+) -> None:
+    for key in destination:
+        destination[key].extend(source[key][:keep])
+
+
+def add_diagnostic_arrays(
+    arrays: dict[str, np.ndarray],
+    diagnostics: dict[str, list[float | np.ndarray]],
+) -> None:
+    for key in SCALAR_DIAGNOSTIC_KEYS:
+        dtype = np.int32 if key == "control_action_delay" else np.float32
+        arrays[key] = np.asarray(diagnostics[key], dtype=dtype)
+    for key in VECTOR_DIAGNOSTIC_KEYS:
+        arrays[key] = np.asarray(diagnostics[key], dtype=np.float32)
+
+
+def summarize_float_array(values: np.ndarray) -> dict[str, float]:
+    if values.size == 0:
+        return {"mean": float("nan"), "min": float("nan"), "max": float("nan")}
+    finite = values[np.isfinite(values)]
+    if finite.size == 0:
+        return {"mean": float("nan"), "min": float("nan"), "max": float("nan")}
+    return {
+        "mean": float(np.mean(finite)),
+        "min": float(np.min(finite)),
+        "max": float(np.max(finite)),
+    }
+
+
+def array_metadata(arrays: dict[str, np.ndarray]) -> dict[str, dict[str, object]]:
+    return {
+        key: {"shape": list(value.shape), "dtype": str(value.dtype)}
+        for key, value in sorted(arrays.items())
+    }
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Collect wrist-camera images with expert Cartesian actions.")
     parser.add_argument("--model-path", type=Path, default=None)
@@ -160,8 +280,10 @@ def main() -> None:
     desired_zs: list[float] = []
     episode_ids: list[int] = []
     step_ids: list[int] = []
+    diagnostics = new_diagnostic_buffers()
     successes = 0
     collisions = 0
+    timeouts = 0
     episodes = 0
     episodes_kept = 0
     episode_images: list[np.ndarray] = []
@@ -173,6 +295,7 @@ def main() -> None:
     episode_desired_zs: list[float] = []
     episode_ids_buffer: list[int] = []
     episode_step_ids: list[int] = []
+    episode_diagnostics = new_diagnostic_buffers()
 
     obs, info = env.reset(seed=args.seed)
     try:
@@ -195,6 +318,7 @@ def main() -> None:
             sample_desired_z = float(info["desired_z"])
             sample_episode_id = episodes_kept if args.success_only else episodes
             sample_step_id = int(info["step_count"])
+            sample_diagnostics = read_sample_diagnostics(info)
 
             if args.success_only:
                 episode_images.append(sample_image)
@@ -207,6 +331,7 @@ def main() -> None:
                 episode_desired_zs.append(sample_desired_z)
                 episode_ids_buffer.append(sample_episode_id)
                 episode_step_ids.append(sample_step_id)
+                append_diagnostics(episode_diagnostics, sample_diagnostics)
             else:
                 images.append(sample_image)
                 if sample_near_hole_crop is not None:
@@ -218,6 +343,7 @@ def main() -> None:
                 desired_zs.append(sample_desired_z)
                 episode_ids.append(sample_episode_id)
                 step_ids.append(sample_step_id)
+                append_diagnostics(diagnostics, sample_diagnostics)
 
             rollout_action = action + rng.normal(0.0, args.rollout_noise_std, size=action.shape)
             rollout_action = np.clip(rollout_action, env.action_space.low, env.action_space.high)
@@ -227,6 +353,7 @@ def main() -> None:
                 success = bool(info["insertion_success"])
                 successes += int(success)
                 collisions += int(info["collision"])
+                timeouts += int(truncated and not success)
                 episodes += 1
                 if args.success_only and success:
                     keep = min(args.samples - len(images), len(episode_images))
@@ -240,6 +367,7 @@ def main() -> None:
                     desired_zs.extend(episode_desired_zs[:keep])
                     episode_ids.extend(episode_ids_buffer[:keep])
                     step_ids.extend(episode_step_ids[:keep])
+                    extend_diagnostics(diagnostics, episode_diagnostics, keep)
                     episodes_kept += 1
                 episode_images = []
                 episode_near_hole_crops = []
@@ -250,6 +378,7 @@ def main() -> None:
                 episode_desired_zs = []
                 episode_ids_buffer = []
                 episode_step_ids = []
+                episode_diagnostics = new_diagnostic_buffers()
                 obs, info = env.reset(seed=args.seed + episodes)
     finally:
         env.close()
@@ -267,17 +396,27 @@ def main() -> None:
     }
     if args.include_near_hole_crop:
         arrays["near_hole_crops"] = np.asarray(near_hole_crops, dtype=np.uint8)
+    add_diagnostic_arrays(arrays, diagnostics)
     if args.compressed:
         np.savez_compressed(args.output, **arrays)
     else:
         np.savez(args.output, **arrays)
 
     metadata = {
+        "dataset_schema_version": DATASET_SCHEMA_VERSION,
         "samples": len(images),
         "model_path": str(args.model_path) if args.model_path is not None else "default",
         "episodes_completed": episodes,
+        "episodes_kept": episodes_kept if args.success_only else episodes,
         "successes": successes,
         "collisions": collisions,
+        "timeouts": timeouts,
+        "success_rate": successes / max(episodes, 1),
+        "collision_rate": collisions / max(episodes, 1),
+        "timeout_rate": timeouts / max(episodes, 1),
+        "episodes_kept_rate": (
+            (episodes_kept if args.success_only else episodes) / max(episodes, 1)
+        ),
         "expert": "oracle" if expert is None else str(args.expert_model),
         "expert_action_gain": args.expert_action_gain,
         "oracle_mode": args.oracle_mode if expert is None else "expert_model",
@@ -291,11 +430,13 @@ def main() -> None:
         "guarded_prediction_steps": args.guarded_prediction_steps,
         "rollout_noise_std": args.rollout_noise_std,
         "success_only": args.success_only,
-        "episodes_kept": episodes_kept if args.success_only else episodes,
         "success_xy_tolerance": args.success_xy_tolerance,
         "success_z_tolerance": args.success_z_tolerance,
         "domain_randomization": args.domain_randomization,
         "domain_randomization_level": args.domain_randomization_level,
+        "domain_randomization_active": (
+            args.domain_randomization or args.domain_randomization_level != "none"
+        ),
         "image_width": args.image_width,
         "image_height": args.image_height,
         "include_near_hole_crop": args.include_near_hole_crop,
@@ -317,6 +458,24 @@ def main() -> None:
         "dynamics_actuator_kp_multiplier_range": list(args.dynamics_actuator_kp_multiplier_range),
         "target_low": list(args.target_low),
         "target_high": list(args.target_high),
+        "array_metadata": array_metadata(arrays),
+        "diagnostics": {
+            "hole_clearance": summarize_float_array(arrays["hole_clearance"]),
+            "hole_half_size": summarize_float_array(arrays["hole_half_size"]),
+            "peg_radius": summarize_float_array(arrays["peg_radius"]),
+            "control_action_scale_multiplier": summarize_float_array(
+                arrays["control_action_scale_multiplier"]
+            ),
+            "control_action_noise_std": summarize_float_array(
+                arrays["control_action_noise_std"]
+            ),
+            "control_action_delay": summarize_float_array(
+                arrays["control_action_delay"].astype(np.float32)
+            ),
+            "control_action_filter_alpha": summarize_float_array(
+                arrays["control_action_filter_alpha"]
+            ),
+        },
     }
     metadata_path = args.output.with_suffix(args.output.suffix + ".json")
     metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")

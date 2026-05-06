@@ -164,6 +164,17 @@ bucket remains weak (`0.333`). The next training pass should mix current wide
 and medium clearance and emphasize hard-control correction data. See
 `results/geometry_clearance_scan_summary.md`.
 
+The medium-clearance data path is now instrumented for auditability. New
+datasets collected by `scripts/collect_image_expert_dataset.py` use schema
+`image_expert_v2_diagnostics` and store per-sample geometry, control,
+fixture/table, and contact/dynamics randomization fields. The companion
+`scripts/inspect_image_expert_dataset.py` command writes md/csv summaries of
+clearance, control delay/filter/noise, action norms, and crop availability. The
+first 500-sample medium smoke reached `0.603` guarded-oracle success; the
+matched hard-control bucket reached `0.299`, confirming that the next full data
+pass needs success-only filtering and explicit hard-bucket diagnostics. See
+`results/medium_clearance_dataset_diagnostics_summary.md`.
+
 ## Quick Check
 
 Start with the low-dimensional state mode. This avoids camera-rendering issues

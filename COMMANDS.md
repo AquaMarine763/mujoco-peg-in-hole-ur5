@@ -1177,6 +1177,104 @@ Do not jump directly to narrow/tight as the default distribution; hard-control
 success is still too low. Full details are in
 `results\geometry_clearance_scan_summary.md`.
 
+## Medium Clearance Dataset Diagnostics
+
+Expert collection now writes v2 diagnostic arrays into new `.npz` files:
+`hole_half_size`, `peg_radius`, `hole_clearance`, `hole_center_offset`,
+control scale/noise/delay/filter values, fixture/table height offsets, and
+contact/dynamics multipliers. Metadata also records success, collision,
+timeout, kept-episode rates, array shapes, and summary diagnostics.
+
+Inspect any image expert dataset:
+
+```powershell
+python scripts\inspect_image_expert_dataset.py `
+  --dataset datasets\image_expert_ur5e_adapter_fixedcam_full_light_geometry_medium_guarded_success_smoke_oracle.npz `
+  --output-md results\image_expert_medium_guarded_success_smoke_inspection.md `
+  --output-csv results\image_expert_medium_guarded_success_smoke_inspection.csv
+```
+
+Medium clearance guarded smoke:
+
+```powershell
+python scripts\collect_image_expert_dataset.py `
+  --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml `
+  --output datasets\image_expert_ur5e_adapter_fixedcam_full_light_geometry_medium_guarded_success_smoke_oracle.npz `
+  --samples 500 `
+  --seed 940000 `
+  --image-width 100 `
+  --image-height 100 `
+  --include-near-hole-crop `
+  --near-hole-crop-size 64 `
+  --expert-action-gain 1.0 `
+  --oracle-mode guarded_two_stage `
+  --guarded-align-xy-tolerance 0.025 `
+  --guarded-insert-xy-tolerance 0.005 `
+  --guarded-retract-xy-tolerance 0.012 `
+  --guarded-preinsert-height 0.000 `
+  --guarded-max-xy-action 0.005 `
+  --guarded-max-down-action 0.0035 `
+  --guarded-max-up-action 0.005 `
+  --guarded-prediction-steps 1.0 `
+  --rollout-noise-std 0.0005 `
+  --success-xy-tolerance 0.005 `
+  --success-z-tolerance 0.01 `
+  --approach-xy-tolerance 0.02 `
+  --domain-randomization-level full_light_geometry `
+  --geometry-hole-half-size-range 0.020 0.024 `
+  --geometry-peg-radius-range 0.0115 0.0125 `
+  --success-only `
+  --compressed
+```
+
+Medium clearance hard-control guarded smoke:
+
+```powershell
+python scripts\collect_image_expert_dataset.py `
+  --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml `
+  --output datasets\image_expert_ur5e_adapter_fixedcam_full_light_geometry_medium_hard_guarded_success_smoke_oracle.npz `
+  --samples 500 `
+  --seed 941000 `
+  --image-width 100 `
+  --image-height 100 `
+  --include-near-hole-crop `
+  --near-hole-crop-size 64 `
+  --expert-action-gain 1.0 `
+  --oracle-mode guarded_two_stage `
+  --guarded-align-xy-tolerance 0.025 `
+  --guarded-insert-xy-tolerance 0.005 `
+  --guarded-retract-xy-tolerance 0.012 `
+  --guarded-preinsert-height 0.000 `
+  --guarded-max-xy-action 0.005 `
+  --guarded-max-down-action 0.0035 `
+  --guarded-max-up-action 0.005 `
+  --guarded-prediction-steps 1.0 `
+  --rollout-noise-std 0.0005 `
+  --success-xy-tolerance 0.005 `
+  --success-z-tolerance 0.01 `
+  --approach-xy-tolerance 0.02 `
+  --domain-randomization-level full_light_geometry `
+  --geometry-hole-half-size-range 0.020 0.024 `
+  --geometry-peg-radius-range 0.0115 0.0125 `
+  --control-action-scale-range 0.8 1.1 `
+  --control-action-noise-std-range 0 0.00025 `
+  --control-action-delay-range 2 2 `
+  --control-action-filter-alpha-range 0.55 0.70 `
+  --success-only `
+  --compressed
+```
+
+Checked 500-sample smoke result:
+
+| Dataset | Episodes | Success | Collision | Mean clearance | Mean delay | Mean alpha |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| medium guarded success | 58 | 0.603 | 0.345 | 9.93 mm | 1.11 | 0.777 |
+| medium hard guarded success | 87 | 0.299 | 0.701 | 10.36 mm | 2.00 | 0.627 |
+
+Use the same commands with `--samples 50000` for the next full medium
+collection pass. Keep `--success-only`: the failed guarded-oracle episodes are
+useful diagnostics but should not be cloned directly.
+
 ## Current Recommended UR5e Model
 
 ```text
