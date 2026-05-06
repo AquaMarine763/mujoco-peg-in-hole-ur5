@@ -316,6 +316,8 @@ class PolicyInferenceSession:
         }
         row.update(vector_fields("target", info.get("target_pos", (float("nan"),) * 3), 3))
         row.update(vector_fields("peg_tip", info.get("peg_tip_pos", (float("nan"),) * 3), 3))
+        row.update(vector_fields("tcp_pos", info.get("tcp_pos"), 3))
+        row.update(vector_fields("tcp_rotvec", info.get("tcp_rotvec"), 3))
         row.update(vector_fields("policy_action", action_diagnostics.get("policy_action", policy_action), 3))
         row.update(vector_fields("guarded_action", action_diagnostics.get("guarded_action"), 3))
         row.update(vector_fields("final_action", action_diagnostics.get("final_action", raw_action), 3))

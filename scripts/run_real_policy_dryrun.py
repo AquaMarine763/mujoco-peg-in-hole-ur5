@@ -52,7 +52,9 @@ DEFAULTS = {
     "peg_tip_pos": (0.55, 0.05, 0.78),
     "target_pos": (0.55, 0.05, 0.65),
     "pose_trace": None,
+    "tcp_pose_trace": None,
     "pose_frame": "robot_base",
+    "tcp_to_peg_tip_xyz": (0.0, 0.0, -0.11),
     "guard_approach_height": 0.08,
     "guard_action_limit": 0.002,
 }
@@ -72,7 +74,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--image-path", type=Path, default=None)
     parser.add_argument("--image-dir", type=Path, default=None)
     parser.add_argument("--pose-trace", type=Path, default=None)
+    parser.add_argument("--tcp-pose-trace", type=Path, default=None)
     parser.add_argument("--pose-frame", default=None)
+    parser.add_argument("--tcp-to-peg-tip-xyz", nargs=3, type=float, default=None)
     parser.add_argument("--control-frequency-hz", type=float, default=None)
     parser.add_argument("--width", type=int, default=None)
     parser.add_argument("--height", type=int, default=None)
@@ -177,6 +181,23 @@ def get_optional_int_tuple(args: argparse.Namespace, config: dict[str, Any], nam
     if len(value) != size:
         raise ValueError(f"{name} must contain {size} values.")
     return tuple(int(item) for item in value)
+
+
+def get_tcp_to_peg_tip_xyz(
+    args: argparse.Namespace,
+    config: dict[str, Any],
+) -> tuple[float, float, float]:
+    if args.tcp_to_peg_tip_xyz is not None:
+        value = args.tcp_to_peg_tip_xyz
+    elif "tcp_to_peg_tip_xyz" in config:
+        value = config["tcp_to_peg_tip_xyz"]
+    elif "tool0_to_peg_tip_xyz" in config:
+        value = config["tool0_to_peg_tip_xyz"]
+    else:
+        value = DEFAULTS["tcp_to_peg_tip_xyz"]
+    if len(value) != 3:
+        raise ValueError("tcp_to_peg_tip_xyz must contain three values.")
+    return tuple(float(item) for item in value)
 
 
 def make_policy(args: argparse.Namespace):
@@ -291,7 +312,9 @@ def main() -> None:
         image_path=args.image_path,
         image_dir=args.image_dir,
         pose_trace_path=get_value(args, config, "pose_trace"),
+        tcp_pose_trace_path=get_value(args, config, "tcp_pose_trace"),
         pose_frame=str(get_value(args, config, "pose_frame")),
+        tcp_to_peg_tip_xyz=get_tcp_to_peg_tip_xyz(args, config),
     )
     action_executor = DryRunUR5ActionExecutor(
         observation_provider=observation_provider,

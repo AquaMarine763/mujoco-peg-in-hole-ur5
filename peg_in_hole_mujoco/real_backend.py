@@ -44,6 +44,8 @@ class RealPoseSample:
     step: int | None = None
     timestamp: float | None = None
     pose_frame: str = "robot_base"
+    tcp_pos: tuple[float, float, float] | None = None
+    tcp_rotvec: tuple[float, float, float] | None = None
 
 
 @dataclass(frozen=True)
@@ -58,6 +60,31 @@ class RealPoseTrace:
             raise ValueError(f"pose trace is empty: {path}")
         samples = tuple(
             _pose_sample_from_row(row, row_index=index, default_pose_frame=default_pose_frame)
+            for index, row in enumerate(rows)
+        )
+        return cls(samples=samples)
+
+    @classmethod
+    def from_tcp_csv(
+        cls,
+        path: Path | str,
+        *,
+        target_pos: tuple[float, float, float],
+        tcp_to_peg_tip_xyz: tuple[float, float, float],
+        default_pose_frame: str = "robot_base",
+    ) -> "RealPoseTrace":
+        with Path(path).open("r", newline="", encoding="utf-8-sig") as file:
+            rows = list(csv.DictReader(file))
+        if not rows:
+            raise ValueError(f"TCP pose trace is empty: {path}")
+        samples = tuple(
+            _pose_sample_from_tcp_row(
+                row,
+                row_index=index,
+                default_target_pos=target_pos,
+                tcp_to_peg_tip_xyz=tcp_to_peg_tip_xyz,
+                default_pose_frame=default_pose_frame,
+            )
             for index, row in enumerate(rows)
         )
         return cls(samples=samples)
@@ -83,15 +110,30 @@ class RealCameraObservationProvider:
         image_path: Path | None = None,
         image_dir: Path | None = None,
         pose_trace_path: Path | str | None = None,
+        tcp_pose_trace_path: Path | str | None = None,
         pose_frame: str = "robot_base",
+        tcp_to_peg_tip_xyz: tuple[float, float, float] = (0.0, 0.0, 0.0),
     ):
+        if pose_trace_path is not None and tcp_pose_trace_path is not None:
+            raise ValueError("Use either pose_trace_path or tcp_pose_trace_path, not both.")
         self.config = config
         self.image_paths = self._resolve_image_paths(image_path, image_dir)
-        self.pose_trace = (
-            RealPoseTrace.from_csv(pose_trace_path, default_pose_frame=pose_frame)
-            if pose_trace_path is not None
-            else None
-        )
+        self.pose_trace: RealPoseTrace | None = None
+        self.pose_source = "static"
+        if pose_trace_path is not None:
+            self.pose_trace = RealPoseTrace.from_csv(
+                pose_trace_path,
+                default_pose_frame=pose_frame,
+            )
+            self.pose_source = "csv"
+        if tcp_pose_trace_path is not None:
+            self.pose_trace = RealPoseTrace.from_tcp_csv(
+                tcp_pose_trace_path,
+                target_pos=tuple(float(value) for value in config.target_pos),
+                tcp_to_peg_tip_xyz=tuple(float(value) for value in tcp_to_peg_tip_xyz),
+                default_pose_frame=pose_frame,
+            )
+            self.pose_source = "tcp_csv"
         self.pose_frame = pose_frame
         self.frame_index = 0
         self.step_count = 0
@@ -129,11 +171,21 @@ class RealCameraObservationProvider:
             "control_action_noise_std": 0.0,
             "control_action_delay": 0,
             "control_action_filter_alpha": 1.0,
-            "pose_source": "csv" if self.pose_trace is not None else "static",
+            "pose_source": self.pose_source,
             "pose_frame": pose_sample.pose_frame,
             "pose_step": self.step_count if pose_sample.step is None else pose_sample.step,
             "pose_timestamp": (
                 float("nan") if pose_sample.timestamp is None else float(pose_sample.timestamp)
+            ),
+            "tcp_pos": (
+                np.full(3, np.nan, dtype=np.float32)
+                if pose_sample.tcp_pos is None
+                else np.asarray(pose_sample.tcp_pos, dtype=np.float32)
+            ),
+            "tcp_rotvec": (
+                np.full(3, np.nan, dtype=np.float32)
+                if pose_sample.tcp_rotvec is None
+                else np.asarray(pose_sample.tcp_rotvec, dtype=np.float32)
             ),
         }
 
@@ -225,6 +277,86 @@ def _pose_sample_from_row(
         step=step,
         timestamp=timestamp,
         pose_frame=pose_frame,
+    )
+
+
+def _pose_sample_from_tcp_row(
+    row: dict[str, str],
+    *,
+    row_index: int,
+    default_target_pos: tuple[float, float, float],
+    tcp_to_peg_tip_xyz: tuple[float, float, float],
+    default_pose_frame: str,
+) -> RealPoseSample:
+    step = _optional_int(row, ("step", "pose_step"))
+    timestamp = _optional_float(row, ("timestamp", "time", "t"))
+    pose_frame = _first_text(row, ("pose_frame", "frame", "reference_frame")) or default_pose_frame
+    tcp_pos = (
+        _required_float(row, ("tcp_x", "tool0_x", "tool_x"), row_index=row_index),
+        _required_float(row, ("tcp_y", "tool0_y", "tool_y"), row_index=row_index),
+        _required_float(row, ("tcp_z", "tool0_z", "tool_z"), row_index=row_index),
+    )
+    tcp_rotvec = (
+        _required_float(row, ("tcp_rx", "tool0_rx", "rx"), row_index=row_index),
+        _required_float(row, ("tcp_ry", "tool0_ry", "ry"), row_index=row_index),
+        _required_float(row, ("tcp_rz", "tool0_rz", "rz"), row_index=row_index),
+    )
+    target_pos = (
+        _optional_float(row, ("target_x", "hole_x")),
+        _optional_float(row, ("target_y", "hole_y")),
+        _optional_float(row, ("target_z", "hole_z")),
+    )
+    resolved_target = tuple(
+        float(default_value if value is None else value)
+        for value, default_value in zip(target_pos, default_target_pos)
+    )
+    peg_tip = _tcp_pose_to_peg_tip(
+        tcp_pos=tcp_pos,
+        tcp_rotvec=tcp_rotvec,
+        tcp_to_peg_tip_xyz=tcp_to_peg_tip_xyz,
+    )
+    return RealPoseSample(
+        peg_tip_pos=peg_tip,
+        target_pos=resolved_target,
+        step=step,
+        timestamp=timestamp,
+        pose_frame=pose_frame,
+        tcp_pos=tcp_pos,
+        tcp_rotvec=tcp_rotvec,
+    )
+
+
+def _tcp_pose_to_peg_tip(
+    *,
+    tcp_pos: tuple[float, float, float],
+    tcp_rotvec: tuple[float, float, float],
+    tcp_to_peg_tip_xyz: tuple[float, float, float],
+) -> tuple[float, float, float]:
+    position = np.asarray(tcp_pos, dtype=np.float64).reshape(3)
+    rotation = _rotvec_to_matrix(np.asarray(tcp_rotvec, dtype=np.float64).reshape(3))
+    offset = np.asarray(tcp_to_peg_tip_xyz, dtype=np.float64).reshape(3)
+    peg_tip = position + rotation @ offset
+    return tuple(float(value) for value in peg_tip)
+
+
+def _rotvec_to_matrix(rotvec: np.ndarray) -> np.ndarray:
+    theta = float(np.linalg.norm(rotvec))
+    if theta < 1e-12:
+        return np.eye(3, dtype=np.float64)
+    axis = rotvec / theta
+    x, y, z = axis
+    cross = np.asarray(
+        [
+            [0.0, -z, y],
+            [z, 0.0, -x],
+            [-y, x, 0.0],
+        ],
+        dtype=np.float64,
+    )
+    return (
+        np.eye(3, dtype=np.float64)
+        + np.sin(theta) * cross
+        + (1.0 - np.cos(theta)) * (cross @ cross)
     )
 
 

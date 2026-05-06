@@ -18,7 +18,9 @@ safety_workspace_high: [0.65, 0.15, 0.82]
 peg_tip_pos: [0.55, 0.05, 0.78]
 target_pos: [0.55, 0.05, 0.65]
 pose_trace: none
+tcp_pose_trace: none
 pose_frame: robot_base
+tcp_to_peg_tip_xyz: [0, 0, -0.11]
 guard_approach_height: 0.08
 guard_action_limit: 0.002
 

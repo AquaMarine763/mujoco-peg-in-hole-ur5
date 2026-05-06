@@ -1867,6 +1867,47 @@ the same frame. `tcp_x/y/z` and `hole_x/y/z` are accepted aliases. The trace
 output includes `pose_source`, `pose_frame`, `pose_step`, and `pose_timestamp`.
 Details are in `results\real_pose_trace_dryrun_summary.md`.
 
+Run the dry-run path with UR-style TCP pose traces. `tcp_rx/ry/rz` are UR
+rotation-vector values in radians, and `--tcp-to-peg-tip-xyz` is the measured
+offset from the active TCP/tool frame to the peg tip:
+
+```powershell
+python scripts\run_real_policy_dryrun.py `
+  --zero-policy `
+  --episodes 1 `
+  --max-steps 3 `
+  --tcp-pose-trace configs\real_tcp_pose_trace_smoke.csv `
+  --tcp-to-peg-tip-xyz 0 0 -0.11 `
+  --guarded-policy `
+  --guard-scenario-filter geometry `
+  --guard-scenario-level full_light_geometry `
+  --guard-start-z 0.10 `
+  --guard-action-limit 0.002 `
+  --output results\real_policy_dryrun_tcp_pose_guarded_smoke.csv
+```
+
+Record a read-only UR RTDE TCP pose trace for later dry-run replay. This script
+does not command robot motion:
+
+```powershell
+python scripts\record_ur_rtde_tcp_pose_trace.py `
+  --host 192.168.0.10 `
+  --samples 200 `
+  --frequency-hz 20 `
+  --target-pos 0.55 0.05 0.65 `
+  --output results\ur_rtde_tcp_pose_trace.csv
+```
+
+Smoke-test the recorder without a robot:
+
+```powershell
+python scripts\record_ur_rtde_tcp_pose_trace.py `
+  --synthetic-smoke `
+  --samples 4 `
+  --frequency-hz 100 `
+  --output results\ur_rtde_tcp_pose_trace_synthetic_smoke.csv
+```
+
 Preview preprocessing for a real camera frame directory:
 
 ```powershell
