@@ -1,0 +1,140 @@
+{
+  "output": "mujoco_peg_in_hole\\checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_medium_replay_850k_oracle_e4\\sac_image_bc.zip",
+  "base_model": "mujoco_peg_in_hole\\checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\\sac_image_bc.zip",
+  "model_path": "mujoco_peg_in_hole\\assets\\ur5e_adapter\\ur5e_peg_in_hole.xml",
+  "datasets": [
+    {
+      "path": "mujoco_peg_in_hole\\datasets\\image_expert_ur5e_adapter_fixedcam_clean_visual_camera_control_delay_filter_success_350k_oracle.npz",
+      "samples": 350000,
+      "train_samples": 332500,
+      "validation_samples": 17500,
+      "weight": 0.24000000000000002,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "mujoco_peg_in_hole\\datasets\\image_expert_ur5e_adapter_fixedcam_visual_camera_control_hard_success_50k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.10000000000000002,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "mujoco_peg_in_hole\\datasets\\image_expert_ur5e_adapter_fixedcam_visual_camera_control_delay2_lowalpha_lowscale_lownoise_success_50k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.07000000000000002,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "mujoco_peg_in_hole\\datasets\\image_expert_ur5e_adapter_fixedcam_full_light_geometry_control_success_50k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.09000000000000001,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "mujoco_peg_in_hole\\datasets\\image_expert_ur5e_adapter_fixedcam_full_light_geometry_delay2_lowalpha_lownoise_gain05_success_50k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.05000000000000001,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "mujoco_peg_in_hole\\datasets\\image_expert_ur5e_adapter_fixedcam_50k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.04000000000000001,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "mujoco_peg_in_hole\\datasets\\image_expert_ur5e_adapter_fixedcam_visual_camera_50k_seed130k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.030000000000000002,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "mujoco_peg_in_hole\\datasets\\image_expert_ur5e_adapter_fixedcam_visual_camera_control_success_50k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.060000000000000005,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "mujoco_peg_in_hole\\datasets\\image_expert_ur5e_adapter_fixedcam_full_light_geometry_intermediate_success_50k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.08000000000000002,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "mujoco_peg_in_hole\\datasets\\image_expert_ur5e_adapter_fixedcam_full_light_geometry_narrow_success_50k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.04000000000000001,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "mujoco_peg_in_hole\\datasets\\image_expert_ur5e_adapter_fixedcam_full_light_geometry_medium_guarded_success_50k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.12000000000000001,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "mujoco_peg_in_hole\\datasets\\image_expert_ur5e_adapter_fixedcam_full_light_geometry_medium_hard_guarded_success_50k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.08000000000000002,
+      "has_near_hole_crops": true
+    }
+  ],
+  "epochs": 4,
+  "samples_per_epoch": 300000,
+  "batch_size": 512,
+  "learning_rate": 2e-06,
+  "validation_split": 0.05,
+  "validation_batches": 20,
+  "seed": 410000,
+  "device": "cpu",
+  "include_near_hole_crop": true,
+  "near_hole_crop_size": 64,
+  "success_xy_tolerance": 0.005,
+  "success_z_tolerance": 0.01,
+  "approach_xy_tolerance": 0.02,
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 0.14228939105766117,
+      "val_loss": 0.14588098585978151
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.14620085655943627,
+      "val_loss": 0.1394089048486203
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.13281237277434343,
+      "val_loss": 0.13732731931284073
+    },
+    {
+      "epoch": 4,
+      "train_loss": 0.1389485779711055,
+      "val_loss": 0.13446135970018805
+    }
+  ],
+  "final_train_loss": 0.1389485779711055,
+  "final_val_loss": 0.13446135970018805
+}

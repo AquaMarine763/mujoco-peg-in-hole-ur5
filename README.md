@@ -170,9 +170,13 @@ datasets collected by `scripts/collect_image_expert_dataset.py` use schema
 fixture/table, and contact/dynamics randomization fields. The companion
 `scripts/inspect_image_expert_dataset.py` command writes md/csv summaries of
 clearance, control delay/filter/noise, action norms, and crop availability. The
-first 500-sample medium smoke reached `0.603` guarded-oracle success; the
-matched hard-control bucket reached `0.299`, confirming that the next full data
-pass needs success-only filtering and explicit hard-bucket diagnostics. See
+full 50k medium collection reached `0.579` guarded-oracle success, while the
+matched hard-control bucket reached only `0.345`. Two medium-replay BC
+continuations were tested, but neither replaces the 750k recommendation:
+`medium_replay_light_850k_oracle_e2` improves `full_contact_light` to `0.660`
+but leaves `full_light_geometry` at `0.550`, below the current 750k baseline.
+The next step should diagnose near-failure/correction data rather than simply
+raising medium replay weight. See
 `results/medium_clearance_dataset_diagnostics_summary.md`.
 
 ## Quick Check

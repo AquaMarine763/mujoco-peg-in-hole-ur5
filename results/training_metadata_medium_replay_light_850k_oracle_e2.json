@@ -1,0 +1,122 @@
+{
+  "output": "mujoco_peg_in_hole\\checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_medium_replay_light_850k_oracle_e2\\sac_image_bc.zip",
+  "base_model": "mujoco_peg_in_hole\\checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\\sac_image_bc.zip",
+  "model_path": "mujoco_peg_in_hole\\assets\\ur5e_adapter\\ur5e_peg_in_hole.xml",
+  "datasets": [
+    {
+      "path": "mujoco_peg_in_hole\\datasets\\image_expert_ur5e_adapter_fixedcam_clean_visual_camera_control_delay_filter_success_350k_oracle.npz",
+      "samples": 350000,
+      "train_samples": 332500,
+      "validation_samples": 17500,
+      "weight": 0.255,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "mujoco_peg_in_hole\\datasets\\image_expert_ur5e_adapter_fixedcam_visual_camera_control_hard_success_50k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.102,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "mujoco_peg_in_hole\\datasets\\image_expert_ur5e_adapter_fixedcam_visual_camera_control_delay2_lowalpha_lowscale_lownoise_success_50k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.085,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "mujoco_peg_in_hole\\datasets\\image_expert_ur5e_adapter_fixedcam_full_light_geometry_control_success_50k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.128,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "mujoco_peg_in_hole\\datasets\\image_expert_ur5e_adapter_fixedcam_50k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.051,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "mujoco_peg_in_hole\\datasets\\image_expert_ur5e_adapter_fixedcam_visual_camera_50k_seed130k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.034,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "mujoco_peg_in_hole\\datasets\\image_expert_ur5e_adapter_fixedcam_visual_camera_control_success_50k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.068,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "mujoco_peg_in_hole\\datasets\\image_expert_ur5e_adapter_fixedcam_full_light_geometry_intermediate_success_50k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.085,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "mujoco_peg_in_hole\\datasets\\image_expert_ur5e_adapter_fixedcam_full_light_geometry_narrow_success_50k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.042,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "mujoco_peg_in_hole\\datasets\\image_expert_ur5e_adapter_fixedcam_full_light_geometry_medium_guarded_success_50k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.1,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "mujoco_peg_in_hole\\datasets\\image_expert_ur5e_adapter_fixedcam_full_light_geometry_medium_hard_guarded_success_50k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.05,
+      "has_near_hole_crops": true
+    }
+  ],
+  "epochs": 2,
+  "samples_per_epoch": 300000,
+  "batch_size": 512,
+  "learning_rate": 1e-06,
+  "validation_split": 0.05,
+  "validation_batches": 20,
+  "seed": 410000,
+  "device": "cpu",
+  "include_near_hole_crop": true,
+  "near_hole_crop_size": 64,
+  "success_xy_tolerance": 0.005,
+  "success_z_tolerance": 0.01,
+  "approach_xy_tolerance": 0.02,
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 0.13791116548276192,
+      "val_loss": 0.13351274772565813
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.1325481643124703,
+      "val_loss": 0.1294347098373808
+    }
+  ],
+  "final_train_loss": 0.1325481643124703,
+  "final_val_loss": 0.1294347098373808
+}

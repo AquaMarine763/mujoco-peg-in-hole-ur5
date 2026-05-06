@@ -1,3 +1,5 @@
 dataset,samples,episodes_completed,episodes_kept,success_rate,collision_rate,timeout_rate,mean_clearance_m,mean_control_delay,mean_control_filter_alpha
 medium_guarded_success_smoke,500,58,35,0.603448,0.344828,0.051724,0.009933,1.114,0.777241
 medium_hard_guarded_success_smoke,500,87,26,0.298851,0.701149,0.000000,0.010364,2.000,0.627423
+medium_guarded_success_50k,50000,5142,2978,0.579152,0.384870,0.037145,0.010051,0.875920,0.785455
+medium_hard_guarded_success_50k,50000,8096,2791,0.344738,0.646739,0.008770,0.010109,2.000000,0.627885

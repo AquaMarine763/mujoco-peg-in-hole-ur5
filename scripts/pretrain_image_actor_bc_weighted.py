@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -30,6 +31,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--datasets", nargs="+", type=Path, required=True)
     parser.add_argument("--dataset-weights", nargs="+", type=float, default=None)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--metadata-output", type=Path, default=None)
     parser.add_argument("--model", type=Path, default=None)
     parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--samples-per-epoch", type=int, default=300_000)
@@ -233,6 +235,17 @@ def weighted_validation_loss(
     return float(np.sum(losses))
 
 
+def dataset_summary(dataset: LoadedDataset, weight: float) -> dict[str, object]:
+    return {
+        "path": str(dataset.path),
+        "samples": int(len(dataset.images)),
+        "train_samples": int(len(dataset.train_indices)),
+        "validation_samples": int(len(dataset.val_indices)),
+        "weight": float(weight),
+        "has_near_hole_crops": bool(dataset.near_hole_crops is not None),
+    }
+
+
 def main() -> None:
     args = parse_args()
     if args.epochs <= 0:
@@ -270,6 +283,7 @@ def main() -> None:
     batches_per_epoch = int(np.ceil(args.samples_per_epoch / args.batch_size))
 
     actor.train()
+    epoch_history: list[dict[str, float | int]] = []
     for epoch in range(args.epochs):
         train_losses = []
         for _ in range(batches_per_epoch):
@@ -291,16 +305,57 @@ def main() -> None:
             rng,
             device,
         )
+        mean_train_loss = float(np.mean(train_losses))
+        epoch_history.append(
+            {
+                "epoch": int(epoch + 1),
+                "train_loss": mean_train_loss,
+                "val_loss": float(val_loss),
+            }
+        )
         print(
             f"epoch={epoch + 1} "
-            f"train_loss={np.mean(train_losses):.6f} "
+            f"train_loss={mean_train_loss:.6f} "
             f"val_loss={val_loss:.6f}"
         )
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     model.save(args.output)
+    metadata_path = (
+        args.metadata_output
+        if args.metadata_output is not None
+        else args.output.with_suffix(args.output.suffix + ".json")
+    )
+    metadata = {
+        "output": str(args.output),
+        "base_model": str(args.model) if args.model is not None else None,
+        "model_path": str(args.model_path) if args.model_path is not None else None,
+        "datasets": [
+            dataset_summary(dataset, float(weight))
+            for dataset, weight in zip(datasets, weights)
+        ],
+        "epochs": int(args.epochs),
+        "samples_per_epoch": int(args.samples_per_epoch),
+        "batch_size": int(args.batch_size),
+        "learning_rate": float(args.learning_rate),
+        "validation_split": float(args.validation_split),
+        "validation_batches": int(args.validation_batches),
+        "seed": int(args.seed),
+        "device": str(model.device),
+        "include_near_hole_crop": bool(args.include_near_hole_crop),
+        "near_hole_crop_size": int(args.near_hole_crop_size),
+        "success_xy_tolerance": float(args.success_xy_tolerance),
+        "success_z_tolerance": float(args.success_z_tolerance),
+        "approach_xy_tolerance": float(args.approach_xy_tolerance),
+        "history": epoch_history,
+        "final_train_loss": epoch_history[-1]["train_loss"],
+        "final_val_loss": epoch_history[-1]["val_loss"],
+    }
+    metadata_path.parent.mkdir(parents=True, exist_ok=True)
+    metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
     env.close()
     print(f"saved weighted image behavior-cloned model to {args.output}")
+    print(f"saved training metadata to {metadata_path}")
 
 
 if __name__ == "__main__":

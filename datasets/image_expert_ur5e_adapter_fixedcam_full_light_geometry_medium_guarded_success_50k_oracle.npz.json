@@ -1,0 +1,300 @@
+{
+  "dataset_schema_version": "image_expert_v2_diagnostics",
+  "samples": 50000,
+  "model_path": "mujoco_peg_in_hole\\assets\\ur5e_adapter\\ur5e_peg_in_hole.xml",
+  "episodes_completed": 5142,
+  "episodes_kept": 2978,
+  "successes": 2978,
+  "collisions": 1979,
+  "timeouts": 191,
+  "success_rate": 0.5791520809023726,
+  "collision_rate": 0.38486970050563984,
+  "timeout_rate": 0.037145079735511476,
+  "episodes_kept_rate": 0.5791520809023726,
+  "expert": "oracle",
+  "expert_action_gain": 1.0,
+  "oracle_mode": "guarded_two_stage",
+  "guarded_align_xy_tolerance": 0.025,
+  "guarded_insert_xy_tolerance": 0.005,
+  "guarded_retract_xy_tolerance": 0.012,
+  "guarded_preinsert_height": 0.0,
+  "guarded_max_xy_action": 0.005,
+  "guarded_max_down_action": 0.0035,
+  "guarded_max_up_action": 0.005,
+  "guarded_prediction_steps": 1.0,
+  "rollout_noise_std": 0.0005,
+  "success_only": true,
+  "success_xy_tolerance": 0.005,
+  "success_z_tolerance": 0.01,
+  "domain_randomization": false,
+  "domain_randomization_level": "full_light_geometry",
+  "domain_randomization_active": true,
+  "image_width": 100,
+  "image_height": 100,
+  "include_near_hole_crop": true,
+  "near_hole_crop_size": 64,
+  "control_action_scale_range": [
+    0.8,
+    1.2
+  ],
+  "control_action_noise_std_range": [
+    0.0,
+    0.0008
+  ],
+  "control_action_delay_range": [
+    0,
+    2
+  ],
+  "control_action_filter_alpha_range": [
+    0.55,
+    1.0
+  ],
+  "geometry_hole_center_xy_jitter": [
+    0.002,
+    0.002
+  ],
+  "geometry_fixture_height_jitter": 0.001,
+  "geometry_table_height_jitter": 0.001,
+  "geometry_hole_half_size_range": [
+    0.02,
+    0.024
+  ],
+  "geometry_peg_radius_range": [
+    0.0115,
+    0.0125
+  ],
+  "contact_friction_multiplier_range": [
+    0.7,
+    1.3
+  ],
+  "contact_solref_time_multiplier_range": [
+    0.8,
+    1.25
+  ],
+  "contact_solref_damping_multiplier_range": [
+    0.8,
+    1.2
+  ],
+  "contact_solimp_width_multiplier_range": [
+    0.8,
+    1.2
+  ],
+  "dynamics_joint_damping_multiplier_range": [
+    0.8,
+    1.2
+  ],
+  "dynamics_actuator_kp_multiplier_range": [
+    0.8,
+    1.2
+  ],
+  "target_low": [
+    0.5,
+    0.0,
+    0.65
+  ],
+  "target_high": [
+    0.6,
+    0.1,
+    0.65
+  ],
+  "array_metadata": {
+    "actions": {
+      "shape": [
+        50000,
+        3
+      ],
+      "dtype": "float32"
+    },
+    "actuator_kp_multiplier": {
+      "shape": [
+        50000
+      ],
+      "dtype": "float32"
+    },
+    "cam_images": {
+      "shape": [
+        50000,
+        100,
+        100,
+        1
+      ],
+      "dtype": "uint8"
+    },
+    "contact_friction_multiplier": {
+      "shape": [
+        50000
+      ],
+      "dtype": "float32"
+    },
+    "contact_solimp_width_multiplier": {
+      "shape": [
+        50000
+      ],
+      "dtype": "float32"
+    },
+    "contact_solref_damping_multiplier": {
+      "shape": [
+        50000
+      ],
+      "dtype": "float32"
+    },
+    "contact_solref_time_multiplier": {
+      "shape": [
+        50000
+      ],
+      "dtype": "float32"
+    },
+    "control_action_delay": {
+      "shape": [
+        50000
+      ],
+      "dtype": "int32"
+    },
+    "control_action_filter_alpha": {
+      "shape": [
+        50000
+      ],
+      "dtype": "float32"
+    },
+    "control_action_noise_std": {
+      "shape": [
+        50000
+      ],
+      "dtype": "float32"
+    },
+    "control_action_scale_multiplier": {
+      "shape": [
+        50000
+      ],
+      "dtype": "float32"
+    },
+    "desired_z": {
+      "shape": [
+        50000
+      ],
+      "dtype": "float32"
+    },
+    "episode_id": {
+      "shape": [
+        50000
+      ],
+      "dtype": "int32"
+    },
+    "fixture_height_offset": {
+      "shape": [
+        50000
+      ],
+      "dtype": "float32"
+    },
+    "hole_center_offset": {
+      "shape": [
+        50000,
+        2
+      ],
+      "dtype": "float32"
+    },
+    "hole_clearance": {
+      "shape": [
+        50000
+      ],
+      "dtype": "float32"
+    },
+    "hole_half_size": {
+      "shape": [
+        50000
+      ],
+      "dtype": "float32"
+    },
+    "joint_damping_multiplier": {
+      "shape": [
+        50000
+      ],
+      "dtype": "float32"
+    },
+    "near_hole_crops": {
+      "shape": [
+        50000,
+        64,
+        64,
+        1
+      ],
+      "dtype": "uint8"
+    },
+    "peg_radius": {
+      "shape": [
+        50000
+      ],
+      "dtype": "float32"
+    },
+    "peg_tip_pos": {
+      "shape": [
+        50000,
+        3
+      ],
+      "dtype": "float32"
+    },
+    "raw_actions": {
+      "shape": [
+        50000,
+        3
+      ],
+      "dtype": "float32"
+    },
+    "step_id": {
+      "shape": [
+        50000
+      ],
+      "dtype": "int32"
+    },
+    "table_height_offset": {
+      "shape": [
+        50000
+      ],
+      "dtype": "float32"
+    },
+    "target_pos": {
+      "shape": [
+        50000,
+        3
+      ],
+      "dtype": "float32"
+    }
+  },
+  "diagnostics": {
+    "hole_clearance": {
+      "mean": 0.01005129050463438,
+      "min": 0.0075598363764584064,
+      "max": 0.012464306317269802
+    },
+    "hole_half_size": {
+      "mean": 0.02206023409962654,
+      "min": 0.02000213973224163,
+      "max": 0.023997673764824867
+    },
+    "peg_radius": {
+      "mean": 0.01200894545763731,
+      "min": 0.011500151827931404,
+      "max": 0.012499701231718063
+    },
+    "control_action_scale_multiplier": {
+      "mean": 1.007769227027893,
+      "min": 0.8004668354988098,
+      "max": 1.1999708414077759
+    },
+    "control_action_noise_std": {
+      "mean": 0.00040101268677972257,
+      "min": 4.4616851369028154e-07,
+      "max": 0.000799414818175137
+    },
+    "control_action_delay": {
+      "mean": 0.8759199976921082,
+      "min": 0.0,
+      "max": 2.0
+    },
+    "control_action_filter_alpha": {
+      "mean": 0.7854552865028381,
+      "min": 0.5507011413574219,
+      "max": 0.9999825954437256
+    }
+  }
+}

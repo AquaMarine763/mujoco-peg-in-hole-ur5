@@ -1271,9 +1271,52 @@ Checked 500-sample smoke result:
 | medium guarded success | 58 | 0.603 | 0.345 | 9.93 mm | 1.11 | 0.777 |
 | medium hard guarded success | 87 | 0.299 | 0.701 | 10.36 mm | 2.00 | 0.627 |
 
-Use the same commands with `--samples 50000` for the next full medium
-collection pass. Keep `--success-only`: the failed guarded-oracle episodes are
-useful diagnostics but should not be cloned directly.
+Full 50k checked result:
+
+| Dataset | Episodes | Success | Collision | Mean clearance | Mean delay | Mean alpha |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| medium guarded success 50k | 5142 | 0.579 | 0.385 | 10.05 mm | 0.88 | 0.785 |
+| medium hard guarded success 50k | 8096 | 0.345 | 0.647 | 10.11 mm | 2.00 | 0.628 |
+
+The full datasets are:
+
+```text
+datasets\image_expert_ur5e_adapter_fixedcam_full_light_geometry_medium_guarded_success_50k_oracle.npz
+datasets\image_expert_ur5e_adapter_fixedcam_full_light_geometry_medium_hard_guarded_success_50k_oracle.npz
+```
+
+Inspect the full datasets:
+
+```powershell
+python scripts\inspect_image_expert_dataset.py --dataset datasets\image_expert_ur5e_adapter_fixedcam_full_light_geometry_medium_guarded_success_50k_oracle.npz --output-md results\image_expert_medium_guarded_success_50k_inspection.md --output-csv results\image_expert_medium_guarded_success_50k_inspection.csv
+python scripts\inspect_image_expert_dataset.py --dataset datasets\image_expert_ur5e_adapter_fixedcam_full_light_geometry_medium_hard_guarded_success_50k_oracle.npz --output-md results\image_expert_medium_hard_guarded_success_50k_inspection.md --output-csv results\image_expert_medium_hard_guarded_success_50k_inspection.csv
+```
+
+Medium replay continuation from the current 750k crop model:
+
+```powershell
+python scripts\pretrain_image_actor_bc_weighted.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --include-near-hole-crop --near-hole-crop-size 64 --datasets datasets\image_expert_ur5e_adapter_fixedcam_clean_visual_camera_control_delay_filter_success_350k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_control_hard_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_control_delay2_lowalpha_lowscale_lownoise_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_full_light_geometry_control_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_50k_seed130k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_control_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_full_light_geometry_intermediate_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_full_light_geometry_narrow_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_full_light_geometry_medium_guarded_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_full_light_geometry_medium_hard_guarded_success_50k_oracle.npz --dataset-weights 0.255 0.102 0.085 0.128 0.051 0.034 0.068 0.085 0.042 0.100 0.050 --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip --output checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_medium_replay_light_850k_oracle_e2\sac_image_bc.zip --epochs 2 --samples-per-epoch 300000 --batch-size 512 --learning-rate 0.000001 --validation-batches 20 --approach-xy-tolerance 0.02 --success-xy-tolerance 0.005 --success-z-tolerance 0.01 --device cpu
+```
+
+Evaluate the medium replay candidate:
+
+```powershell
+python scripts\eval_matrix.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --agent sac --observation-mode image --include-near-hole-crop --near-hole-crop-size 64 --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_medium_replay_light_850k_oracle_e2\sac_image_bc.zip --episodes 100 --device cpu --output-csv results\eval_matrix_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_medium_replay_light_850k_oracle_e2.csv --output-md results\eval_matrix_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_medium_replay_light_850k_oracle_e2.md --success-xy-tolerance 0.005 --success-z-tolerance 0.01
+python scripts\scan_geometry_clearance.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --agent sac --observation-mode image --include-near-hole-crop --near-hole-crop-size 64 --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_medium_replay_light_850k_oracle_e2\sac_image_bc.zip --tier-preset wide_medium --scenario-preset targeted --episodes 30 --seed 960000 --device cpu --output-csv results\geometry_clearance_scan_medium_replay_light_850k_targeted_30ep.csv --output-md results\geometry_clearance_scan_medium_replay_light_850k_targeted_30ep.md --success-xy-tolerance 0.005 --success-z-tolerance 0.01 --approach-xy-tolerance 0.02
+```
+
+Medium replay result:
+
+| Model | Clean | Visual camera | Visual camera control | Full light | Full contact |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| medium replay e4 | 0.960 | 0.970 | 0.860 | 0.540 | 0.570 |
+| medium replay light e2 | 0.970 | 0.980 | 0.900 | 0.550 | 0.660 |
+
+Do not promote either medium replay as the current recommendation. The light
+replay improves `full_contact_light`, but `full_light_geometry` remains below
+the current 750k baseline. The next iteration should add near-failure
+correction/DAgger-style data instead of only raising medium success-only replay
+weight.
 
 ## Current Recommended UR5e Model
 
