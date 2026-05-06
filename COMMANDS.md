@@ -582,6 +582,52 @@ mainline to 128x128 yet; prefer staged geometry curriculum or a targeted
 near-hole crop. Full details are in
 `results\resolution_ab_intermediate_geometry_summary.md`.
 
+## Staged Geometry Curriculum
+
+Collect a 50k intermediate-geometry dataset at the current `100x100`
+resolution:
+
+```powershell
+python scripts\collect_image_expert_dataset.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --output datasets\image_expert_ur5e_adapter_fixedcam_full_light_geometry_intermediate_success_50k_oracle.npz --samples 50000 --seed 680000 --image-width 100 --image-height 100 --expert-action-gain 1.0 --rollout-noise-std 0.0005 --success-xy-tolerance 0.005 --success-z-tolerance 0.01 --approach-xy-tolerance 0.02 --domain-randomization-level full_light_geometry --control-action-scale-range 1 1 --control-action-noise-std-range 0 0 --control-action-delay-range 0 0 --control-action-filter-alpha-range 1 1 --geometry-hole-center-xy-jitter 0 0 --geometry-fixture-height-jitter 0 --geometry-table-height-jitter 0 --geometry-hole-half-size-range 0.025 0.029 --geometry-peg-radius-range 0.012 0.012 --success-only --compressed
+```
+
+Observed collection result:
+
+| Samples | Episodes | Oracle success | Oracle collision |
+| ---: | ---: | ---: | ---: |
+| 50000 | 3214 | 0.996 | 0.000 |
+
+Stage 1: add intermediate geometry while replaying clean/control data:
+
+```powershell
+python scripts\pretrain_image_actor_bc_weighted.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --datasets datasets\image_expert_ur5e_adapter_fixedcam_clean_visual_camera_control_delay_filter_success_350k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_control_hard_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_50k_seed130k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_control_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_full_light_geometry_intermediate_success_50k_oracle.npz --dataset-weights 0.45 0.12 0.10 0.05 0.08 0.20 --model checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_control_balanced_weighted_550k_oracle_e6\sac_image_bc.zip --output checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_intermediate_success_600k_oracle_e6\sac_image_bc.zip --epochs 6 --samples-per-epoch 300000 --batch-size 512 --learning-rate 0.000002 --validation-batches 20 --approach-xy-tolerance 0.02 --success-xy-tolerance 0.005 --success-z-tolerance 0.01 --device cpu
+```
+
+Stage 2: add low-weight narrow geometry on top of the intermediate model:
+
+```powershell
+python scripts\pretrain_image_actor_bc_weighted.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --datasets datasets\image_expert_ur5e_adapter_fixedcam_clean_visual_camera_control_delay_filter_success_350k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_control_hard_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_50k_seed130k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_control_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_full_light_geometry_intermediate_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_full_light_geometry_narrow_success_50k_oracle.npz --dataset-weights 0.42 0.12 0.10 0.05 0.08 0.15 0.08 --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_intermediate_success_600k_oracle_e6\sac_image_bc.zip --output checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_intermediate_narrow_650k_oracle_e5\sac_image_bc.zip --epochs 5 --samples-per-epoch 300000 --batch-size 512 --learning-rate 0.0000015 --validation-batches 20 --approach-xy-tolerance 0.02 --success-xy-tolerance 0.005 --success-z-tolerance 0.01 --device cpu
+```
+
+Evaluate the staged model:
+
+```powershell
+python scripts\eval_matrix.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --agent sac --observation-mode image --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_intermediate_narrow_650k_oracle_e5\sac_image_bc.zip --episodes 100 --device cpu --output-csv results\eval_matrix_ur5e_adapter_fixedcam_full_light_geometry_staged_intermediate_narrow_650k_oracle_e5.csv --output-md results\eval_matrix_ur5e_adapter_fixedcam_full_light_geometry_staged_intermediate_narrow_650k_oracle_e5.md --success-xy-tolerance 0.005 --success-z-tolerance 0.01
+```
+
+Current staged curriculum result:
+
+| Model | Intermediate bucket | Narrow bucket | Clean | Visual camera control | Full light geometry |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| balanced 550k | 0.310 | 0.180 | 0.980 | 0.890 | 0.310 |
+| intermediate 600k | 0.450 | 0.290 | 0.950 | 0.870 | 0.370 |
+| staged intermediate+narrow 650k | 0.510 | 0.330 | 0.960 | 0.850 | 0.390 |
+
+The staged model is the best geometry-curriculum candidate so far, but it is
+not a replacement for the current control-focused model because default
+`visual_camera_control` drops to `0.850`. Full details are in
+`results\geometry_curriculum_staged_summary.md`.
+
 ## Current Recommended UR5e Model
 
 ```text

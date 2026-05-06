@@ -1,0 +1,22 @@
+model,scenario,episodes,success_rate,collision_rate,timeout_rate,mean_return,notes
+balanced_weighted_550k_e6,intermediate_geometry_identity_control,100,0.310,0.660,,-76.450,seed 690000 hole_half_size=0.025-0.029
+intermediate_success_600k_e6,intermediate_geometry_identity_control,100,0.450,0.530,,-49.392,seed 690000 hole_half_size=0.025-0.029
+staged_intermediate_narrow_650k_e5,intermediate_geometry_identity_control,100,0.510,0.470,,-37.944,seed 690000 hole_half_size=0.025-0.029
+balanced_weighted_550k_e6,narrow_geometry_identity_control,100,0.180,0.690,,-90.103,seed 700000 hole_half_size=0.020-0.025
+intermediate_success_600k_e6,narrow_geometry_identity_control,100,0.290,0.600,,-69.605,seed 700000 hole_half_size=0.020-0.025
+staged_intermediate_narrow_650k_e5,narrow_geometry_identity_control,100,0.330,0.550,,-58.722,seed 700000 hole_half_size=0.020-0.025
+balanced_weighted_550k_e6,clean,100,0.980,,,,previous v0.6.14 matrix
+balanced_weighted_550k_e6,visual_camera,100,0.980,,,,previous v0.6.14 matrix
+balanced_weighted_550k_e6,visual_camera_control,100,0.890,,,,previous v0.6.14 matrix
+balanced_weighted_550k_e6,full_light_geometry,100,0.310,,,,previous v0.6.14 matrix
+balanced_weighted_550k_e6,full_contact_light,100,0.300,,,,previous v0.6.14 matrix
+intermediate_success_600k_e6,clean,100,0.950,0.040,0.010,162.421,standard matrix
+intermediate_success_600k_e6,visual_camera,100,0.970,0.030,0.000,156.654,standard matrix
+intermediate_success_600k_e6,visual_camera_control,100,0.870,0.130,0.000,120.973,standard matrix
+intermediate_success_600k_e6,full_light_geometry,100,0.370,0.580,0.050,-94.268,standard matrix
+intermediate_success_600k_e6,full_contact_light,100,0.410,0.560,0.030,-86.457,standard matrix
+staged_intermediate_narrow_650k_e5,clean,100,0.960,0.040,0.000,158.252,standard matrix
+staged_intermediate_narrow_650k_e5,visual_camera,100,0.960,0.040,0.000,153.767,standard matrix
+staged_intermediate_narrow_650k_e5,visual_camera_control,100,0.850,0.150,0.000,115.513,standard matrix
+staged_intermediate_narrow_650k_e5,full_light_geometry,100,0.390,0.590,0.020,-92.427,standard matrix
+staged_intermediate_narrow_650k_e5,full_contact_light,100,0.400,0.570,0.030,-82.434,standard matrix

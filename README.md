@@ -85,6 +85,13 @@ geometry scratch BC test, `128x128` reached lower validation loss but slightly
 worse intermediate/narrow rollout success and much worse clean generalization.
 See `results/resolution_ab_intermediate_geometry_summary.md`.
 
+The current staged geometry curriculum improves geometry buckets without
+switching resolution: intermediate geometry rises from `0.310` to `0.510`, and
+narrow geometry rises from `0.180` to `0.330`. The tradeoff is lower
+`visual_camera_control` (`0.850`), so this is a geometry-curriculum candidate,
+not the current control-focused recommendation. See
+`results/geometry_curriculum_staged_summary.md`.
+
 ## Quick Check
 
 Start with the low-dimensional state mode. This avoids camera-rendering issues
