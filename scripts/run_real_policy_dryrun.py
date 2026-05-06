@@ -4,9 +4,17 @@ import argparse
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 from stable_baselines3 import A2C, PPO, SAC
 
+from peg_in_hole_mujoco import (
+    GuardedPolicyConfig,
+    GuardedPolicyController,
+    OracleControllerConfig,
+    RealGuardStateProvider,
+)
 from peg_in_hole_mujoco.policy_interface import (
+    ActionTransformResult,
     PolicyInferenceSession,
     SB3PolicyAdapter,
     SafetyConfig,
@@ -43,6 +51,8 @@ DEFAULTS = {
     "safety_workspace_high": (0.65, 0.15, 0.82),
     "peg_tip_pos": (0.55, 0.05, 0.78),
     "target_pos": (0.55, 0.05, 0.65),
+    "guard_approach_height": 0.08,
+    "guard_action_limit": 0.002,
 }
 
 
@@ -73,6 +83,36 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--safety-workspace-high", nargs=3, type=float, default=None)
     parser.add_argument("--peg-tip-pos", nargs=3, type=float, default=None)
     parser.add_argument("--target-pos", nargs=3, type=float, default=None)
+    parser.add_argument("--guarded-policy", action="store_true")
+    parser.add_argument(
+        "--guard-scenario-filter",
+        choices=["none", "all", "geometry", "hard"],
+        default="geometry",
+    )
+    parser.add_argument("--guard-scenario-name", default="real_ur5_dryrun")
+    parser.add_argument(
+        "--guard-scenario-level",
+        choices=["none", "visual_camera_control", "full_light_geometry", "full_contact_light", "full"],
+        default="full_light_geometry",
+    )
+    parser.add_argument("--guard-start-xy", type=float, default=0.060)
+    parser.add_argument("--guard-start-z", type=float, default=0.100)
+    parser.add_argument("--guard-risk-xy", type=float, default=0.0)
+    parser.add_argument("--guard-blend", type=float, default=0.75)
+    parser.add_argument("--guard-min-policy-steps", type=int, default=0)
+    parser.add_argument("--guard-block-down-when-unaligned", action="store_true")
+    parser.add_argument("--guard-release-on-high", action="store_true")
+    parser.add_argument("--guard-action-gain", type=float, default=1.0)
+    parser.add_argument("--guard-action-limit", type=float, default=None)
+    parser.add_argument("--guard-approach-height", type=float, default=None)
+    parser.add_argument("--guarded-align-xy-tolerance", type=float, default=0.025)
+    parser.add_argument("--guarded-insert-xy-tolerance", type=float, default=0.005)
+    parser.add_argument("--guarded-retract-xy-tolerance", type=float, default=0.012)
+    parser.add_argument("--guarded-preinsert-height", type=float, default=0.0)
+    parser.add_argument("--guarded-max-xy-action", type=float, default=0.002)
+    parser.add_argument("--guarded-max-down-action", type=float, default=0.0015)
+    parser.add_argument("--guarded-max-up-action", type=float, default=0.002)
+    parser.add_argument("--guarded-prediction-steps", type=float, default=1.0)
     return parser.parse_args()
 
 
@@ -144,6 +184,90 @@ def make_policy(args: argparse.Namespace):
     return SB3PolicyAdapter(model, deterministic=not args.stochastic)
 
 
+def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
+    return GuardedPolicyConfig(
+        scenario_filter=args.guard_scenario_filter,
+        guard_start_xy=args.guard_start_xy,
+        guard_start_z=args.guard_start_z,
+        guard_risk_xy=args.guard_risk_xy,
+        guard_blend=args.guard_blend,
+        guard_min_policy_steps=args.guard_min_policy_steps,
+        guard_block_down_when_unaligned=args.guard_block_down_when_unaligned,
+        guard_release_on_high=args.guard_release_on_high,
+        oracle=OracleControllerConfig(
+            mode="guarded_two_stage",
+            action_gain=args.guard_action_gain,
+            guarded_align_xy_tolerance=args.guarded_align_xy_tolerance,
+            guarded_insert_xy_tolerance=args.guarded_insert_xy_tolerance,
+            guarded_retract_xy_tolerance=args.guarded_retract_xy_tolerance,
+            guarded_preinsert_height=args.guarded_preinsert_height,
+            guarded_max_xy_action=args.guarded_max_xy_action,
+            guarded_max_down_action=args.guarded_max_down_action,
+            guarded_max_up_action=args.guarded_max_up_action,
+            guarded_prediction_steps=args.guarded_prediction_steps,
+        ),
+    )
+
+
+class RealGuardedActionTransformer:
+    def __init__(
+        self,
+        config: GuardedPolicyConfig,
+        state_provider: RealGuardStateProvider,
+        scenario_name: str,
+        scenario_level: str,
+    ) -> None:
+        self.controller = GuardedPolicyController(config)
+        self.state_provider = state_provider
+        self.scenario_name = scenario_name
+        self.scenario_level = scenario_level
+        self.guard_enabled = self.controller.scenario_uses_guard(scenario_name, scenario_level)
+
+    def reset(self) -> None:
+        self.controller.reset()
+
+    def initial_diagnostics(self) -> dict[str, Any]:
+        return {
+            "guard_enabled": self.guard_enabled,
+            "guard_active": False,
+            "guard_should_activate": False,
+            "guard_can_activate": False,
+            "guard_activated": False,
+            "guard_down_blocked": False,
+            "guard_steps_since_reset": 0,
+            "guard_min_policy_steps": self.controller.config.guard_min_policy_steps,
+            "guard_dist_xy": float("nan"),
+            "guard_z_above_target": float("nan"),
+        }
+
+    def transform(self, info: dict[str, Any], policy_action: np.ndarray) -> ActionTransformResult:
+        step = self.controller.step_with_provider(
+            self.state_provider,
+            info,
+            policy_action,
+            scenario_name=self.scenario_name,
+            scenario_level=self.scenario_level,
+        )
+        return ActionTransformResult(
+            action=step.action,
+            diagnostics={
+                "guard_enabled": self.guard_enabled,
+                "guard_active": step.guarded,
+                "guard_should_activate": step.guard_should_activate,
+                "guard_can_activate": step.guard_can_activate,
+                "guard_activated": step.guard_activated,
+                "guard_down_blocked": step.guard_down_blocked,
+                "guard_steps_since_reset": step.guard_steps_since_reset,
+                "guard_min_policy_steps": self.controller.config.guard_min_policy_steps,
+                "guard_dist_xy": step.guard_dist_xy,
+                "guard_z_above_target": step.guard_z_above_target,
+                "policy_action": step.policy_action,
+                "guarded_action": step.guarded_action,
+                "final_action": step.action,
+            },
+        )
+
+
 def main() -> None:
     args = parse_args()
     config = load_simple_yaml(args.config)
@@ -175,12 +299,25 @@ def main() -> None:
             action_filter_alpha=float(get_value(args, config, "safety_action_filter_alpha")),
         )
     )
+    action_transformer = None
+    if args.guarded_policy:
+        guard_state_provider = RealGuardStateProvider(
+            approach_height=float(get_value(args, config, "guard_approach_height")),
+            action_limit=float(get_value(args, config, "guard_action_limit")),
+        )
+        action_transformer = RealGuardedActionTransformer(
+            make_guarded_config(args),
+            guard_state_provider,
+            args.guard_scenario_name,
+            args.guard_scenario_level,
+        )
     session = PolicyInferenceSession(
         observation_provider=observation_provider,
         action_executor=action_executor,
         policy=make_policy(args),
         safety_filter=safety_filter,
         control_frequency_hz=float(get_value(args, config, "control_frequency_hz")),
+        action_transformer=action_transformer,
     )
 
     rows = []
@@ -193,15 +330,17 @@ def main() -> None:
             )
             rows.extend(episode_rows)
             results.append(result)
+            guard_steps = sum(int(row.get("guard_active", False)) for row in episode_rows)
             print(
                 "episode={episode} success={success} collision={collision} "
-                "truncated={truncated} steps={steps} return={ret:.3f} "
+                "truncated={truncated} steps={steps} guard_steps={guard_steps} return={ret:.3f} "
                 "dist_xy={dist_xy:.5f} dist_z={dist_z:.5f}".format(
                     episode=result.episode,
                     success=result.success,
                     collision=result.collision,
                     truncated=result.truncated,
                     steps=result.steps,
+                    guard_steps=guard_steps,
                     ret=result.episode_return,
                     dist_xy=result.final_dist_xy,
                     dist_z=result.final_dist_z,

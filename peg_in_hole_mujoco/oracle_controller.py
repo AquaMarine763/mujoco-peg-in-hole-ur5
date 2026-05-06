@@ -40,12 +40,38 @@ def guarded_two_stage_oracle_action(
     info: dict[str, Any],
     config: OracleControllerConfig,
 ) -> np.ndarray:
-    tip = _tip_pos(info)
-    control_tip = _predicted_tip_pos(tip, info, config.guarded_prediction_steps)
-    target = _target_pos(info)
+    return guarded_two_stage_oracle_action_from_state(
+        peg_tip_pos=_tip_pos(info),
+        target_pos=_target_pos(info),
+        applied_action=np.asarray(info.get("applied_action", np.zeros(3)), dtype=np.float64),
+        approach_height=float(env.approach_height),
+        action_low=np.asarray(env.action_space.low, dtype=np.float64),
+        action_high=np.asarray(env.action_space.high, dtype=np.float64),
+        config=config,
+    )
+
+
+def guarded_two_stage_oracle_action_from_state(
+    *,
+    peg_tip_pos: np.ndarray,
+    target_pos: np.ndarray,
+    applied_action: np.ndarray,
+    approach_height: float,
+    action_low: np.ndarray,
+    action_high: np.ndarray,
+    config: OracleControllerConfig,
+) -> np.ndarray:
+    tip = np.asarray(peg_tip_pos, dtype=np.float64).reshape(3)
+    target = np.asarray(target_pos, dtype=np.float64).reshape(3)
+    applied_action = np.asarray(applied_action, dtype=np.float64).reshape(3)
+    control_tip = _predicted_tip_pos_from_action(
+        tip,
+        applied_action,
+        config.guarded_prediction_steps,
+    )
     dist_xy = float(np.linalg.norm(control_tip[:2] - target[:2]))
 
-    safe_z = float(target[2] + env.approach_height)
+    safe_z = float(target[2] + approach_height)
     preinsert_z = float(target[2] + config.guarded_preinsert_height)
     desired_z = _guarded_desired_z(
         tip_z=float(control_tip[2]),
@@ -63,7 +89,7 @@ def guarded_two_stage_oracle_action(
         max_down_action=config.guarded_max_down_action,
         max_up_action=config.guarded_max_up_action,
     )
-    return _clip_to_action_space(env, action)
+    return _clip_to_bounds(action, action_low, action_high)
 
 
 def _guarded_desired_z(
@@ -111,9 +137,17 @@ def _predicted_tip_pos(
     info: dict[str, Any],
     prediction_steps: float,
 ) -> np.ndarray:
+    applied_action = np.asarray(info.get("applied_action", np.zeros(3)), dtype=np.float64)
+    return _predicted_tip_pos_from_action(tip, applied_action, prediction_steps)
+
+
+def _predicted_tip_pos_from_action(
+    tip: np.ndarray,
+    applied_action: np.ndarray,
+    prediction_steps: float,
+) -> np.ndarray:
     if prediction_steps <= 0.0:
         return tip
-    applied_action = np.asarray(info.get("applied_action", np.zeros(3)), dtype=np.float64)
     return tip + float(prediction_steps) * applied_action
 
 
@@ -144,4 +178,12 @@ def _limit_z_action(
 
 
 def _clip_to_action_space(env: Any, action: np.ndarray) -> np.ndarray:
-    return np.clip(action, env.action_space.low, env.action_space.high).astype(np.float32)
+    return _clip_to_bounds(action, env.action_space.low, env.action_space.high)
+
+
+def _clip_to_bounds(
+    action: np.ndarray,
+    action_low: np.ndarray,
+    action_high: np.ndarray,
+) -> np.ndarray:
+    return np.clip(action, action_low, action_high).astype(np.float32)

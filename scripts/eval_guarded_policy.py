@@ -12,6 +12,7 @@ from stable_baselines3 import A2C, PPO, SAC
 from peg_in_hole_mujoco import (
     GuardedPolicyConfig,
     GuardedPolicyController,
+    MujocoGuardStateProvider,
     OracleControllerConfig,
     PegInHoleMujocoEnv,
 )
@@ -225,6 +226,7 @@ def evaluate_scenario(args: argparse.Namespace, scenario: Scenario) -> dict[str,
     env = make_env(args, scenario)
     model = AGENTS[args.agent].load(args.model, env=env, device=args.device)
     guarded_controller = GuardedPolicyController(make_guarded_config(args))
+    guard_state_provider = MujocoGuardStateProvider(env)
     guard_enabled = guarded_controller.scenario_uses_guard(scenario.name, scenario.level)
     successes = 0
     collisions = 0
@@ -244,8 +246,8 @@ def evaluate_scenario(args: argparse.Namespace, scenario: Scenario) -> dict[str,
             episode_guard_steps = 0
             while True:
                 policy_action, _ = model.predict(obs, deterministic=True)
-                step = guarded_controller.step(
-                    env,
+                step = guarded_controller.step_with_provider(
+                    guard_state_provider,
                     info,
                     policy_action,
                     scenario_name=scenario.name,

@@ -1796,6 +1796,10 @@ robot dry-run loop.
 Internally this path uses `PolicyInferenceSession` plus
 `MujocoObservationProvider` and `MujocoActionExecutor`; real hardware should
 replace only the provider/executor layer.
+Guarded deployment now follows the same adapter structure:
+`MujocoGuardStateProvider` converts MuJoCo telemetry into
+`GuardedDeploymentState`, while `RealGuardStateProvider` does the same for
+real-robot dry-run telemetry.
 
 Use a smoother action safety layer:
 
@@ -1818,6 +1822,28 @@ still using a dry-run UR5 executor:
 ```powershell
 python scripts\run_real_policy_dryrun.py --model checkpoints_image_bc_50k_sidecam_visual_camera_control_delay3_oracle\sac_image_bc.zip --image-dir path\to\camera_frames --episodes 1 --output results\real_policy_dryrun_trace.csv
 ```
+
+Run the real dry-run path with guarded final insertion enabled. This still does
+not move hardware; it only checks the provider, policy/zero-policy, safety
+filter, guarded controller, and trace logging path:
+
+```powershell
+python scripts\run_real_policy_dryrun.py `
+  --zero-policy `
+  --episodes 1 `
+  --max-steps 2 `
+  --peg-tip-pos 0.55 0.05 0.72 `
+  --target-pos 0.55 0.05 0.65 `
+  --guarded-policy `
+  --guard-scenario-filter geometry `
+  --guard-scenario-level full_light_geometry `
+  --guard-start-z 0.10 `
+  --guard-action-limit 0.002 `
+  --output results\real_policy_dryrun_guarded_smoke.csv
+```
+
+Guarded interface refactor details and smoke results are in
+`results\guarded_deployment_interface_refactor_summary.md`.
 
 Preview preprocessing for a real camera frame directory:
 

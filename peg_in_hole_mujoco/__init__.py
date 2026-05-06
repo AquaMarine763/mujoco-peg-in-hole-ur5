@@ -2,15 +2,20 @@
 
 from peg_in_hole_mujoco.envs.peg_in_hole_env import PegInHoleMujocoEnv
 from peg_in_hole_mujoco.guarded_policy import (
+    GuardStateProvider,
+    GuardedDeploymentState,
     GuardedPolicyConfig,
     GuardedPolicyController,
     GuardedPolicyStep,
     GuardScenarioFilter,
+    MujocoGuardStateProvider,
+    RealGuardStateProvider,
 )
 from peg_in_hole_mujoco.image_preprocess import ImagePreprocessConfig, preprocess_camera_image
 from peg_in_hole_mujoco.oracle_controller import (
     OracleControllerConfig,
     OracleMode,
+    guarded_two_stage_oracle_action_from_state,
     oracle_action,
 )
 from peg_in_hole_mujoco.policy_interface import (
@@ -39,12 +44,15 @@ __all__ = [
     "ActionTransformer",
     "ActionTransformResult",
     "DryRunUR5ActionExecutor",
+    "GuardStateProvider",
     "GuardScenarioFilter",
+    "GuardedDeploymentState",
     "GuardedPolicyConfig",
     "GuardedPolicyController",
     "GuardedPolicyStep",
     "ImagePreprocessConfig",
     "MujocoActionExecutor",
+    "MujocoGuardStateProvider",
     "MujocoObservationProvider",
     "MujocoPolicySession",
     "ObservationProvider",
@@ -54,11 +62,13 @@ __all__ = [
     "PolicyInferenceSession",
     "RealCameraConfig",
     "RealCameraObservationProvider",
+    "RealGuardStateProvider",
     "SB3PolicyAdapter",
     "SafetyConfig",
     "SafetyFilter",
     "StepResult",
     "ZeroPolicyAdapter",
+    "guarded_two_stage_oracle_action_from_state",
     "oracle_action",
     "preprocess_camera_image",
 ]

@@ -10,6 +10,7 @@ from stable_baselines3 import A2C, PPO, SAC
 from peg_in_hole_mujoco import (
     GuardedPolicyConfig,
     GuardedPolicyController,
+    MujocoGuardStateProvider,
     OracleControllerConfig,
     PegInHoleMujocoEnv,
 )
@@ -194,6 +195,7 @@ class GuardedDeploymentActionTransformer:
     ) -> None:
         self.env = env
         self.controller = GuardedPolicyController(config)
+        self.state_provider = MujocoGuardStateProvider(env)
         self.scenario_name = scenario_name
         self.scenario_level = scenario_level
         self.guard_enabled = self.controller.scenario_uses_guard(scenario_name, scenario_level)
@@ -216,8 +218,8 @@ class GuardedDeploymentActionTransformer:
         }
 
     def transform(self, info: dict[str, Any], policy_action: np.ndarray) -> ActionTransformResult:
-        guarded_step = self.controller.step(
-            self.env,
+        guarded_step = self.controller.step_with_provider(
+            self.state_provider,
             info,
             policy_action,
             scenario_name=self.scenario_name,
