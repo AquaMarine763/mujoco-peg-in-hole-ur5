@@ -1,0 +1,12 @@
+{
+  "inputs": [
+    "datasets\\image_expert_ur5e_adapter_fixedcam_clean_visual_camera_control_delay_filter_success_300k_oracle.npz",
+    "datasets\\image_expert_ur5e_adapter_fixedcam_visual_camera_control_success_50k_seed330k_oracle.npz"
+  ],
+  "input_samples": [
+    300000,
+    50000
+  ],
+  "output_samples": 350000,
+  "compressed": true
+}

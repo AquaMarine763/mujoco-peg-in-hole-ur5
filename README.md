@@ -59,11 +59,11 @@ The current UR5e visual-camera mixed baseline is also documented in
 `checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_150k_oracle_e20/sac_image_bc.zip`
 when regenerated locally.
 
-The current UR5e control-success baseline uses
-`checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_control_success_250k_oracle_e15/sac_image_bc.zip`
+The current UR5e delay/filter-success baseline uses
+`checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_control_delay_filter_success_350k_oracle_e8/sac_image_bc.zip`
 when regenerated locally. It improves default `visual_camera_control` from
-`0.600` to `0.730` success by adding success-only default-control oracle data
-on top of the mild-control baseline.
+`0.600` to `0.860` success by adding success-only default-control data and
+delay/filter-focused success-only data on top of the mild-control baseline.
 
 ## Quick Check
 
