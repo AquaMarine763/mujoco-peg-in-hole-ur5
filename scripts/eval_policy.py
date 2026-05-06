@@ -24,6 +24,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--episodes", type=int, default=100)
     parser.add_argument("--device", default="auto")
     parser.add_argument("--seed", type=int, default=1000)
+    parser.add_argument("--width", type=int, default=100)
+    parser.add_argument("--height", type=int, default=100)
     parser.add_argument("--domain-randomization", action="store_true")
     parser.add_argument(
         "--domain-randomization-level",
@@ -79,6 +81,8 @@ def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
     return PegInHoleMujocoEnv(
         model_path=args.model_path,
         observation_mode=args.observation_mode,
+        image_width=args.width,
+        image_height=args.height,
         max_steps=args.max_steps,
         action_scale=args.action_scale,
         target_low=tuple(args.target_low),

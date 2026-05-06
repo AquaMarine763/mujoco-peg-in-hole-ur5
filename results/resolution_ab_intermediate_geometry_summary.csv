@@ -1,0 +1,7 @@
+model,resolution,train_dataset,samples,epochs,final_val_loss,scenario,episodes,success_rate,collision_rate,mean_return,notes
+intermediate_20k_100_scratch_e30,100x100,image_expert_ur5e_adapter_fixedcam_full_light_geometry_intermediate_success_20k_100_oracle.npz,20000,30,0.164395,intermediate_geometry_identity_control,100,0.880,0.120,33.895,hole_half_size=0.025-0.029 peg_radius=0.012
+intermediate_20k_128_scratch_e30,128x128,image_expert_ur5e_adapter_fixedcam_full_light_geometry_intermediate_success_20k_128_oracle.npz,20000,30,0.131773,intermediate_geometry_identity_control,100,0.860,0.140,31.174,hole_half_size=0.025-0.029 peg_radius=0.012
+intermediate_20k_100_scratch_e30,100x100,image_expert_ur5e_adapter_fixedcam_full_light_geometry_intermediate_success_20k_100_oracle.npz,20000,30,0.164395,narrow_geometry_identity_control,100,0.750,0.180,21.406,hole_half_size=0.020-0.025 peg_radius=0.012
+intermediate_20k_128_scratch_e30,128x128,image_expert_ur5e_adapter_fixedcam_full_light_geometry_intermediate_success_20k_128_oracle.npz,20000,30,0.131773,narrow_geometry_identity_control,100,0.720,0.180,21.501,hole_half_size=0.020-0.025 peg_radius=0.012
+intermediate_20k_100_scratch_e30,100x100,image_expert_ur5e_adapter_fixedcam_full_light_geometry_intermediate_success_20k_100_oracle.npz,20000,30,0.164395,clean,100,0.670,0.320,-0.310,no domain randomization
+intermediate_20k_128_scratch_e30,128x128,image_expert_ur5e_adapter_fixedcam_full_light_geometry_intermediate_success_20k_128_oracle.npz,20000,30,0.131773,clean,100,0.180,0.780,-86.248,no domain randomization

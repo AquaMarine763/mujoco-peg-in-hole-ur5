@@ -79,6 +79,12 @@ narrow-only continuation reached `0.450` but forgot clean/control behavior.
 See `results/geometry_curriculum_narrow_summary.md` before treating the
 geometry curriculum as ready.
 
+A small resolution A/B test also shows that directly raising the whole wrist
+image from `100x100` to `128x128` is not yet justified. On a 20k intermediate
+geometry scratch BC test, `128x128` reached lower validation loss but slightly
+worse intermediate/narrow rollout success and much worse clean generalization.
+See `results/resolution_ab_intermediate_geometry_summary.md`.
+
 ## Quick Check
 
 Start with the low-dimensional state mode. This avoids camera-rendering issues
