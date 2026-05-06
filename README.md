@@ -105,6 +105,12 @@ It reaches `0.910` on `visual_camera_control`, `0.580` on
 `full_light_geometry`, and `0.590` on `full_contact_light` in the standard
 100-episode matrix. See `results/crop_control_replay_summary.md`.
 
+An additional hard full-light replay attempt did not improve the model:
+`staged_crop_hard_full_light_replay_800k_oracle_e4` reduced standard
+`full_light_geometry` to `0.550` and the target hard bucket to `0.310`. Keep
+the 750k model as the recommendation. See
+`results/hard_full_light_replay_summary.md`.
+
 ## Quick Check
 
 Start with the low-dimensional state mode. This avoids camera-rendering issues

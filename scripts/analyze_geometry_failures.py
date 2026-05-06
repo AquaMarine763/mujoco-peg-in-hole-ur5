@@ -66,6 +66,30 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def scale_bucket(value: float) -> str:
+    if value < 0.9:
+        return "low_<0.90"
+    if value > 1.1:
+        return "high_>1.10"
+    return "mid_0.90_1.10"
+
+
+def noise_bucket(value: float) -> str:
+    if value < 0.00025:
+        return "low_<0.00025"
+    if value < 0.00055:
+        return "mid_0.00025_0.00055"
+    return "high_>=0.00055"
+
+
+def filter_bucket(value: float) -> str:
+    if value < 0.7:
+        return "low_<0.70"
+    if value < 0.85:
+        return "mid_0.70_0.85"
+    return "high_>=0.85"
+
+
 def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
     return PegInHoleMujocoEnv(
         model_path=args.model_path,
@@ -174,6 +198,20 @@ def evaluate(args: argparse.Namespace) -> list[dict[str, Any]]:
                     "last_action_x": float(last_action[0]),
                     "last_action_y": float(last_action[1]),
                     "last_action_z": float(last_action[2]),
+                    "control_action_scale_multiplier": float(info.get("control_action_scale_multiplier", 1.0)),
+                    "control_action_noise_std": float(info.get("control_action_noise_std", 0.0)),
+                    "control_action_delay": int(info.get("control_action_delay", 0)),
+                    "control_action_filter_alpha": float(info.get("control_action_filter_alpha", 1.0)),
+                    "scale_bucket": scale_bucket(float(info.get("control_action_scale_multiplier", 1.0))),
+                    "noise_bucket": noise_bucket(float(info.get("control_action_noise_std", 0.0))),
+                    "delay_bucket": f"delay_{int(info.get('control_action_delay', 0))}",
+                    "filter_bucket": filter_bucket(float(info.get("control_action_filter_alpha", 1.0))),
+                    "joint_bucket": (
+                        f"delay_{int(info.get('control_action_delay', 0))}|"
+                        f"{filter_bucket(float(info.get('control_action_filter_alpha', 1.0)))}|"
+                        f"{scale_bucket(float(info.get('control_action_scale_multiplier', 1.0)))}|"
+                        f"{noise_bucket(float(info.get('control_action_noise_std', 0.0)))}"
+                    ),
                     "hole_half_size": float(info.get("hole_half_size", np.nan)),
                     "peg_radius": float(info.get("peg_radius", np.nan)),
                     "hole_clearance": float(info.get("hole_half_size", np.nan) - info.get("peg_radius", np.nan)),
@@ -249,11 +287,107 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
             f"{mean(timeouts, 'mean_action_z'):.5f} | {mean(timeouts, 'mean_action_xy_norm'):.5f} |"
         ),
         "",
-        "## Failure XY Buckets",
+        "## By Delay",
         "",
-        "| Final XY bucket | Episodes | Success | Collision | Timeout |",
-        "| --- | ---: | ---: | ---: | ---: |",
+        "| Bucket | Episodes | Success | Collision | Timeout | Mean steps | Mean final XY | Mean final Z |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
+    for bucket in sorted({str(row["delay_bucket"]) for row in rows}):
+        bucket_rows = [row for row in rows if row["delay_bucket"] == bucket]
+        lines.append(
+            f"| {bucket} | {len(bucket_rows)} | {rate(bucket_rows, 'success'):.3f} | "
+            f"{rate(bucket_rows, 'collision'):.3f} | {rate(bucket_rows, 'timeout'):.3f} | "
+            f"{mean(bucket_rows, 'steps'):.1f} | {mean(bucket_rows, 'final_dist_xy'):.5f} | "
+            f"{mean(bucket_rows, 'final_dist_z'):.5f} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## By Filter Alpha",
+            "",
+            "| Bucket | Episodes | Success | Collision | Timeout | Mean steps | Mean final XY | Mean final Z |",
+            "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        ]
+    )
+    for bucket in sorted({str(row["filter_bucket"]) for row in rows}):
+        bucket_rows = [row for row in rows if row["filter_bucket"] == bucket]
+        lines.append(
+            f"| {bucket} | {len(bucket_rows)} | {rate(bucket_rows, 'success'):.3f} | "
+            f"{rate(bucket_rows, 'collision'):.3f} | {rate(bucket_rows, 'timeout'):.3f} | "
+            f"{mean(bucket_rows, 'steps'):.1f} | {mean(bucket_rows, 'final_dist_xy'):.5f} | "
+            f"{mean(bucket_rows, 'final_dist_z'):.5f} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## By Scale",
+            "",
+            "| Bucket | Episodes | Success | Collision | Timeout | Mean steps | Mean final XY | Mean final Z |",
+            "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        ]
+    )
+    for bucket in sorted({str(row["scale_bucket"]) for row in rows}):
+        bucket_rows = [row for row in rows if row["scale_bucket"] == bucket]
+        lines.append(
+            f"| {bucket} | {len(bucket_rows)} | {rate(bucket_rows, 'success'):.3f} | "
+            f"{rate(bucket_rows, 'collision'):.3f} | {rate(bucket_rows, 'timeout'):.3f} | "
+            f"{mean(bucket_rows, 'steps'):.1f} | {mean(bucket_rows, 'final_dist_xy'):.5f} | "
+            f"{mean(bucket_rows, 'final_dist_z'):.5f} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## By Noise",
+            "",
+            "| Bucket | Episodes | Success | Collision | Timeout | Mean steps | Mean final XY | Mean final Z |",
+            "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        ]
+    )
+    for bucket in sorted({str(row["noise_bucket"]) for row in rows}):
+        bucket_rows = [row for row in rows if row["noise_bucket"] == bucket]
+        lines.append(
+            f"| {bucket} | {len(bucket_rows)} | {rate(bucket_rows, 'success'):.3f} | "
+            f"{rate(bucket_rows, 'collision'):.3f} | {rate(bucket_rows, 'timeout'):.3f} | "
+            f"{mean(bucket_rows, 'steps'):.1f} | {mean(bucket_rows, 'final_dist_xy'):.5f} | "
+            f"{mean(bucket_rows, 'final_dist_z'):.5f} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Worst Joint Buckets",
+            "",
+            "| Bucket | Episodes | Success | Collision | Timeout | Mean steps | Mean final XY | Mean final Z |",
+            "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        ]
+    )
+    joint_buckets = sorted(
+        {str(row["joint_bucket"]) for row in rows},
+        key=lambda bucket: (
+            rate([row for row in rows if row["joint_bucket"] == bucket], "collision"),
+            rate([row for row in rows if row["joint_bucket"] == bucket], "timeout"),
+            len([row for row in rows if row["joint_bucket"] == bucket]),
+        ),
+        reverse=True,
+    )
+    for bucket in joint_buckets:
+        bucket_rows = [row for row in rows if row["joint_bucket"] == bucket]
+        if len(bucket_rows) < max(3, len(rows) // 50):
+            continue
+        lines.append(
+            f"| {bucket} | {len(bucket_rows)} | {rate(bucket_rows, 'success'):.3f} | "
+            f"{rate(bucket_rows, 'collision'):.3f} | {rate(bucket_rows, 'timeout'):.3f} | "
+            f"{mean(bucket_rows, 'steps'):.1f} | {mean(bucket_rows, 'final_dist_xy'):.5f} | "
+            f"{mean(bucket_rows, 'final_dist_z'):.5f} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Failure XY Buckets",
+            "",
+            "| Final XY bucket | Episodes | Success | Collision | Timeout |",
+            "| --- | ---: | ---: | ---: | ---: |",
+        ]
+    )
     for bucket in ("aligned_<0.005", "near_0.005_0.015", "off_0.015_0.030", "far_>=0.030"):
         bucket_rows = [row for row in rows if row["final_xy_bucket"] == bucket]
         if not bucket_rows:

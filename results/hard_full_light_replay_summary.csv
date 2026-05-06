@@ -1,0 +1,8 @@
+model,scenario,episodes,success_rate,collision_rate,timeout_rate,mean_return,notes
+staged_crop_full_light_replay_750k_e4,standard_full_light_geometry_matrix,100,0.580,0.410,0.010,-30.372,current recommended model
+staged_crop_hard_full_light_replay_800k_e4,standard_full_light_geometry_matrix,100,0.550,0.440,0.010,-39.377,hard replay attempt
+staged_crop_full_light_replay_750k_e4,standard_full_contact_light_matrix,100,0.590,0.390,0.020,-21.249,current recommended model
+staged_crop_hard_full_light_replay_800k_e4,standard_full_contact_light_matrix,100,0.530,0.450,0.020,-40.419,hard replay attempt
+staged_crop_full_light_replay_750k_e4,hard_full_light_bucket,100,0.330,0.660,,,-79.455 delay2 lowalpha lownoise scale 0.8-1.1
+staged_crop_hard_full_light_replay_800k_e4,hard_full_light_bucket,100,0.310,0.690,,,-85.072 delay2 lowalpha lownoise scale 0.8-1.1
+staged_crop_full_light_replay_750k_e4,combined_full_light_failure_analysis,200,0.650,0.345,0.005,,seed 820000

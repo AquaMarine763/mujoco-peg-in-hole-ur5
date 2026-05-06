@@ -742,6 +742,49 @@ checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_
 
 Full details are in `results\crop_control_replay_summary.md`.
 
+## Hard Full-Light Replay Attempt
+
+Run combined full-light failure analysis on the current recommended crop model:
+
+```powershell
+python scripts\analyze_geometry_failures.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --include-near-hole-crop --near-hole-crop-size 64 --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip --episodes 200 --seed 820000 --output-csv results\geometry_failure_analysis_staged_crop_full_light_replay_750k_e4_full_light.csv --output-md results\geometry_failure_analysis_staged_crop_full_light_replay_750k_e4_full_light.md --device cpu --domain-randomization-level full_light_geometry --control-action-scale-range 0.8 1.2 --control-action-noise-std-range 0 0.0008 --control-action-delay-range 0 2 --control-action-filter-alpha-range 0.55 1.0 --geometry-hole-center-xy-jitter 0.002 0.002 --geometry-fixture-height-jitter 0.001 --geometry-table-height-jitter 0.001 --geometry-hole-half-size-range 0.025 0.029 --geometry-peg-radius-range 0.0115 0.0125 --approach-xy-tolerance 0.02 --success-xy-tolerance 0.005 --success-z-tolerance 0.01
+```
+
+The 200-episode analysis reached `0.650` success but still showed collision
+concentration around `delay_2`, `low_<0.70` filter alpha, and low-noise
+combined buckets.
+
+Scan staged-oracle gain in the targeted hard full-light bucket:
+
+```powershell
+python scripts\scan_oracle_control_gain.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --output-csv results\oracle_gain_scan_full_light_delay2_lowalpha_lownoise.csv --output-md results\oracle_gain_scan_full_light_delay2_lowalpha_lownoise.md --episodes 50 --seed 842000 --gains 1.0 0.7 0.5 0.35 0.25 0.18 --domain-randomization-level full_light_geometry --control-action-scale-range 0.8 1.1 --control-action-noise-std-range 0 0.00025 --control-action-delay-range 2 2 --control-action-filter-alpha-range 0.55 0.70 --approach-xy-tolerance 0.02 --success-xy-tolerance 0.005 --success-z-tolerance 0.01
+```
+
+Collect the hard full-light replay dataset:
+
+```powershell
+python scripts\collect_image_expert_dataset.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --output datasets\image_expert_ur5e_adapter_fixedcam_full_light_geometry_delay2_lowalpha_lownoise_gain05_success_50k_oracle.npz --samples 50000 --seed 845000 --image-width 100 --image-height 100 --include-near-hole-crop --near-hole-crop-size 64 --expert-action-gain 0.5 --rollout-noise-std 0.0005 --success-xy-tolerance 0.005 --success-z-tolerance 0.01 --approach-xy-tolerance 0.02 --domain-randomization-level full_light_geometry --control-action-scale-range 0.8 1.1 --control-action-noise-std-range 0 0.00025 --control-action-delay-range 2 2 --control-action-filter-alpha-range 0.55 0.70 --success-only --compressed
+```
+
+Observed collection result: `50000` samples, `7065` episodes, `0.267` oracle
+success, `0.733` oracle collision.
+
+Train the hard replay attempt:
+
+```powershell
+python scripts\pretrain_image_actor_bc_weighted.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --include-near-hole-crop --near-hole-crop-size 64 --datasets datasets\image_expert_ur5e_adapter_fixedcam_clean_visual_camera_control_delay_filter_success_350k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_control_hard_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_control_delay2_lowalpha_lowscale_lownoise_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_full_light_geometry_control_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_full_light_geometry_delay2_lowalpha_lownoise_gain05_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_50k_seed130k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_control_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_full_light_geometry_intermediate_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_full_light_geometry_narrow_success_50k_oracle.npz --dataset-weights 0.27 0.10 0.08 0.13 0.10 0.05 0.03 0.07 0.10 0.07 --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip --output checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_hard_full_light_replay_800k_oracle_e4\sac_image_bc.zip --epochs 4 --samples-per-epoch 300000 --batch-size 512 --learning-rate 0.000002 --validation-batches 20 --approach-xy-tolerance 0.02 --success-xy-tolerance 0.005 --success-z-tolerance 0.01 --device cpu
+```
+
+This attempt is a negative result:
+
+| Model | Standard full light | Full contact light | Hard full-light bucket |
+| --- | ---: | ---: | ---: |
+| crop full-light replay 750k e4 | 0.580 | 0.590 | 0.330 |
+| hard full-light replay 800k e4 | 0.550 | 0.530 | 0.310 |
+
+Do not promote the 800k hard replay model. Full details are in
+`results\hard_full_light_replay_summary.md`.
+
 ## Current Recommended UR5e Model
 
 ```text
