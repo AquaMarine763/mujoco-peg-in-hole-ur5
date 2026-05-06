@@ -1,0 +1,6 @@
+name,level,episodes,success_rate,collision_rate,timeout_rate,mean_return,mean_steps,mean_guarded_steps,mean_guarded_step_fraction,guarded_episode_rate,guard_enabled,mean_final_dist_xy,mean_final_dist_z,control_scale_range,control_noise_std_range,control_delay_range,control_filter_alpha_range
+clean,none,100,0.98,0.02,0.0,147.42930047096112,22.5,0.0,0.0,0.0,False,0.004785752405576145,0.008704714410692422,1.0:1.0,0.0:0.0,0:0,1.0:1.0
+visual_camera,visual_camera,100,0.98,0.02,0.0,144.24922592203913,22.2,0.0,0.0,0.0,False,0.004991963524901894,0.008804835331666191,1.0:1.0,0.0:0.0,0:0,1.0:1.0
+visual_camera_control,visual_camera_control,100,0.91,0.09,0.0,119.12595319083532,30.07,0.0,0.0,0.0,False,0.007475324465517067,0.013156989463435647,0.8:1.2,0.0:0.0008,0:2,0.55:1.0
+full_light_geometry,full_light_geometry,100,0.58,0.41,0.01,-25.445909432781324,23.62,0.0,0.0,0.0,False,0.014438078094189632,0.023878596525765083,0.8:1.2,0.0:0.0008,0:2,0.55:1.0
+full_contact_light,full_contact_light,100,0.58,0.4,0.02,-17.211578114980313,28.78,0.0,0.0,0.0,False,0.014939837848566985,0.024277316282480078,0.8:1.2,0.0:0.0008,0:2,0.55:1.0

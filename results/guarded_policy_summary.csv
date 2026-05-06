@@ -1,0 +1,20 @@
+configuration,scenario,guard_filter,episodes,success_rate,collision_rate,timeout_rate,mean_guarded_steps,guarded_episode_rate,notes
+no_guard,clean,none,100,0.980,0.020,0.000,0.0,0.000,baseline with eval_guarded_policy.py
+no_guard,visual_camera,none,100,0.980,0.020,0.000,0.0,0.000,baseline with eval_guarded_policy.py
+no_guard,visual_camera_control,none,100,0.910,0.090,0.000,0.0,0.000,baseline with eval_guarded_policy.py
+no_guard,full_light_geometry,none,100,0.580,0.410,0.010,0.0,0.000,baseline with eval_guarded_policy.py
+no_guard,full_contact_light,none,100,0.580,0.400,0.020,0.0,0.000,baseline with eval_guarded_policy.py
+all_override,clean,all,100,1.000,0.000,0.000,21.0,1.000,unconditional deployment guard
+all_override,visual_camera,all,100,1.000,0.000,0.000,21.1,1.000,unconditional deployment guard
+all_override,visual_camera_control,all,100,0.830,0.160,0.010,42.2,0.980,unconditional guard hurts control-randomized case
+all_override,full_light_geometry,all,100,0.690,0.240,0.070,38.5,0.980,unconditional deployment guard
+all_override,full_contact_light,all,100,0.660,0.290,0.050,35.6,0.970,unconditional deployment guard
+all_override,hard_full_light_bucket,all,100,0.480,0.520,0.000,20.3,0.920,seed 90000
+geometry_override,clean,geometry,100,0.980,0.020,0.000,0.0,0.000,recommended guarded evaluation filter
+geometry_override,visual_camera,geometry,100,0.980,0.020,0.000,0.0,0.000,recommended guarded evaluation filter
+geometry_override,visual_camera_control,geometry,100,0.920,0.080,0.000,0.0,0.000,recommended guarded evaluation filter
+geometry_override,full_light_geometry,geometry,100,0.690,0.240,0.070,38.5,0.980,recommended guarded evaluation filter
+geometry_override,full_contact_light,geometry,100,0.660,0.290,0.050,35.6,0.970,recommended guarded evaluation filter
+geometry_override,hard_full_light_bucket,geometry,100,0.480,0.520,0.000,20.3,0.920,seed 90000
+no_guard,hard_full_light_bucket,none,100,0.330,0.670,0.000,0.0,0.000,seed 90000 hard-bucket baseline
+geometry_override,hard_full_light_bucket_seed850k,geometry,100,0.410,0.590,0.000,16.9,0.920,seed 850000 comparable to previous hard-bucket reports

@@ -849,6 +849,38 @@ Result:
 Do not promote either guarded replay model. Full details are in
 `results\guarded_hard_replay_summary.md`.
 
+## Deployment-Time Guarded Insert
+
+Evaluate the current recommended 750k visual policy without a guarded wrapper:
+
+```powershell
+python scripts\eval_guarded_policy.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --agent sac --observation-mode image --include-near-hole-crop --near-hole-crop-size 64 --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip --episodes 100 --seed 90000 --device cpu --output-csv results\eval_guarded_policy_matrix_750k_no_guard_core.csv --output-md results\eval_guarded_policy_matrix_750k_no_guard_core.md --success-xy-tolerance 0.005 --success-z-tolerance 0.01 --guard-scenario-filter none --guard-start-xy 0.06 --guard-start-z 0.10 --guard-risk-xy 0.0 --guard-blend 1.0
+```
+
+Evaluate an aggressive wrapper that guards every scenario:
+
+```powershell
+python scripts\eval_guarded_policy.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --agent sac --observation-mode image --include-near-hole-crop --near-hole-crop-size 64 --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip --episodes 100 --seed 90000 --device cpu --include-hard-bucket --output-csv results\eval_guarded_policy_matrix_750k_override.csv --output-md results\eval_guarded_policy_matrix_750k_override.md --success-xy-tolerance 0.005 --success-z-tolerance 0.01 --guard-scenario-filter all --guard-start-xy 0.06 --guard-start-z 0.10 --guard-risk-xy 0.0 --guard-blend 1.0
+```
+
+Evaluate the selected geometry/contact guarded wrapper:
+
+```powershell
+python scripts\eval_guarded_policy.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --agent sac --observation-mode image --include-near-hole-crop --near-hole-crop-size 64 --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip --episodes 100 --seed 90000 --device cpu --include-hard-bucket --output-csv results\eval_guarded_policy_matrix_750k_geometry_only_override.csv --output-md results\eval_guarded_policy_matrix_750k_geometry_only_override.md --success-xy-tolerance 0.005 --success-z-tolerance 0.01 --guard-scenario-filter geometry --guard-start-xy 0.06 --guard-start-z 0.10 --guard-risk-xy 0.0 --guard-blend 1.0
+```
+
+Result:
+
+| Configuration | Clean | Visual camera | Visual camera control | Full light | Full contact | Hard bucket |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| no guard | 0.980 | 0.980 | 0.910 | 0.580 | 0.580 | 0.330 |
+| guard all scenarios | 1.000 | 1.000 | 0.830 | 0.690 | 0.660 | 0.480 |
+| guard geometry/contact only | 0.980 | 0.980 | 0.920 | 0.690 | 0.660 | 0.480 |
+
+The selected wrapper is a positive deployment-time result. It does not replace
+the policy checkpoint; it wraps the current 750k policy during final insertion.
+Full details are in `results\guarded_policy_summary.md`.
+
 ## Current Recommended UR5e Model
 
 ```text
