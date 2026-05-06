@@ -92,6 +92,13 @@ narrow geometry rises from `0.180` to `0.330`. The tradeoff is lower
 not the current control-focused recommendation. See
 `results/geometry_curriculum_staged_summary.md`.
 
+The first near-hole crop experiment is a clear improvement. Enabling
+`near_hole_crop` adds a centered `64x64` crop alongside the existing `100x100`
+wrist image. The crop model raises intermediate geometry from `0.510` to
+`0.890`, narrow geometry from `0.330` to `0.770`, and default
+`full_light_geometry` from `0.390` to `0.530`, while recovering
+`visual_camera_control` to `0.880`. See `results/near_hole_crop_summary.md`.
+
 ## Quick Check
 
 Start with the low-dimensional state mode. This avoids camera-rendering issues

@@ -25,6 +25,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=40_000)
     parser.add_argument("--image-width", type=int, default=100)
     parser.add_argument("--image-height", type=int, default=100)
+    parser.add_argument("--include-near-hole-crop", action="store_true")
+    parser.add_argument("--near-hole-crop-size", type=int, default=64)
     parser.add_argument("--max-steps", type=int, default=200)
     parser.add_argument("--action-scale", type=float, default=0.005)
     parser.add_argument("--target-low", nargs=3, type=float, default=(0.50, 0.00, 0.65))
@@ -54,6 +56,8 @@ def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
         observation_mode="image",
         image_width=args.image_width,
         image_height=args.image_height,
+        include_near_hole_crop=args.include_near_hole_crop,
+        near_hole_crop_size=args.near_hole_crop_size,
         max_steps=args.max_steps,
         action_scale=args.action_scale,
         target_low=tuple(args.target_low),
@@ -90,21 +94,61 @@ def load_or_create_model(args: argparse.Namespace, env: PegInHoleMujocoEnv) -> S
     )
 
 
-def to_actor_obs(images: np.ndarray, device: torch.device) -> dict[str, torch.Tensor]:
+def center_crop_images(images: np.ndarray, crop_size: int) -> np.ndarray:
+    if crop_size <= 0:
+        raise ValueError("crop_size must be positive.")
+    if images.ndim != 4 or images.shape[-1] != 1:
+        raise ValueError(f"Expected image batch shape (N, H, W, 1), got {images.shape}")
+    height, width = images.shape[1:3]
+    source_size = min(crop_size, height, width)
+    y0 = max(0, (height - source_size) // 2)
+    x0 = max(0, (width - source_size) // 2)
+    crop = images[:, y0 : y0 + source_size, x0 : x0 + source_size, :]
+    if crop.shape[1] == crop_size and crop.shape[2] == crop_size:
+        return np.ascontiguousarray(crop)
+    y_idx = np.linspace(0, crop.shape[1] - 1, crop_size).round().astype(np.int64)
+    x_idx = np.linspace(0, crop.shape[2] - 1, crop_size).round().astype(np.int64)
+    return np.ascontiguousarray(crop[:, y_idx][:, :, x_idx, :])
+
+
+def load_near_hole_crops(dataset: np.lib.npyio.NpzFile, images: np.ndarray, crop_size: int) -> np.ndarray:
+    if "near_hole_crops" in dataset:
+        crops = dataset["near_hole_crops"]
+        if crops.dtype != np.uint8:
+            raise ValueError(f"Expected uint8 near_hole_crops, got {crops.dtype}")
+        return crops
+    return center_crop_images(images, crop_size)
+
+
+def to_actor_obs(
+    images: np.ndarray,
+    near_hole_crops: np.ndarray | None,
+    device: torch.device,
+) -> dict[str, torch.Tensor]:
     tensor = torch.as_tensor(images, device=device)
     if tensor.ndim != 4 or tensor.shape[-1] != 1:
         raise ValueError(f"Expected image batch shape (N, H, W, 1), got {tuple(tensor.shape)}")
-    return {"cam_image": tensor.permute(0, 3, 1, 2)}
+    obs = {"cam_image": tensor.permute(0, 3, 1, 2)}
+    if near_hole_crops is not None:
+        crop_tensor = torch.as_tensor(near_hole_crops, device=device)
+        if crop_tensor.ndim != 4 or crop_tensor.shape[-1] != 1:
+            raise ValueError(
+                f"Expected crop batch shape (N, H, W, 1), got {tuple(crop_tensor.shape)}"
+            )
+        obs["near_hole_crop"] = crop_tensor.permute(0, 3, 1, 2)
+    return obs
 
 
 def batch_loss(
     actor: torch.nn.Module,
     images: np.ndarray,
+    near_hole_crops: np.ndarray | None,
     actions: np.ndarray,
     indices: np.ndarray,
     device: torch.device,
 ) -> torch.Tensor:
-    obs = to_actor_obs(images[indices], device)
+    crop_batch = near_hole_crops[indices] if near_hole_crops is not None else None
+    obs = to_actor_obs(images[indices], crop_batch, device)
     target = torch.as_tensor(actions[indices], dtype=torch.float32, device=device)
     pred = actor(obs, deterministic=True)
     return F.mse_loss(pred, target)
@@ -113,6 +157,7 @@ def batch_loss(
 def mean_loss(
     actor: torch.nn.Module,
     images: np.ndarray,
+    near_hole_crops: np.ndarray | None,
     actions: np.ndarray,
     indices: np.ndarray,
     batch_size: int,
@@ -123,7 +168,7 @@ def mean_loss(
     with torch.no_grad():
         for start in range(0, len(indices), batch_size):
             batch_indices = indices[start : start + batch_size]
-            loss = batch_loss(actor, images, actions, batch_indices, device)
+            loss = batch_loss(actor, images, near_hole_crops, actions, batch_indices, device)
             losses.append(float(loss.detach().cpu()))
     actor.train()
     return float(np.mean(losses)) if losses else 0.0
@@ -134,6 +179,11 @@ def main() -> None:
     rng = np.random.default_rng(args.seed)
     dataset = np.load(args.dataset)
     images = dataset["cam_images"]
+    near_hole_crops = (
+        load_near_hole_crops(dataset, images, args.near_hole_crop_size)
+        if args.include_near_hole_crop
+        else None
+    )
     actions = dataset["actions"].astype(np.float32)
     if images.dtype != np.uint8:
         raise ValueError(f"Expected uint8 cam_images, got {images.dtype}")
@@ -159,13 +209,21 @@ def main() -> None:
         train_losses = []
         for start in range(0, len(epoch_indices), args.batch_size):
             batch_indices = epoch_indices[start : start + args.batch_size]
-            loss = batch_loss(actor, images, actions, batch_indices, device)
+            loss = batch_loss(actor, images, near_hole_crops, actions, batch_indices, device)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             train_losses.append(float(loss.detach().cpu()))
 
-        val_loss = mean_loss(actor, images, actions, val_indices, args.batch_size, device)
+        val_loss = mean_loss(
+            actor,
+            images,
+            near_hole_crops,
+            actions,
+            val_indices,
+            args.batch_size,
+            device,
+        )
         print(
             f"epoch={epoch + 1} "
             f"train_loss={np.mean(train_losses):.6f} "

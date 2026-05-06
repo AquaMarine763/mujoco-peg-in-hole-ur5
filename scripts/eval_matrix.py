@@ -111,6 +111,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--include-stress", action="store_true")
     parser.add_argument("--width", type=int, default=100)
     parser.add_argument("--height", type=int, default=100)
+    parser.add_argument("--include-near-hole-crop", action="store_true")
+    parser.add_argument("--near-hole-crop-size", type=int, default=64)
     parser.add_argument("--max-steps", type=int, default=200)
     parser.add_argument("--action-scale", type=float, default=0.005)
     parser.add_argument("--success-xy-tolerance", type=float, default=0.005)
@@ -135,6 +137,8 @@ def make_env(args: argparse.Namespace, scenario: Scenario) -> PegInHoleMujocoEnv
         observation_mode=args.observation_mode,
         image_width=args.width,
         image_height=args.height,
+        include_near_hole_crop=args.include_near_hole_crop,
+        near_hole_crop_size=args.near_hole_crop_size,
         max_steps=args.max_steps,
         action_scale=args.action_scale,
         success_xy_tolerance=args.success_xy_tolerance,

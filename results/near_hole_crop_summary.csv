@@ -1,0 +1,17 @@
+model,near_hole_crop,scenario,episodes,success_rate,collision_rate,timeout_rate,mean_return,notes
+staged_intermediate_narrow_650k_e5,false,clean,100,0.960,0.040,0.000,158.252,standard matrix
+staged_intermediate_narrow_650k_e5,false,visual_camera,100,0.960,0.040,0.000,153.767,standard matrix
+staged_intermediate_narrow_650k_e5,false,visual_camera_control,100,0.850,0.150,0.000,115.513,standard matrix
+staged_intermediate_narrow_650k_e5,false,full_light_geometry,100,0.390,0.590,0.020,-92.427,standard matrix
+staged_intermediate_narrow_650k_e5,false,full_contact_light,100,0.400,0.570,0.030,-82.434,standard matrix
+staged_crop_650k_scratch_e16,true,clean,100,0.960,0.040,0.000,162.781,standard matrix
+staged_crop_650k_scratch_e16,true,visual_camera,100,0.960,0.040,0.000,160.137,standard matrix
+staged_crop_650k_scratch_e16,true,visual_camera_control,100,0.880,0.120,0.000,127.492,standard matrix
+staged_crop_650k_scratch_e16,true,full_light_geometry,100,0.530,0.450,0.020,-50.437,standard matrix
+staged_crop_650k_scratch_e16,true,full_contact_light,100,0.570,0.410,0.020,-29.391,standard matrix
+staged_intermediate_narrow_650k_e5,false,intermediate_geometry_identity_control,100,0.510,0.470,,,seed 690000 hole_half_size=0.025-0.029
+staged_crop_650k_scratch_e16,true,intermediate_geometry_identity_control,100,0.890,0.100,,38.942,seed 690000 hole_half_size=0.025-0.029
+staged_intermediate_narrow_650k_e5,false,narrow_geometry_identity_control,100,0.330,0.550,,,seed 700000 hole_half_size=0.020-0.025
+staged_crop_650k_scratch_e16,true,narrow_geometry_identity_control,100,0.770,0.140,,23.612,seed 700000 hole_half_size=0.020-0.025
+staged_intermediate_narrow_650k_e5,false,narrow_geometry_failure_seed740k,100,0.340,0.580,0.090,,same seed as crop failure analysis
+staged_crop_650k_scratch_e16,true,narrow_geometry_failure_seed740k,100,0.830,0.150,0.020,,same seed as no-crop failure analysis

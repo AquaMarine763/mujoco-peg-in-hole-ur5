@@ -16,6 +16,7 @@ from peg_in_hole_mujoco import PegInHoleMujocoEnv
 class LoadedDataset:
     path: Path
     images: np.ndarray
+    near_hole_crops: np.ndarray | None
     actions: np.ndarray
     train_indices: np.ndarray
     val_indices: np.ndarray
@@ -40,6 +41,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=410_000)
     parser.add_argument("--image-width", type=int, default=100)
     parser.add_argument("--image-height", type=int, default=100)
+    parser.add_argument("--include-near-hole-crop", action="store_true")
+    parser.add_argument("--near-hole-crop-size", type=int, default=64)
     parser.add_argument("--max-steps", type=int, default=200)
     parser.add_argument("--action-scale", type=float, default=0.005)
     parser.add_argument("--target-low", nargs=3, type=float, default=(0.50, 0.00, 0.65))
@@ -78,6 +81,8 @@ def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
         observation_mode="image",
         image_width=args.image_width,
         image_height=args.image_height,
+        include_near_hole_crop=args.include_near_hole_crop,
+        near_hole_crop_size=args.near_hole_crop_size,
         max_steps=args.max_steps,
         action_scale=args.action_scale,
         target_low=tuple(args.target_low),
@@ -114,9 +119,50 @@ def load_or_create_model(args: argparse.Namespace, env: PegInHoleMujocoEnv) -> S
     )
 
 
-def load_dataset(path: Path, rng: np.random.Generator, validation_split: float) -> LoadedDataset:
+def center_crop_images(images: np.ndarray, crop_size: int) -> np.ndarray:
+    if crop_size <= 0:
+        raise ValueError("crop_size must be positive.")
+    if images.ndim != 4 or images.shape[-1] != 1:
+        raise ValueError(f"Expected image batch shape (N, H, W, 1), got {images.shape}")
+    height, width = images.shape[1:3]
+    source_size = min(crop_size, height, width)
+    y0 = max(0, (height - source_size) // 2)
+    x0 = max(0, (width - source_size) // 2)
+    crop = images[:, y0 : y0 + source_size, x0 : x0 + source_size, :]
+    if crop.shape[1] == crop_size and crop.shape[2] == crop_size:
+        return np.ascontiguousarray(crop)
+    y_idx = np.linspace(0, crop.shape[1] - 1, crop_size).round().astype(np.int64)
+    x_idx = np.linspace(0, crop.shape[2] - 1, crop_size).round().astype(np.int64)
+    return np.ascontiguousarray(crop[:, y_idx][:, :, x_idx, :])
+
+
+def load_or_derive_crops(
+    dataset: np.lib.npyio.NpzFile,
+    images: np.ndarray,
+    crop_size: int,
+) -> np.ndarray:
+    if "near_hole_crops" in dataset:
+        crops = np.asarray(dataset["near_hole_crops"], dtype=np.uint8)
+        if crops.ndim != 4 or crops.shape[-1] != 1:
+            raise ValueError(f"Expected near_hole_crops shape (N, H, W, 1), got {crops.shape}")
+        return crops
+    return center_crop_images(images, crop_size)
+
+
+def load_dataset(
+    path: Path,
+    rng: np.random.Generator,
+    validation_split: float,
+    include_near_hole_crop: bool,
+    near_hole_crop_size: int,
+) -> LoadedDataset:
     with np.load(path) as dataset:
         images = np.asarray(dataset["cam_images"], dtype=np.uint8)
+        near_hole_crops = (
+            load_or_derive_crops(dataset, images, near_hole_crop_size)
+            if include_near_hole_crop
+            else None
+        )
         actions = np.asarray(dataset["actions"], dtype=np.float32)
     if images.ndim != 4 or images.shape[-1] != 1:
         raise ValueError(f"{path}: expected cam_images shape (N, H, W, 1), got {images.shape}")
@@ -131,12 +177,20 @@ def load_dataset(path: Path, rng: np.random.Generator, validation_split: float) 
         raise ValueError(f"{path}: training split is empty.")
     if len(val_indices) == 0:
         val_indices = train_indices
-    return LoadedDataset(path, images, actions, train_indices, val_indices)
+    return LoadedDataset(path, images, near_hole_crops, actions, train_indices, val_indices)
 
 
-def to_actor_obs(images: np.ndarray, device: torch.device) -> dict[str, torch.Tensor]:
+def to_actor_obs(
+    images: np.ndarray,
+    near_hole_crops: np.ndarray | None,
+    device: torch.device,
+) -> dict[str, torch.Tensor]:
     tensor = torch.as_tensor(images, device=device)
-    return {"cam_image": tensor.permute(0, 3, 1, 2)}
+    obs = {"cam_image": tensor.permute(0, 3, 1, 2)}
+    if near_hole_crops is not None:
+        crop_tensor = torch.as_tensor(near_hole_crops, device=device)
+        obs["near_hole_crop"] = crop_tensor.permute(0, 3, 1, 2)
+    return obs
 
 
 def batch_loss(
@@ -145,7 +199,12 @@ def batch_loss(
     indices: np.ndarray,
     device: torch.device,
 ) -> torch.Tensor:
-    obs = to_actor_obs(dataset.images[indices], device)
+    crop_batch = (
+        dataset.near_hole_crops[indices]
+        if dataset.near_hole_crops is not None
+        else None
+    )
+    obs = to_actor_obs(dataset.images[indices], crop_batch, device)
     target = torch.as_tensor(dataset.actions[indices], dtype=torch.float32, device=device)
     pred = actor(obs, deterministic=True)
     return F.mse_loss(pred, target)
@@ -187,7 +246,16 @@ def main() -> None:
         if args.dataset_weights is not None
         else normalize_weights([1.0] * len(args.datasets), len(args.datasets))
     )
-    datasets = [load_dataset(path, rng, args.validation_split) for path in args.datasets]
+    datasets = [
+        load_dataset(
+            path,
+            rng,
+            args.validation_split,
+            args.include_near_hole_crop,
+            args.near_hole_crop_size,
+        )
+        for path in args.datasets
+    ]
     for dataset, weight in zip(datasets, weights):
         print(
             f"dataset={dataset.path} samples={len(dataset.images)} "

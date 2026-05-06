@@ -33,6 +33,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--image-width", type=int, default=100)
     parser.add_argument("--image-height", type=int, default=100)
+    parser.add_argument("--include-near-hole-crop", action="store_true")
+    parser.add_argument("--near-hole-crop-size", type=int, default=64)
     parser.add_argument("--max-steps", type=int, default=200)
     parser.add_argument("--action-scale", type=float, default=0.005)
     parser.add_argument("--control-action-scale-range", nargs=2, type=float, default=(0.8, 1.2))
@@ -84,6 +86,8 @@ def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
         observation_mode="image",
         image_width=args.image_width,
         image_height=args.image_height,
+        include_near_hole_crop=args.include_near_hole_crop,
+        near_hole_crop_size=args.near_hole_crop_size,
         max_steps=args.max_steps,
         action_scale=args.action_scale,
         target_low=tuple(args.target_low),
@@ -139,6 +143,7 @@ def main() -> None:
     expert = SAC.load(args.expert_model, device="cpu") if args.expert_model is not None else None
 
     images: list[np.ndarray] = []
+    near_hole_crops: list[np.ndarray] = []
     actions: list[np.ndarray] = []
     raw_actions: list[np.ndarray] = []
     target_positions: list[np.ndarray] = []
@@ -151,6 +156,7 @@ def main() -> None:
     episodes = 0
     episodes_kept = 0
     episode_images: list[np.ndarray] = []
+    episode_near_hole_crops: list[np.ndarray] = []
     episode_actions: list[np.ndarray] = []
     episode_raw_actions: list[np.ndarray] = []
     episode_target_positions: list[np.ndarray] = []
@@ -170,6 +176,9 @@ def main() -> None:
                 action = np.asarray(action, dtype=np.float32)
 
             sample_image = obs["cam_image"].copy()
+            sample_near_hole_crop = (
+                obs["near_hole_crop"].copy() if args.include_near_hole_crop else None
+            )
             sample_raw_action = action.copy()
             sample_action = (action / env.action_scale).astype(np.float32)
             sample_target_pos = info["target_pos"].copy()
@@ -180,6 +189,8 @@ def main() -> None:
 
             if args.success_only:
                 episode_images.append(sample_image)
+                if sample_near_hole_crop is not None:
+                    episode_near_hole_crops.append(sample_near_hole_crop)
                 episode_raw_actions.append(sample_raw_action)
                 episode_actions.append(sample_action)
                 episode_target_positions.append(sample_target_pos)
@@ -189,6 +200,8 @@ def main() -> None:
                 episode_step_ids.append(sample_step_id)
             else:
                 images.append(sample_image)
+                if sample_near_hole_crop is not None:
+                    near_hole_crops.append(sample_near_hole_crop)
                 raw_actions.append(sample_raw_action)
                 actions.append(sample_action)
                 target_positions.append(sample_target_pos)
@@ -209,6 +222,8 @@ def main() -> None:
                 if args.success_only and success:
                     keep = min(args.samples - len(images), len(episode_images))
                     images.extend(episode_images[:keep])
+                    if args.include_near_hole_crop:
+                        near_hole_crops.extend(episode_near_hole_crops[:keep])
                     raw_actions.extend(episode_raw_actions[:keep])
                     actions.extend(episode_actions[:keep])
                     target_positions.extend(episode_target_positions[:keep])
@@ -218,6 +233,7 @@ def main() -> None:
                     step_ids.extend(episode_step_ids[:keep])
                     episodes_kept += 1
                 episode_images = []
+                episode_near_hole_crops = []
                 episode_actions = []
                 episode_raw_actions = []
                 episode_target_positions = []
@@ -240,6 +256,8 @@ def main() -> None:
         "episode_id": np.asarray(episode_ids, dtype=np.int32),
         "step_id": np.asarray(step_ids, dtype=np.int32),
     }
+    if args.include_near_hole_crop:
+        arrays["near_hole_crops"] = np.asarray(near_hole_crops, dtype=np.uint8)
     if args.compressed:
         np.savez_compressed(args.output, **arrays)
     else:
@@ -260,6 +278,10 @@ def main() -> None:
         "success_z_tolerance": args.success_z_tolerance,
         "domain_randomization": args.domain_randomization,
         "domain_randomization_level": args.domain_randomization_level,
+        "image_width": args.image_width,
+        "image_height": args.image_height,
+        "include_near_hole_crop": args.include_near_hole_crop,
+        "near_hole_crop_size": args.near_hole_crop_size,
         "control_action_scale_range": list(args.control_action_scale_range),
         "control_action_noise_std_range": list(args.control_action_noise_std_range),
         "control_action_delay_range": list(args.control_action_delay_range),

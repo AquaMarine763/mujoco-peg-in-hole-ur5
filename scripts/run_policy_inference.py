@@ -38,6 +38,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--control-frequency-hz", type=float, default=50.0)
     parser.add_argument("--width", type=int, default=100)
     parser.add_argument("--height", type=int, default=100)
+    parser.add_argument("--include-near-hole-crop", action="store_true")
+    parser.add_argument("--near-hole-crop-size", type=int, default=64)
     parser.add_argument(
         "--domain-randomization-level",
         choices=["none", "visual", "visual_camera", "visual_camera_control", "full_light_geometry", "full_contact_light", "full"],
@@ -88,6 +90,8 @@ def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
         observation_mode=args.observation_mode,
         image_width=args.width,
         image_height=args.height,
+        include_near_hole_crop=args.include_near_hole_crop,
+        near_hole_crop_size=args.near_hole_crop_size,
         max_steps=args.max_steps,
         action_scale=args.action_scale,
         target_low=tuple(args.target_low),

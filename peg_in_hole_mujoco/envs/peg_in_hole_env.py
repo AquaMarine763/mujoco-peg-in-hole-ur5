@@ -104,6 +104,8 @@ class PegInHoleMujocoEnv(gym.Env):
         render_mode: Literal["rgb_array"] | None = None,
         image_width: int = 100,
         image_height: int = 100,
+        include_near_hole_crop: bool = False,
+        near_hole_crop_size: int = 64,
         max_steps: int = 200,
         frame_skip: int = 10,
         action_scale: float = 0.005,
@@ -161,6 +163,8 @@ class PegInHoleMujocoEnv(gym.Env):
         self.render_mode = render_mode
         self.image_width = int(image_width)
         self.image_height = int(image_height)
+        self.include_near_hole_crop = bool(include_near_hole_crop)
+        self.near_hole_crop_size = int(near_hole_crop_size)
         self.max_steps = int(max_steps)
         self.frame_skip = int(frame_skip)
         self.action_scale = float(action_scale)
@@ -329,16 +333,22 @@ class PegInHoleMujocoEnv(gym.Env):
             dtype=np.float32,
         )
         if self.observation_mode == "image":
-            self.observation_space = spaces.Dict(
-                {
-                    "cam_image": spaces.Box(
-                        low=0,
-                        high=255,
-                        shape=(self.image_height, self.image_width, 1),
-                        dtype=np.uint8,
-                    )
-                }
-            )
+            image_spaces: dict[str, spaces.Box] = {
+                "cam_image": spaces.Box(
+                    low=0,
+                    high=255,
+                    shape=(self.image_height, self.image_width, 1),
+                    dtype=np.uint8,
+                )
+            }
+            if self.include_near_hole_crop:
+                image_spaces["near_hole_crop"] = spaces.Box(
+                    low=0,
+                    high=255,
+                    shape=(self.near_hole_crop_size, self.near_hole_crop_size, 1),
+                    dtype=np.uint8,
+                )
+            self.observation_space = spaces.Dict(image_spaces)
         else:
             self.observation_space = spaces.Box(
                 low=-np.inf,
@@ -415,6 +425,11 @@ class PegInHoleMujocoEnv(gym.Env):
             self.renderer = None
 
     def _validate_randomization_ranges(self) -> None:
+        if self.image_width <= 0 or self.image_height <= 0:
+            raise ValueError("image_width and image_height must be positive.")
+        if self.near_hole_crop_size <= 0:
+            raise ValueError("near_hole_crop_size must be positive.")
+
         ranges: tuple[tuple[str, tuple[float, float]], ...] = (
             ("image_brightness_range", self.image_brightness_range),
             ("image_contrast_range", self.image_contrast_range),
@@ -1016,7 +1031,25 @@ class PegInHoleMujocoEnv(gym.Env):
             + 0.114 * image[:, :, 2]
         )
         gray = self._augment_gray_image(gray).astype(np.uint8)
-        return {"cam_image": gray[:, :, None]}
+        obs = {"cam_image": gray[:, :, None]}
+        if self.include_near_hole_crop:
+            obs["near_hole_crop"] = self._center_crop_gray(gray)[:, :, None]
+        return obs
+
+    def _center_crop_gray(self, gray: np.ndarray) -> np.ndarray:
+        if self.near_hole_crop_size <= 0:
+            raise ValueError("near_hole_crop_size must be positive.")
+        height, width = gray.shape[:2]
+        crop_size = min(self.near_hole_crop_size, height, width)
+        y0 = max(0, (height - crop_size) // 2)
+        x0 = max(0, (width - crop_size) // 2)
+        crop = gray[y0 : y0 + crop_size, x0 : x0 + crop_size]
+        if crop.shape == (self.near_hole_crop_size, self.near_hole_crop_size):
+            return crop
+
+        y_idx = np.linspace(0, crop.shape[0] - 1, self.near_hole_crop_size).round().astype(np.int64)
+        x_idx = np.linspace(0, crop.shape[1] - 1, self.near_hole_crop_size).round().astype(np.int64)
+        return crop[y_idx][:, x_idx]
 
     def _augment_gray_image(self, gray: np.ndarray) -> np.ndarray:
         if (
