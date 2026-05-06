@@ -117,6 +117,14 @@ oracle improved success from `0.280` to `0.440` over a matched 100-episode
 check. This is not yet a promoted policy model; it is the controller to use for
 the next guarded data collection pass. See `results/guarded_oracle_summary.md`.
 
+Guarded hard-data replay has also been tested. The guarded dataset improved
+oracle data collection quality (`0.376` success versus the older `0.267` hard
+dataset), but direct BC replay did not improve the policy: the best guarded
+replay kept `clean`, `visual_camera`, and `visual_camera_control` stable but
+still reduced standard `full_light_geometry` to `0.550`, with only a negligible
+hard-bucket change from `0.330` to `0.340`. Keep the 750k model as the
+recommendation. See `results/guarded_hard_replay_summary.md`.
+
 ## Quick Check
 
 Start with the low-dimensional state mode. This avoids camera-rendering issues

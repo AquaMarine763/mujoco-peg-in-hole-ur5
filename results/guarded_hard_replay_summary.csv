@@ -1,0 +1,19 @@
+model,scenario,episodes,success_rate,collision_rate,timeout_rate,mean_return,notes
+staged_crop_full_light_replay_750k_e4,standard_clean_matrix,100,0.980,0.020,0.000,169.456,current recommended model from v0.6.19
+staged_crop_guarded_hard_replay_800k_e4,standard_clean_matrix,100,0.960,0.040,0.000,164.439,guarded hard replay weight 0.08 epochs 4
+staged_crop_guarded_hard_replay_light_790k_e2,standard_clean_matrix,100,0.980,0.020,0.000,168.230,guarded hard replay weight 0.04 epochs 2
+staged_crop_full_light_replay_750k_e4,standard_visual_camera_matrix,100,0.980,0.020,0.000,164.270,current recommended model from v0.6.19
+staged_crop_guarded_hard_replay_800k_e4,standard_visual_camera_matrix,100,0.950,0.050,0.000,157.298,guarded hard replay weight 0.08 epochs 4
+staged_crop_guarded_hard_replay_light_790k_e2,standard_visual_camera_matrix,100,0.980,0.020,0.000,162.542,guarded hard replay weight 0.04 epochs 2
+staged_crop_full_light_replay_750k_e4,standard_visual_camera_control_matrix,100,0.910,0.080,0.010,140.049,current recommended model from v0.6.19
+staged_crop_guarded_hard_replay_800k_e4,standard_visual_camera_control_matrix,100,0.880,0.110,0.010,131.510,guarded hard replay weight 0.08 epochs 4
+staged_crop_guarded_hard_replay_light_790k_e2,standard_visual_camera_control_matrix,100,0.910,0.080,0.010,139.410,guarded hard replay weight 0.04 epochs 2
+staged_crop_full_light_replay_750k_e4,standard_full_light_geometry_matrix,100,0.580,0.410,0.010,-30.372,current recommended model from v0.6.19
+staged_crop_guarded_hard_replay_800k_e4,standard_full_light_geometry_matrix,100,0.550,0.430,0.020,-39.013,guarded hard replay weight 0.08 epochs 4
+staged_crop_guarded_hard_replay_light_790k_e2,standard_full_light_geometry_matrix,100,0.550,0.430,0.020,-37.147,guarded hard replay weight 0.04 epochs 2
+staged_crop_full_light_replay_750k_e4,standard_full_contact_light_matrix,100,0.590,0.390,0.020,-21.249,current recommended model from v0.6.19
+staged_crop_guarded_hard_replay_800k_e4,standard_full_contact_light_matrix,100,0.530,0.470,0.000,-46.467,guarded hard replay weight 0.08 epochs 4
+staged_crop_guarded_hard_replay_light_790k_e2,standard_full_contact_light_matrix,100,0.580,0.400,0.020,-26.068,guarded hard replay weight 0.04 epochs 2
+staged_crop_full_light_replay_750k_e4,hard_full_light_bucket_seed850k,100,0.330,0.660,0.010,,delay2 lowalpha lownoise scale 0.8-1.1
+staged_crop_guarded_hard_replay_800k_e4,hard_full_light_bucket_seed850k,100,0.340,0.660,0.000,,delay2 lowalpha lownoise scale 0.8-1.1
+staged_crop_guarded_hard_replay_light_790k_e2,hard_full_light_bucket_seed850k,100,0.340,0.660,0.000,,delay2 lowalpha lownoise scale 0.8-1.1
