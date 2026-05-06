@@ -2,6 +2,11 @@
 
 from peg_in_hole_mujoco.envs.peg_in_hole_env import PegInHoleMujocoEnv
 from peg_in_hole_mujoco.image_preprocess import ImagePreprocessConfig, preprocess_camera_image
+from peg_in_hole_mujoco.oracle_controller import (
+    OracleControllerConfig,
+    OracleMode,
+    oracle_action,
+)
 from peg_in_hole_mujoco.policy_interface import (
     ActionExecutor,
     MujocoActionExecutor,
@@ -29,6 +34,8 @@ __all__ = [
     "MujocoObservationProvider",
     "MujocoPolicySession",
     "ObservationProvider",
+    "OracleControllerConfig",
+    "OracleMode",
     "PegInHoleMujocoEnv",
     "PolicyInferenceSession",
     "RealCameraConfig",
@@ -38,5 +45,6 @@ __all__ = [
     "SafetyFilter",
     "StepResult",
     "ZeroPolicyAdapter",
+    "oracle_action",
     "preprocess_camera_image",
 ]

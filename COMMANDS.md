@@ -785,6 +785,37 @@ This attempt is a negative result:
 Do not promote the 800k hard replay model. Full details are in
 `results\hard_full_light_replay_summary.md`.
 
+## Guarded Two-Stage Oracle
+
+The hard full-light bucket is limited by oracle/controller stability, not just
+BC data volume. The selected guarded oracle improves the hard bucket before any
+new policy training:
+
+| Controller | Seed | Episodes | Success | Collision |
+| --- | ---: | ---: | ---: | ---: |
+| staged, gain 0.5 | 847000 | 100 | 0.280 | 0.720 |
+| guarded_two_stage, gain 1.0 | 847000 | 100 | 0.440 | 0.560 |
+
+Selected hard-bucket scan:
+
+```powershell
+python scripts\scan_oracle_control_gain.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --output-csv results\oracle_gain_scan_full_light_delay2_lowalpha_lownoise_guarded_selected_100ep.csv --output-md results\oracle_gain_scan_full_light_delay2_lowalpha_lownoise_guarded_selected_100ep.md --episodes 100 --seed 847000 --gains 1.0 0.85 --oracle-mode guarded_two_stage --guarded-align-xy-tolerance 0.025 --guarded-insert-xy-tolerance 0.005 --guarded-retract-xy-tolerance 0.012 --guarded-preinsert-height 0.000 --guarded-max-xy-action 0.005 --guarded-max-down-action 0.0035 --guarded-max-up-action 0.005 --guarded-prediction-steps 1.0 --domain-randomization-level full_light_geometry --control-action-scale-range 0.8 1.1 --control-action-noise-std-range 0 0.00025 --control-action-delay-range 2 2 --control-action-filter-alpha-range 0.55 0.70 --approach-xy-tolerance 0.02 --success-xy-tolerance 0.005 --success-z-tolerance 0.01
+```
+
+Matching staged baseline:
+
+```powershell
+python scripts\scan_oracle_control_gain.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --output-csv results\oracle_gain_scan_full_light_delay2_lowalpha_lownoise_staged_selected_seed847k_100ep.csv --output-md results\oracle_gain_scan_full_light_delay2_lowalpha_lownoise_staged_selected_seed847k_100ep.md --episodes 100 --seed 847000 --gains 1.0 0.7 0.5 --oracle-mode staged --domain-randomization-level full_light_geometry --control-action-scale-range 0.8 1.1 --control-action-noise-std-range 0 0.00025 --control-action-delay-range 2 2 --control-action-filter-alpha-range 0.55 0.70 --approach-xy-tolerance 0.02 --success-xy-tolerance 0.005 --success-z-tolerance 0.01
+```
+
+Next dataset collection candidate:
+
+```powershell
+python scripts\collect_image_expert_dataset.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --output datasets\image_expert_ur5e_adapter_fixedcam_full_light_geometry_delay2_lowalpha_lownoise_guarded_success_50k_oracle.npz --samples 50000 --seed 848000 --image-width 100 --image-height 100 --include-near-hole-crop --near-hole-crop-size 64 --expert-action-gain 1.0 --oracle-mode guarded_two_stage --guarded-align-xy-tolerance 0.025 --guarded-insert-xy-tolerance 0.005 --guarded-retract-xy-tolerance 0.012 --guarded-preinsert-height 0.000 --guarded-max-xy-action 0.005 --guarded-max-down-action 0.0035 --guarded-max-up-action 0.005 --guarded-prediction-steps 1.0 --rollout-noise-std 0.0005 --success-xy-tolerance 0.005 --success-z-tolerance 0.01 --approach-xy-tolerance 0.02 --domain-randomization-level full_light_geometry --control-action-scale-range 0.8 1.1 --control-action-noise-std-range 0 0.00025 --control-action-delay-range 2 2 --control-action-filter-alpha-range 0.55 0.70 --success-only --compressed
+```
+
+Full details are in `results\guarded_oracle_summary.md`.
+
 ## Current Recommended UR5e Model
 
 ```text

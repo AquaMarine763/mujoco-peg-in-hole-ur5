@@ -111,6 +111,12 @@ An additional hard full-light replay attempt did not improve the model:
 the 750k model as the recommendation. See
 `results/hard_full_light_replay_summary.md`.
 
+The next controller-side step is now implemented: `guarded_two_stage` oracle
+mode. In the hard `delay=2`, low-alpha full-light bucket, the selected guarded
+oracle improved success from `0.280` to `0.440` over a matched 100-episode
+check. This is not yet a promoted policy model; it is the controller to use for
+the next guarded data collection pass. See `results/guarded_oracle_summary.md`.
+
 ## Quick Check
 
 Start with the low-dimensional state mode. This avoids camera-rendering issues

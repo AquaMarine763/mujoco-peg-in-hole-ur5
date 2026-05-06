@@ -9,7 +9,7 @@ from typing import Any
 
 import numpy as np
 
-from peg_in_hole_mujoco import PegInHoleMujocoEnv
+from peg_in_hole_mujoco import OracleControllerConfig, PegInHoleMujocoEnv, oracle_action
 
 
 @dataclass(frozen=True)
@@ -34,6 +34,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--episodes", type=int, default=100)
     parser.add_argument("--seed", type=int, default=120_000)
     parser.add_argument("--gains", nargs="+", type=float, default=(1.0, 0.7, 0.5, 0.35, 0.25))
+    parser.add_argument("--oracle-mode", choices=["staged", "guarded_two_stage"], default="staged")
+    parser.add_argument("--guarded-align-xy-tolerance", type=float, default=0.025)
+    parser.add_argument("--guarded-insert-xy-tolerance", type=float, default=0.005)
+    parser.add_argument("--guarded-retract-xy-tolerance", type=float, default=0.012)
+    parser.add_argument("--guarded-preinsert-height", type=float, default=0.0)
+    parser.add_argument("--guarded-max-xy-action", type=float, default=0.005)
+    parser.add_argument("--guarded-max-down-action", type=float, default=0.0035)
+    parser.add_argument("--guarded-max-up-action", type=float, default=0.005)
+    parser.add_argument("--guarded-prediction-steps", type=float, default=1.0)
     parser.add_argument(
         "--domain-randomization-level",
         choices=[
@@ -95,17 +104,20 @@ def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
         control_action_filter_alpha_range=tuple(args.control_action_filter_alpha_range),
     )
 
-
-def oracle_action(env: PegInHoleMujocoEnv, info: dict[str, Any], action_gain: float) -> np.ndarray:
-    tip = info["peg_tip_pos"].astype(np.float64)
-    target = info["target_pos"].astype(np.float64)
-    desired = np.asarray([target[0], target[1], info["desired_z"]], dtype=np.float64)
-    action = action_gain * (desired - tip)
-    return np.clip(action, env.action_space.low, env.action_space.high).astype(np.float32)
-
-
 def evaluate_gain(args: argparse.Namespace, gain: float) -> GainResult:
     env = make_env(args)
+    oracle_config = OracleControllerConfig(
+        mode=args.oracle_mode,
+        action_gain=gain,
+        guarded_align_xy_tolerance=args.guarded_align_xy_tolerance,
+        guarded_insert_xy_tolerance=args.guarded_insert_xy_tolerance,
+        guarded_retract_xy_tolerance=args.guarded_retract_xy_tolerance,
+        guarded_preinsert_height=args.guarded_preinsert_height,
+        guarded_max_xy_action=args.guarded_max_xy_action,
+        guarded_max_down_action=args.guarded_max_down_action,
+        guarded_max_up_action=args.guarded_max_up_action,
+        guarded_prediction_steps=args.guarded_prediction_steps,
+    )
     successes = 0
     collisions = 0
     timeouts = 0
@@ -117,7 +129,7 @@ def evaluate_gain(args: argparse.Namespace, gain: float) -> GainResult:
         for episode in range(args.episodes):
             _, info = env.reset(seed=args.seed + episode)
             while True:
-                action = oracle_action(env, info, gain)
+                action = oracle_action(env, info, oracle_config)
                 _, _, terminated, truncated, info = env.step(action)
                 if terminated or truncated:
                     break
@@ -174,16 +186,31 @@ def write_markdown(path: Path, args: argparse.Namespace, results: list[GainResul
         f"- Generated: `{datetime.now().isoformat(timespec='seconds')}`",
         f"- MuJoCo model path: `{args.model_path or 'default'}`",
         f"- Domain randomization level: `{args.domain_randomization_level}`",
+        f"- Oracle mode: `{args.oracle_mode}`",
         f"- Episodes per gain: `{args.episodes}`",
         f"- Seed: `{args.seed}`",
         f"- Control scale range: `{args.control_action_scale_range[0]}:{args.control_action_scale_range[1]}`",
         f"- Control noise std range: `{args.control_action_noise_std_range[0]}:{args.control_action_noise_std_range[1]}`",
         f"- Control delay range: `{args.control_action_delay_range[0]}:{args.control_action_delay_range[1]}`",
         f"- Control filter alpha range: `{args.control_action_filter_alpha_range[0]}:{args.control_action_filter_alpha_range[1]}`",
-        "",
-        "| Gain | Success | Collision | Timeout | Mean steps | Mean final XY | Mean final Z |",
-        "| ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
+    if args.oracle_mode == "guarded_two_stage":
+        lines.extend(
+            [
+                f"- Guarded align XY tolerance: `{args.guarded_align_xy_tolerance}`",
+                f"- Guarded insert XY tolerance: `{args.guarded_insert_xy_tolerance}`",
+                f"- Guarded preinsert height: `{args.guarded_preinsert_height}`",
+                f"- Guarded max XY/down/up action: `{args.guarded_max_xy_action}/{args.guarded_max_down_action}/{args.guarded_max_up_action}`",
+                f"- Guarded prediction steps: `{args.guarded_prediction_steps}`",
+            ]
+        )
+    lines.extend(
+        [
+            "",
+            "| Gain | Success | Collision | Timeout | Mean steps | Mean final XY | Mean final Z |",
+            "| ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        ]
+    )
     for result in results:
         lines.append(
             "| {gain:.3f} | {success_rate:.3f} | {collision_rate:.3f} | "

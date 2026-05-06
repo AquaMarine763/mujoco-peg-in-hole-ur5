@@ -3,9 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-import numpy as np
-
-from peg_in_hole_mujoco import PegInHoleMujocoEnv
+from peg_in_hole_mujoco import OracleControllerConfig, PegInHoleMujocoEnv, oracle_action
 
 
 def parse_args() -> argparse.Namespace:
@@ -16,20 +14,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=123)
     parser.add_argument("--max-steps", type=int, default=200)
     parser.add_argument("--action-gain", type=float, default=1.0)
+    parser.add_argument("--oracle-mode", choices=["staged", "guarded_two_stage"], default="staged")
+    parser.add_argument("--guarded-align-xy-tolerance", type=float, default=0.025)
+    parser.add_argument("--guarded-insert-xy-tolerance", type=float, default=0.005)
+    parser.add_argument("--guarded-retract-xy-tolerance", type=float, default=0.012)
+    parser.add_argument("--guarded-preinsert-height", type=float, default=0.0)
+    parser.add_argument("--guarded-max-xy-action", type=float, default=0.005)
+    parser.add_argument("--guarded-max-down-action", type=float, default=0.0035)
+    parser.add_argument("--guarded-max-up-action", type=float, default=0.005)
+    parser.add_argument("--guarded-prediction-steps", type=float, default=1.0)
     parser.add_argument("--success-xy-tolerance", type=float, default=0.005)
     parser.add_argument("--success-z-tolerance", type=float, default=0.01)
     parser.add_argument("--image-width", type=int, default=100)
     parser.add_argument("--image-height", type=int, default=100)
     return parser.parse_args()
-
-
-def oracle_action(env: PegInHoleMujocoEnv, info: dict, action_gain: float) -> np.ndarray:
-    tip = info["peg_tip_pos"].astype(np.float64)
-    target = info["target_pos"].astype(np.float64)
-    desired = np.asarray([target[0], target[1], info["desired_z"]], dtype=np.float64)
-    action = action_gain * (desired - tip)
-    return np.clip(action, env.action_space.low, env.action_space.high).astype(np.float32)
-
 
 def main() -> None:
     args = parse_args()
@@ -42,6 +40,18 @@ def main() -> None:
         success_xy_tolerance=args.success_xy_tolerance,
         success_z_tolerance=args.success_z_tolerance,
     )
+    oracle_config = OracleControllerConfig(
+        mode=args.oracle_mode,
+        action_gain=args.action_gain,
+        guarded_align_xy_tolerance=args.guarded_align_xy_tolerance,
+        guarded_insert_xy_tolerance=args.guarded_insert_xy_tolerance,
+        guarded_retract_xy_tolerance=args.guarded_retract_xy_tolerance,
+        guarded_preinsert_height=args.guarded_preinsert_height,
+        guarded_max_xy_action=args.guarded_max_xy_action,
+        guarded_max_down_action=args.guarded_max_down_action,
+        guarded_max_up_action=args.guarded_max_up_action,
+        guarded_prediction_steps=args.guarded_prediction_steps,
+    )
 
     successes = 0
     collisions = 0
@@ -51,7 +61,7 @@ def main() -> None:
             del obs
             episode_return = 0.0
             while True:
-                action = oracle_action(env, info, args.action_gain)
+                action = oracle_action(env, info, oracle_config)
                 obs, reward, terminated, truncated, info = env.step(action)
                 del obs
                 episode_return += reward

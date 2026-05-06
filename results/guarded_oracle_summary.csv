@@ -1,0 +1,5 @@
+controller,seed,episodes,gain,align_xy_tolerance,insert_xy_tolerance,max_down_action,prediction_steps,success_rate,collision_rate,timeout_rate,mean_steps,notes
+staged,846000,50,0.5,,,,,0.300,0.700,0.000,11.6,best staged gain on 50-episode hard bucket scan
+guarded_two_stage,846000,50,1.0,0.025,0.005,0.0035,1.0,0.520,0.480,0.000,18.0,best guarded candidate on 50-episode hard bucket scan
+staged,847000,100,0.5,,,,,0.280,0.720,0.000,13.4,best staged gain on 100-episode hard bucket check
+guarded_two_stage,847000,100,1.0,0.025,0.005,0.0035,1.0,0.440,0.560,0.000,18.7,selected guarded candidate on 100-episode hard bucket check

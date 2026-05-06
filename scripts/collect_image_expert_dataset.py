@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 from stable_baselines3 import SAC
 
-from peg_in_hole_mujoco import PegInHoleMujocoEnv
+from peg_in_hole_mujoco import OracleControllerConfig, PegInHoleMujocoEnv, oracle_action
 
 
 def parse_args() -> argparse.Namespace:
@@ -17,6 +17,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--samples", type=int, default=50_000)
     parser.add_argument("--expert-model", type=Path, default=None)
     parser.add_argument("--expert-action-gain", type=float, default=1.0)
+    parser.add_argument("--oracle-mode", choices=["staged", "guarded_two_stage"], default="staged")
+    parser.add_argument("--guarded-align-xy-tolerance", type=float, default=0.025)
+    parser.add_argument("--guarded-insert-xy-tolerance", type=float, default=0.005)
+    parser.add_argument("--guarded-retract-xy-tolerance", type=float, default=0.012)
+    parser.add_argument("--guarded-preinsert-height", type=float, default=0.0)
+    parser.add_argument("--guarded-max-xy-action", type=float, default=0.005)
+    parser.add_argument("--guarded-max-down-action", type=float, default=0.0035)
+    parser.add_argument("--guarded-max-up-action", type=float, default=0.005)
+    parser.add_argument("--guarded-prediction-steps", type=float, default=1.0)
     parser.add_argument("--rollout-noise-std", type=float, default=0.0005)
     parser.add_argument("--seed", type=int, default=30_000)
     parser.add_argument(
@@ -124,23 +133,23 @@ def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
         dynamics_actuator_kp_multiplier_range=tuple(args.dynamics_actuator_kp_multiplier_range),
     )
 
-
-def oracle_action(env: PegInHoleMujocoEnv, info: dict, action_gain: float) -> np.ndarray:
-    tip = info["peg_tip_pos"].astype(np.float64)
-    target = info["target_pos"].astype(np.float64)
-    desired = np.asarray([target[0], target[1], info["desired_z"]], dtype=np.float64)
-    return np.clip(
-        action_gain * (desired - tip),
-        -env.action_scale,
-        env.action_scale,
-    ).astype(np.float32)
-
-
 def main() -> None:
     args = parse_args()
     rng = np.random.default_rng(args.seed)
     env = make_env(args)
     expert = SAC.load(args.expert_model, device="cpu") if args.expert_model is not None else None
+    oracle_config = OracleControllerConfig(
+        mode=args.oracle_mode,
+        action_gain=args.expert_action_gain,
+        guarded_align_xy_tolerance=args.guarded_align_xy_tolerance,
+        guarded_insert_xy_tolerance=args.guarded_insert_xy_tolerance,
+        guarded_retract_xy_tolerance=args.guarded_retract_xy_tolerance,
+        guarded_preinsert_height=args.guarded_preinsert_height,
+        guarded_max_xy_action=args.guarded_max_xy_action,
+        guarded_max_down_action=args.guarded_max_down_action,
+        guarded_max_up_action=args.guarded_max_up_action,
+        guarded_prediction_steps=args.guarded_prediction_steps,
+    )
 
     images: list[np.ndarray] = []
     near_hole_crops: list[np.ndarray] = []
@@ -169,7 +178,7 @@ def main() -> None:
     try:
         while len(images) < args.samples:
             if expert is None:
-                action = oracle_action(env, info, args.expert_action_gain)
+                action = oracle_action(env, info, oracle_config)
             else:
                 state_obs = env._get_state_obs()
                 action, _ = expert.predict(state_obs, deterministic=True)
@@ -271,6 +280,15 @@ def main() -> None:
         "collisions": collisions,
         "expert": "oracle" if expert is None else str(args.expert_model),
         "expert_action_gain": args.expert_action_gain,
+        "oracle_mode": args.oracle_mode if expert is None else "expert_model",
+        "guarded_align_xy_tolerance": args.guarded_align_xy_tolerance,
+        "guarded_insert_xy_tolerance": args.guarded_insert_xy_tolerance,
+        "guarded_retract_xy_tolerance": args.guarded_retract_xy_tolerance,
+        "guarded_preinsert_height": args.guarded_preinsert_height,
+        "guarded_max_xy_action": args.guarded_max_xy_action,
+        "guarded_max_down_action": args.guarded_max_down_action,
+        "guarded_max_up_action": args.guarded_max_up_action,
+        "guarded_prediction_steps": args.guarded_prediction_steps,
         "rollout_noise_std": args.rollout_noise_std,
         "success_only": args.success_only,
         "episodes_kept": episodes_kept if args.success_only else episodes,

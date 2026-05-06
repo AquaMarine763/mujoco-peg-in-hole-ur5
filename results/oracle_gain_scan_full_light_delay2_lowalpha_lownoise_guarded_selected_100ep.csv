@@ -1,0 +1,3 @@
+gain,episodes,success_rate,collision_rate,timeout_rate,mean_steps,mean_final_dist_xy,mean_final_dist_z
+1.0,100,0.44,0.56,0.0,18.73,0.022664937256135494,0.0308838708662184
+0.85,100,0.37,0.63,0.0,19.05,0.024785527523026065,0.033903525467299425
