@@ -64,6 +64,10 @@ The current UR5e delay/filter-success baseline uses
 when regenerated locally. It improves default `visual_camera_control` from
 `0.600` to `0.860` success by adding success-only default-control data and
 delay/filter-focused success-only data on top of the mild-control baseline.
+The remaining control failures are documented in
+`results/control_failure_analysis_ur5e_delay_filter_success_350k_e8.md`;
+the next data batch should bias toward delay 2, low filter alpha, low action
+scale, and high control noise.
 
 ## Quick Check
 

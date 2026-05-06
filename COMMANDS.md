@@ -331,6 +331,31 @@ Current delay-filter success result:
 | full_light_geometry | 0.290 | 0.670 |
 | full_contact_light | 0.270 | 0.680 |
 
+Analyze the remaining `visual_camera_control` failures before collecting the
+next dataset:
+
+```powershell
+python scripts\analyze_control_failures.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --model checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_control_delay_filter_success_350k_oracle_e8\sac_image_bc.zip --episodes 200 --output-csv results\control_failure_analysis_ur5e_delay_filter_success_350k_e8.csv --output-md results\control_failure_analysis_ur5e_delay_filter_success_350k_e8.md --device cpu --success-xy-tolerance 0.005 --success-z-tolerance 0.01
+```
+
+Control failure analysis result:
+
+| Bucket | Episodes | Success | Collision | Timeout |
+| --- | ---: | ---: | ---: | ---: |
+| overall | 200 | 0.830 | 0.165 | 0.005 |
+| delay_2 | 72 | 0.764 | 0.236 | 0.000 |
+| delay_1 | 63 | 0.794 | 0.190 | 0.016 |
+| delay_0 | 65 | 0.938 | 0.062 | 0.000 |
+| filter low <0.70 | 62 | 0.790 | 0.210 | 0.000 |
+| scale low <0.90 | 43 | 0.721 | 0.279 | 0.000 |
+| noise high >=0.00055 | 50 | 0.820 | 0.180 | 0.000 |
+
+The next control dataset should bias toward `delay=2`, low filter alpha
+`0.55-0.70`, low action scale `0.8-0.9`, and high noise
+`0.00055-0.0008`. This is still a control-randomization problem; full
+geometry/contact randomization should wait until default `visual_camera_control`
+is closer to `0.90`.
+
 ## Current Recommended UR5e Model
 
 ```text
