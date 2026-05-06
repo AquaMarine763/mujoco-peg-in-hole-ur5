@@ -59,12 +59,12 @@ The current UR5e visual-camera mixed baseline is also documented in
 `checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_150k_oracle_e20/sac_image_bc.zip`
 when regenerated locally.
 
-The current UR5e delay/filter-success baseline uses
-`checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_control_delay_filter_success_350k_oracle_e8/sac_image_bc.zip`
+The current UR5e hard-weighted control baseline uses
+`checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_control_hard_weighted_500k_oracle_e5/sac_image_bc.zip`
 when regenerated locally. It improves default `visual_camera_control` from
-`0.600` to `0.860` success by adding success-only default-control data and
-delay/filter-focused success-only data on top of the mild-control baseline.
-The remaining control failures are documented in
+`0.600` to `0.890` success by adding success-only default-control,
+delay/filter-focused, and hard-control weighted data on top of the mild-control
+baseline. The remaining control failures are documented in
 `results/control_failure_analysis_ur5e_delay_filter_success_350k_e8.md`;
 the next data batch should bias toward delay 2, low filter alpha, low action
 scale, and high control noise.

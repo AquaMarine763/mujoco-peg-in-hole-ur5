@@ -356,15 +356,66 @@ The next control dataset should bias toward `delay=2`, low filter alpha
 geometry/contact randomization should wait until default `visual_camera_control`
 is closer to `0.90`.
 
+## UR5e Adapter Hard-Control Weighted Baseline
+
+Collect the hard-control success-only dataset:
+
+```powershell
+python scripts\collect_image_expert_dataset.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --output datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_control_hard_success_50k_oracle.npz --samples 50000 --seed 360000 --expert-action-gain 1.0 --rollout-noise-std 0.0005 --success-xy-tolerance 0.005 --success-z-tolerance 0.01 --domain-randomization-level visual_camera_control --control-action-scale-range 0.8 0.9 --control-action-noise-std-range 0.00055 0.0008 --control-action-delay-range 2 2 --control-action-filter-alpha-range 0.55 0.70 --success-only --compressed
+```
+
+The hard-control oracle reached only `0.771` success and `0.229` collision, so
+this data is useful as a targeted stress bucket, not as a standalone policy
+distribution. First train a single-copy 400k model:
+
+```powershell
+python scripts\merge_image_expert_datasets.py --inputs datasets\image_expert_ur5e_adapter_fixedcam_clean_visual_camera_control_delay_filter_success_350k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_control_hard_success_50k_oracle.npz --output datasets\image_expert_ur5e_adapter_fixedcam_clean_visual_camera_control_hard_success_400k_oracle.npz --compressed
+python scripts\pretrain_image_actor_bc.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --dataset datasets\image_expert_ur5e_adapter_fixedcam_clean_visual_camera_control_hard_success_400k_oracle.npz --model checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_control_delay_filter_success_350k_oracle_e8\sac_image_bc.zip --output checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_control_hard_success_400k_oracle_e6\sac_image_bc.zip --epochs 6 --batch-size 512 --learning-rate 0.000004 --success-xy-tolerance 0.005 --success-z-tolerance 0.01
+```
+
+Then train a hard-weighted 500k model by repeating the hard-control 50k dataset
+three times:
+
+```powershell
+python scripts\merge_image_expert_datasets.py --inputs datasets\image_expert_ur5e_adapter_fixedcam_clean_visual_camera_control_delay_filter_success_350k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_control_hard_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_control_hard_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_control_hard_success_50k_oracle.npz --output datasets\image_expert_ur5e_adapter_fixedcam_clean_visual_camera_control_hard_weighted_500k_oracle.npz --compressed
+python scripts\pretrain_image_actor_bc.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --dataset datasets\image_expert_ur5e_adapter_fixedcam_clean_visual_camera_control_hard_weighted_500k_oracle.npz --model checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_control_hard_success_400k_oracle_e6\sac_image_bc.zip --output checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_control_hard_weighted_500k_oracle_e5\sac_image_bc.zip --epochs 5 --batch-size 512 --learning-rate 0.000003 --success-xy-tolerance 0.005 --success-z-tolerance 0.01
+```
+
+Evaluate and render the hard-weighted model:
+
+```powershell
+python scripts\eval_matrix.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --agent sac --observation-mode image --model checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_control_hard_weighted_500k_oracle_e5\sac_image_bc.zip --episodes 100 --device cpu --output-csv results\eval_matrix_ur5e_adapter_fixedcam_clean_visual_camera_control_hard_weighted_500k_oracle_e5.csv --output-md results\eval_matrix_ur5e_adapter_fixedcam_clean_visual_camera_control_hard_weighted_500k_oracle_e5.md --success-xy-tolerance 0.005 --success-z-tolerance 0.01
+python scripts\analyze_control_failures.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --model checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_control_hard_weighted_500k_oracle_e5\sac_image_bc.zip --episodes 100 --output-csv results\control_failure_analysis_ur5e_hard_weighted_500k_e5_hard_control.csv --output-md results\control_failure_analysis_ur5e_hard_weighted_500k_e5_hard_control.md --device cpu --success-xy-tolerance 0.005 --success-z-tolerance 0.01 --control-action-scale-range 0.8 0.9 --control-action-noise-std-range 0.00055 0.0008 --control-action-delay-range 2 2 --control-action-filter-alpha-range 0.55 0.70
+python scripts\analyze_control_failures.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --model checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_control_hard_weighted_500k_oracle_e5\sac_image_bc.zip --episodes 200 --output-csv results\control_failure_analysis_ur5e_hard_weighted_500k_e5.csv --output-md results\control_failure_analysis_ur5e_hard_weighted_500k_e5.md --device cpu --success-xy-tolerance 0.005 --success-z-tolerance 0.01
+python scripts\demo_policy.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --agent sac --observation-mode image --model checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_control_hard_weighted_500k_oracle_e5\sac_image_bc.zip --output demos\image_bc_ur5e_adapter_visual_camera_control_hard_weighted_500k_e5_hd.gif --trajectory-output results\demo_ur5e_adapter_visual_camera_control_hard_weighted_500k_e5_trace.csv --width 100 --height 100 --render-width 640 --render-height 480 --render-cameras overview wrist_cam --fps 20 --device cpu --domain-randomization-level visual_camera_control --success-xy-tolerance 0.005 --success-z-tolerance 0.01
+```
+
+Current hard-weighted result:
+
+| Environment | Success | Collision |
+| --- | ---: | ---: |
+| clean | 0.960 | 0.040 |
+| visual_camera | 0.990 | 0.010 |
+| visual_camera_control | 0.890 | 0.110 |
+| hard-control fixed bucket | 0.770 | 0.230 |
+| full_light_geometry | 0.300 | 0.660 |
+| full_contact_light | 0.310 | 0.660 |
+
+This version improves default control and hard-control robustness, but trades
+off some clean performance compared with the 350k model. It is the current
+control-robust recommendation; use the 350k model if the immediate goal is the
+highest clean score.
+
 ## Current Recommended UR5e Model
 
 ```text
-checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_control_delay_filter_success_350k_oracle_e8\sac_image_bc.zip
+checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_control_hard_weighted_500k_oracle_e5\sac_image_bc.zip
 ```
 
 This is the current recommended UR5e adapter model for visual-camera-control
-evaluation and demos. The next target should be `visual_camera_control >= 0.90`
-before entering full geometry/contact randomization.
+evaluation and demos. The next target is to reach default
+`visual_camera_control >= 0.90` without pushing clean below `0.97`; after that,
+move to mild geometry randomization before full contact randomization.
 
 ## Current Best Simplified Sidecam Model
 
@@ -586,4 +637,14 @@ UR5e adapter fixedcam models:
 | visual_camera_control delay-filter success 350k e8 | 0.860 | 0.140 |
 | full_light_geometry delay-filter success 350k e8 | 0.290 | 0.670 |
 | full_contact_light delay-filter success 350k e8 | 0.270 | 0.680 |
+| clean hard-control 400k e6 | 0.980 | 0.020 |
+| visual_camera hard-control 400k e6 | 0.960 | 0.040 |
+| visual_camera_control hard-control 400k e6 | 0.880 | 0.120 |
+| hard-control fixed bucket hard-control 400k e6 | 0.700 | 0.300 |
+| clean hard-weighted 500k e5 | 0.960 | 0.040 |
+| visual_camera hard-weighted 500k e5 | 0.990 | 0.010 |
+| visual_camera_control hard-weighted 500k e5 | 0.890 | 0.110 |
+| hard-control fixed bucket hard-weighted 500k e5 | 0.770 | 0.230 |
+| full_light_geometry hard-weighted 500k e5 | 0.300 | 0.660 |
+| full_contact_light hard-weighted 500k e5 | 0.310 | 0.660 |
 | clean fixedcam 5k scratch | 0.790 | 0.200 |

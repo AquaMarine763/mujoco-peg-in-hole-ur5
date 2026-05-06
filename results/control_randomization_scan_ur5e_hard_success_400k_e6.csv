@@ -1,0 +1,11 @@
+name,model_path,episodes,success_rate,collision_rate,timeout_rate,mean_return,mean_steps,scale_range,noise_std_range,delay_range,filter_alpha_range
+visual_camera_reference,mujoco_peg_in_hole\assets\ur5e_adapter\ur5e_peg_in_hole.xml,30,0.9666666666666667,0.03333333333333333,0.0,150.92502679568324,24.566666666666666,1.0:1.0,0.0:0.0,0:0,1.0:1.0
+scale_only,mujoco_peg_in_hole\assets\ur5e_adapter\ur5e_peg_in_hole.xml,30,0.9333333333333333,0.06666666666666667,0.0,139.99506920864673,27.266666666666666,0.8:1.2,0.0:0.0,0:0,1.0:1.0
+noise_only,mujoco_peg_in_hole\assets\ur5e_adapter\ur5e_peg_in_hole.xml,30,0.9,0.1,0.0,138.2681236880134,27.8,1.0:1.0,0.0:0.0008,0:0,1.0:1.0
+delay_only,mujoco_peg_in_hole\assets\ur5e_adapter\ur5e_peg_in_hole.xml,30,0.9,0.1,0.0,126.56139707294713,27.666666666666668,1.0:1.0,0.0:0.0,0:2,1.0:1.0
+filter_only,mujoco_peg_in_hole\assets\ur5e_adapter\ur5e_peg_in_hole.xml,30,0.9333333333333333,0.06666666666666667,0.0,150.20819032148563,29.366666666666667,1.0:1.0,0.0:0.0,0:0,0.55:1.0
+delay_filter,mujoco_peg_in_hole\assets\ur5e_adapter\ur5e_peg_in_hole.xml,30,0.9333333333333333,0.06666666666666667,0.0,129.81343238973847,22.1,1.0:1.0,0.0:0.0,0:2,0.55:1.0
+default_control,mujoco_peg_in_hole\assets\ur5e_adapter\ur5e_peg_in_hole.xml,30,0.8666666666666667,0.13333333333333333,0.0,111.4765067368948,28.933333333333334,0.8:1.2,0.0:0.0008,0:2,0.55:1.0
+high_noise,mujoco_peg_in_hole\assets\ur5e_adapter\ur5e_peg_in_hole.xml,30,0.9666666666666667,0.03333333333333333,0.0,152.29027989459328,23.6,1.0:1.0,0.0:0.0015,0:0,1.0:1.0
+high_delay,mujoco_peg_in_hole\assets\ur5e_adapter\ur5e_peg_in_hole.xml,30,0.8,0.2,0.0,75.7045141043668,26.566666666666666,1.0:1.0,0.0:0.0,0:3,1.0:1.0
+high_all,mujoco_peg_in_hole\assets\ur5e_adapter\ur5e_peg_in_hole.xml,30,0.7333333333333333,0.26666666666666666,0.0,67.44427324351022,36.2,0.75:1.25,0.0:0.0015,0:3,0.4:1.0
