@@ -36,6 +36,8 @@ from peg_in_hole_mujoco.real_backend import (
     DryRunUR5ActionExecutor,
     RealCameraConfig,
     RealCameraObservationProvider,
+    RealPoseSample,
+    RealPoseTrace,
     ZeroPolicyAdapter,
 )
 
@@ -63,6 +65,8 @@ __all__ = [
     "RealCameraConfig",
     "RealCameraObservationProvider",
     "RealGuardStateProvider",
+    "RealPoseSample",
+    "RealPoseTrace",
     "SB3PolicyAdapter",
     "SafetyConfig",
     "SafetyFilter",

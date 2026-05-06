@@ -1845,6 +1845,28 @@ python scripts\run_real_policy_dryrun.py `
 Guarded interface refactor details and smoke results are in
 `results\guarded_deployment_interface_refactor_summary.md`.
 
+Run the same guarded dry-run path with a per-step pose CSV instead of static
+`--peg-tip-pos` and `--target-pos` values:
+
+```powershell
+python scripts\run_real_policy_dryrun.py `
+  --zero-policy `
+  --episodes 1 `
+  --max-steps 3 `
+  --pose-trace configs\real_pose_trace_smoke.csv `
+  --guarded-policy `
+  --guard-scenario-filter geometry `
+  --guard-scenario-level full_light_geometry `
+  --guard-start-z 0.10 `
+  --guard-action-limit 0.002 `
+  --output results\real_policy_dryrun_pose_trace_guarded_smoke.csv
+```
+
+Pose trace CSVs should provide `peg_tip_x/y/z` and `target_x/y/z` in meters in
+the same frame. `tcp_x/y/z` and `hole_x/y/z` are accepted aliases. The trace
+output includes `pose_source`, `pose_frame`, `pose_step`, and `pose_timestamp`.
+Details are in `results\real_pose_trace_dryrun_summary.md`.
+
 Preview preprocessing for a real camera frame directory:
 
 ```powershell

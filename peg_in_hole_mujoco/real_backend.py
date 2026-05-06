@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -36,6 +37,39 @@ class RealCameraConfig:
         )
 
 
+@dataclass(frozen=True)
+class RealPoseSample:
+    peg_tip_pos: tuple[float, float, float]
+    target_pos: tuple[float, float, float]
+    step: int | None = None
+    timestamp: float | None = None
+    pose_frame: str = "robot_base"
+
+
+@dataclass(frozen=True)
+class RealPoseTrace:
+    samples: tuple[RealPoseSample, ...]
+
+    @classmethod
+    def from_csv(cls, path: Path | str, *, default_pose_frame: str = "robot_base") -> "RealPoseTrace":
+        with Path(path).open("r", newline="", encoding="utf-8-sig") as file:
+            rows = list(csv.DictReader(file))
+        if not rows:
+            raise ValueError(f"pose trace is empty: {path}")
+        samples = tuple(
+            _pose_sample_from_row(row, row_index=index, default_pose_frame=default_pose_frame)
+            for index, row in enumerate(rows)
+        )
+        return cls(samples=samples)
+
+    def sample_for_step(self, step_count: int) -> RealPoseSample:
+        if step_count < 0:
+            raise ValueError("step_count cannot be negative.")
+        if not self.samples:
+            raise ValueError("pose trace has no samples.")
+        return self.samples[min(step_count, len(self.samples) - 1)]
+
+
 class ZeroPolicyAdapter:
     def predict(self, observation: Any) -> np.ndarray:
         del observation
@@ -48,9 +82,17 @@ class RealCameraObservationProvider:
         config: RealCameraConfig,
         image_path: Path | None = None,
         image_dir: Path | None = None,
+        pose_trace_path: Path | str | None = None,
+        pose_frame: str = "robot_base",
     ):
         self.config = config
         self.image_paths = self._resolve_image_paths(image_path, image_dir)
+        self.pose_trace = (
+            RealPoseTrace.from_csv(pose_trace_path, default_pose_frame=pose_frame)
+            if pose_trace_path is not None
+            else None
+        )
+        self.pose_frame = pose_frame
         self.frame_index = 0
         self.step_count = 0
 
@@ -66,8 +108,9 @@ class RealCameraObservationProvider:
         return observation, self.info()
 
     def info(self) -> dict[str, Any]:
-        peg_tip = np.asarray(self.config.peg_tip_pos, dtype=np.float32)
-        target = np.asarray(self.config.target_pos, dtype=np.float32)
+        pose_sample = self._pose_sample()
+        peg_tip = np.asarray(pose_sample.peg_tip_pos, dtype=np.float32)
+        target = np.asarray(pose_sample.target_pos, dtype=np.float32)
         dist_xy = float(np.linalg.norm(peg_tip[:2] - target[:2]))
         dist_z = float(abs(peg_tip[2] - target[2]))
         return {
@@ -86,7 +129,23 @@ class RealCameraObservationProvider:
             "control_action_noise_std": 0.0,
             "control_action_delay": 0,
             "control_action_filter_alpha": 1.0,
+            "pose_source": "csv" if self.pose_trace is not None else "static",
+            "pose_frame": pose_sample.pose_frame,
+            "pose_step": self.step_count if pose_sample.step is None else pose_sample.step,
+            "pose_timestamp": (
+                float("nan") if pose_sample.timestamp is None else float(pose_sample.timestamp)
+            ),
         }
+
+    def _pose_sample(self) -> RealPoseSample:
+        if self.pose_trace is not None:
+            return self.pose_trace.sample_for_step(self.step_count)
+        return RealPoseSample(
+            peg_tip_pos=tuple(float(value) for value in self.config.peg_tip_pos),
+            target_pos=tuple(float(value) for value in self.config.target_pos),
+            step=self.step_count,
+            pose_frame=self.pose_frame,
+        )
 
     def _next_image(self) -> np.ndarray:
         if not self.image_paths:
@@ -141,3 +200,59 @@ class DryRunUR5ActionExecutor:
 
     def close(self) -> None:
         pass
+
+
+def _pose_sample_from_row(
+    row: dict[str, str],
+    *,
+    row_index: int,
+    default_pose_frame: str,
+) -> RealPoseSample:
+    step = _optional_int(row, ("step", "pose_step"))
+    timestamp = _optional_float(row, ("timestamp", "time", "t"))
+    pose_frame = _first_text(row, ("pose_frame", "frame", "reference_frame")) or default_pose_frame
+    return RealPoseSample(
+        peg_tip_pos=(
+            _required_float(row, ("peg_tip_x", "tcp_x", "tool_x"), row_index=row_index),
+            _required_float(row, ("peg_tip_y", "tcp_y", "tool_y"), row_index=row_index),
+            _required_float(row, ("peg_tip_z", "tcp_z", "tool_z"), row_index=row_index),
+        ),
+        target_pos=(
+            _required_float(row, ("target_x", "hole_x"), row_index=row_index),
+            _required_float(row, ("target_y", "hole_y"), row_index=row_index),
+            _required_float(row, ("target_z", "hole_z"), row_index=row_index),
+        ),
+        step=step,
+        timestamp=timestamp,
+        pose_frame=pose_frame,
+    )
+
+
+def _required_float(
+    row: dict[str, str],
+    keys: tuple[str, ...],
+    *,
+    row_index: int,
+) -> float:
+    value = _first_text(row, keys)
+    if value is None:
+        raise ValueError(f"pose trace row {row_index} is missing one of: {', '.join(keys)}")
+    return float(value)
+
+
+def _optional_float(row: dict[str, str], keys: tuple[str, ...]) -> float | None:
+    value = _first_text(row, keys)
+    return None if value is None else float(value)
+
+
+def _optional_int(row: dict[str, str], keys: tuple[str, ...]) -> int | None:
+    value = _first_text(row, keys)
+    return None if value is None else int(value)
+
+
+def _first_text(row: dict[str, str], keys: tuple[str, ...]) -> str | None:
+    for key in keys:
+        value = row.get(key)
+        if value is not None and value.strip():
+            return value.strip()
+    return None
