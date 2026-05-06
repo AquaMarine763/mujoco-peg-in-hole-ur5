@@ -7,10 +7,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 from stable_baselines3 import A2C, PPO, SAC
 
-from peg_in_hole_mujoco import OracleControllerConfig, PegInHoleMujocoEnv, oracle_action
+from peg_in_hole_mujoco import (
+    GuardedPolicyConfig,
+    GuardedPolicyController,
+    OracleControllerConfig,
+    PegInHoleMujocoEnv,
+)
 
 
 AGENTS = {
@@ -182,65 +186,27 @@ def make_env(args: argparse.Namespace, scenario: Scenario) -> PegInHoleMujocoEnv
     )
 
 
-def make_oracle_config(args: argparse.Namespace) -> OracleControllerConfig:
-    return OracleControllerConfig(
-        mode="guarded_two_stage",
-        action_gain=args.guard_action_gain,
-        guarded_align_xy_tolerance=args.guarded_align_xy_tolerance,
-        guarded_insert_xy_tolerance=args.guarded_insert_xy_tolerance,
-        guarded_retract_xy_tolerance=args.guarded_retract_xy_tolerance,
-        guarded_preinsert_height=args.guarded_preinsert_height,
-        guarded_max_xy_action=args.guarded_max_xy_action,
-        guarded_max_down_action=args.guarded_max_down_action,
-        guarded_max_up_action=args.guarded_max_up_action,
-        guarded_prediction_steps=args.guarded_prediction_steps,
+def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
+    return GuardedPolicyConfig(
+        scenario_filter=args.guard_scenario_filter,
+        guard_start_xy=args.guard_start_xy,
+        guard_start_z=args.guard_start_z,
+        guard_risk_xy=args.guard_risk_xy,
+        guard_blend=args.guard_blend,
+        guard_release_on_high=args.guard_release_on_high,
+        oracle=OracleControllerConfig(
+            mode="guarded_two_stage",
+            action_gain=args.guard_action_gain,
+            guarded_align_xy_tolerance=args.guarded_align_xy_tolerance,
+            guarded_insert_xy_tolerance=args.guarded_insert_xy_tolerance,
+            guarded_retract_xy_tolerance=args.guarded_retract_xy_tolerance,
+            guarded_preinsert_height=args.guarded_preinsert_height,
+            guarded_max_xy_action=args.guarded_max_xy_action,
+            guarded_max_down_action=args.guarded_max_down_action,
+            guarded_max_up_action=args.guarded_max_up_action,
+            guarded_prediction_steps=args.guarded_prediction_steps,
+        ),
     )
-
-
-def should_start_guard(info: dict[str, Any], args: argparse.Namespace) -> bool:
-    tip = np.asarray(info["peg_tip_pos"], dtype=np.float64)
-    target = np.asarray(info["target_pos"], dtype=np.float64)
-    z_above_target = float(tip[2] - target[2])
-    dist_xy = float(info["dist_xy"])
-    return (
-        args.guard_risk_xy <= dist_xy <= args.guard_start_xy
-        and z_above_target <= args.guard_start_z
-    )
-
-
-def choose_action(
-    env: PegInHoleMujocoEnv,
-    info: dict[str, Any],
-    policy_action: np.ndarray,
-    guard_active: bool,
-    args: argparse.Namespace,
-    oracle_config: OracleControllerConfig,
-) -> tuple[np.ndarray, bool]:
-    if not guard_active and should_start_guard(info, args):
-        guard_active = True
-    if args.guard_release_on_high and guard_active:
-        tip = np.asarray(info["peg_tip_pos"], dtype=np.float64)
-        target = np.asarray(info["target_pos"], dtype=np.float64)
-        if float(tip[2] - target[2]) > args.guard_start_z:
-            guard_active = False
-    if not guard_active:
-        return np.asarray(policy_action, dtype=np.float32), False
-
-    guarded_action = oracle_action(env, info, oracle_config)
-    blend = float(np.clip(args.guard_blend, 0.0, 1.0))
-    action = (1.0 - blend) * np.asarray(policy_action, dtype=np.float32) + blend * guarded_action
-    action = np.clip(action, env.action_space.low, env.action_space.high)
-    return action.astype(np.float32), True
-
-
-def scenario_uses_guard(scenario: Scenario, args: argparse.Namespace) -> bool:
-    if args.guard_scenario_filter == "none":
-        return False
-    if args.guard_scenario_filter == "all":
-        return True
-    if args.guard_scenario_filter == "hard":
-        return scenario.name == HARD_BUCKET_SCENARIO.name
-    return scenario.level in ("full_light_geometry", "full_contact_light", "full")
 
 
 def mean(values: list[float]) -> float:
@@ -254,8 +220,8 @@ def range_text(values: tuple[Any, Any]) -> str:
 def evaluate_scenario(args: argparse.Namespace, scenario: Scenario) -> dict[str, Any]:
     env = make_env(args, scenario)
     model = AGENTS[args.agent].load(args.model, env=env, device=args.device)
-    oracle_config = make_oracle_config(args)
-    guard_enabled = scenario_uses_guard(scenario, args)
+    guarded_controller = GuardedPolicyController(make_guarded_config(args))
+    guard_enabled = guarded_controller.scenario_uses_guard(scenario.name, scenario.level)
     successes = 0
     collisions = 0
     timeouts = 0
@@ -269,24 +235,20 @@ def evaluate_scenario(args: argparse.Namespace, scenario: Scenario) -> dict[str,
     try:
         for episode in range(args.episodes):
             obs, info = env.reset(seed=args.seed + episode)
+            guarded_controller.reset()
             episode_return = 0.0
             episode_guard_steps = 0
-            guard_active = False
             while True:
                 policy_action, _ = model.predict(obs, deterministic=True)
-                if guard_enabled:
-                    action, guarded = choose_action(
-                        env,
-                        info,
-                        np.asarray(policy_action, dtype=np.float32),
-                        guard_active,
-                        args,
-                        oracle_config,
-                    )
-                    guard_active = guard_active or guarded
-                else:
-                    action = np.asarray(policy_action, dtype=np.float32)
-                    guarded = False
+                step = guarded_controller.step(
+                    env,
+                    info,
+                    policy_action,
+                    scenario_name=scenario.name,
+                    scenario_level=scenario.level,
+                )
+                action = step.action
+                guarded = step.guarded
                 episode_guard_steps += int(guarded)
                 obs, reward, terminated, truncated, info = env.step(action)
                 episode_return += float(reward)

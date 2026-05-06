@@ -881,6 +881,84 @@ The selected wrapper is a positive deployment-time result. It does not replace
 the policy checkpoint; it wraps the current 750k policy during final insertion.
 Full details are in `results\guarded_policy_summary.md`.
 
+The wrapper is also available in `scripts\demo_policy.py` through
+`--guarded-policy`. Demo trajectory CSVs include `guard_enabled`,
+`guard_active`, `policy_action_*`, `guarded_action_*`, and `final_action_*`.
+The checked demo files are:
+
+| Demo | Seed | Result |
+| --- | ---: | --- |
+| `demos\guarded_policy_full_light_no_guard.gif` | 90000 | success, 12 steps |
+| `demos\guarded_policy_full_light_guarded.gif` | 90000 | success, 11 steps, 11 guard rows |
+| `demos\guarded_policy_hard_bucket_no_guard.gif` | 90005 | collision failure, 11 steps |
+| `demos\guarded_policy_hard_bucket_guarded.gif` | 90005 | success, 20 steps, 20 guard rows |
+
+Render the hard-bucket no-guard contrast episode:
+
+```powershell
+python scripts\demo_policy.py `
+  --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml `
+  --agent sac `
+  --observation-mode image `
+  --include-near-hole-crop `
+  --near-hole-crop-size 64 `
+  --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip `
+  --output demos\guarded_policy_hard_bucket_no_guard.gif `
+  --trajectory-output demos\guarded_policy_hard_bucket_no_guard_trajectory.csv `
+  --episodes 1 `
+  --seed 90005 `
+  --device cpu `
+  --domain-randomization-level full_light_geometry `
+  --control-action-scale-range 0.8 1.1 `
+  --control-action-noise-std-range 0 0.00025 `
+  --control-action-delay-range 2 2 `
+  --control-action-filter-alpha-range 0.55 0.70 `
+  --render-cameras overview wrist_cam `
+  --render-width 640 `
+  --render-height 480 `
+  --fps 20 `
+  --success-xy-tolerance 0.005 `
+  --success-z-tolerance 0.01 `
+  --approach-xy-tolerance 0.02
+```
+
+Render the same episode with selective guarded insertion:
+
+```powershell
+python scripts\demo_policy.py `
+  --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml `
+  --agent sac `
+  --observation-mode image `
+  --include-near-hole-crop `
+  --near-hole-crop-size 64 `
+  --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip `
+  --output demos\guarded_policy_hard_bucket_guarded.gif `
+  --trajectory-output demos\guarded_policy_hard_bucket_guarded_trajectory.csv `
+  --episodes 1 `
+  --seed 90005 `
+  --device cpu `
+  --domain-randomization-level full_light_geometry `
+  --control-action-scale-range 0.8 1.1 `
+  --control-action-noise-std-range 0 0.00025 `
+  --control-action-delay-range 2 2 `
+  --control-action-filter-alpha-range 0.55 0.70 `
+  --render-cameras overview wrist_cam `
+  --render-width 640 `
+  --render-height 480 `
+  --fps 20 `
+  --success-xy-tolerance 0.005 `
+  --success-z-tolerance 0.01 `
+  --approach-xy-tolerance 0.02 `
+  --guarded-policy `
+  --guard-scenario-filter geometry `
+  --guard-scenario-name hard_full_light_bucket `
+  --guard-start-xy 0.06 `
+  --guard-start-z 0.10 `
+  --guard-blend 1.0
+```
+
+Full demo details are in `results\guarded_demo_summary.md`.
+
 ## Current Recommended UR5e Model
 
 ```text

@@ -125,13 +125,21 @@ still reduced standard `full_light_geometry` to `0.550`, with only a negligible
 hard-bucket change from `0.330` to `0.340`. Keep the 750k model as the
 recommendation. See `results/guarded_hard_replay_summary.md`.
 
-Deployment-time guarded insertion is now implemented in
-`scripts/eval_guarded_policy.py`. Using the current 750k policy with a selective
-geometry/contact guarded wrapper improves standard `full_light_geometry` from
-`0.580` to `0.690` and the hard bucket from `0.330` to `0.480` on seed `90000`.
-Unconditional guarding hurts `visual_camera_control`, so the useful pattern is
-selective final-insertion guarding, not replacing the learned policy. See
+Deployment-time guarded insertion is now moduleized in
+`peg_in_hole_mujoco/guarded_policy.py` and used by both
+`scripts/eval_guarded_policy.py` and `scripts/demo_policy.py`. Using the current
+750k policy with a selective geometry/contact guarded wrapper improves standard
+`full_light_geometry` from `0.580` to `0.690` and the hard bucket from `0.330`
+to `0.480` on seed `90000`. Unconditional guarding hurts
+`visual_camera_control`, so the useful pattern is selective final-insertion
+guarding, not replacing the learned policy. See
 `results/guarded_policy_summary.md`.
+
+The demo renderer can now run the same wrapper with `--guarded-policy`.
+Trajectory CSVs record `guard_enabled`, `guard_active`, `policy_action_*`,
+`guarded_action_*`, and `final_action_*`. The checked hard-bucket demo pair uses
+seed `90005`: the learned policy alone collides, while the selective guarded
+wrapper succeeds. See `results/guarded_demo_summary.md`.
 
 ## Quick Check
 
