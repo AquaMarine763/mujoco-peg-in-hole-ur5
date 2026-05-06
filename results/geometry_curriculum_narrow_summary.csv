@@ -1,0 +1,19 @@
+model,scenario,episodes,success_rate,collision_rate,timeout_rate,notes
+balanced_weighted_550k_e6,narrow_geometry_control_identity,100,0.210,0.680,,baseline on hole_half_size=0.020-0.025 peg_radius=0.012
+narrow_success_600k_e6,narrow_geometry_control_identity,100,0.340,0.540,,weighted 50k narrow-geometry continuation from balanced baseline
+narrow_only_50k_e12,narrow_geometry_control_identity,100,0.450,0.440,,narrow-only continuation; improves target but severely forgets clean/control
+balanced_weighted_550k_e6,clean,100,0.980,,,previous matrix from v0.6.14
+balanced_weighted_550k_e6,visual_camera,100,0.980,,,previous matrix from v0.6.14
+balanced_weighted_550k_e6,visual_camera_control,100,0.890,,,previous matrix from v0.6.14
+balanced_weighted_550k_e6,full_light_geometry,100,0.310,,,previous matrix from v0.6.14
+balanced_weighted_550k_e6,full_contact_light,100,0.300,,,previous matrix from v0.6.14
+narrow_success_600k_e6,clean,100,0.950,0.050,0.000,standard eval matrix
+narrow_success_600k_e6,visual_camera,100,0.990,0.010,0.000,standard eval matrix
+narrow_success_600k_e6,visual_camera_control,100,0.850,0.150,0.000,standard eval matrix
+narrow_success_600k_e6,full_light_geometry,100,0.350,0.610,0.040,standard eval matrix
+narrow_success_600k_e6,full_contact_light,100,0.390,0.580,0.030,standard eval matrix
+narrow_only_50k_e12,clean,100,0.820,0.180,0.000,standard eval matrix
+narrow_only_50k_e12,visual_camera,100,0.760,0.230,0.010,standard eval matrix
+narrow_only_50k_e12,visual_camera_control,100,0.580,0.380,0.040,standard eval matrix
+narrow_only_50k_e12,full_light_geometry,100,0.360,0.590,0.050,standard eval matrix
+narrow_only_50k_e12,full_contact_light,100,0.390,0.570,0.040,standard eval matrix

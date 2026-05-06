@@ -69,11 +69,15 @@ baseline. The remaining control failures are documented in
 the next data batch should bias toward delay 2, low filter alpha, low action
 scale, and high control noise.
 
-The next stage has started with a weighted multi-dataset BC trainer and a hole
-geometry oracle scan. The scan shows that the current staged oracle needs a
-more conservative `approach_xy_tolerance=0.02` before collecting narrowed-hole
-data; with that setting, hole half-size `0.020-0.025` is the recommended first
-geometry curriculum range for a 12 mm peg radius.
+The geometry stage has started with a weighted multi-dataset BC trainer, a hole
+geometry oracle scan, and the first narrowed-hole data batch. The scan shows
+that the staged oracle needs `approach_xy_tolerance=0.02` before collecting
+narrowed-hole data. The first `0.020-0.025` half-size dataset reached `0.996`
+oracle success, but BC is not solved yet: the weighted continuation improved
+the target narrow-geometry policy from `0.210` to `0.340` success, while a
+narrow-only continuation reached `0.450` but forgot clean/control behavior.
+See `results/geometry_curriculum_narrow_summary.md` before treating the
+geometry curriculum as ready.
 
 ## Quick Check
 
