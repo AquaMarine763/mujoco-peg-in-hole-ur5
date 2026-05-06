@@ -293,6 +293,16 @@ class PolicyInferenceSession:
             "desired_z": float(info.get("desired_z", float("nan"))),
             "guard_enabled": bool(action_diagnostics.get("guard_enabled", False)),
             "guard_active": bool(action_diagnostics.get("guard_active", False)),
+            "guard_should_activate": bool(action_diagnostics.get("guard_should_activate", False)),
+            "guard_can_activate": bool(action_diagnostics.get("guard_can_activate", False)),
+            "guard_activated": bool(action_diagnostics.get("guard_activated", False)),
+            "guard_down_blocked": bool(action_diagnostics.get("guard_down_blocked", False)),
+            "guard_steps_since_reset": int(action_diagnostics.get("guard_steps_since_reset", -1)),
+            "guard_min_policy_steps": int(action_diagnostics.get("guard_min_policy_steps", 0)),
+            "guard_dist_xy": float(action_diagnostics.get("guard_dist_xy", float("nan"))),
+            "guard_z_above_target": float(
+                action_diagnostics.get("guard_z_above_target", float("nan"))
+            ),
             "action_limited": safe_action.action_limited,
             "workspace_limited": safe_action.workspace_limited,
             "control_action_scale_multiplier": float(info.get("control_action_scale_multiplier", float("nan"))),

@@ -1024,6 +1024,51 @@ Result:
 Promote `guard_blend=0.75` as the next guarded deployment candidate. Full
 details are in `results\guarded_policy_param_scan_summary.md`.
 
+Late-activation follow-up:
+
+```powershell
+python scripts\scan_guarded_policy_params.py `
+  --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml `
+  --agent sac `
+  --observation-mode image `
+  --include-near-hole-crop `
+  --near-hole-crop-size 64 `
+  --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip `
+  --episodes 100 `
+  --seed 90000 `
+  --device cpu `
+  --preset grid `
+  --scenario-preset core `
+  --guard-scenario-filter geometry `
+  --guard-start-xy-values 0.03 0.06 `
+  --guard-start-z-values 0.08 0.10 `
+  --guard-blend-values 0.75 `
+  --guard-min-policy-step-values 0 `
+  --guarded-max-down-action-values 0.0035 `
+  --guarded-align-xy-tolerance-values 0.025 `
+  --output-csv results\guarded_policy_late_activation_validation_100ep.csv `
+  --output-md results\guarded_policy_late_activation_validation_100ep.md `
+  --approach-xy-tolerance 0.02 `
+  --success-xy-tolerance 0.005 `
+  --success-z-tolerance 0.01
+```
+
+Current guarded deployment recommendation:
+
+```text
+guard_scenario_filter = geometry
+guard_start_xy = 0.06
+guard_start_z = 0.08
+guard_blend = 0.75
+guard_min_policy_steps = 0
+```
+
+`guard_min_policy_steps` is available in `eval_guarded_policy.py`,
+`run_policy_inference.py`, and `scan_guarded_policy_params.py`, but keep it at
+`0` for the current policy. Delaying guard activation reduced guard steps but
+lost hard-bucket recovery. Full details are in
+`results\guarded_late_activation_summary.md`.
+
 ## Guarded Deployment Inference
 
 Run a deployment-style smoke where geometry-only guard is available but should
@@ -1047,7 +1092,9 @@ python scripts\run_policy_inference.py `
   --approach-xy-tolerance 0.02 `
   --guarded-policy `
   --guard-scenario-filter geometry `
-  --guard-blend 0.75
+  --guard-blend 0.75 `
+  --guard-start-z 0.08 `
+  --guard-min-policy-steps 0
 ```
 
 Run the hard-bucket no-guard deployment contrast:
@@ -1101,7 +1148,8 @@ python scripts\run_policy_inference.py `
   --guard-scenario-name hard_full_light_bucket `
   --guard-blend 0.75 `
   --guard-start-xy 0.06 `
-  --guard-start-z 0.10
+  --guard-start-z 0.08 `
+  --guard-min-policy-steps 0
 ```
 
 Result:
@@ -1113,8 +1161,114 @@ Result:
 | hard bucket | guarded geometry blend 0.75 | 1 | 0 | 34 | 34 |
 
 Trace CSVs include `guard_enabled`, `guard_active`, `policy_action_*`,
+`guard_should_activate`, `guard_can_activate`, `guard_activated`,
+`guard_down_blocked`, `guard_dist_xy`, `guard_z_above_target`,
 `guarded_action_*`, `final_action_*`, `raw_action_*`, and `safe_action_*`.
 Full details are in `results\policy_inference_guarded_summary.md`.
+
+Run the matching HD deployment demos:
+
+```powershell
+python scripts\demo_policy.py `
+  --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml `
+  --agent sac `
+  --observation-mode image `
+  --include-near-hole-crop `
+  --near-hole-crop-size 64 `
+  --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip `
+  --seed 90005 `
+  --device cpu `
+  --output demos\guarded_deployment_hard_bucket_no_guard_z08_hd.gif `
+  --trajectory-output demos\guarded_deployment_hard_bucket_no_guard_z08_trajectory.csv `
+  --width 100 `
+  --height 100 `
+  --render-width 640 `
+  --render-height 480 `
+  --render-cameras overview wrist_cam `
+  --fps 20 `
+  --domain-randomization-level full_light_geometry `
+  --control-action-scale-range 0.8 1.1 `
+  --control-action-noise-std-range 0 0.00025 `
+  --control-action-delay-range 2 2 `
+  --control-action-filter-alpha-range 0.55 0.70 `
+  --success-xy-tolerance 0.005 `
+  --success-z-tolerance 0.01 `
+  --approach-xy-tolerance 0.02
+```
+
+```powershell
+python scripts\demo_policy.py `
+  --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml `
+  --agent sac `
+  --observation-mode image `
+  --include-near-hole-crop `
+  --near-hole-crop-size 64 `
+  --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip `
+  --seed 90005 `
+  --device cpu `
+  --output demos\guarded_deployment_hard_bucket_guarded_z08_hd.gif `
+  --trajectory-output demos\guarded_deployment_hard_bucket_guarded_z08_trajectory.csv `
+  --width 100 `
+  --height 100 `
+  --render-width 640 `
+  --render-height 480 `
+  --render-cameras overview wrist_cam `
+  --fps 20 `
+  --domain-randomization-level full_light_geometry `
+  --control-action-scale-range 0.8 1.1 `
+  --control-action-noise-std-range 0 0.00025 `
+  --control-action-delay-range 2 2 `
+  --control-action-filter-alpha-range 0.55 0.70 `
+  --success-xy-tolerance 0.005 `
+  --success-z-tolerance 0.01 `
+  --approach-xy-tolerance 0.02 `
+  --guarded-policy `
+  --guard-scenario-filter geometry `
+  --guard-scenario-name hard_full_light_bucket `
+  --guard-blend 0.75 `
+  --guard-start-xy 0.06 `
+  --guard-start-z 0.08 `
+  --guard-min-policy-steps 0
+```
+
+```powershell
+python scripts\demo_policy.py `
+  --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml `
+  --agent sac `
+  --observation-mode image `
+  --include-near-hole-crop `
+  --near-hole-crop-size 64 `
+  --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip `
+  --seed 90000 `
+  --device cpu `
+  --output demos\guarded_deployment_full_light_guarded_z08_hd.gif `
+  --trajectory-output demos\guarded_deployment_full_light_guarded_z08_trajectory.csv `
+  --width 100 `
+  --height 100 `
+  --render-width 640 `
+  --render-height 480 `
+  --render-cameras overview wrist_cam `
+  --fps 20 `
+  --domain-randomization-level full_light_geometry `
+  --control-action-scale-range 0.8 1.2 `
+  --control-action-noise-std-range 0 0.0008 `
+  --control-action-delay-range 0 2 `
+  --control-action-filter-alpha-range 0.55 1.0 `
+  --success-xy-tolerance 0.005 `
+  --success-z-tolerance 0.01 `
+  --approach-xy-tolerance 0.02 `
+  --guarded-policy `
+  --guard-scenario-filter geometry `
+  --guard-scenario-name full_light_geometry `
+  --guard-blend 0.75 `
+  --guard-start-xy 0.06 `
+  --guard-start-z 0.08 `
+  --guard-min-policy-steps 0
+```
+
+The saved GIFs are `1280x480` because two `640x480` camera views are
+concatenated. The summarized demo outcomes are in
+`results\guarded_deployment_demo_summary.md`.
 
 ## Geometry Clearance Curriculum Scan
 
@@ -1357,6 +1511,168 @@ policy-vs-oracle action opposition is much higher than wide
 `full_light_geometry`. The next data collection pass should target rows with
 `failure_window=True`, high `correction_norm`, and preferably `near_hole=True`
 as DAgger-style corrective samples.
+
+## Near-Hole Correction Dataset
+
+Collect focused DAgger-style corrective samples from policy-visited failure
+windows. This pass keeps only medium-clearance near-hole rows with
+`correction_norm >= 0.006`.
+
+```powershell
+python scripts\collect_image_correction_dataset.py `
+  --agent sac `
+  --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip `
+  --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml `
+  --output datasets\image_correction_ur5e_adapter_medium_targeted_near_hole_failure_window_10k_min006_oracle.npz `
+  --samples 10000 `
+  --max-episodes-per-config 9000 `
+  --scenario-preset targeted `
+  --tier-preset medium `
+  --selection near_hole_failure_window `
+  --failure-window-steps 10 `
+  --near-hole-xy 0.03 `
+  --near-hole-z 0.10 `
+  --min-correction-norm 0.006 `
+  --max-samples-per-episode 6 `
+  --include-near-hole-crop `
+  --success-xy-tolerance 0.005 `
+  --success-z-tolerance 0.01 `
+  --approach-xy-tolerance 0.02 `
+  --compressed
+```
+
+Inspect correction-specific signals:
+
+```powershell
+python scripts\inspect_image_correction_dataset.py `
+  --dataset datasets\image_correction_ur5e_adapter_medium_targeted_near_hole_failure_window_10k_min006_oracle.npz `
+  --output-md results\image_correction_medium_targeted_near_hole_failure_window_10k_min006_correction_inspection.md `
+  --output-csv results\image_correction_medium_targeted_near_hole_failure_window_10k_min006_correction_inspection.csv
+```
+
+Actual collected dataset: `8405` samples from `16003` policy episodes. It is
+more focused than the first 2k correction pass: near-hole rate `1.000`,
+opposed-action rate `0.470`, mean correction norm `0.00960`.
+
+The best correction candidate so far is the 8% correction, 1 epoch variant:
+
+```powershell
+python scripts\pretrain_image_actor_bc_weighted.py `
+  --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml `
+  --include-near-hole-crop `
+  --near-hole-crop-size 64 `
+  --datasets datasets\image_expert_ur5e_adapter_fixedcam_clean_visual_camera_control_delay_filter_success_350k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_control_hard_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_control_delay2_lowalpha_lowscale_lownoise_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_full_light_geometry_control_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_50k_seed130k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_control_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_full_light_geometry_intermediate_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_full_light_geometry_narrow_success_50k_oracle.npz datasets\image_correction_ur5e_adapter_medium_targeted_near_hole_failure_window_10k_min006_oracle.npz `
+  --dataset-weights 0.276 0.110 0.092 0.138 0.055 0.037 0.074 0.092 0.046 0.080 `
+  --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip `
+  --output checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_correction_nearhole_8k_w08_replay_858k_oracle_e1\sac_image_bc.zip `
+  --metadata-output results\training_metadata_correction_nearhole_8k_w08_replay_858k_oracle_e1.json `
+  --epochs 1 `
+  --samples-per-epoch 200000 `
+  --batch-size 512 `
+  --learning-rate 0.0000008 `
+  --validation-batches 20 `
+  --approach-xy-tolerance 0.02 `
+  --success-xy-tolerance 0.005 `
+  --success-z-tolerance 0.01 `
+  --device cpu
+```
+
+Evaluate it:
+
+```powershell
+python scripts\eval_matrix.py `
+  --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml `
+  --agent sac `
+  --observation-mode image `
+  --include-near-hole-crop `
+  --near-hole-crop-size 64 `
+  --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_correction_nearhole_8k_w08_replay_858k_oracle_e1\sac_image_bc.zip `
+  --episodes 100 `
+  --seed 90000 `
+  --device cpu `
+  --output-csv results\eval_matrix_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_correction_nearhole_8k_w08_replay_858k_oracle_e1.csv `
+  --output-md results\eval_matrix_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_correction_nearhole_8k_w08_replay_858k_oracle_e1.md `
+  --approach-xy-tolerance 0.02 `
+  --success-xy-tolerance 0.005 `
+  --success-z-tolerance 0.01
+```
+
+Correction experiment result:
+
+| Model | Clean | Visual camera | Control | Full light geometry | Full contact light |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 750k baseline | 0.980 | 0.980 | 0.910 | 0.580 | 0.590 |
+| correction 8k w08 e1 | 0.980 | 0.980 | 0.900 | 0.590 | 0.630 |
+| correction 8k w05 e2 | 0.980 | 0.970 | 0.930 | 0.570 | 0.630 |
+| correction 8k w08 e2 | 0.960 | 0.950 | 0.910 | 0.590 | 0.630 |
+
+Do not promote the correction models yet. The e1 variant is a useful candidate,
+but the gain is modest and not consistent across the medium/hard geometry scan.
+Full details are in `results\correction_nearhole_8k_experiment_summary.md`.
+
+Outcome-specific correction collection is supported with
+`--episode-outcome-filter`. This is useful for diagnostics because collision
+and timeout failure windows have different action-disagreement profiles:
+
+```powershell
+python scripts\collect_image_correction_dataset.py `
+  --agent sac `
+  --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip `
+  --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml `
+  --output datasets\image_correction_ur5e_adapter_wide_medium_targeted_near_hole_collision_window_4k_min006_oracle.npz `
+  --samples 4000 `
+  --max-episodes-per-config 5000 `
+  --scenario-preset targeted `
+  --tier-preset wide_medium `
+  --selection near_hole_failure_window `
+  --episode-outcome-filter collision `
+  --failure-window-steps 10 `
+  --near-hole-xy 0.03 `
+  --near-hole-z 0.10 `
+  --min-correction-norm 0.006 `
+  --max-samples-per-episode 6 `
+  --include-near-hole-crop `
+  --success-xy-tolerance 0.005 `
+  --success-z-tolerance 0.01 `
+  --approach-xy-tolerance 0.02 `
+  --compressed
+```
+
+```powershell
+python scripts\collect_image_correction_dataset.py `
+  --agent sac `
+  --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip `
+  --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml `
+  --output datasets\image_correction_ur5e_adapter_wide_medium_targeted_near_hole_timeout_window_4k_min006_oracle.npz `
+  --samples 4000 `
+  --max-episodes-per-config 5000 `
+  --scenario-preset targeted `
+  --tier-preset wide_medium `
+  --selection near_hole_failure_window `
+  --episode-outcome-filter timeout `
+  --failure-window-steps 10 `
+  --near-hole-xy 0.03 `
+  --near-hole-z 0.10 `
+  --min-correction-norm 0.006 `
+  --max-samples-per-episode 6 `
+  --include-near-hole-crop `
+  --success-xy-tolerance 0.005 `
+  --success-z-tolerance 0.01 `
+  --approach-xy-tolerance 0.02 `
+  --compressed
+```
+
+Outcome-split result:
+
+| Model | Clean | Visual camera | Control | Full light geometry | Full contact light |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 750k baseline | 0.980 | 0.980 | 0.910 | 0.580 | 0.590 |
+| outcome split w04w04 e1 | 0.980 | 0.980 | 0.910 | 0.560 | 0.600 |
+| outcome split w06w02 e1 | 0.980 | 0.980 | 0.900 | 0.580 | 0.590 |
+
+Do not promote outcome-split correction models. Timeout correction rows are
+diagnostically strong but conflict with success-replay BC when oversampled.
+Full details are in `results\correction_outcome_split_6k_experiment_summary.md`.
 
 ## Current Recommended UR5e Model
 

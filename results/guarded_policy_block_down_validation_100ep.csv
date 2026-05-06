@@ -1,0 +1,7 @@
+name,level,episodes,success_rate,collision_rate,timeout_rate,mean_return,mean_steps,mean_guarded_steps,mean_guarded_step_fraction,guarded_episode_rate,guard_enabled,mean_final_dist_xy,mean_final_dist_z,control_scale_range,control_noise_std_range,control_delay_range,control_filter_alpha_range
+clean,none,100,0.98,0.02,0.0,147.33557852349722,22.45,0.0,0.0,0.0,False,0.004788339671860034,0.008689537677762088,1.0:1.0,0.0:0.0,0:0,1.0:1.0
+visual_camera,visual_camera,100,0.98,0.02,0.0,144.27004873351513,22.2,0.0,0.0,0.0,False,0.004993518204362909,0.008829670353281536,1.0:1.0,0.0:0.0,0:0,1.0:1.0
+visual_camera_control,visual_camera_control,100,0.91,0.09,0.0,119.03803184485542,29.98,0.0,0.0,0.0,False,0.007436964306534135,0.013153590174713037,0.8:1.2,0.0:0.0008,0:2,0.55:1.0
+full_light_geometry,full_light_geometry,100,0.7,0.24,0.06,46.00622828469919,39.22,38.07,0.9706782253952065,0.98,True,0.01124755395620266,0.024205345849056474,0.8:1.2,0.0:0.0008,0:2,0.55:1.0
+full_contact_light,full_contact_light,100,0.64,0.32,0.04,13.519556372365773,35.38,34.24,0.9677784058790276,0.97,True,0.013213995539820675,0.026314299303101807,0.8:1.2,0.0:0.0008,0:2,0.55:1.0
+hard_full_light_bucket,full_light_geometry,100,0.53,0.46,0.01,-57.72654188475704,20.27,18.92,0.93339911198816,0.92,True,0.019588090007156504,0.027675739539551845,0.8:1.1,0.0:0.00025,2:2,0.55:0.7

@@ -72,6 +72,8 @@ class GuardCandidate:
     guard_start_z: float = 0.100
     guard_risk_xy: float = 0.0
     guard_blend: float = 1.0
+    guard_min_policy_steps: int = 0
+    guard_block_down_when_unaligned: bool = False
     guard_action_gain: float = 1.0
     guarded_align_xy_tolerance: float = 0.025
     guarded_insert_xy_tolerance: float = 0.005
@@ -172,6 +174,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--action-penalty-scale", type=float, default=0.002)
     parser.add_argument("--action-alignment-scale", type=float, default=2.0)
     parser.add_argument("--guard-risk-xy", type=float, default=0.0)
+    parser.add_argument("--guard-block-down-when-unaligned", action="store_true")
     parser.add_argument("--guard-action-gain", type=float, default=1.0)
     parser.add_argument("--guarded-insert-xy-tolerance", type=float, default=0.005)
     parser.add_argument("--guarded-retract-xy-tolerance", type=float, default=0.012)
@@ -182,6 +185,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--guard-start-xy-values", nargs="+", type=float, default=(0.04, 0.05, 0.06, 0.07))
     parser.add_argument("--guard-start-z-values", nargs="+", type=float, default=(0.06, 0.08, 0.10))
     parser.add_argument("--guard-blend-values", nargs="+", type=float, default=(0.5, 0.75, 1.0))
+    parser.add_argument("--guard-min-policy-step-values", nargs="+", type=int, default=(0,))
     parser.add_argument("--guarded-max-down-action-values", nargs="+", type=float, default=(0.0025, 0.0035, 0.0045))
     parser.add_argument("--guarded-align-xy-tolerance-values", nargs="+", type=float, default=(0.015, 0.020, 0.025))
     parser.add_argument("--include-no-guard-baseline", action="store_true", default=True)
@@ -239,6 +243,8 @@ def make_guarded_config(candidate: GuardCandidate) -> GuardedPolicyConfig:
         guard_start_z=candidate.guard_start_z,
         guard_risk_xy=candidate.guard_risk_xy,
         guard_blend=candidate.guard_blend,
+        guard_min_policy_steps=candidate.guard_min_policy_steps,
+        guard_block_down_when_unaligned=candidate.guard_block_down_when_unaligned,
         oracle=OracleControllerConfig(
             mode="guarded_two_stage",
             action_gain=candidate.guard_action_gain,
@@ -262,10 +268,11 @@ def grid_candidates(args: argparse.Namespace) -> list[GuardCandidate]:
     candidates = []
     if args.include_no_guard_baseline:
         candidates.append(GuardCandidate("no_guard", scenario_filter="none"))
-    for xy, z, blend, down, align in itertools.product(
+    for xy, z, blend, min_steps, down, align in itertools.product(
         args.guard_start_xy_values,
         args.guard_start_z_values,
         args.guard_blend_values,
+        args.guard_min_policy_step_values,
         args.guarded_max_down_action_values,
         args.guarded_align_xy_tolerance_values,
     ):
@@ -273,6 +280,7 @@ def grid_candidates(args: argparse.Namespace) -> list[GuardCandidate]:
             GuardCandidate(
                 name=(
                     f"guard_xy{value_name(xy)}_z{value_name(z)}_blend{value_name(blend)}_"
+                    f"min{min_steps}_"
                     f"down{value_name(down)}_align{value_name(align)}"
                 ),
                 scenario_filter=args.guard_scenario_filter,
@@ -280,6 +288,8 @@ def grid_candidates(args: argparse.Namespace) -> list[GuardCandidate]:
                 guard_start_z=z,
                 guard_risk_xy=args.guard_risk_xy,
                 guard_blend=blend,
+                guard_min_policy_steps=min_steps,
+                guard_block_down_when_unaligned=args.guard_block_down_when_unaligned,
                 guard_action_gain=args.guard_action_gain,
                 guarded_align_xy_tolerance=align,
                 guarded_insert_xy_tolerance=args.guarded_insert_xy_tolerance,
@@ -310,6 +320,8 @@ def candidates_for_args(args: argparse.Namespace) -> list[GuardCandidate]:
             guard_start_z=candidate.guard_start_z,
             guard_risk_xy=args.guard_risk_xy,
             guard_blend=candidate.guard_blend,
+            guard_min_policy_steps=candidate.guard_min_policy_steps,
+            guard_block_down_when_unaligned=args.guard_block_down_when_unaligned,
             guard_action_gain=args.guard_action_gain,
             guarded_align_xy_tolerance=candidate.guarded_align_xy_tolerance,
             guarded_insert_xy_tolerance=args.guarded_insert_xy_tolerance,
@@ -420,6 +432,8 @@ def evaluate_candidate(
         "guard_start_z": candidate.guard_start_z,
         "guard_risk_xy": candidate.guard_risk_xy,
         "guard_blend": candidate.guard_blend,
+        "guard_min_policy_steps": candidate.guard_min_policy_steps,
+        "guard_block_down_when_unaligned": candidate.guard_block_down_when_unaligned,
         "guard_action_gain": candidate.guard_action_gain,
         "guarded_align_xy_tolerance": candidate.guarded_align_xy_tolerance,
         "guarded_insert_xy_tolerance": candidate.guarded_insert_xy_tolerance,

@@ -1,0 +1,114 @@
+{
+  "output": "mujoco_peg_in_hole\\checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_correction_medium_2k_replay_852k_oracle_e2\\sac_image_bc.zip",
+  "base_model": "mujoco_peg_in_hole\\checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\\sac_image_bc.zip",
+  "model_path": "mujoco_peg_in_hole\\assets\\ur5e_adapter\\ur5e_peg_in_hole.xml",
+  "datasets": [
+    {
+      "path": "mujoco_peg_in_hole\\datasets\\image_expert_ur5e_adapter_fixedcam_clean_visual_camera_control_delay_filter_success_350k_oracle.npz",
+      "samples": 350000,
+      "train_samples": 332500,
+      "validation_samples": 17500,
+      "weight": 0.285,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "mujoco_peg_in_hole\\datasets\\image_expert_ur5e_adapter_fixedcam_visual_camera_control_hard_success_50k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.114,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "mujoco_peg_in_hole\\datasets\\image_expert_ur5e_adapter_fixedcam_visual_camera_control_delay2_lowalpha_lowscale_lownoise_success_50k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.095,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "mujoco_peg_in_hole\\datasets\\image_expert_ur5e_adapter_fixedcam_full_light_geometry_control_success_50k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.1425,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "mujoco_peg_in_hole\\datasets\\image_expert_ur5e_adapter_fixedcam_50k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.057,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "mujoco_peg_in_hole\\datasets\\image_expert_ur5e_adapter_fixedcam_visual_camera_50k_seed130k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.038,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "mujoco_peg_in_hole\\datasets\\image_expert_ur5e_adapter_fixedcam_visual_camera_control_success_50k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.076,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "mujoco_peg_in_hole\\datasets\\image_expert_ur5e_adapter_fixedcam_full_light_geometry_intermediate_success_50k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.095,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "mujoco_peg_in_hole\\datasets\\image_expert_ur5e_adapter_fixedcam_full_light_geometry_narrow_success_50k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.0475,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "mujoco_peg_in_hole\\datasets\\image_correction_ur5e_adapter_medium_targeted_failure_window_2k_oracle.npz",
+      "samples": 2000,
+      "train_samples": 1900,
+      "validation_samples": 100,
+      "weight": 0.05,
+      "has_near_hole_crops": true
+    }
+  ],
+  "epochs": 2,
+  "samples_per_epoch": 200000,
+  "batch_size": 512,
+  "learning_rate": 1e-06,
+  "validation_split": 0.05,
+  "validation_batches": 20,
+  "seed": 410000,
+  "device": "cpu",
+  "include_near_hole_crop": true,
+  "near_hole_crop_size": 64,
+  "success_xy_tolerance": 0.005,
+  "success_z_tolerance": 0.01,
+  "approach_xy_tolerance": 0.02,
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 0.11993075400362234,
+      "val_loss": 0.1285655966651626
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.12453823371807023,
+      "val_loss": 0.12621251391218977
+    }
+  ],
+  "final_train_loss": 0.12453823371807023,
+  "final_val_loss": 0.12621251391218977
+}

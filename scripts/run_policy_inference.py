@@ -100,6 +100,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--guard-start-z", type=float, default=0.100)
     parser.add_argument("--guard-risk-xy", type=float, default=0.0)
     parser.add_argument("--guard-blend", type=float, default=0.75)
+    parser.add_argument("--guard-min-policy-steps", type=int, default=0)
+    parser.add_argument("--guard-block-down-when-unaligned", action="store_true")
     parser.add_argument("--guard-release-on-high", action="store_true")
     parser.add_argument("--guard-action-gain", type=float, default=1.0)
     parser.add_argument("--guarded-align-xy-tolerance", type=float, default=0.025)
@@ -164,6 +166,8 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         guard_start_z=args.guard_start_z,
         guard_risk_xy=args.guard_risk_xy,
         guard_blend=args.guard_blend,
+        guard_min_policy_steps=args.guard_min_policy_steps,
+        guard_block_down_when_unaligned=args.guard_block_down_when_unaligned,
         guard_release_on_high=args.guard_release_on_high,
         oracle=OracleControllerConfig(
             mode="guarded_two_stage",
@@ -201,6 +205,14 @@ class GuardedDeploymentActionTransformer:
         return {
             "guard_enabled": self.guard_enabled,
             "guard_active": False,
+            "guard_should_activate": False,
+            "guard_can_activate": False,
+            "guard_activated": False,
+            "guard_down_blocked": False,
+            "guard_steps_since_reset": 0,
+            "guard_min_policy_steps": self.controller.config.guard_min_policy_steps,
+            "guard_dist_xy": float("nan"),
+            "guard_z_above_target": float("nan"),
         }
 
     def transform(self, info: dict[str, Any], policy_action: np.ndarray) -> ActionTransformResult:
@@ -216,6 +228,14 @@ class GuardedDeploymentActionTransformer:
             diagnostics={
                 "guard_enabled": self.guard_enabled,
                 "guard_active": guarded_step.guarded,
+                "guard_should_activate": guarded_step.guard_should_activate,
+                "guard_can_activate": guarded_step.guard_can_activate,
+                "guard_activated": guarded_step.guard_activated,
+                "guard_down_blocked": guarded_step.guard_down_blocked,
+                "guard_steps_since_reset": guarded_step.guard_steps_since_reset,
+                "guard_min_policy_steps": self.controller.config.guard_min_policy_steps,
+                "guard_dist_xy": guarded_step.guard_dist_xy,
+                "guard_z_above_target": guarded_step.guard_z_above_target,
                 "policy_action": guarded_step.policy_action,
                 "guarded_action": guarded_step.guarded_action,
                 "final_action": guarded_step.action,

@@ -1,0 +1,411 @@
+{
+  "dataset_schema_version": "image_correction_v1_policy_failure_window",
+  "samples": 2350,
+  "model": "checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\\sac_image_bc.zip",
+  "model_path": "assets\\ur5e_adapter\\ur5e_peg_in_hole.xml",
+  "scenario_preset": "targeted",
+  "tier_preset": "wide_medium",
+  "selection": "near_hole_failure_window",
+  "episode_outcome_filter": "timeout",
+  "failure_window_steps": 10,
+  "near_hole_xy": 0.03,
+  "near_hole_z": 0.1,
+  "min_correction_norm": 0.006,
+  "max_samples_per_episode": 6,
+  "samples_per_config": 1000,
+  "max_episodes_per_config": 5000,
+  "episodes_completed": 18150,
+  "config_summaries": [
+    {
+      "tier": "wide_current",
+      "scenario": "full_light_geometry",
+      "episodes_completed": 5000,
+      "samples": 267,
+      "success_rate": 0.5948,
+      "collision_rate": 0.394,
+      "timeout_rate": 0.0118
+    },
+    {
+      "tier": "wide_current",
+      "scenario": "hard_full_light_bucket",
+      "episodes_completed": 5000,
+      "samples": 152,
+      "success_rate": 0.3006,
+      "collision_rate": 0.6928,
+      "timeout_rate": 0.0068
+    },
+    {
+      "tier": "medium",
+      "scenario": "full_light_geometry",
+      "episodes_completed": 3150,
+      "samples": 1000,
+      "success_rate": 0.5092063492063492,
+      "collision_rate": 0.43523809523809526,
+      "timeout_rate": 0.05555555555555555
+    },
+    {
+      "tier": "medium",
+      "scenario": "hard_full_light_bucket",
+      "episodes_completed": 5000,
+      "samples": 931,
+      "success_rate": 0.322,
+      "collision_rate": 0.646,
+      "timeout_rate": 0.032
+    }
+  ],
+  "image_width": 100,
+  "image_height": 100,
+  "include_near_hole_crop": true,
+  "near_hole_crop_size": 64,
+  "success_xy_tolerance": 0.005,
+  "success_z_tolerance": 0.01,
+  "approach_xy_tolerance": 0.02,
+  "oracle_mode": "guarded_two_stage",
+  "oracle_action_gain": 1.0,
+  "array_metadata": {
+    "action_cosine": {
+      "shape": [
+        2350
+      ],
+      "dtype": "float32"
+    },
+    "actions": {
+      "shape": [
+        2350,
+        3
+      ],
+      "dtype": "float32"
+    },
+    "actuator_kp_multiplier": {
+      "shape": [
+        2350
+      ],
+      "dtype": "float32"
+    },
+    "cam_images": {
+      "shape": [
+        2350,
+        100,
+        100,
+        1
+      ],
+      "dtype": "uint8"
+    },
+    "contact_friction_multiplier": {
+      "shape": [
+        2350
+      ],
+      "dtype": "float32"
+    },
+    "contact_solimp_width_multiplier": {
+      "shape": [
+        2350
+      ],
+      "dtype": "float32"
+    },
+    "contact_solref_damping_multiplier": {
+      "shape": [
+        2350
+      ],
+      "dtype": "float32"
+    },
+    "contact_solref_time_multiplier": {
+      "shape": [
+        2350
+      ],
+      "dtype": "float32"
+    },
+    "control_action_delay": {
+      "shape": [
+        2350
+      ],
+      "dtype": "int32"
+    },
+    "control_action_filter_alpha": {
+      "shape": [
+        2350
+      ],
+      "dtype": "float32"
+    },
+    "control_action_noise_std": {
+      "shape": [
+        2350
+      ],
+      "dtype": "float32"
+    },
+    "control_action_scale_multiplier": {
+      "shape": [
+        2350
+      ],
+      "dtype": "float32"
+    },
+    "correction_norm": {
+      "shape": [
+        2350
+      ],
+      "dtype": "float32"
+    },
+    "correction_raw_actions": {
+      "shape": [
+        2350,
+        3
+      ],
+      "dtype": "float32"
+    },
+    "correction_xy_norm": {
+      "shape": [
+        2350
+      ],
+      "dtype": "float32"
+    },
+    "desired_z": {
+      "shape": [
+        2350
+      ],
+      "dtype": "float32"
+    },
+    "dist_xy": {
+      "shape": [
+        2350
+      ],
+      "dtype": "float32"
+    },
+    "dist_z": {
+      "shape": [
+        2350
+      ],
+      "dtype": "float32"
+    },
+    "episode_collision": {
+      "shape": [
+        2350
+      ],
+      "dtype": "bool"
+    },
+    "episode_id": {
+      "shape": [
+        2350
+      ],
+      "dtype": "int32"
+    },
+    "episode_outcome": {
+      "shape": [
+        2350
+      ],
+      "dtype": "<U7"
+    },
+    "episode_success": {
+      "shape": [
+        2350
+      ],
+      "dtype": "bool"
+    },
+    "episode_timeout": {
+      "shape": [
+        2350
+      ],
+      "dtype": "bool"
+    },
+    "failure_window": {
+      "shape": [
+        2350
+      ],
+      "dtype": "bool"
+    },
+    "final_step": {
+      "shape": [
+        2350
+      ],
+      "dtype": "int32"
+    },
+    "fixture_height_offset": {
+      "shape": [
+        2350
+      ],
+      "dtype": "float32"
+    },
+    "hole_center_offset": {
+      "shape": [
+        2350,
+        2
+      ],
+      "dtype": "float32"
+    },
+    "hole_clearance": {
+      "shape": [
+        2350
+      ],
+      "dtype": "float32"
+    },
+    "hole_half_size": {
+      "shape": [
+        2350
+      ],
+      "dtype": "float32"
+    },
+    "joint_damping_multiplier": {
+      "shape": [
+        2350
+      ],
+      "dtype": "float32"
+    },
+    "near_hole": {
+      "shape": [
+        2350
+      ],
+      "dtype": "bool"
+    },
+    "near_hole_crops": {
+      "shape": [
+        2350,
+        64,
+        64,
+        1
+      ],
+      "dtype": "uint8"
+    },
+    "opposed_actions": {
+      "shape": [
+        2350
+      ],
+      "dtype": "bool"
+    },
+    "oracle_norm": {
+      "shape": [
+        2350
+      ],
+      "dtype": "float32"
+    },
+    "peg_radius": {
+      "shape": [
+        2350
+      ],
+      "dtype": "float32"
+    },
+    "peg_tip_pos": {
+      "shape": [
+        2350,
+        3
+      ],
+      "dtype": "float32"
+    },
+    "policy_actions": {
+      "shape": [
+        2350,
+        3
+      ],
+      "dtype": "float32"
+    },
+    "policy_down_or_oracle_up": {
+      "shape": [
+        2350
+      ],
+      "dtype": "bool"
+    },
+    "policy_down_oracle_less_down": {
+      "shape": [
+        2350
+      ],
+      "dtype": "bool"
+    },
+    "policy_norm": {
+      "shape": [
+        2350
+      ],
+      "dtype": "float32"
+    },
+    "policy_raw_actions": {
+      "shape": [
+        2350,
+        3
+      ],
+      "dtype": "float32"
+    },
+    "raw_actions": {
+      "shape": [
+        2350,
+        3
+      ],
+      "dtype": "float32"
+    },
+    "scenario": {
+      "shape": [
+        2350
+      ],
+      "dtype": "<U22"
+    },
+    "seed": {
+      "shape": [
+        2350
+      ],
+      "dtype": "int32"
+    },
+    "step_id": {
+      "shape": [
+        2350
+      ],
+      "dtype": "int32"
+    },
+    "steps_to_end": {
+      "shape": [
+        2350
+      ],
+      "dtype": "int32"
+    },
+    "table_height_offset": {
+      "shape": [
+        2350
+      ],
+      "dtype": "float32"
+    },
+    "target_pos": {
+      "shape": [
+        2350,
+        3
+      ],
+      "dtype": "float32"
+    },
+    "tier": {
+      "shape": [
+        2350
+      ],
+      "dtype": "<U12"
+    },
+    "z_above_target": {
+      "shape": [
+        2350
+      ],
+      "dtype": "float32"
+    }
+  },
+  "diagnostics": {
+    "correction_norm": {
+      "mean": 0.010549219325184822,
+      "min": 0.006007688120007515,
+      "max": 0.015666302293539047
+    },
+    "action_cosine": {
+      "mean": -0.2260158658027649,
+      "min": -0.9965001344680786,
+      "max": 0.7846912741661072
+    },
+    "hole_clearance": {
+      "mean": 0.0105122160166502,
+      "min": 0.0075599499978125095,
+      "max": 0.016738418489694595
+    },
+    "control_action_delay": {
+      "mean": 1.3097872734069824,
+      "min": 0.0,
+      "max": 2.0
+    },
+    "control_action_filter_alpha": {
+      "mean": 0.7160207033157349,
+      "min": 0.5505056381225586,
+      "max": 0.9990390539169312
+    },
+    "near_hole_rate": 1.0,
+    "opposed_action_rate": 0.6531914893617021,
+    "policy_down_or_oracle_up_rate": 0.2297872340425532
+  }
+}

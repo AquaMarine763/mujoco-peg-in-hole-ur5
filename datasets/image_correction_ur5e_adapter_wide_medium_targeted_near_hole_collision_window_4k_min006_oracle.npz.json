@@ -1,0 +1,411 @@
+{
+  "dataset_schema_version": "image_correction_v1_policy_failure_window",
+  "samples": 4000,
+  "model": "checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\\sac_image_bc.zip",
+  "model_path": "assets\\ur5e_adapter\\ur5e_peg_in_hole.xml",
+  "scenario_preset": "targeted",
+  "tier_preset": "wide_medium",
+  "selection": "near_hole_failure_window",
+  "episode_outcome_filter": "collision",
+  "failure_window_steps": 10,
+  "near_hole_xy": 0.03,
+  "near_hole_z": 0.1,
+  "min_correction_norm": 0.006,
+  "max_samples_per_episode": 6,
+  "samples_per_config": 1000,
+  "max_episodes_per_config": 5000,
+  "episodes_completed": 14990,
+  "config_summaries": [
+    {
+      "tier": "wide_current",
+      "scenario": "full_light_geometry",
+      "episodes_completed": 3065,
+      "samples": 1000,
+      "success_rate": 0.5938009787928222,
+      "collision_rate": 0.3934747145187602,
+      "timeout_rate": 0.013050570962479609
+    },
+    {
+      "tier": "wide_current",
+      "scenario": "hard_full_light_bucket",
+      "episodes_completed": 4142,
+      "samples": 1000,
+      "success_rate": 0.29430226943505555,
+      "collision_rate": 0.6989377112506036,
+      "timeout_rate": 0.006760019314340898
+    },
+    {
+      "tier": "medium",
+      "scenario": "full_light_geometry",
+      "episodes_completed": 2986,
+      "samples": 1000,
+      "success_rate": 0.5140656396517079,
+      "collision_rate": 0.4350301406563965,
+      "timeout_rate": 0.050904219691895514
+    },
+    {
+      "tier": "medium",
+      "scenario": "hard_full_light_bucket",
+      "episodes_completed": 4797,
+      "samples": 1000,
+      "success_rate": 0.31915780696268503,
+      "collision_rate": 0.6479049405878674,
+      "timeout_rate": 0.03293725244944757
+    }
+  ],
+  "image_width": 100,
+  "image_height": 100,
+  "include_near_hole_crop": true,
+  "near_hole_crop_size": 64,
+  "success_xy_tolerance": 0.005,
+  "success_z_tolerance": 0.01,
+  "approach_xy_tolerance": 0.02,
+  "oracle_mode": "guarded_two_stage",
+  "oracle_action_gain": 1.0,
+  "array_metadata": {
+    "action_cosine": {
+      "shape": [
+        4000
+      ],
+      "dtype": "float32"
+    },
+    "actions": {
+      "shape": [
+        4000,
+        3
+      ],
+      "dtype": "float32"
+    },
+    "actuator_kp_multiplier": {
+      "shape": [
+        4000
+      ],
+      "dtype": "float32"
+    },
+    "cam_images": {
+      "shape": [
+        4000,
+        100,
+        100,
+        1
+      ],
+      "dtype": "uint8"
+    },
+    "contact_friction_multiplier": {
+      "shape": [
+        4000
+      ],
+      "dtype": "float32"
+    },
+    "contact_solimp_width_multiplier": {
+      "shape": [
+        4000
+      ],
+      "dtype": "float32"
+    },
+    "contact_solref_damping_multiplier": {
+      "shape": [
+        4000
+      ],
+      "dtype": "float32"
+    },
+    "contact_solref_time_multiplier": {
+      "shape": [
+        4000
+      ],
+      "dtype": "float32"
+    },
+    "control_action_delay": {
+      "shape": [
+        4000
+      ],
+      "dtype": "int32"
+    },
+    "control_action_filter_alpha": {
+      "shape": [
+        4000
+      ],
+      "dtype": "float32"
+    },
+    "control_action_noise_std": {
+      "shape": [
+        4000
+      ],
+      "dtype": "float32"
+    },
+    "control_action_scale_multiplier": {
+      "shape": [
+        4000
+      ],
+      "dtype": "float32"
+    },
+    "correction_norm": {
+      "shape": [
+        4000
+      ],
+      "dtype": "float32"
+    },
+    "correction_raw_actions": {
+      "shape": [
+        4000,
+        3
+      ],
+      "dtype": "float32"
+    },
+    "correction_xy_norm": {
+      "shape": [
+        4000
+      ],
+      "dtype": "float32"
+    },
+    "desired_z": {
+      "shape": [
+        4000
+      ],
+      "dtype": "float32"
+    },
+    "dist_xy": {
+      "shape": [
+        4000
+      ],
+      "dtype": "float32"
+    },
+    "dist_z": {
+      "shape": [
+        4000
+      ],
+      "dtype": "float32"
+    },
+    "episode_collision": {
+      "shape": [
+        4000
+      ],
+      "dtype": "bool"
+    },
+    "episode_id": {
+      "shape": [
+        4000
+      ],
+      "dtype": "int32"
+    },
+    "episode_outcome": {
+      "shape": [
+        4000
+      ],
+      "dtype": "<U9"
+    },
+    "episode_success": {
+      "shape": [
+        4000
+      ],
+      "dtype": "bool"
+    },
+    "episode_timeout": {
+      "shape": [
+        4000
+      ],
+      "dtype": "bool"
+    },
+    "failure_window": {
+      "shape": [
+        4000
+      ],
+      "dtype": "bool"
+    },
+    "final_step": {
+      "shape": [
+        4000
+      ],
+      "dtype": "int32"
+    },
+    "fixture_height_offset": {
+      "shape": [
+        4000
+      ],
+      "dtype": "float32"
+    },
+    "hole_center_offset": {
+      "shape": [
+        4000,
+        2
+      ],
+      "dtype": "float32"
+    },
+    "hole_clearance": {
+      "shape": [
+        4000
+      ],
+      "dtype": "float32"
+    },
+    "hole_half_size": {
+      "shape": [
+        4000
+      ],
+      "dtype": "float32"
+    },
+    "joint_damping_multiplier": {
+      "shape": [
+        4000
+      ],
+      "dtype": "float32"
+    },
+    "near_hole": {
+      "shape": [
+        4000
+      ],
+      "dtype": "bool"
+    },
+    "near_hole_crops": {
+      "shape": [
+        4000,
+        64,
+        64,
+        1
+      ],
+      "dtype": "uint8"
+    },
+    "opposed_actions": {
+      "shape": [
+        4000
+      ],
+      "dtype": "bool"
+    },
+    "oracle_norm": {
+      "shape": [
+        4000
+      ],
+      "dtype": "float32"
+    },
+    "peg_radius": {
+      "shape": [
+        4000
+      ],
+      "dtype": "float32"
+    },
+    "peg_tip_pos": {
+      "shape": [
+        4000,
+        3
+      ],
+      "dtype": "float32"
+    },
+    "policy_actions": {
+      "shape": [
+        4000,
+        3
+      ],
+      "dtype": "float32"
+    },
+    "policy_down_or_oracle_up": {
+      "shape": [
+        4000
+      ],
+      "dtype": "bool"
+    },
+    "policy_down_oracle_less_down": {
+      "shape": [
+        4000
+      ],
+      "dtype": "bool"
+    },
+    "policy_norm": {
+      "shape": [
+        4000
+      ],
+      "dtype": "float32"
+    },
+    "policy_raw_actions": {
+      "shape": [
+        4000,
+        3
+      ],
+      "dtype": "float32"
+    },
+    "raw_actions": {
+      "shape": [
+        4000,
+        3
+      ],
+      "dtype": "float32"
+    },
+    "scenario": {
+      "shape": [
+        4000
+      ],
+      "dtype": "<U22"
+    },
+    "seed": {
+      "shape": [
+        4000
+      ],
+      "dtype": "int32"
+    },
+    "step_id": {
+      "shape": [
+        4000
+      ],
+      "dtype": "int32"
+    },
+    "steps_to_end": {
+      "shape": [
+        4000
+      ],
+      "dtype": "int32"
+    },
+    "table_height_offset": {
+      "shape": [
+        4000
+      ],
+      "dtype": "float32"
+    },
+    "target_pos": {
+      "shape": [
+        4000,
+        3
+      ],
+      "dtype": "float32"
+    },
+    "tier": {
+      "shape": [
+        4000
+      ],
+      "dtype": "<U12"
+    },
+    "z_above_target": {
+      "shape": [
+        4000
+      ],
+      "dtype": "float32"
+    }
+  },
+  "diagnostics": {
+    "correction_norm": {
+      "mean": 0.008703242987394333,
+      "min": 0.006000823341310024,
+      "max": 0.015607899986207485
+    },
+    "action_cosine": {
+      "mean": 0.13514690101146698,
+      "min": -0.9995960593223572,
+      "max": 0.7199192643165588
+    },
+    "hole_clearance": {
+      "mean": 0.012495831586420536,
+      "min": 0.007527514826506376,
+      "max": 0.017446009442210197
+    },
+    "control_action_delay": {
+      "mean": 1.5452500581741333,
+      "min": 0.0,
+      "max": 2.0
+    },
+    "control_action_filter_alpha": {
+      "mean": 0.7032523155212402,
+      "min": 0.5502713918685913,
+      "max": 0.999862015247345
+    },
+    "near_hole_rate": 1.0,
+    "opposed_action_rate": 0.2575,
+    "policy_down_or_oracle_up_rate": 0.28675
+  }
+}

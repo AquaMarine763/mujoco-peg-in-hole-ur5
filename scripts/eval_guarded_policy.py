@@ -131,6 +131,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--guard-start-z", type=float, default=0.100)
     parser.add_argument("--guard-risk-xy", type=float, default=0.0)
     parser.add_argument("--guard-blend", type=float, default=1.0)
+    parser.add_argument("--guard-min-policy-steps", type=int, default=0)
+    parser.add_argument("--guard-block-down-when-unaligned", action="store_true")
     parser.add_argument("--guard-release-on-high", action="store_true")
     parser.add_argument("--guard-action-gain", type=float, default=1.0)
     parser.add_argument("--guarded-align-xy-tolerance", type=float, default=0.025)
@@ -193,6 +195,8 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         guard_start_z=args.guard_start_z,
         guard_risk_xy=args.guard_risk_xy,
         guard_blend=args.guard_blend,
+        guard_min_policy_steps=args.guard_min_policy_steps,
+        guard_block_down_when_unaligned=args.guard_block_down_when_unaligned,
         guard_release_on_high=args.guard_release_on_high,
         oracle=OracleControllerConfig(
             mode="guarded_two_stage",
@@ -316,6 +320,8 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Guard risk XY: `{args.guard_risk_xy}`",
         f"- Guard scenario filter: `{args.guard_scenario_filter}`",
         f"- Guard blend: `{args.guard_blend}`",
+        f"- Guard min policy steps: `{args.guard_min_policy_steps}`",
+        f"- Guard block down when unaligned: `{args.guard_block_down_when_unaligned}`",
         f"- Guarded align/insert XY: `{args.guarded_align_xy_tolerance}/{args.guarded_insert_xy_tolerance}`",
         f"- Guarded max XY/down/up action: `{args.guarded_max_xy_action}/{args.guarded_max_down_action}/{args.guarded_max_up_action}`",
         f"- Guarded prediction steps: `{args.guarded_prediction_steps}`",

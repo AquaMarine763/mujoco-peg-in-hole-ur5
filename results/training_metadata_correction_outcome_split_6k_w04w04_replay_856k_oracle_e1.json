@@ -1,0 +1,117 @@
+{
+  "output": "checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_correction_outcome_split_6k_w04w04_replay_856k_oracle_e1\\sac_image_bc.zip",
+  "base_model": "checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\\sac_image_bc.zip",
+  "model_path": "assets\\ur5e_adapter\\ur5e_peg_in_hole.xml",
+  "datasets": [
+    {
+      "path": "datasets\\image_expert_ur5e_adapter_fixedcam_clean_visual_camera_control_delay_filter_success_350k_oracle.npz",
+      "samples": 350000,
+      "train_samples": 332500,
+      "validation_samples": 17500,
+      "weight": 0.276,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "datasets\\image_expert_ur5e_adapter_fixedcam_visual_camera_control_hard_success_50k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.11,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "datasets\\image_expert_ur5e_adapter_fixedcam_visual_camera_control_delay2_lowalpha_lowscale_lownoise_success_50k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.092,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "datasets\\image_expert_ur5e_adapter_fixedcam_full_light_geometry_control_success_50k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.138,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "datasets\\image_expert_ur5e_adapter_fixedcam_50k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.055,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "datasets\\image_expert_ur5e_adapter_fixedcam_visual_camera_50k_seed130k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.037,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "datasets\\image_expert_ur5e_adapter_fixedcam_visual_camera_control_success_50k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.074,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "datasets\\image_expert_ur5e_adapter_fixedcam_full_light_geometry_intermediate_success_50k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.092,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "datasets\\image_expert_ur5e_adapter_fixedcam_full_light_geometry_narrow_success_50k_oracle.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.046,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "datasets\\image_correction_ur5e_adapter_wide_medium_targeted_near_hole_collision_window_4k_min006_oracle.npz",
+      "samples": 4000,
+      "train_samples": 3800,
+      "validation_samples": 200,
+      "weight": 0.04,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "datasets\\image_correction_ur5e_adapter_wide_medium_targeted_near_hole_timeout_window_4k_min006_oracle.npz",
+      "samples": 2350,
+      "train_samples": 2233,
+      "validation_samples": 117,
+      "weight": 0.04,
+      "has_near_hole_crops": true
+    }
+  ],
+  "epochs": 1,
+  "samples_per_epoch": 200000,
+  "batch_size": 512,
+  "learning_rate": 8e-07,
+  "validation_split": 0.05,
+  "validation_batches": 20,
+  "seed": 410000,
+  "device": "cpu",
+  "include_near_hole_crop": true,
+  "near_hole_crop_size": 64,
+  "success_xy_tolerance": 0.005,
+  "success_z_tolerance": 0.01,
+  "approach_xy_tolerance": 0.02,
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 0.15024345051354307,
+      "val_loss": 0.1829541577952914
+    }
+  ],
+  "final_train_loss": 0.15024345051354307,
+  "final_val_loss": 0.1829541577952914
+}
