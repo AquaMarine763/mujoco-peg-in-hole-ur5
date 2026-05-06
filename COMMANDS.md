@@ -1318,6 +1318,46 @@ the current 750k baseline. The next iteration should add near-failure
 correction/DAgger-style data instead of only raising medium success-only replay
 weight.
 
+## Policy vs Oracle Correction Analysis
+
+Use this analysis before collecting corrective data. It executes the learned
+policy, queries the guarded two-stage oracle on the same pre-step state, and
+logs the policy action, oracle action, correction vector, near-hole flag, and
+whether the row falls in the last few steps before a collision or timeout.
+
+```powershell
+python scripts\analyze_policy_oracle_corrections.py `
+  --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml `
+  --agent sac `
+  --observation-mode image `
+  --include-near-hole-crop `
+  --near-hole-crop-size 64 `
+  --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip `
+  --episodes 50 `
+  --device cpu `
+  --seed 980000 `
+  --scenario-preset targeted `
+  --tier-preset wide_medium `
+  --output-csv results\policy_oracle_corrections_750k_targeted_50ep_steps.csv `
+  --episode-output-csv results\policy_oracle_corrections_750k_targeted_50ep_episodes.csv `
+  --output-md results\policy_oracle_corrections_750k_targeted_50ep.md
+```
+
+Checked result:
+
+| Tier | Scenario | Success | Collision | Failure corr | Failure opposed | Policy down / oracle up |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| wide_current | full_light_geometry | 0.640 | 0.360 | 0.005 | 0.035 | 0.065 |
+| wide_current | hard_full_light_bucket | 0.320 | 0.680 | 0.004 | 0.007 | 0.070 |
+| medium | full_light_geometry | 0.660 | 0.300 | 0.005 | 0.189 | 0.125 |
+| medium | hard_full_light_bucket | 0.400 | 0.560 | 0.004 | 0.076 | 0.059 |
+
+The main signal is medium `full_light_geometry`: in the failure window,
+policy-vs-oracle action opposition is much higher than wide
+`full_light_geometry`. The next data collection pass should target rows with
+`failure_window=True`, high `correction_norm`, and preferably `near_hole=True`
+as DAgger-style corrective samples.
+
 ## Current Recommended UR5e Model
 
 ```text

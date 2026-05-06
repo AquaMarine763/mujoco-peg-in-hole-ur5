@@ -179,6 +179,16 @@ The next step should diagnose near-failure/correction data rather than simply
 raising medium replay weight. See
 `results/medium_clearance_dataset_diagnostics_summary.md`.
 
+That diagnosis is now available in
+`scripts/analyze_policy_oracle_corrections.py`. Running the current 750k model
+for 50 episodes per wide/medium targeted bucket shows that medium
+`full_light_geometry` failures have the strongest policy-vs-oracle action
+disagreement: failure-window opposed-action rate is `0.189`, versus `0.035`
+for wide `full_light_geometry`. This supports the next data step: collect
+DAgger-style corrective samples from policy-visited failure windows instead of
+adding more success-only medium replay. See
+`results/policy_oracle_corrections_750k_targeted_50ep.md`.
+
 ## Quick Check
 
 Start with the low-dimensional state mode. This avoids camera-rendering issues

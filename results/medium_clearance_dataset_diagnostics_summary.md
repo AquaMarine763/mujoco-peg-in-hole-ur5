@@ -81,3 +81,10 @@ diagnose why medium success-only actions are not transferring: compare action
 and state distributions against failed policy rollouts, then either rebalance
 toward near-failure correction data or use DAgger/guarded corrective rollouts
 instead of only cloning successful guarded-oracle trajectories.
+
+That follow-up diagnosis is recorded in
+`results/policy_oracle_corrections_750k_targeted_50ep.md`. The strongest signal
+is medium `full_light_geometry`: in the last eight steps before failure, the
+policy-vs-oracle opposed-action rate is `0.189`, compared with `0.035` in the
+wide `full_light_geometry` bucket. This makes medium failure-window correction
+data a better next target than another success-only replay pass.
