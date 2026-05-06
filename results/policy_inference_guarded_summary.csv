@@ -1,0 +1,4 @@
+scenario,seed,configuration,success,collision,steps,guard_steps,final_dist_xy,final_dist_z,trace
+visual_camera_control,90000,guarded_geometry_blend_0.75,True,False,10,0,0.0049842086077077335,0.006742484888622342,results/policy_inference_visual_camera_control_guarded_smoke.csv
+hard_bucket,90005,no_guard,False,True,11,0,0.020483447632385524,0.026248922129447047,results/policy_inference_hard_bucket_no_guard_smoke.csv
+hard_bucket,90005,guarded_geometry_blend_0.75,True,False,34,34,0.004785863973514954,0.007681017973749227,results/policy_inference_hard_bucket_guarded_blend075_smoke.csv

@@ -2,11 +2,19 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from typing import Any
 
+import numpy as np
 from stable_baselines3 import A2C, PPO, SAC
 
-from peg_in_hole_mujoco import PegInHoleMujocoEnv
+from peg_in_hole_mujoco import (
+    GuardedPolicyConfig,
+    GuardedPolicyController,
+    OracleControllerConfig,
+    PegInHoleMujocoEnv,
+)
 from peg_in_hole_mujoco.policy_interface import (
+    ActionTransformResult,
     MujocoActionExecutor,
     MujocoObservationProvider,
     PolicyInferenceSession,
@@ -81,6 +89,27 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--safety-workspace-low", nargs=3, type=float, default=(0.30, -0.25, 0.55))
     parser.add_argument("--safety-workspace-high", nargs=3, type=float, default=(0.75, 0.25, 0.85))
     parser.add_argument("--safety-action-filter-alpha", type=float, default=1.0)
+    parser.add_argument("--guarded-policy", action="store_true")
+    parser.add_argument(
+        "--guard-scenario-filter",
+        choices=["none", "all", "geometry", "hard"],
+        default="geometry",
+    )
+    parser.add_argument("--guard-scenario-name", default="deployment")
+    parser.add_argument("--guard-start-xy", type=float, default=0.060)
+    parser.add_argument("--guard-start-z", type=float, default=0.100)
+    parser.add_argument("--guard-risk-xy", type=float, default=0.0)
+    parser.add_argument("--guard-blend", type=float, default=0.75)
+    parser.add_argument("--guard-release-on-high", action="store_true")
+    parser.add_argument("--guard-action-gain", type=float, default=1.0)
+    parser.add_argument("--guarded-align-xy-tolerance", type=float, default=0.025)
+    parser.add_argument("--guarded-insert-xy-tolerance", type=float, default=0.005)
+    parser.add_argument("--guarded-retract-xy-tolerance", type=float, default=0.012)
+    parser.add_argument("--guarded-preinsert-height", type=float, default=0.0)
+    parser.add_argument("--guarded-max-xy-action", type=float, default=0.005)
+    parser.add_argument("--guarded-max-down-action", type=float, default=0.0035)
+    parser.add_argument("--guarded-max-up-action", type=float, default=0.005)
+    parser.add_argument("--guarded-prediction-steps", type=float, default=1.0)
     return parser.parse_args()
 
 
@@ -128,6 +157,72 @@ def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
     )
 
 
+def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
+    return GuardedPolicyConfig(
+        scenario_filter=args.guard_scenario_filter,
+        guard_start_xy=args.guard_start_xy,
+        guard_start_z=args.guard_start_z,
+        guard_risk_xy=args.guard_risk_xy,
+        guard_blend=args.guard_blend,
+        guard_release_on_high=args.guard_release_on_high,
+        oracle=OracleControllerConfig(
+            mode="guarded_two_stage",
+            action_gain=args.guard_action_gain,
+            guarded_align_xy_tolerance=args.guarded_align_xy_tolerance,
+            guarded_insert_xy_tolerance=args.guarded_insert_xy_tolerance,
+            guarded_retract_xy_tolerance=args.guarded_retract_xy_tolerance,
+            guarded_preinsert_height=args.guarded_preinsert_height,
+            guarded_max_xy_action=args.guarded_max_xy_action,
+            guarded_max_down_action=args.guarded_max_down_action,
+            guarded_max_up_action=args.guarded_max_up_action,
+            guarded_prediction_steps=args.guarded_prediction_steps,
+        ),
+    )
+
+
+class GuardedDeploymentActionTransformer:
+    def __init__(
+        self,
+        env: PegInHoleMujocoEnv,
+        config: GuardedPolicyConfig,
+        scenario_name: str,
+        scenario_level: str,
+    ) -> None:
+        self.env = env
+        self.controller = GuardedPolicyController(config)
+        self.scenario_name = scenario_name
+        self.scenario_level = scenario_level
+        self.guard_enabled = self.controller.scenario_uses_guard(scenario_name, scenario_level)
+
+    def reset(self) -> None:
+        self.controller.reset()
+
+    def initial_diagnostics(self) -> dict[str, Any]:
+        return {
+            "guard_enabled": self.guard_enabled,
+            "guard_active": False,
+        }
+
+    def transform(self, info: dict[str, Any], policy_action: np.ndarray) -> ActionTransformResult:
+        guarded_step = self.controller.step(
+            self.env,
+            info,
+            policy_action,
+            scenario_name=self.scenario_name,
+            scenario_level=self.scenario_level,
+        )
+        return ActionTransformResult(
+            action=guarded_step.action,
+            diagnostics={
+                "guard_enabled": self.guard_enabled,
+                "guard_active": guarded_step.guarded,
+                "policy_action": guarded_step.policy_action,
+                "guarded_action": guarded_step.guarded_action,
+                "final_action": guarded_step.action,
+            },
+        )
+
+
 def main() -> None:
     args = parse_args()
     env = make_env(args)
@@ -141,12 +236,23 @@ def main() -> None:
             action_filter_alpha=args.safety_action_filter_alpha,
         )
     )
+    action_transformer = (
+        GuardedDeploymentActionTransformer(
+            env,
+            make_guarded_config(args),
+            args.guard_scenario_name,
+            args.domain_randomization_level,
+        )
+        if args.guarded_policy
+        else None
+    )
     session = PolicyInferenceSession(
         observation_provider=MujocoObservationProvider(env),
         action_executor=MujocoActionExecutor(env),
         policy=policy,
         safety_filter=safety_filter,
         control_frequency_hz=args.control_frequency_hz,
+        action_transformer=action_transformer,
     )
 
     rows = []
@@ -159,15 +265,17 @@ def main() -> None:
             )
             rows.extend(episode_rows)
             results.append(result)
+            guard_steps = sum(int(row.get("guard_active", False)) for row in episode_rows)
             print(
                 "episode={episode} success={success} collision={collision} "
-                "truncated={truncated} steps={steps} return={ret:.3f} "
+                "truncated={truncated} steps={steps} guard_steps={guard_steps} return={ret:.3f} "
                 "dist_xy={dist_xy:.5f} dist_z={dist_z:.5f}".format(
                     episode=result.episode,
                     success=result.success,
                     collision=result.collision,
                     truncated=result.truncated,
                     steps=result.steps,
+                    guard_steps=guard_steps,
                     ret=result.episode_return,
                     dist_xy=result.final_dist_xy,
                     dist_z=result.final_dist_z,

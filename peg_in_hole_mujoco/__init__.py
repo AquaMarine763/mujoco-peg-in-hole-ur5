@@ -15,6 +15,8 @@ from peg_in_hole_mujoco.oracle_controller import (
 )
 from peg_in_hole_mujoco.policy_interface import (
     ActionExecutor,
+    ActionTransformer,
+    ActionTransformResult,
     MujocoActionExecutor,
     MujocoObservationProvider,
     MujocoPolicySession,
@@ -34,6 +36,8 @@ from peg_in_hole_mujoco.real_backend import (
 
 __all__ = [
     "ActionExecutor",
+    "ActionTransformer",
+    "ActionTransformResult",
     "DryRunUR5ActionExecutor",
     "GuardScenarioFilter",
     "GuardedPolicyConfig",

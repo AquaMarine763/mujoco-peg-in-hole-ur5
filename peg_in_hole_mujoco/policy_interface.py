@@ -15,6 +15,20 @@ class PolicyAdapter(Protocol):
         """Return a Cartesian delta action in meters."""
 
 
+@dataclass(frozen=True)
+class ActionTransformResult:
+    action: np.ndarray
+    diagnostics: dict[str, Any]
+
+
+class ActionTransformer(Protocol):
+    def reset(self) -> None:
+        """Reset per-episode transformer state."""
+
+    def transform(self, info: dict[str, Any], policy_action: np.ndarray) -> ActionTransformResult:
+        """Return the pre-safety action and optional trace diagnostics."""
+
+
 class ObservationProvider(Protocol):
     def reset(self, seed: int | None = None) -> tuple[Any, dict[str, Any]]:
         """Reset the data source and return the first policy observation."""
@@ -159,6 +173,7 @@ class PolicyInferenceSession:
         policy: PolicyAdapter,
         safety_filter: SafetyFilter,
         control_frequency_hz: float,
+        action_transformer: ActionTransformer | None = None,
     ):
         if control_frequency_hz <= 0.0:
             raise ValueError("control_frequency_hz must be positive.")
@@ -168,10 +183,14 @@ class PolicyInferenceSession:
         self.safety_filter = safety_filter
         self.control_frequency_hz = float(control_frequency_hz)
         self.control_period_sec = 1.0 / self.control_frequency_hz
+        self.action_transformer = action_transformer
 
     def run_episode(self, episode: int, seed: int) -> tuple[EpisodeResult, list[dict[str, Any]]]:
         self.safety_filter.reset()
+        if self.action_transformer is not None:
+            self.action_transformer.reset()
         obs, info = self.observation_provider.reset(seed=seed)
+        initial_action_diagnostics = self._initial_action_diagnostics()
         episode_return = 0.0
         rows: list[dict[str, Any]] = [
             self._row(
@@ -180,6 +199,8 @@ class PolicyInferenceSession:
                 reward=0.0,
                 episode_return=episode_return,
                 raw_action=np.zeros(3, dtype=np.float64),
+                policy_action=np.zeros(3, dtype=np.float64),
+                action_diagnostics=initial_action_diagnostics,
                 safe_action=zero_safe_action(info),
                 info=info,
                 terminated=False,
@@ -188,7 +209,13 @@ class PolicyInferenceSession:
         ]
 
         while True:
-            raw_action = self.policy.predict(obs)
+            policy_action = self.policy.predict(obs)
+            raw_action = policy_action
+            action_diagnostics: dict[str, Any] = {}
+            if self.action_transformer is not None:
+                transform = self.action_transformer.transform(info, policy_action)
+                raw_action = transform.action
+                action_diagnostics = transform.diagnostics
             safe_action = self.safety_filter.filter(raw_action, info["peg_tip_pos"])
             step_result = self.action_executor.execute(safe_action.safe_action)
             obs = step_result.observation
@@ -201,6 +228,8 @@ class PolicyInferenceSession:
                     reward=step_result.reward,
                     episode_return=episode_return,
                     raw_action=raw_action,
+                    policy_action=policy_action,
+                    action_diagnostics=action_diagnostics,
                     safe_action=safe_action,
                     info=info,
                     terminated=step_result.terminated,
@@ -225,6 +254,14 @@ class PolicyInferenceSession:
     def close(self) -> None:
         self.action_executor.close()
 
+    def _initial_action_diagnostics(self) -> dict[str, Any]:
+        if self.action_transformer is None:
+            return {}
+        initial_diagnostics = getattr(self.action_transformer, "initial_diagnostics", None)
+        if callable(initial_diagnostics):
+            return dict(initial_diagnostics())
+        return {}
+
     def _row(
         self,
         *,
@@ -233,6 +270,8 @@ class PolicyInferenceSession:
         reward: float,
         episode_return: float,
         raw_action: np.ndarray,
+        policy_action: np.ndarray,
+        action_diagnostics: dict[str, Any],
         safe_action: SafeAction,
         info: dict[str, Any],
         terminated: bool,
@@ -252,6 +291,8 @@ class PolicyInferenceSession:
             "dist_z": float(info.get("dist_z", float("nan"))),
             "shaped_distance": float(info.get("shaped_distance", float("nan"))),
             "desired_z": float(info.get("desired_z", float("nan"))),
+            "guard_enabled": bool(action_diagnostics.get("guard_enabled", False)),
+            "guard_active": bool(action_diagnostics.get("guard_active", False)),
             "action_limited": safe_action.action_limited,
             "workspace_limited": safe_action.workspace_limited,
             "control_action_scale_multiplier": float(info.get("control_action_scale_multiplier", float("nan"))),
@@ -261,6 +302,9 @@ class PolicyInferenceSession:
         }
         row.update(vector_fields("target", info.get("target_pos", (float("nan"),) * 3), 3))
         row.update(vector_fields("peg_tip", info.get("peg_tip_pos", (float("nan"),) * 3), 3))
+        row.update(vector_fields("policy_action", action_diagnostics.get("policy_action", policy_action), 3))
+        row.update(vector_fields("guarded_action", action_diagnostics.get("guarded_action"), 3))
+        row.update(vector_fields("final_action", action_diagnostics.get("final_action", raw_action), 3))
         row.update(vector_fields("raw_action", raw_action, 3))
         row.update(vector_fields("limited_action", safe_action.limited_action, 3))
         row.update(vector_fields("filtered_action", safe_action.filtered_action, 3))
@@ -279,6 +323,7 @@ class MujocoPolicySession(PolicyInferenceSession):
         policy: PolicyAdapter,
         safety_filter: SafetyFilter,
         control_frequency_hz: float,
+        action_transformer: ActionTransformer | None = None,
     ):
         super().__init__(
             observation_provider=MujocoObservationProvider(env),
@@ -286,6 +331,7 @@ class MujocoPolicySession(PolicyInferenceSession):
             policy=policy,
             safety_filter=safety_filter,
             control_frequency_hz=control_frequency_hz,
+            action_transformer=action_transformer,
         )
 
 
@@ -306,6 +352,8 @@ def zero_safe_action(info: dict[str, Any]) -> SafeAction:
 
 def vector_fields(prefix: str, value: Any, size: int) -> dict[str, float]:
     labels = ("x", "y", "z") if size == 3 else tuple(str(index) for index in range(size))
+    if value is None:
+        return {f"{prefix}_{label}": float("nan") for label in labels}
     array = np.asarray(value, dtype=np.float64).reshape(-1)
     return {
         f"{prefix}_{label}": float(array[index]) if index < array.size else float("nan")

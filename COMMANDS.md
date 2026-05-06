@@ -1024,6 +1024,98 @@ Result:
 Promote `guard_blend=0.75` as the next guarded deployment candidate. Full
 details are in `results\guarded_policy_param_scan_summary.md`.
 
+## Guarded Deployment Inference
+
+Run a deployment-style smoke where geometry-only guard is available but should
+not activate in the control-only scenario:
+
+```powershell
+python scripts\run_policy_inference.py `
+  --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml `
+  --agent sac `
+  --observation-mode image `
+  --include-near-hole-crop `
+  --near-hole-crop-size 64 `
+  --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip `
+  --episodes 1 `
+  --seed 90000 `
+  --device cpu `
+  --output results\policy_inference_visual_camera_control_guarded_smoke.csv `
+  --domain-randomization-level visual_camera_control `
+  --success-xy-tolerance 0.005 `
+  --success-z-tolerance 0.01 `
+  --approach-xy-tolerance 0.02 `
+  --guarded-policy `
+  --guard-scenario-filter geometry `
+  --guard-blend 0.75
+```
+
+Run the hard-bucket no-guard deployment contrast:
+
+```powershell
+python scripts\run_policy_inference.py `
+  --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml `
+  --agent sac `
+  --observation-mode image `
+  --include-near-hole-crop `
+  --near-hole-crop-size 64 `
+  --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip `
+  --episodes 1 `
+  --seed 90005 `
+  --device cpu `
+  --output results\policy_inference_hard_bucket_no_guard_smoke.csv `
+  --domain-randomization-level full_light_geometry `
+  --control-action-scale-range 0.8 1.1 `
+  --control-action-noise-std-range 0 0.00025 `
+  --control-action-delay-range 2 2 `
+  --control-action-filter-alpha-range 0.55 0.70 `
+  --success-xy-tolerance 0.005 `
+  --success-z-tolerance 0.01 `
+  --approach-xy-tolerance 0.02
+```
+
+Run the same hard-bucket episode with guarded insertion:
+
+```powershell
+python scripts\run_policy_inference.py `
+  --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml `
+  --agent sac `
+  --observation-mode image `
+  --include-near-hole-crop `
+  --near-hole-crop-size 64 `
+  --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip `
+  --episodes 1 `
+  --seed 90005 `
+  --device cpu `
+  --output results\policy_inference_hard_bucket_guarded_blend075_smoke.csv `
+  --domain-randomization-level full_light_geometry `
+  --control-action-scale-range 0.8 1.1 `
+  --control-action-noise-std-range 0 0.00025 `
+  --control-action-delay-range 2 2 `
+  --control-action-filter-alpha-range 0.55 0.70 `
+  --success-xy-tolerance 0.005 `
+  --success-z-tolerance 0.01 `
+  --approach-xy-tolerance 0.02 `
+  --guarded-policy `
+  --guard-scenario-filter geometry `
+  --guard-scenario-name hard_full_light_bucket `
+  --guard-blend 0.75 `
+  --guard-start-xy 0.06 `
+  --guard-start-z 0.10
+```
+
+Result:
+
+| Scenario | Configuration | Success | Collision | Steps | Guard steps |
+| --- | --- | ---: | ---: | ---: | ---: |
+| visual_camera_control | guarded geometry blend 0.75 | 1 | 0 | 10 | 0 |
+| hard bucket | no guard | 0 | 1 | 11 | 0 |
+| hard bucket | guarded geometry blend 0.75 | 1 | 0 | 34 | 34 |
+
+Trace CSVs include `guard_enabled`, `guard_active`, `policy_action_*`,
+`guarded_action_*`, `final_action_*`, `raw_action_*`, and `safe_action_*`.
+Full details are in `results\policy_inference_guarded_summary.md`.
+
 ## Current Recommended UR5e Model
 
 ```text

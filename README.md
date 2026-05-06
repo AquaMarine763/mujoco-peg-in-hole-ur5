@@ -149,6 +149,13 @@ candidate keeps the same activation window but uses `guard_blend=0.75`. On a
 the previous `blend=1.0` wrapper. See
 `results/guarded_policy_param_scan_summary.md`.
 
+The same guarded wrapper is now available in the deployment-style inference
+entrypoint, `scripts/run_policy_inference.py`. It applies guarded insertion
+before the safety filter and logs policy, guarded, final, raw, and safe actions
+in the trace CSV. A hard-bucket smoke on seed `90005` changes from collision
+without guard to success with `guard_blend=0.75`; see
+`results/policy_inference_guarded_summary.md`.
+
 ## Quick Check
 
 Start with the low-dimensional state mode. This avoids camera-rendering issues
