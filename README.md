@@ -69,6 +69,12 @@ baseline. The remaining control failures are documented in
 the next data batch should bias toward delay 2, low filter alpha, low action
 scale, and high control noise.
 
+The next stage has started with a weighted multi-dataset BC trainer and a hole
+geometry oracle scan. The scan shows that the current staged oracle needs a
+more conservative `approach_xy_tolerance=0.02` before collecting narrowed-hole
+data; with that setting, hole half-size `0.020-0.025` is the recommended first
+geometry curriculum range for a 12 mm peg radius.
+
 ## Quick Check
 
 Start with the low-dimensional state mode. This avoids camera-rendering issues

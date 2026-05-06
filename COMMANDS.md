@@ -406,6 +406,79 @@ off some clean performance compared with the 350k model. It is the current
 control-robust recommendation; use the 350k model if the immediate goal is the
 highest clean score.
 
+## UR5e Adapter Balanced Weighted BC Trial
+
+The 500k hard-weighted model improves control robustness but lowers clean
+success to `0.960`. A balanced weighted BC trial can train from several source
+datasets without materializing another merged `.npz`:
+
+```powershell
+python scripts\pretrain_image_actor_bc_weighted.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --datasets datasets\image_expert_ur5e_adapter_fixedcam_clean_visual_camera_control_delay_filter_success_350k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_control_hard_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_50k_seed130k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_control_success_50k_oracle.npz --dataset-weights 0.55 0.18 0.12 0.05 0.10 --model checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_control_hard_weighted_500k_oracle_e5\sac_image_bc.zip --output checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_control_balanced_weighted_550k_oracle_e6\sac_image_bc.zip --epochs 6 --samples-per-epoch 300000 --batch-size 512 --learning-rate 0.000002 --validation-batches 20 --success-xy-tolerance 0.005 --success-z-tolerance 0.01 --device cpu
+```
+
+Balanced weighted result:
+
+| Environment | Success | Collision |
+| --- | ---: | ---: |
+| clean | 0.980 | 0.020 |
+| visual_camera | 0.980 | 0.020 |
+| visual_camera_control | 0.890 | 0.110 |
+| hard-control fixed bucket | 0.740 | 0.260 |
+| full_light_geometry | 0.310 | 0.660 |
+| full_contact_light | 0.300 | 0.670 |
+
+This trial recovers clean performance but does not improve default
+`visual_camera_control` beyond the hard-weighted model. It is a useful
+alternative if clean robustness matters more than the fixed hard-control bucket.
+
+Safety filtering was also checked with the deployment-style inference path:
+
+```powershell
+python scripts\run_policy_inference.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --agent sac --observation-mode image --model checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_control_hard_weighted_500k_oracle_e5\sac_image_bc.zip --episodes 100 --output results\policy_inference_ur5e_hard_weighted_500k_e5_alpha08_trace.csv --device cpu --seed 90000 --domain-randomization-level visual_camera_control --success-xy-tolerance 0.005 --success-z-tolerance 0.01 --safety-action-filter-alpha 0.8
+python scripts\run_policy_inference.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --agent sac --observation-mode image --model checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_control_hard_weighted_500k_oracle_e5\sac_image_bc.zip --episodes 100 --output results\policy_inference_ur5e_hard_weighted_500k_e5_alpha06_trace.csv --device cpu --seed 90000 --domain-randomization-level visual_camera_control --success-xy-tolerance 0.005 --success-z-tolerance 0.01 --safety-action-filter-alpha 0.6
+```
+
+The action filter did not improve success: `alpha=0.8` reached `0.870`, and
+`alpha=0.6` reached `0.860`.
+
+## Hole Geometry Curriculum Scan
+
+Before collecting narrowed-hole data, scan the staged oracle over fixed hole
+sizes:
+
+```powershell
+python scripts\scan_hole_geometry_oracle.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --output-csv results\hole_geometry_oracle_scan_ur5e_adapter.csv --output-md results\hole_geometry_oracle_scan_ur5e_adapter.md --episodes 50 --hole-half-sizes 0.045 0.029 0.025 0.020 0.017 0.015 --peg-radii 0.012 --success-xy-tolerance 0.005 --success-z-tolerance 0.01
+python scripts\scan_hole_geometry_oracle.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --output-csv results\hole_geometry_oracle_scan_ur5e_adapter_approach02.csv --output-md results\hole_geometry_oracle_scan_ur5e_adapter_approach02.md --episodes 50 --hole-half-sizes 0.045 0.029 0.025 0.020 0.017 0.015 --peg-radii 0.012 --approach-xy-tolerance 0.02 --success-xy-tolerance 0.005 --success-z-tolerance 0.01
+```
+
+Default approach `0.06` is too aggressive for narrowed holes:
+
+| Hole half-size | Clearance | Success | Collision |
+| ---: | ---: | ---: | ---: |
+| 0.045 | 0.033 | 1.000 | 0.000 |
+| 0.029 | 0.017 | 0.860 | 0.120 |
+| 0.025 | 0.013 | 0.800 | 0.200 |
+| 0.020 | 0.008 | 0.720 | 0.280 |
+| 0.017 | 0.005 | 0.640 | 0.320 |
+| 0.015 | 0.003 | 0.500 | 0.480 |
+
+With `approach_xy_tolerance=0.02`, the oracle becomes stable down to
+hole half-size `0.020`:
+
+| Hole half-size | Clearance | Success | Collision |
+| ---: | ---: | ---: | ---: |
+| 0.045 | 0.033 | 1.000 | 0.000 |
+| 0.029 | 0.017 | 1.000 | 0.000 |
+| 0.025 | 0.013 | 1.000 | 0.000 |
+| 0.020 | 0.008 | 1.000 | 0.000 |
+| 0.017 | 0.005 | 0.800 | 0.040 |
+| 0.015 | 0.003 | 0.680 | 0.180 |
+
+Recommended next geometry-curriculum range: start with
+`geometry_hole_half_size_range 0.020 0.025`, `geometry_peg_radius_range 0.012
+0.012`, and `approach_xy_tolerance 0.02`. Do not start at `0.017` or tighter
+until the oracle itself is improved.
+
 ## Current Recommended UR5e Model
 
 ```text
