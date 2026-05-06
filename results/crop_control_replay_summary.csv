@@ -1,0 +1,22 @@
+model,scenario,episodes,success_rate,collision_rate,timeout_rate,mean_return,notes
+staged_crop_650k_scratch_e16,clean,100,0.960,0.040,0.000,162.781,standard matrix
+staged_crop_650k_scratch_e16,visual_camera,100,0.960,0.040,0.000,160.137,standard matrix
+staged_crop_650k_scratch_e16,visual_camera_control,100,0.880,0.120,0.000,127.492,standard matrix
+staged_crop_650k_scratch_e16,full_light_geometry,100,0.530,0.450,0.020,-50.437,standard matrix
+staged_crop_650k_scratch_e16,full_contact_light,100,0.570,0.410,0.020,-29.391,standard matrix
+staged_crop_control_replay_700k_e4,clean,100,0.960,0.040,0.000,162.716,standard matrix
+staged_crop_control_replay_700k_e4,visual_camera,100,0.970,0.030,0.000,158.731,standard matrix
+staged_crop_control_replay_700k_e4,visual_camera_control,100,0.900,0.090,0.010,138.335,standard matrix
+staged_crop_control_replay_700k_e4,full_light_geometry,100,0.520,0.470,0.010,-58.617,standard matrix
+staged_crop_control_replay_700k_e4,full_contact_light,100,0.570,0.410,0.020,-34.091,standard matrix
+staged_crop_full_light_replay_750k_e4,clean,100,0.980,0.020,0.000,165.403,standard matrix
+staged_crop_full_light_replay_750k_e4,visual_camera,100,0.980,0.020,0.000,160.362,standard matrix
+staged_crop_full_light_replay_750k_e4,visual_camera_control,100,0.910,0.090,0.000,134.579,standard matrix
+staged_crop_full_light_replay_750k_e4,full_light_geometry,100,0.580,0.410,0.010,-30.372,standard matrix
+staged_crop_full_light_replay_750k_e4,full_contact_light,100,0.590,0.390,0.020,-21.249,standard matrix
+staged_crop_650k_scratch_e16,visual_camera_control_failure_analysis,200,0.820,0.180,0.000,,seed 150000
+staged_crop_full_light_replay_750k_e4,visual_camera_control_failure_analysis,200,0.845,0.155,0.000,,seed 150000
+staged_crop_control_replay_700k_e4,intermediate_geometry_identity_control,100,0.800,0.160,,26.355,seed 690000 hole_half_size=0.025-0.029
+staged_crop_control_replay_700k_e4,narrow_geometry_identity_control,100,0.790,0.130,,26.037,seed 700000 hole_half_size=0.020-0.025
+staged_crop_full_light_replay_750k_e4,intermediate_geometry_identity_control,100,0.920,0.070,,43.149,seed 690000 hole_half_size=0.025-0.029
+staged_crop_full_light_replay_750k_e4,narrow_geometry_identity_control,100,0.790,0.130,,28.171,seed 700000 hole_half_size=0.020-0.025

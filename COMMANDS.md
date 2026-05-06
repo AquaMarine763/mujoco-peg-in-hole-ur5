@@ -679,16 +679,78 @@ Current crop result:
 The crop model is the strongest geometry candidate so far. Full details are in
 `results\near_hole_crop_summary.md`.
 
+## Crop Control And Full-Light Replay
+
+The crop model's remaining control failures were concentrated around delay 2,
+low filter alpha, low action scale, and low noise:
+
+```powershell
+python scripts\analyze_control_failures.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --include-near-hole-crop --near-hole-crop-size 64 --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_650k_scratch_e16\sac_image_bc.zip --episodes 200 --output-csv results\control_failure_analysis_ur5e_staged_crop_650k_e16.csv --output-md results\control_failure_analysis_ur5e_staged_crop_650k_e16.md --device cpu --success-xy-tolerance 0.005 --success-z-tolerance 0.01
+```
+
+Collect a hard control replay dataset:
+
+```powershell
+python scripts\collect_image_expert_dataset.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --output datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_control_delay2_lowalpha_lowscale_lownoise_success_50k_oracle.npz --samples 50000 --seed 760000 --image-width 100 --image-height 100 --include-near-hole-crop --near-hole-crop-size 64 --expert-action-gain 1.0 --rollout-noise-std 0.0005 --success-xy-tolerance 0.005 --success-z-tolerance 0.01 --domain-randomization-level visual_camera_control --control-action-scale-range 0.8 0.9 --control-action-noise-std-range 0 0.00025 --control-action-delay-range 2 2 --control-action-filter-alpha-range 0.55 0.70 --success-only --compressed
+```
+
+Observed collection result: `50000` samples, `2061` episodes, `0.799` oracle
+success, `0.201` oracle collision.
+
+Train the control replay model:
+
+```powershell
+python scripts\pretrain_image_actor_bc_weighted.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --include-near-hole-crop --near-hole-crop-size 64 --datasets datasets\image_expert_ur5e_adapter_fixedcam_clean_visual_camera_control_delay_filter_success_350k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_control_hard_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_control_delay2_lowalpha_lowscale_lownoise_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_50k_seed130k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_control_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_full_light_geometry_intermediate_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_full_light_geometry_narrow_success_50k_oracle.npz --dataset-weights 0.35 0.14 0.15 0.06 0.04 0.10 0.10 0.06 --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_650k_scratch_e16\sac_image_bc.zip --output checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_control_replay_700k_oracle_e4\sac_image_bc.zip --epochs 4 --samples-per-epoch 300000 --batch-size 512 --learning-rate 0.000005 --validation-batches 20 --approach-xy-tolerance 0.02 --success-xy-tolerance 0.005 --success-z-tolerance 0.01 --device cpu
+```
+
+The control replay model reaches `visual_camera_control=0.900`, but
+`full_light_geometry` remains `0.520`, so add a combined geometry+control
+dataset:
+
+```powershell
+python scripts\collect_image_expert_dataset.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --output datasets\image_expert_ur5e_adapter_fixedcam_full_light_geometry_control_success_50k_oracle.npz --samples 50000 --seed 780000 --image-width 100 --image-height 100 --include-near-hole-crop --near-hole-crop-size 64 --expert-action-gain 1.0 --rollout-noise-std 0.0005 --success-xy-tolerance 0.005 --success-z-tolerance 0.01 --approach-xy-tolerance 0.02 --domain-randomization-level full_light_geometry --success-only --compressed
+```
+
+Observed collection result: `50000` samples, `4003` episodes, `0.553` oracle
+success, `0.445` oracle collision.
+
+Train the final full-light replay model:
+
+```powershell
+python scripts\pretrain_image_actor_bc_weighted.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --include-near-hole-crop --near-hole-crop-size 64 --datasets datasets\image_expert_ur5e_adapter_fixedcam_clean_visual_camera_control_delay_filter_success_350k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_control_hard_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_control_delay2_lowalpha_lowscale_lownoise_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_full_light_geometry_control_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_50k_seed130k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_visual_camera_control_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_full_light_geometry_intermediate_success_50k_oracle.npz datasets\image_expert_ur5e_adapter_fixedcam_full_light_geometry_narrow_success_50k_oracle.npz --dataset-weights 0.30 0.12 0.10 0.15 0.06 0.04 0.08 0.10 0.05 --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_control_replay_700k_oracle_e4\sac_image_bc.zip --output checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip --epochs 4 --samples-per-epoch 300000 --batch-size 512 --learning-rate 0.000003 --validation-batches 20 --approach-xy-tolerance 0.02 --success-xy-tolerance 0.005 --success-z-tolerance 0.01 --device cpu
+```
+
+Evaluate the final crop replay model:
+
+```powershell
+python scripts\eval_matrix.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --agent sac --observation-mode image --include-near-hole-crop --near-hole-crop-size 64 --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip --episodes 100 --device cpu --output-csv results\eval_matrix_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4.csv --output-md results\eval_matrix_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4.md --success-xy-tolerance 0.005 --success-z-tolerance 0.01
+```
+
+Current result:
+
+| Model | Clean | Visual camera | Visual camera control | Full light geometry | Full contact light |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| staged crop 650k e16 | 0.960 | 0.960 | 0.880 | 0.530 | 0.570 |
+| crop control replay 700k e4 | 0.960 | 0.970 | 0.900 | 0.520 | 0.570 |
+| crop full-light replay 750k e4 | 0.980 | 0.980 | 0.910 | 0.580 | 0.590 |
+
+The current strongest crop-enabled model is:
+
+```text
+checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip
+```
+
+Full details are in `results\crop_control_replay_summary.md`.
+
 ## Current Recommended UR5e Model
 
 ```text
-checkpoints_image_bc_ur5e_adapter_fixedcam_clean_visual_camera_control_hard_weighted_500k_oracle_e5\sac_image_bc.zip
+checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip
 ```
 
-This is the current recommended UR5e adapter model for visual-camera-control
-evaluation and demos. The next target is to reach default
-`visual_camera_control >= 0.90` without pushing clean below `0.97`; after that,
-move to mild geometry randomization before full contact randomization.
+This is the current recommended crop-enabled UR5e adapter model. Use
+`--include-near-hole-crop --near-hole-crop-size 64` for training, evaluation,
+demo, and deployment-style inference with this checkpoint.
 
 ## Current Best Simplified Sidecam Model
 
