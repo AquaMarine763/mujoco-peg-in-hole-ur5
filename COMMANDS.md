@@ -1116,6 +1116,67 @@ Trace CSVs include `guard_enabled`, `guard_active`, `policy_action_*`,
 `guarded_action_*`, `final_action_*`, `raw_action_*`, and `safe_action_*`.
 Full details are in `results\policy_inference_guarded_summary.md`.
 
+## Geometry Clearance Curriculum Scan
+
+Run the targeted clearance scan over standard full-light geometry and the hard
+delay/low-filter bucket:
+
+```powershell
+python scripts\scan_geometry_clearance.py `
+  --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml `
+  --agent sac `
+  --observation-mode image `
+  --include-near-hole-crop `
+  --near-hole-crop-size 64 `
+  --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip `
+  --tier-preset all `
+  --scenario-preset targeted `
+  --episodes 30 `
+  --seed 930000 `
+  --device cpu `
+  --output-csv results\geometry_clearance_scan_targeted_30ep.csv `
+  --output-md results\geometry_clearance_scan_targeted_30ep.md `
+  --success-xy-tolerance 0.005 `
+  --success-z-tolerance 0.01 `
+  --approach-xy-tolerance 0.02
+```
+
+Run the full-contact clearance scan:
+
+```powershell
+python scripts\scan_geometry_clearance.py `
+  --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml `
+  --agent sac `
+  --observation-mode image `
+  --include-near-hole-crop `
+  --near-hole-crop-size 64 `
+  --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip `
+  --tier-preset all `
+  --scenario-preset full_contact `
+  --episodes 30 `
+  --seed 930000 `
+  --device cpu `
+  --output-csv results\geometry_clearance_scan_full_contact_30ep.csv `
+  --output-md results\geometry_clearance_scan_full_contact_30ep.md `
+  --success-xy-tolerance 0.005 `
+  --success-z-tolerance 0.01 `
+  --approach-xy-tolerance 0.02
+```
+
+Guarded blend `0.75` result:
+
+| Tier | Mean clearance | Full light | Hard bucket | Full contact |
+| --- | ---: | ---: | ---: | ---: |
+| wide_current | 14.9 mm | 0.600 | 0.400 | 0.633 |
+| medium | 9.9 mm | 0.667 | 0.333 | 0.567 |
+| narrow | 6.9 mm | 0.533 | 0.367 | 0.600 |
+| tight | 4.4 mm | 0.467 | 0.267 | 0.533 |
+
+Use `medium` as the next curriculum target, mixed with current wide clearance.
+Do not jump directly to narrow/tight as the default distribution; hard-control
+success is still too low. Full details are in
+`results\geometry_clearance_scan_summary.md`.
+
 ## Current Recommended UR5e Model
 
 ```text

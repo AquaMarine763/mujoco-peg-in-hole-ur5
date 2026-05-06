@@ -1,0 +1,5 @@
+tier,mean_clearance_mm,full_light_no_guard,full_light_guard075,full_light_guard100,hard_no_guard,hard_guard075,hard_guard100,full_contact_no_guard,full_contact_guard075,full_contact_guard100,recommendation
+wide_current,14.9,0.567,0.600,0.533,0.200,0.400,0.333,0.500,0.633,0.633,current baseline remains useful for stability checks
+medium,9.9,0.533,0.667,0.533,0.300,0.333,0.333,0.500,0.567,0.533,next curriculum target with hard-control correction data
+narrow,6.9,0.300,0.533,0.500,0.167,0.367,0.233,0.300,0.600,0.500,not ready as default training distribution
+tight,4.4,0.200,0.467,0.433,0.133,0.267,0.267,0.200,0.533,0.533,too aggressive for current policy

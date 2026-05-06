@@ -156,6 +156,14 @@ in the trace CSV. A hard-bucket smoke on seed `90005` changes from collision
 without guard to success with `guard_blend=0.75`; see
 `results/policy_inference_guarded_summary.md`.
 
+Clearance curriculum scanning is now available in
+`scripts/scan_geometry_clearance.py`. With the current 750k model and guarded
+blend `0.75`, `medium` clearance is a viable next data target for standard
+`full_light_geometry` (`0.667` over 30 episodes), but the hard delay/low-filter
+bucket remains weak (`0.333`). The next training pass should mix current wide
+and medium clearance and emphasize hard-control correction data. See
+`results/geometry_clearance_scan_summary.md`.
+
 ## Quick Check
 
 Start with the low-dimensional state mode. This avoids camera-rendering issues
