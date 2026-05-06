@@ -1,0 +1,4 @@
+configuration,clean,visual_camera,visual_camera_control,full_light_geometry,full_contact_light,hard_bucket,mean_success,mean_collision,notes
+no_guard,0.980,0.980,0.910,0.580,0.600,0.320,0.728,0.267,100-episode validation baseline
+guard_blend_0.75,0.980,0.980,0.900,0.710,0.650,0.530,0.792,0.192,best hard-bucket candidate from focused scan
+guard_blend_1.0,0.980,0.980,0.910,0.690,0.660,0.480,0.783,0.197,previous deployment-time guarded default

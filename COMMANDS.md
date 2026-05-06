@@ -959,6 +959,71 @@ python scripts\demo_policy.py `
 
 Full demo details are in `results\guarded_demo_summary.md`.
 
+## Guarded Parameter Scan
+
+Run the focused one-at-a-time guarded parameter scan:
+
+```powershell
+python scripts\scan_guarded_policy_params.py `
+  --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml `
+  --agent sac `
+  --observation-mode image `
+  --include-near-hole-crop `
+  --near-hole-crop-size 64 `
+  --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip `
+  --preset focused `
+  --scenario-preset targeted `
+  --episodes 30 `
+  --seed 90000 `
+  --device cpu `
+  --output-csv results\guarded_policy_param_scan_focused.csv `
+  --output-md results\guarded_policy_param_scan_focused.md `
+  --success-xy-tolerance 0.005 `
+  --success-z-tolerance 0.01 `
+  --approach-xy-tolerance 0.02 `
+  --guard-scenario-filter geometry
+```
+
+Validate the previous `blend=1.0` wrapper against the new `blend=0.75`
+candidate on the full core matrix:
+
+```powershell
+python scripts\scan_guarded_policy_params.py `
+  --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml `
+  --agent sac `
+  --observation-mode image `
+  --include-near-hole-crop `
+  --near-hole-crop-size 64 `
+  --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip `
+  --preset grid `
+  --scenario-preset core `
+  --episodes 100 `
+  --seed 90000 `
+  --device cpu `
+  --output-csv results\guarded_policy_param_scan_blend_validation_100ep.csv `
+  --output-md results\guarded_policy_param_scan_blend_validation_100ep.md `
+  --success-xy-tolerance 0.005 `
+  --success-z-tolerance 0.01 `
+  --approach-xy-tolerance 0.02 `
+  --guard-scenario-filter geometry `
+  --guard-start-xy-values 0.06 `
+  --guard-start-z-values 0.10 `
+  --guard-blend-values 0.75 1.0 `
+  --guarded-max-down-action-values 0.0035 `
+  --guarded-align-xy-tolerance-values 0.025
+```
+
+Result:
+
+| Configuration | Clean | Visual camera | Visual camera control | Full light | Full contact | Hard bucket |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| no guard | 0.980 | 0.980 | 0.910 | 0.580 | 0.600 | 0.320 |
+| guard blend 0.75 | 0.980 | 0.980 | 0.900 | 0.710 | 0.650 | 0.530 |
+| guard blend 1.0 | 0.980 | 0.980 | 0.910 | 0.690 | 0.660 | 0.480 |
+
+Promote `guard_blend=0.75` as the next guarded deployment candidate. Full
+details are in `results\guarded_policy_param_scan_summary.md`.
+
 ## Current Recommended UR5e Model
 
 ```text

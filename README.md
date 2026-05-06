@@ -141,6 +141,14 @@ Trajectory CSVs record `guard_enabled`, `guard_active`, `policy_action_*`,
 seed `90005`: the learned policy alone collides, while the selective guarded
 wrapper succeeds. See `results/guarded_demo_summary.md`.
 
+Guarded parameter scanning is available in
+`scripts/scan_guarded_policy_params.py`. The current promoted deployment
+candidate keeps the same activation window but uses `guard_blend=0.75`. On a
+100-episode seed `90000` validation, it improves `full_light_geometry` to
+`0.710` and the hard bucket to `0.530`, compared with `0.690` and `0.480` for
+the previous `blend=1.0` wrapper. See
+`results/guarded_policy_param_scan_summary.md`.
+
 ## Quick Check
 
 Start with the low-dimensional state mode. This avoids camera-rendering issues
