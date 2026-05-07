@@ -1,0 +1,78 @@
+{
+  "verdict": "FAIL",
+  "bundle_summary_json": "results\\real_capture_bundle_config_gate_failure_smoke_summary.json",
+  "metrics": {
+    "session_id": "synthetic_config_gate_failure_smoke",
+    "capture_bundle.verdict": "FAIL",
+    "config.pose_frame": "robot_base",
+    "config.target_source": "fixture_calibration",
+    "config.target_frame": "robot_base",
+    "config.target_id": "smoke_hole",
+    "config.tcp_to_peg_tip_norm": 0.11
+  },
+  "issues": [
+    {
+      "severity": "ERROR",
+      "code": "capture_bundle_failed",
+      "message": "capture_bundle verdict is FAIL.",
+      "count": 1,
+      "details": ""
+    },
+    {
+      "severity": "ERROR",
+      "code": "capture_bundle_not_pass",
+      "message": "Capture bundle must be PASS before first real motion.",
+      "count": 1,
+      "details": "FAIL"
+    },
+    {
+      "severity": "ERROR",
+      "code": "config_check_returncode",
+      "message": "config_check did not exit cleanly.",
+      "count": 1,
+      "details": "1"
+    },
+    {
+      "severity": "ERROR",
+      "code": "config_check_failed",
+      "message": "config_check verdict is FAIL.",
+      "count": 1,
+      "details": ""
+    },
+    {
+      "severity": "ERROR",
+      "code": "config_check_nested_errors",
+      "message": "config_check reported nested errors.",
+      "count": 1,
+      "details": ""
+    },
+    {
+      "severity": "ERROR",
+      "code": "camera_record_returncode",
+      "message": "camera_record did not exit cleanly.",
+      "count": 1,
+      "details": "-1"
+    },
+    {
+      "severity": "ERROR",
+      "code": "tcp_record_returncode",
+      "message": "tcp_record did not exit cleanly.",
+      "count": 1,
+      "details": "-1"
+    },
+    {
+      "severity": "ERROR",
+      "code": "preflight_missing",
+      "message": "preflight section is missing.",
+      "count": 1,
+      "details": ""
+    },
+    {
+      "severity": "ERROR",
+      "code": "preflight_payload_missing",
+      "message": "Combined preflight payload is missing.",
+      "count": 1,
+      "details": ""
+    }
+  ]
+}

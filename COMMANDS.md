@@ -2298,6 +2298,56 @@ Checked gate smoke outputs:
 | config pass | 0 | `results\real_capture_bundle_config_gate_synthetic_smoke_summary.md` |
 | missing config | 1 | `results\real_capture_bundle_config_gate_failure_smoke_summary.md` |
 
+After a real read-only capture bundle passes, run the real motion readiness
+gate before allowing any robot motion. This still only reads the bundle summary
+and generated preflight reports; it does not connect to the robot:
+
+```powershell
+python scripts\check_real_motion_readiness.py `
+  --bundle-summary-json results\real_capture_bundle_summary.json `
+  --output-md results\real_motion_readiness_check.md `
+  --output-json results\real_motion_readiness_check.json `
+  --min-camera-frames 20 `
+  --min-tcp-samples 20 `
+  --min-dryrun-rows 2 `
+  --expected-pose-frame robot_base `
+  --expected-target-source fixture_calibration `
+  --expected-guard-blend 0.75 `
+  --max-safe-action 0.002
+```
+
+The readiness checker intentionally fails synthetic/zero-policy bundles unless
+they are explicitly allowed. Smoke-test that behavior:
+
+```powershell
+python scripts\check_real_motion_readiness.py `
+  --bundle-summary-json results\real_capture_bundle_config_gate_synthetic_smoke_summary.json `
+  --output-md results\real_motion_readiness_synthetic_expected_fail.md `
+  --output-json results\real_motion_readiness_synthetic_expected_fail.json
+```
+
+Smoke-test the checker itself by explicitly allowing synthetic inputs:
+
+```powershell
+python scripts\check_real_motion_readiness.py `
+  --bundle-summary-json results\real_capture_bundle_config_gate_synthetic_smoke_summary.json `
+  --allow-synthetic `
+  --allow-zero-policy `
+  --allow-smoke-paths `
+  --min-camera-frames 4 `
+  --min-tcp-samples 4 `
+  --min-dryrun-rows 4 `
+  --output-md results\real_motion_readiness_synthetic_smoke.md `
+  --output-json results\real_motion_readiness_synthetic_smoke.json
+```
+
+Checked readiness smoke outputs:
+
+| Scenario | Expected exit | Summary |
+| --- | ---: | --- |
+| synthetic default gate | 1 | `results\real_motion_readiness_synthetic_expected_fail.md` |
+| synthetic explicitly allowed | 0 | `results\real_motion_readiness_synthetic_smoke.md` |
+
 ## Evaluation Matrix
 
 Run the standard five-environment matrix:

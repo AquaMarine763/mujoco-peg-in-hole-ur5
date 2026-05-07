@@ -1,0 +1,42 @@
+{
+  "verdict": "PASS",
+  "bundle_summary_json": "results\\real_capture_bundle_config_gate_synthetic_smoke_summary.json",
+  "metrics": {
+    "session_id": "synthetic_config_gate_smoke",
+    "capture_bundle.verdict": "PASS",
+    "config.pose_frame": "robot_base",
+    "config.target_source": "fixture_calibration",
+    "config.target_frame": "robot_base",
+    "config.target_id": "smoke_hole",
+    "config.tcp_to_peg_tip_norm": 0.11,
+    "camera.rows": 4,
+    "camera.session_ids": "synthetic_config_gate_smoke",
+    "tcp.rows": 4,
+    "tcp.session_ids": "synthetic_config_gate_smoke",
+    "camera_preflight.frames_ok": 4,
+    "camera_preflight.frame_diff_mean_min": 0.7857000231742859,
+    "dryrun.rows": 4,
+    "dryrun.pose_frames": "robot_base",
+    "dryrun.pose_sources": "tcp_csv",
+    "dryrun.target_sources": "fixture_calibration",
+    "dryrun.guard_enabled_rows": 4,
+    "dryrun.guard_active_rows": 3,
+    "dryrun.safe_action_max_abs_component": 0.0010529999546706748
+  },
+  "issues": [
+    {
+      "severity": "INFO",
+      "code": "synthetic_inputs_allowed",
+      "message": "Synthetic smoke inputs were explicitly allowed.",
+      "count": 2,
+      "details": "camera_record, tcp_record"
+    },
+    {
+      "severity": "INFO",
+      "code": "zero_policy_allowed",
+      "message": "Zero-policy dry-run was explicitly allowed.",
+      "count": 1,
+      "details": ""
+    }
+  ]
+}
