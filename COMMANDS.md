@@ -87,6 +87,7 @@ near-hole crop policy:
 python scripts\eval_matrix.py --config configs\sim\ur5e\eval_image_crop.yaml
 python scripts\eval_guarded_policy.py --config configs\sim\ur5e\eval_guarded_image_crop.yaml
 python scripts\demo_policy.py --config configs\sim\ur5e\demo_guarded_image_crop.yaml
+python scripts\scan_guarded_policy_params.py --config configs\sim\ur5e\scan_guarded_policy_focused.yaml
 ```
 
 Structured-layout smoke for future UR5e data and BC experiments:

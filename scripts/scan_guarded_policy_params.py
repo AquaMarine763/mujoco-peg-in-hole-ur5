@@ -17,6 +17,7 @@ from peg_in_hole_mujoco import (
     OracleControllerConfig,
     PegInHoleMujocoEnv,
 )
+from peg_in_hole_mujoco.sim_config import parse_args_with_config
 
 
 AGENTS = {
@@ -192,7 +193,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--include-no-guard-baseline", action="store_true", default=True)
     parser.add_argument("--no-no-guard-baseline", dest="include_no_guard_baseline", action="store_false")
     parser.add_argument("--max-configs", type=int, default=None)
-    return parser.parse_args()
+    return parse_args_with_config(parser)
 
 
 def make_env(args: argparse.Namespace, scenario: Scenario) -> PegInHoleMujocoEnv:
