@@ -2133,6 +2133,51 @@ Smoke-test preprocessing without camera frames:
 python scripts\preprocess_camera_frames.py --synthetic-smoke --output-dir results\preprocessed_camera_frames_smoke --stats-output results\preprocessed_camera_frames_smoke_stats.csv --crop-xywh 20 10 160 120 --rotate-k 1 --flip-horizontal
 ```
 
+Run the combined real camera + policy dry-run preflight gate. This first checks
+the camera frames and preprocessing, then feeds the same frames into the real
+policy dry-run preflight with TCP pose trace and target calibration checks. It
+still does not command robot motion:
+
+```powershell
+python scripts\run_real_camera_policy_preflight.py `
+  --image-input path\to\camera_frames `
+  --model checkpoints_image_bc_50k_sidecam_visual_camera_control_delay3_oracle\sac_image_bc.zip `
+  --episodes 1 `
+  --max-steps 20 `
+  --tcp-pose-trace results\ur_rtde_tcp_pose_trace.csv `
+  --target-calibration configs\real_hole_target_calibration.yaml `
+  --tcp-to-peg-tip-xyz 0 0 -0.11 `
+  --camera-crop-xywh 0 0 640 480 `
+  --camera-rotate-k 0 `
+  --expected-pose-frame robot_base `
+  --summary-md results\real_camera_policy_preflight_summary.md `
+  --output-json results\real_camera_policy_preflight_summary.json
+```
+
+Smoke-test the combined preflight without real hardware or live camera input:
+
+```powershell
+python scripts\run_real_camera_policy_preflight.py `
+  --image-input results\real_camera_frames_synthetic_smoke `
+  --zero-policy `
+  --episodes 1 `
+  --max-steps 3 `
+  --tcp-pose-trace configs\real_tcp_pose_trace_no_target_smoke.csv `
+  --target-calibration configs\real_hole_target_calibration_smoke.yaml `
+  --tcp-to-peg-tip-xyz 0 0 -0.11 `
+  --camera-max-frames 4 `
+  --camera-output-dir results\real_camera_policy_preflight_synthetic_smoke_camera_frames `
+  --camera-stats-output results\real_camera_policy_preflight_synthetic_smoke_camera_stats.csv `
+  --camera-summary-md results\real_camera_policy_preflight_synthetic_smoke_camera_summary.md `
+  --camera-output-json results\real_camera_policy_preflight_synthetic_smoke_camera_summary.json `
+  --dryrun-trace-output results\real_policy_dryrun_camera_policy_preflight_synthetic_smoke_trace.csv `
+  --dryrun-check-output-md results\real_dryrun_camera_policy_preflight_synthetic_smoke_check.md `
+  --dryrun-check-output-json results\real_dryrun_camera_policy_preflight_synthetic_smoke_check.json `
+  --dryrun-summary-md results\real_dryrun_camera_policy_preflight_synthetic_smoke_summary.md `
+  --summary-md results\real_camera_policy_preflight_synthetic_smoke_summary.md `
+  --output-json results\real_camera_policy_preflight_synthetic_smoke_summary.json
+```
+
 ## Evaluation Matrix
 
 Run the standard five-environment matrix:
