@@ -7,8 +7,10 @@ import math
 import subprocess
 import sys
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -73,6 +75,11 @@ def parse_args() -> tuple[argparse.Namespace, list[str]]:
         ),
     )
     parser.add_argument(
+        "--session-id",
+        default=None,
+        help="Capture session id written into both camera and TCP recorder outputs.",
+    )
+    parser.add_argument(
         "--preflight-summary-md",
         type=Path,
         default=Path("results/real_capture_bundle_preflight_summary.md"),
@@ -132,6 +139,8 @@ def build_camera_record_command(args: argparse.Namespace) -> list[str]:
         str(args.record_camera_warmup_frames),
         "--prefix",
         args.record_camera_prefix,
+        "--session-id",
+        args.session_id,
     ]
     if args.record_camera_source is not None:
         command.extend(["--source", str(args.record_camera_source)])
@@ -160,6 +169,8 @@ def build_tcp_record_command(args: argparse.Namespace) -> list[str]:
         f"{float(args.record_tcp_frequency_hz):.12g}",
         "--pose-frame",
         args.record_tcp_pose_frame,
+        "--session-id",
+        args.session_id,
     ]
     extend_values(command, "--target-pos", args.record_tcp_target_pos)
     if args.record_tcp_host is not None:
@@ -263,6 +274,11 @@ def load_csv_rows(path: Path) -> list[dict[str, str]]:
         return [dict(row) for row in csv.DictReader(file)]
 
 
+def make_session_id() -> str:
+    timestamp = datetime.now(tz=timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return f"real_capture_{timestamp}_{uuid4().hex[:8]}"
+
+
 def parse_float(value: Any) -> float:
     try:
         return float(str(value).strip())
@@ -274,6 +290,10 @@ def timestamp_metrics(rows: list[dict[str, str]]) -> dict[str, Any]:
     timestamps = [parse_float(row.get("timestamp")) for row in rows]
     timestamps = [value for value in timestamps if math.isfinite(value)]
     metrics: dict[str, Any] = {"rows": len(rows), "timestamp_rows": len(timestamps)}
+    session_ids = sorted({row.get("session_id", "").strip() for row in rows if row.get("session_id", "").strip()})
+    if session_ids:
+        metrics["session_ids"] = ", ".join(session_ids)
+        metrics["session_id_count"] = len(session_ids)
     if timestamps:
         metrics["timestamp_monotonic"] = all(
             timestamps[index] > timestamps[index - 1]
@@ -290,6 +310,17 @@ def timestamp_metrics(rows: list[dict[str, str]]) -> dict[str, Any]:
             metrics["interval_avg_s"] = sum(intervals) / len(intervals)
             metrics["interval_min_s"] = min(intervals)
             metrics["interval_max_s"] = max(intervals)
+    wall_times = [parse_float(row.get("wall_time_unix")) for row in rows]
+    wall_times = [value for value in wall_times if math.isfinite(value)]
+    if wall_times:
+        metrics["wall_time_rows"] = len(wall_times)
+        metrics["wall_time_monotonic"] = all(
+            wall_times[index] > wall_times[index - 1]
+            for index in range(1, len(wall_times))
+        )
+        metrics["wall_time_first_unix"] = wall_times[0]
+        metrics["wall_time_last_unix"] = wall_times[-1]
+        metrics["wall_time_span_s"] = wall_times[-1] - wall_times[0]
     return metrics
 
 
@@ -322,6 +353,14 @@ def overall_verdict(
     if camera_metrics.get("timestamp_monotonic") is False:
         return "FAIL"
     if tcp_metrics.get("timestamp_monotonic") is False:
+        return "FAIL"
+    if camera_metrics.get("wall_time_monotonic") is False:
+        return "FAIL"
+    if tcp_metrics.get("wall_time_monotonic") is False:
+        return "FAIL"
+    camera_sessions = str(camera_metrics.get("session_ids", "")).strip()
+    tcp_sessions = str(tcp_metrics.get("session_ids", "")).strip()
+    if camera_sessions and tcp_sessions and camera_sessions != tcp_sessions:
         return "FAIL"
     if preflight_result is None:
         return "FAIL"
@@ -364,6 +403,7 @@ def render_summary(
         f"- Camera recorder return code: `{camera_result.returncode}`",
         f"- TCP recorder return code: `{tcp_result.returncode}`",
         f"- Combined preflight verdict: **{preflight_result_text}**",
+        f"- Session id: `{args.session_id}`",
         f"- Camera frames: `{args.record_camera_output_dir}`",
         f"- Camera stats: `{args.record_camera_stats_output}`",
         f"- TCP trace: `{args.record_tcp_output}`",
@@ -416,6 +456,7 @@ def write_json_summary(
     *,
     path: Path,
     result: str,
+    session_id: str,
     camera_result: CommandResult,
     tcp_result: CommandResult,
     preflight_result: CommandResult | None,
@@ -426,6 +467,7 @@ def write_json_summary(
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "verdict": result,
+        "session_id": session_id,
         "camera_record": {
             "returncode": camera_result.returncode,
             "command": camera_result.command,
@@ -451,6 +493,8 @@ def write_json_summary(
 
 def main() -> None:
     args, preflight_args = parse_args()
+    if args.session_id is None:
+        args.session_id = make_session_id()
     validate_args(args, preflight_args)
 
     camera_command = build_camera_record_command(args)
@@ -493,6 +537,7 @@ def main() -> None:
     write_json_summary(
         path=repo_path(args.output_json),
         result=result,
+        session_id=args.session_id,
         camera_result=camera_result,
         tcp_result=tcp_result,
         preflight_result=preflight_result,

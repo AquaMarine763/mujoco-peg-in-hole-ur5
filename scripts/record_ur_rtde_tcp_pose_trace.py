@@ -4,6 +4,7 @@ import argparse
 import csv
 import math
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--frequency-hz", type=float, default=20.0)
     parser.add_argument("--pose-frame", default="robot_base")
     parser.add_argument("--target-pos", nargs=3, type=float, default=(0.55, 0.05, 0.65))
+    parser.add_argument("--session-id", default="", help="Optional capture session id written into the trace CSV.")
     parser.add_argument(
         "--synthetic-smoke",
         action="store_true",
@@ -60,11 +62,18 @@ def synthetic_tcp_pose(index: int) -> tuple[float, float, float, float, float, f
     )
 
 
+def iso_utc(timestamp: float) -> str:
+    return datetime.fromtimestamp(timestamp, tz=timezone.utc).isoformat()
+
+
 def write_rows(path: Path, rows: list[dict[str, Any]], *, include_target_columns: bool) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fieldnames = [
         "step",
         "timestamp",
+        "wall_time_unix",
+        "wall_time_utc",
+        "session_id",
         "pose_frame",
         "tcp_x",
         "tcp_y",
@@ -101,11 +110,15 @@ def main() -> None:
     rows: list[dict[str, Any]] = []
     for step in range(args.samples):
         loop_start = time.perf_counter()
+        wall_time_unix = time.time()
         pose = synthetic_tcp_pose(step) if reader is None else reader.read_tcp_pose()
         rows.append(
             {
                 "step": step,
                 "timestamp": loop_start - start,
+                "wall_time_unix": wall_time_unix,
+                "wall_time_utc": iso_utc(wall_time_unix),
+                "session_id": args.session_id,
                 "pose_frame": args.pose_frame,
                 "tcp_x": pose[0],
                 "tcp_y": pose[1],

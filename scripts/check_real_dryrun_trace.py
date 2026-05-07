@@ -268,8 +268,22 @@ def analyze_frames(
                 severity="ERROR",
                 code="missing_pose_frame",
                 message="Trace does not contain pose_frame.",
-            )
+                )
         )
+
+    if "pose_session_id" in fieldnames:
+        pose_session_ids = unique_values(rows, "pose_session_id")
+        metrics["pose_session_ids"] = ", ".join(pose_session_ids) if pose_session_ids else "none"
+        if len(pose_session_ids) > 1:
+            issues.append(
+                Issue(
+                    severity="WARN",
+                    code="multiple_pose_session_ids",
+                    message="Trace rows contain more than one pose_session_id.",
+                    count=len(pose_session_ids),
+                    details=", ".join(pose_session_ids),
+                )
+            )
 
     if "target_frame" in fieldnames:
         target_frames = unique_values(rows, "target_frame")

@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import math
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +27,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--camera-width", type=int, default=None)
     parser.add_argument("--camera-height", type=int, default=None)
     parser.add_argument("--prefix", default="camera_frame")
+    parser.add_argument("--session-id", default="", help="Optional capture session id written into the stats CSV.")
     parser.add_argument("--synthetic-smoke", action="store_true")
     return parser.parse_args()
 
@@ -87,6 +89,10 @@ def frame_source_text(args: argparse.Namespace) -> str:
     return f"device_index:{args.device_index}"
 
 
+def iso_utc(timestamp: float) -> str:
+    return datetime.fromtimestamp(timestamp, tz=timezone.utc).isoformat()
+
+
 def record_frames(args: argparse.Namespace) -> list[dict[str, Any]]:
     args.output_dir.mkdir(parents=True, exist_ok=True)
     rows: list[dict[str, Any]] = []
@@ -106,13 +112,17 @@ def record_frames(args: argparse.Namespace) -> list[dict[str, Any]]:
         start = time.perf_counter()
         for index in range(args.frames):
             loop_start = time.perf_counter()
+            wall_time_unix = time.time()
             frame = synthetic_frame(index) if args.synthetic_smoke else camera.read()
             timestamp = loop_start - start
             output_path = args.output_dir / f"{args.prefix}_{index:06d}.png"
             save_image(output_path, frame)
             row: dict[str, Any] = {
+                "session_id": args.session_id,
                 "frame_index": index,
                 "timestamp": timestamp,
+                "wall_time_unix": wall_time_unix,
+                "wall_time_utc": iso_utc(wall_time_unix),
                 "source": frame_source_text(args),
                 "output": str(output_path),
             }

@@ -1,0 +1,5 @@
+session_id,frame_index,timestamp,wall_time_unix,wall_time_utc,source,output,shape,dtype,min,max,mean,std
+synthetic_smoke_session,0,7.999988156370819e-07,1778165516.5620084,2026-05-07T14:51:56.562008+00:00,synthetic_smoke,results\real_capture_bundle_session_synthetic_smoke_camera_frames\camera_frame_000000.png,240x320x3,uint8,0.0,255.0,127.47994791666666,75.51926599981005
+synthetic_smoke_session,1,0.05313070000556763,1778165516.615138,2026-05-07T14:51:56.615138+00:00,synthetic_smoke,results\real_capture_bundle_session_synthetic_smoke_camera_frames\camera_frame_000001.png,240x320x3,uint8,0.0,255.0,127.48359375,75.52623107102124
+synthetic_smoke_session,2,0.06344420000095852,1778165516.6254532,2026-05-07T14:51:56.625453+00:00,synthetic_smoke,results\real_capture_bundle_session_synthetic_smoke_camera_frames\camera_frame_000002.png,240x320x3,uint8,0.0,255.0,127.49088541666667,75.531376587588
+synthetic_smoke_session,3,0.07379710000532214,1778165516.6358068,2026-05-07T14:51:56.635807+00:00,synthetic_smoke,results\real_capture_bundle_session_synthetic_smoke_camera_frames\camera_frame_000003.png,240x320x3,uint8,0.0,255.0,127.50546875,75.53588743950341

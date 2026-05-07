@@ -43,6 +43,7 @@ class RealPoseSample:
     target_pos: tuple[float, float, float]
     step: int | None = None
     timestamp: float | None = None
+    session_id: str = ""
     pose_frame: str = "robot_base"
     target_source: str = "static"
     target_frame: str = "robot_base"
@@ -252,6 +253,7 @@ class RealCameraObservationProvider:
             "control_action_delay": 0,
             "control_action_filter_alpha": 1.0,
             "pose_source": self.pose_source,
+            "pose_session_id": pose_sample.session_id,
             "pose_frame": pose_sample.pose_frame,
             "pose_step": self.step_count if pose_sample.step is None else pose_sample.step,
             "pose_timestamp": (
@@ -283,6 +285,7 @@ class RealCameraObservationProvider:
             peg_tip_pos=tuple(float(value) for value in self.config.peg_tip_pos),
             target_pos=self.target_calibration.target_pos,
             step=self.step_count,
+            session_id="",
             pose_frame=self.pose_frame,
             target_source=self.target_calibration.target_source,
             target_frame=self.target_calibration.pose_frame,
@@ -366,6 +369,7 @@ def _pose_sample_from_row(
         ),
         step=step,
         timestamp=timestamp,
+        session_id=_first_text(row, ("session_id", "pose_session_id", "capture_session_id")) or "",
         pose_frame=pose_frame,
         target_source="pose_csv",
         target_frame=_first_text(row, ("target_frame", "hole_frame")) or pose_frame,
@@ -417,6 +421,7 @@ def _pose_sample_from_tcp_row(
         target_pos=resolved_target,
         step=step,
         timestamp=timestamp,
+        session_id=_first_text(row, ("session_id", "pose_session_id", "capture_session_id")) or "",
         pose_frame=pose_frame,
         target_source=(
             _first_text(row, ("target_source", "hole_source"))

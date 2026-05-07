@@ -310,6 +310,7 @@ class PolicyInferenceSession:
             "control_action_delay": int(info.get("control_action_delay", -1)),
             "control_action_filter_alpha": float(info.get("control_action_filter_alpha", float("nan"))),
             "pose_source": str(info.get("pose_source", "")),
+            "pose_session_id": str(info.get("pose_session_id", "")),
             "pose_frame": str(info.get("pose_frame", "")),
             "pose_step": int(info.get("pose_step", -1)),
             "pose_timestamp": float(info.get("pose_timestamp", float("nan"))),
