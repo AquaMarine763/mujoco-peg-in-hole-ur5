@@ -2055,6 +2055,39 @@ python scripts\record_ur_rtde_tcp_pose_trace.py `
   --output results\ur_rtde_tcp_pose_trace_synthetic_smoke.csv
 ```
 
+Record raw frames from a real USB/RTSP camera before running the camera
+preflight. Live recording uses OpenCV; install it if needed with
+`python -m pip install opencv-python`:
+
+```powershell
+python scripts\record_real_camera_frames.py `
+  --device-index 0 `
+  --frames 20 `
+  --frequency-hz 5 `
+  --warmup-frames 10 `
+  --output-dir results\real_camera_frames `
+  --stats-output results\real_camera_frames_stats.csv `
+  --summary-md results\real_camera_frames_summary.md
+```
+
+For an RTSP or other OpenCV source, replace `--device-index 0` with:
+
+```powershell
+--source rtsp://user:password@camera-host/stream
+```
+
+Smoke-test the frame recorder without a camera:
+
+```powershell
+python scripts\record_real_camera_frames.py `
+  --synthetic-smoke `
+  --frames 4 `
+  --frequency-hz 100 `
+  --output-dir results\real_camera_frames_synthetic_smoke `
+  --stats-output results\real_camera_frames_synthetic_smoke_stats.csv `
+  --summary-md results\real_camera_frames_synthetic_smoke_summary.md
+```
+
 Preview preprocessing for a real camera frame directory:
 
 ```powershell

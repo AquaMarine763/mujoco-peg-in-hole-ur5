@@ -1,0 +1,5 @@
+frame_index,timestamp,source,output,shape,dtype,min,max,mean,std
+0,7.999988156370819e-07,synthetic_smoke,results\real_camera_frames_synthetic_smoke\camera_frame_000000.png,240x320x3,uint8,0.0,255.0,127.47994791666666,75.51926599981005
+1,0.0544116999990365,synthetic_smoke,results\real_camera_frames_synthetic_smoke\camera_frame_000001.png,240x320x3,uint8,0.0,255.0,127.48359375,75.52623107102124
+2,0.06443629999921541,synthetic_smoke,results\real_camera_frames_synthetic_smoke\camera_frame_000002.png,240x320x3,uint8,0.0,255.0,127.49088541666667,75.531376587588
+3,0.07474210000145831,synthetic_smoke,results\real_camera_frames_synthetic_smoke\camera_frame_000003.png,240x320x3,uint8,0.0,255.0,127.50546875,75.53588743950341
