@@ -24,7 +24,8 @@ Current implementation:
   interface.
 - `MujocoActionExecutor`: adapts safe Cartesian actions into MuJoCo `env.step`.
 - `RealCameraObservationProvider`: dry-run provider that loads a real camera
-  image or image folder and preprocesses it to the policy shape.
+  image or image folder and preprocesses it to the policy shape, including the
+  optional `near_hole_crop` key required by the current UR5e image policy.
 - `preprocess_camera_image`: shared preprocessing path for real frames:
   `crop_xywh -> rotate_k -> flip -> resize -> grayscale uint8[100,100,1]`.
 - `DryRunUR5ActionExecutor`: accepts safe Cartesian actions and logs them
@@ -35,7 +36,10 @@ Current implementation:
   real-backend dry-run path.
 - `scripts/preprocess_camera_frames.py`: offline checker for camera frame
   preprocessing and image statistics.
-- `configs/real_ur5_dryrun.yaml`: conservative placeholder configuration.
+- `configs/real/ur5e/dryrun_template.yaml`: conservative UR5e placeholder
+  configuration for measured real-cell values.
+- `configs/real/ur5e/synthetic_smoke.yaml`: deterministic read-only UR5e
+  smoke config for software gates without hardware.
 - `scripts/inspect_robot_model.py`: checks whether a candidate MJCF exposes
   the joint, actuator, body, site, camera, and task-geometry names expected by
   the current environment.
@@ -97,10 +101,10 @@ tool, camera, peg, table, and fixture transforms.
 
 ## Next Engineering Steps
 
-1. Replace placeholder camera and tool transforms in
-   `configs/real_ur5_dryrun.yaml` with measured values.
+1. Copy `configs/real/ur5e/dryrun_template.yaml` to an ignored local config
+   and replace placeholder camera/tool/fixture values with measured values.
 2. Validate `crop_xywh`, `rotate_k`, and flip settings with representative
-   real wrist-camera frames.
+   real wrist-camera frames, including `near_hole_crop=64`.
 3. Add a UR5 action executor that can run in explicit dry-run mode first, then
    guarded motion mode.
 4. Calibrate the UR5e adapter transforms against the physical setup.

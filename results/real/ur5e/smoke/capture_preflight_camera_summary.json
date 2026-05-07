@@ -1,0 +1,22 @@
+{
+  "verdict": "PASS",
+  "metrics": {
+    "frames_total": 10,
+    "frames_ok": 10,
+    "frames_failed": 0,
+    "expected_processed_shape": "100x100x1",
+    "processed_mean_min": 126.4626,
+    "processed_mean_max": 127.4762,
+    "processed_mean_avg": 126.92977,
+    "processed_std_min": 48.042698557012805,
+    "processed_std_max": 49.086653101530565,
+    "processed_std_avg": 48.53758838730248,
+    "processed_zero_fraction_max": 0.0,
+    "processed_255_fraction_max": 0.0108,
+    "frame_diff_mean_min": 0.3366999924182892,
+    "frame_diff_mean_max": 1.6035000085830688,
+    "frame_diff_mean_avg": 0.9730888803799947,
+    "identical_adjacent_pairs": 0
+  },
+  "issues": []
+}

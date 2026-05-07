@@ -1850,6 +1850,48 @@ python scripts\run_policy_inference.py --agent sac --observation-mode image --mo
 
 ## Real Backend Dry Run
 
+UR5e branch note: the current recommended real dry-run config lives under
+`configs\real\ur5e\`. It enables `include_near_hole_crop: true`, because the
+current recommended UR5e image policy expects both `cam_image` and
+`near_hole_crop`.
+
+UR5e read-only software gate smoke:
+
+```powershell
+python scripts\check_real_deployment_config.py `
+  --config configs\real\ur5e\synthetic_smoke.yaml `
+  --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip `
+  --output-md results\real\ur5e\smoke\config_check.md `
+  --output-json results\real\ur5e\smoke\config_check.json
+
+python scripts\run_real_dryrun_preflight.py `
+  --config configs\real\ur5e\synthetic_smoke.yaml `
+  --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip `
+  --max-steps 4 `
+  --trace-output results\real\ur5e\smoke\dryrun_trace.csv `
+  --check-output-md results\real\ur5e\smoke\dryrun_check.md `
+  --check-output-json results\real\ur5e\smoke\dryrun_check.json `
+  --summary-md results\real\ur5e\smoke\dryrun_summary.md `
+  --allow-action-limited
+
+python scripts\check_real_motion_readiness.py `
+  --bundle-summary-json results\real\ur5e\smoke\capture_bundle_summary.json `
+  --allow-synthetic `
+  --allow-smoke-paths `
+  --output-md results\real\ur5e\smoke\motion_readiness_synthetic_allowed.md `
+  --output-json results\real\ur5e\smoke\motion_readiness_synthetic_allowed.json
+```
+
+Checked UR5e real smoke outputs:
+
+| Gate | Result | Summary |
+| --- | --- | --- |
+| config check | PASS | `results\real\ur5e\smoke\config_check.md` |
+| dry-run preflight | PASS | `results\real\ur5e\smoke\dryrun_summary.md` |
+| synthetic capture bundle | PASS | `results\real\ur5e\smoke\capture_bundle_summary.md` |
+| readiness with synthetic allowed | PASS | `results\real\ur5e\smoke\motion_readiness_synthetic_allowed.md` |
+| readiness default synthetic gate | FAIL expected | `results\real\ur5e\smoke\motion_readiness_synthetic_expected_fail.md` |
+
 Check the static real deployment configuration before recording real camera or
 UR TCP data. This does not connect to hardware:
 

@@ -18,6 +18,8 @@ IMAGE_SUFFIXES = {".bmp", ".jpeg", ".jpg", ".png", ".tif", ".tiff"}
 class RealCameraConfig:
     image_width: int = 100
     image_height: int = 100
+    include_near_hole_crop: bool = False
+    near_hole_crop_size: int = 64
     crop_xywh: tuple[int, int, int, int] | None = None
     rotate_k: int = 0
     flip_horizontal: bool = False
@@ -228,6 +230,8 @@ class RealCameraObservationProvider:
     def observe(self) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
         image = self._next_image()
         observation = {self.config.observation_key: image}
+        if self.config.include_near_hole_crop:
+            observation["near_hole_crop"] = self._center_crop_gray(image)
         return observation, self.info()
 
     def info(self) -> dict[str, Any]:
@@ -304,6 +308,29 @@ class RealCameraObservationProvider:
             load_image(path),
             config=self.config.preprocess_config(),
         )
+
+    def _center_crop_gray(self, image: np.ndarray) -> np.ndarray:
+        if self.config.near_hole_crop_size <= 0:
+            raise ValueError("near_hole_crop_size must be positive.")
+        if image.ndim == 3 and image.shape[-1] == 1:
+            gray = image[:, :, 0]
+        elif image.ndim == 2:
+            gray = image
+        else:
+            raise ValueError(f"Expected grayscale real camera image, got {image.shape}.")
+
+        height, width = gray.shape[:2]
+        crop_size = min(self.config.near_hole_crop_size, height, width)
+        y0 = max(0, (height - crop_size) // 2)
+        x0 = max(0, (width - crop_size) // 2)
+        crop = gray[y0 : y0 + crop_size, x0 : x0 + crop_size]
+        if crop.shape == (self.config.near_hole_crop_size, self.config.near_hole_crop_size):
+            return crop[:, :, None].astype(np.uint8, copy=False)
+
+        y_idx = np.linspace(0, crop.shape[0] - 1, self.config.near_hole_crop_size).round().astype(np.int64)
+        x_idx = np.linspace(0, crop.shape[1] - 1, self.config.near_hole_crop_size).round().astype(np.int64)
+        resized = crop[y_idx][:, x_idx]
+        return resized[:, :, None].astype(np.uint8, copy=False)
 
     @staticmethod
     def _resolve_image_paths(image_path: Path | None, image_dir: Path | None) -> list[Path]:

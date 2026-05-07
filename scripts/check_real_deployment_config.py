@@ -18,6 +18,8 @@ DEFAULTS: dict[str, Any] = {
     "control_frequency_hz": 20.0,
     "image_width": 100,
     "image_height": 100,
+    "include_near_hole_crop": False,
+    "near_hole_crop_size": 64,
     "crop_xywh": None,
     "rotate_k": 0,
     "max_steps": 50,
@@ -214,7 +216,18 @@ def validate_config_scalars(args: argparse.Namespace, config: dict[str, Any], is
     validate_positive_number(config, issues, metrics, "control_frequency_hz")
     validate_positive_int(config, issues, metrics, "image_width")
     validate_positive_int(config, issues, metrics, "image_height")
+    validate_positive_int(config, issues, metrics, "near_hole_crop_size")
     validate_positive_int(config, issues, metrics, "max_steps")
+    include_crop = config_value(config, "include_near_hole_crop")
+    metrics["include_near_hole_crop"] = bool(include_crop)
+    if not isinstance(include_crop, bool):
+        add_issue(
+            issues,
+            "WARN",
+            "include_near_hole_crop_not_bool",
+            "include_near_hole_crop should be true or false.",
+            details=str(include_crop),
+        )
     config_safe_action = validate_positive_number(config, issues, metrics, "safety_max_action")
     if args.max_safe_action is not None:
         metrics["requested_max_safe_action"] = args.max_safe_action
@@ -422,6 +435,28 @@ def validate_model(args: argparse.Namespace, issues: list[Issue], metrics: dict[
         add_issue(issues, "WARN", "model_suffix_unexpected", "Stable-Baselines3 models are normally .zip files.", details=str(args.model))
 
 
+def validate_observation_contract(
+    args: argparse.Namespace,
+    config: dict[str, Any],
+    issues: list[Issue],
+    metrics: dict[str, Any],
+) -> None:
+    if args.model is None:
+        return
+    model_text = str(args.model).replace("\\", "/").lower()
+    expects_crop = "staged_crop" in model_text or "near_hole_crop" in model_text
+    include_crop = bool(config_value(config, "include_near_hole_crop"))
+    metrics["model_expects_near_hole_crop"] = expects_crop
+    if expects_crop and not include_crop:
+        add_issue(
+            issues,
+            "ERROR",
+            "near_hole_crop_missing_for_model",
+            "The configured policy model expects a near_hole_crop observation.",
+            details=str(args.model),
+        )
+
+
 def resolve_trace_path(args_path: Path | None, config: dict[str, Any], key: str) -> Path | None:
     if args_path is not None:
         return args_path
@@ -573,6 +608,7 @@ def main() -> None:
     validate_workspace(config, issues, metrics, target_pos)
     validate_tcp_offset(args, config, issues, metrics)
     validate_model(args, issues, metrics)
+    validate_observation_contract(args, config, issues, metrics)
     validate_trace_inputs(args, config, issues, metrics)
     validate_image_input(args, issues, metrics)
 

@@ -35,6 +35,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--pose-frame", default=None)
     parser.add_argument("--tcp-to-peg-tip-xyz", nargs=3, type=float, default=None)
     parser.add_argument("--control-frequency-hz", type=float, default=None)
+    parser.add_argument("--include-near-hole-crop", dest="include_near_hole_crop", action="store_true", default=None)
+    parser.add_argument("--no-include-near-hole-crop", dest="include_near_hole_crop", action="store_false")
+    parser.add_argument("--near-hole-crop-size", type=int, default=None)
     parser.add_argument("--safety-max-action", type=float, default=0.002)
     parser.add_argument("--safety-action-filter-alpha", type=float, default=None)
     parser.add_argument("--safety-workspace-low", nargs=3, type=float, default=None)
@@ -58,7 +61,7 @@ def parse_args() -> argparse.Namespace:
         default="full_light_geometry",
     )
     parser.add_argument("--guard-start-xy", type=float, default=0.060)
-    parser.add_argument("--guard-start-z", type=float, default=0.100)
+    parser.add_argument("--guard-start-z", type=float, default=0.080)
     parser.add_argument("--guard-risk-xy", type=float, default=0.0)
     parser.add_argument("--guard-blend", type=float, default=0.75)
     parser.add_argument("--guard-min-policy-steps", type=int, default=0)
@@ -176,6 +179,11 @@ def build_dryrun_command(args: argparse.Namespace) -> list[str]:
     extend_optional(command, "--pose-frame", args.pose_frame)
     extend_values(command, "--tcp-to-peg-tip-xyz", args.tcp_to_peg_tip_xyz)
     extend_optional(command, "--control-frequency-hz", args.control_frequency_hz)
+    if args.include_near_hole_crop is True:
+        command.append("--include-near-hole-crop")
+    elif args.include_near_hole_crop is False:
+        command.append("--no-include-near-hole-crop")
+    extend_optional(command, "--near-hole-crop-size", args.near_hole_crop_size)
     extend_optional(command, "--safety-action-filter-alpha", args.safety_action_filter_alpha)
     extend_values(command, "--safety-workspace-low", args.safety_workspace_low)
     extend_values(command, "--safety-workspace-high", args.safety_workspace_high)

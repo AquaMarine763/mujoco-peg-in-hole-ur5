@@ -1,0 +1,35 @@
+{
+  "verdict": "PASS",
+  "bundle_summary_json": "results\\real\\ur5e\\smoke\\capture_bundle_summary.json",
+  "metrics": {
+    "session_id": "ur5e_config_gate_synthetic_smoke",
+    "capture_bundle.verdict": "PASS",
+    "config.pose_frame": "robot_base",
+    "config.target_source": "fixture_calibration",
+    "config.target_frame": "robot_base",
+    "config.target_id": "smoke_hole",
+    "config.tcp_to_peg_tip_norm": 0.11,
+    "camera.rows": 10,
+    "camera.session_ids": "ur5e_config_gate_synthetic_smoke",
+    "tcp.rows": 10,
+    "tcp.session_ids": "ur5e_config_gate_synthetic_smoke",
+    "camera_preflight.frames_ok": 10,
+    "camera_preflight.frame_diff_mean_min": 0.3366999924182892,
+    "dryrun.rows": 5,
+    "dryrun.pose_frames": "robot_base",
+    "dryrun.pose_sources": "tcp_csv",
+    "dryrun.target_sources": "fixture_calibration",
+    "dryrun.guard_enabled_rows": 5,
+    "dryrun.guard_active_rows": 4,
+    "dryrun.safe_action_max_abs_component": 0.0019487999999999728
+  },
+  "issues": [
+    {
+      "severity": "INFO",
+      "code": "synthetic_inputs_allowed",
+      "message": "Synthetic smoke inputs were explicitly allowed.",
+      "count": 2,
+      "details": "camera_record, tcp_record"
+    }
+  ]
+}

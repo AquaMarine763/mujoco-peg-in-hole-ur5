@@ -41,6 +41,8 @@ DEFAULTS = {
     "control_frequency_hz": 20.0,
     "image_width": 100,
     "image_height": 100,
+    "include_near_hole_crop": False,
+    "near_hole_crop_size": 64,
     "crop_xywh": None,
     "rotate_k": 0,
     "flip_horizontal": False,
@@ -82,6 +84,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--control-frequency-hz", type=float, default=None)
     parser.add_argument("--width", type=int, default=None)
     parser.add_argument("--height", type=int, default=None)
+    parser.add_argument("--include-near-hole-crop", dest="include_near_hole_crop", action="store_true", default=None)
+    parser.add_argument("--no-include-near-hole-crop", dest="include_near_hole_crop", action="store_false")
+    parser.add_argument("--near-hole-crop-size", type=int, default=None)
     parser.add_argument("--crop-xywh", nargs=4, type=int, default=None)
     parser.add_argument("--rotate-k", type=int, default=None)
     parser.add_argument("--flip-horizontal", action="store_true", default=None)
@@ -107,7 +112,7 @@ def parse_args() -> argparse.Namespace:
         default="full_light_geometry",
     )
     parser.add_argument("--guard-start-xy", type=float, default=0.060)
-    parser.add_argument("--guard-start-z", type=float, default=0.100)
+    parser.add_argument("--guard-start-z", type=float, default=0.080)
     parser.add_argument("--guard-risk-xy", type=float, default=0.0)
     parser.add_argument("--guard-blend", type=float, default=0.75)
     parser.add_argument("--guard-min-policy-steps", type=int, default=0)
@@ -313,6 +318,12 @@ def main() -> None:
     camera_config = RealCameraConfig(
         image_width=int(get_value(args, config, "image_width") if args.width is None else args.width),
         image_height=int(get_value(args, config, "image_height") if args.height is None else args.height),
+        include_near_hole_crop=bool(get_value(args, config, "include_near_hole_crop")),
+        near_hole_crop_size=int(
+            get_value(args, config, "near_hole_crop_size")
+            if args.near_hole_crop_size is None
+            else args.near_hole_crop_size
+        ),
         crop_xywh=get_optional_int_tuple(args, config, "crop_xywh", 4),
         rotate_k=int(get_value(args, config, "rotate_k")),
         flip_horizontal=bool(get_value(args, config, "flip_horizontal")),
