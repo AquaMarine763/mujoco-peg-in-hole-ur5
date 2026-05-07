@@ -2061,6 +2061,39 @@ Preview preprocessing for a real camera frame directory:
 python scripts\preprocess_camera_frames.py --input path\to\camera_frames --output-dir results\preprocessed_camera_frames --stats-output results\preprocessed_camera_frames_stats.csv --width 100 --height 100 --crop-xywh 0 0 640 480 --rotate-k 0
 ```
 
+Run the real camera preflight before feeding images to the policy. This checks
+that frames are readable, preprocessing produces the expected `100x100x1`
+policy input, images are not blank or saturated, and adjacent frames are not
+unexpectedly identical:
+
+```powershell
+python scripts\check_real_camera_preflight.py `
+  --input path\to\camera_frames `
+  --output-dir results\real_camera_preflight_frames `
+  --stats-output results\real_camera_preflight_stats.csv `
+  --summary-md results\real_camera_preflight_summary.md `
+  --width 100 `
+  --height 100 `
+  --crop-xywh 0 0 640 480 `
+  --rotate-k 0 `
+  --max-frames 20
+```
+
+Smoke-test the camera preflight without real frames:
+
+```powershell
+python scripts\check_real_camera_preflight.py `
+  --synthetic-smoke `
+  --synthetic-frames 4 `
+  --output-dir results\real_camera_preflight_synthetic_smoke_frames `
+  --stats-output results\real_camera_preflight_synthetic_smoke_stats.csv `
+  --summary-md results\real_camera_preflight_synthetic_smoke_summary.md `
+  --output-json results\real_camera_preflight_synthetic_smoke_summary.json `
+  --crop-xywh 20 10 160 120 `
+  --rotate-k 1 `
+  --flip-horizontal
+```
+
 Smoke-test preprocessing without camera frames:
 
 ```powershell
