@@ -35,6 +35,12 @@ DEFAULTS: dict[str, Any] = {
     "pose_frame": "robot_base",
     "tcp_to_peg_tip_xyz": (0.0, 0.0, -0.11),
     "tool0_to_peg_tip_xyz": (0.0, 0.0, -0.11),
+    "camera_fx": None,
+    "camera_fy": None,
+    "camera_cx": None,
+    "camera_cy": None,
+    "tool0_to_camera_xyz": None,
+    "tool0_to_camera_rpy": None,
 }
 
 
@@ -67,6 +73,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--expected-target-source", default="fixture_calibration")
     parser.add_argument("--tcp-to-peg-tip-xyz", nargs=3, type=float, default=None)
     parser.add_argument("--max-safe-action", type=float, default=None)
+    parser.add_argument(
+        "--require-camera-calibration",
+        action="store_true",
+        help="Require measured camera intrinsics and tool0_to_camera transform fields in the config.",
+    )
+    parser.add_argument(
+        "--require-image-crop",
+        action="store_true",
+        help="Require crop_xywh to be set before using real camera frames.",
+    )
     parser.add_argument("--output-md", type=Path, default=Path("results/real_deployment_config_check.md"))
     parser.add_argument("--output-json", type=Path, default=Path("results/real_deployment_config_check.json"))
     parser.add_argument("--fail-on-warn", action="store_true")
@@ -277,6 +293,93 @@ def validate_config_scalars(args: argparse.Namespace, config: dict[str, Any], is
                 "crop_xywh_invalid",
                 "crop_xywh must be none or four values with positive width and height.",
                 details=str(crop),
+            )
+    if crop is None:
+        metrics["crop_xywh"] = "none"
+    else:
+        try:
+            metrics["crop_xywh"] = list(crop)
+        except TypeError:
+            metrics["crop_xywh"] = str(crop)
+
+
+def validate_camera_requirements(
+    args: argparse.Namespace,
+    config: dict[str, Any],
+    issues: list[Issue],
+    metrics: dict[str, Any],
+) -> None:
+    crop = config_value(config, "crop_xywh")
+    if args.require_image_crop and crop is None:
+        add_issue(
+            issues,
+            "ERROR",
+            "crop_xywh_missing",
+            "Set crop_xywh from measured real camera frames before real capture preflight.",
+        )
+
+    if not args.require_camera_calibration:
+        return
+
+    for key in ("camera_fx", "camera_fy", "camera_cx", "camera_cy"):
+        raw_value = config_value(config, key)
+        value = finite_float(raw_value)
+        metrics[key] = value
+        if raw_value is None or not math.isfinite(value):
+            add_issue(
+                issues,
+                "ERROR",
+                f"{key}_missing",
+                f"{key} must be set from measured camera calibration.",
+            )
+            continue
+        if key in {"camera_fx", "camera_fy"} and value <= 1.0:
+            add_issue(
+                issues,
+                "ERROR",
+                f"{key}_invalid",
+                f"{key} must be greater than 1 pixel.",
+                details=str(raw_value),
+            )
+        if key in {"camera_cx", "camera_cy"} and value < 0.0:
+            add_issue(
+                issues,
+                "ERROR",
+                f"{key}_invalid",
+                f"{key} must be non-negative.",
+                details=str(raw_value),
+            )
+
+    for key in ("tool0_to_camera_xyz", "tool0_to_camera_rpy"):
+        raw_value = config_value(config, key)
+        try:
+            vector = vector3(raw_value, key)
+        except ValueError as exc:
+            add_issue(
+                issues,
+                "ERROR",
+                f"{key}_invalid",
+                f"{key} must contain exactly three values.",
+                details=str(exc),
+            )
+            continue
+        if vector is None:
+            add_issue(
+                issues,
+                "ERROR",
+                f"{key}_missing",
+                f"{key} must be a measured finite 3D vector.",
+                details=str(raw_value),
+            )
+            continue
+        metrics[key] = list(vector)
+        if key == "tool0_to_camera_xyz" and vector_norm(vector) < 0.005:
+            add_issue(
+                issues,
+                "WARN",
+                "tool0_to_camera_xyz_near_zero",
+                "tool0_to_camera_xyz is near zero; this usually means the template placeholder was not replaced.",
+                details=f"{vector_norm(vector):.6g}",
             )
 
 
@@ -603,6 +706,7 @@ def main() -> None:
             config = {}
 
     validate_config_scalars(args, config, issues, metrics)
+    validate_camera_requirements(args, config, issues, metrics)
     calibration, _ = validate_target_calibration(args, config, issues, metrics)
     target_pos = calibration.target_pos if calibration is not None else vector3(config_value(config, "target_pos"), "target_pos")
     validate_workspace(config, issues, metrics, target_pos)

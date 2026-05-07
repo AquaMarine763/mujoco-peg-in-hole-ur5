@@ -36,6 +36,12 @@ Current implementation:
   real-backend dry-run path.
 - `scripts/preprocess_camera_frames.py`: offline checker for camera frame
   preprocessing and image statistics.
+- `scripts/prepare_real_ur5e_session.py`: creates an ignored local UR5e
+  read-only capture session config and command checklist.
+- `scripts/run_real_capture_bundle.py`: records camera frames and UR TCP poses,
+  then runs the combined read-only policy preflight.
+- `scripts/check_real_motion_readiness.py`: checks a capture bundle before any
+  future motion executor is allowed.
 - `configs/real/ur5e/dryrun_template.yaml`: conservative UR5e placeholder
   configuration for measured real-cell values.
 - `configs/real/ur5e/synthetic_smoke.yaml`: deterministic read-only UR5e
@@ -102,13 +108,17 @@ tool, camera, peg, table, and fixture transforms.
 ## Next Engineering Steps
 
 1. Copy `configs/real/ur5e/dryrun_template.yaml` to an ignored local config
-   and replace placeholder camera/tool/fixture values with measured values.
+   with `scripts/prepare_real_ur5e_session.py`, then replace placeholder
+   camera/tool/fixture values with measured values.
 2. Validate `crop_xywh`, `rotate_k`, and flip settings with representative
    real wrist-camera frames, including `near_hole_crop=64`.
-3. Add a UR5 action executor that can run in explicit dry-run mode first, then
+3. Run a real read-only capture bundle and require
+   `--require-camera-calibration`, `--require-image-crop`, and
+   `--fail-on-warn` to pass.
+4. Add a UR5 action executor that can run in explicit dry-run mode first, then
    guarded motion mode.
-4. Calibrate the UR5e adapter transforms against the physical setup.
-5. Run the existing eval/demo pipeline with `--model-path` pointing at the
+5. Calibrate the UR5e adapter transforms against the physical setup.
+6. Run the existing eval/demo pipeline with `--model-path` pointing at the
    adapter before relying on dynamics results.
 
 ## Do Not Assume

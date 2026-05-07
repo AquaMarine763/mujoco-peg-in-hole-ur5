@@ -1,0 +1,94 @@
+{
+  "verdict": "FAIL",
+  "metrics": {
+    "config_path": "configs\\real\\ur5e\\dryrun_template.yaml",
+    "control_frequency_hz": 20.0,
+    "image_width": 100.0,
+    "image_height": 100.0,
+    "near_hole_crop_size": 64.0,
+    "max_steps": 50.0,
+    "include_near_hole_crop": true,
+    "safety_max_action": 0.002,
+    "pose_frame": "robot_base",
+    "safety_action_filter_alpha": 0.6,
+    "crop_xywh": "none",
+    "camera_fx": 0.0,
+    "camera_fy": 0.0,
+    "camera_cx": 0.0,
+    "camera_cy": 0.0,
+    "tool0_to_camera_xyz": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "tool0_to_camera_rpy": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "target_calibration_path": "configs\\real\\ur5e\\target_calibration_smoke.yaml",
+    "target_id": "smoke_hole",
+    "target_source": "fixture_calibration",
+    "target_frame": "robot_base",
+    "target_pos": [
+      0.55,
+      0.05,
+      0.65
+    ],
+    "safety_workspace_low": [
+      0.45,
+      -0.1,
+      0.6
+    ],
+    "safety_workspace_high": [
+      0.65,
+      0.15,
+      0.82
+    ],
+    "peg_tip_pos": [
+      0.55,
+      0.05,
+      0.78
+    ],
+    "tcp_to_peg_tip_xyz": [
+      0.0,
+      0.0,
+      -0.11
+    ],
+    "tcp_to_peg_tip_norm": 0.11,
+    "tool0_tcp_offset_mismatch": 0.0,
+    "model_path": "checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\\sac_image_bc.zip",
+    "model_size_bytes": 24891314,
+    "model_expects_near_hole_crop": true
+  },
+  "issues": [
+    {
+      "severity": "ERROR",
+      "code": "camera_fx_invalid",
+      "message": "camera_fx must be greater than 1 pixel.",
+      "count": 1,
+      "details": "0"
+    },
+    {
+      "severity": "ERROR",
+      "code": "camera_fy_invalid",
+      "message": "camera_fy must be greater than 1 pixel.",
+      "count": 1,
+      "details": "0"
+    },
+    {
+      "severity": "ERROR",
+      "code": "crop_xywh_missing",
+      "message": "Set crop_xywh from measured real camera frames before real capture preflight.",
+      "count": 1,
+      "details": ""
+    },
+    {
+      "severity": "WARN",
+      "code": "tool0_to_camera_xyz_near_zero",
+      "message": "tool0_to_camera_xyz is near zero; this usually means the template placeholder was not replaced.",
+      "count": 1,
+      "details": "0"
+    }
+  ]
+}

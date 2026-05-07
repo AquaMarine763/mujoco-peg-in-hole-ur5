@@ -10,6 +10,22 @@ target calibration, and workspace bounds have been measured on the real cell.
 `synthetic_smoke.yaml` and the matching smoke CSV/YAML files are deterministic
 inputs for validating the software gate without hardware.
 
+Create a local ignored session before recording real data:
+
+```powershell
+python scripts/prepare_real_ur5e_session.py --session-id real_ur5e_YYYYMMDD --ur-host <UR5E_IP> --camera-device-index 0 --overwrite
+```
+
+The generated `configs/real/ur5e/*_local.yaml` and
+`results/real/ur5e/real_*/` paths are ignored by git. Edit the local YAML with
+measured `crop_xywh`, camera intrinsics, `tool0_to_camera_*`,
+`tcp_to_peg_tip_xyz`, workspace bounds, and fixture target calibration before
+running the generated `COMMANDS.md`.
+
+For real readiness, run config checks with `--require-camera-calibration`,
+`--require-image-crop`, and `--fail-on-warn`. These flags intentionally reject
+the unmeasured placeholders in `dryrun_template.yaml`.
+
 Recommended smoke checks:
 
 ```powershell

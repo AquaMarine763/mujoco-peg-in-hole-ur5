@@ -21,6 +21,7 @@ current UR5e image policy. It does not authorize or command real robot motion.
 | Synthetic capture bundle | PASS | `results\real\ur5e\smoke\capture_bundle_summary.md` |
 | Motion readiness, synthetic allowed | PASS | `results\real\ur5e\smoke\motion_readiness_synthetic_allowed.md` |
 | Motion readiness, default gate | FAIL expected | `results\real\ur5e\smoke\motion_readiness_synthetic_expected_fail.md` |
+| Strict template gate | FAIL expected | `results\real\ur5e\smoke\strict_template_expected_fail.md` |
 
 ## Interpretation
 
@@ -33,3 +34,8 @@ The default motion-readiness gate still rejects this bundle because it uses
 synthetic inputs and smoke output paths. That is intentional. Before real
 motion, replace the template config with measured local values, record real
 camera/TCP data, and pass readiness without synthetic allowances.
+
+The strict template gate also rejects `dryrun_template.yaml` when
+`--require-camera-calibration`, `--require-image-crop`, and `--fail-on-warn`
+are enabled. That is intentional: the template still contains unmeasured camera
+and crop placeholders.

@@ -1855,6 +1855,38 @@ UR5e branch note: the current recommended real dry-run config lives under
 current recommended UR5e image policy expects both `cam_image` and
 `near_hole_crop`.
 
+Prepare an ignored local real-data read-only session:
+
+```powershell
+python scripts\prepare_real_ur5e_session.py `
+  --session-id real_ur5e_YYYYMMDD `
+  --ur-host <UR5E_IP> `
+  --camera-device-index 0 `
+  --overwrite
+```
+
+This writes:
+
+- `configs\real\ur5e\real_ur5e_YYYYMMDD_local.yaml`
+- `results\real\ur5e\real_ur5e_YYYYMMDD\COMMANDS.md`
+
+Edit the local YAML before running the generated commands. The strict real
+preflight now requires measured `crop_xywh`, camera intrinsics, and
+`tool0_to_camera_*` values:
+
+```powershell
+python scripts\check_real_deployment_config.py `
+  --config configs\real\ur5e\real_ur5e_YYYYMMDD_local.yaml `
+  --target-calibration results\real\ur5e\real_ur5e_YYYYMMDD\target_calibration.yaml `
+  --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip `
+  --tcp-to-peg-tip-xyz 0 0 -0.11 `
+  --require-camera-calibration `
+  --require-image-crop `
+  --fail-on-warn `
+  --output-md results\real\ur5e\real_ur5e_YYYYMMDD\config_check.md `
+  --output-json results\real\ur5e\real_ur5e_YYYYMMDD\config_check.json
+```
+
 UR5e read-only software gate smoke:
 
 ```powershell

@@ -38,6 +38,8 @@ def parse_args() -> tuple[argparse.Namespace, list[str]]:
     parser.add_argument("--config", type=Path, default=Path("configs/real_ur5_dryrun.yaml"))
     parser.add_argument("--skip-config-check", action="store_true")
     parser.add_argument("--config-check-fail-on-warn", action="store_true")
+    parser.add_argument("--require-camera-calibration", action="store_true")
+    parser.add_argument("--require-image-crop", action="store_true")
     parser.add_argument(
         "--config-check-output-md",
         type=Path,
@@ -244,6 +246,10 @@ def build_config_check_command(args: argparse.Namespace, preflight_args: list[st
         command.extend(["--expected-pose-frame", expected_pose_values[0]])
     if args.config_check_fail_on_warn:
         command.append("--fail-on-warn")
+    if args.require_camera_calibration:
+        command.append("--require-camera-calibration")
+    if args.require_image_crop:
+        command.append("--require-image-crop")
     return command
 
 

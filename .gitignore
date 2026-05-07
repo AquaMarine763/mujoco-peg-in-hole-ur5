@@ -10,6 +10,8 @@ results/ur5e_camera_debug/
 results/ur5e/smoke/
 demos/ur5e/smoke/
 configs/real/ur5e/*local*.yaml
+results/real/ur5e/*local*/
+results/real/ur5e/real_*/
 results/real/ur5e/smoke/*frames/
 build/
 dist/
