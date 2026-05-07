@@ -1945,6 +1945,41 @@ python scripts\check_real_dryrun_trace.py `
 The current checker smoke summary is in
 `results\real_dryrun_trace_checker_summary.md`.
 
+Build a fixed hole/fixture target calibration file from repeated target
+measurements. The measurement CSV should contain `target_x/y/z` or `hole_x/y/z`
+in meters, plus an optional frame column such as `target_frame` or
+`pose_frame`:
+
+```powershell
+python scripts\make_real_target_calibration.py `
+  --input-csv results\real_hole_measurements.csv `
+  --output configs\real_hole_target_calibration.yaml `
+  --summary-md results\real_target_calibration_builder_summary.md `
+  --target-id real_hole `
+  --target-source fixture_calibration `
+  --pose-frame robot_base `
+  --method mean
+```
+
+If you already have one trusted measured target position:
+
+```powershell
+python scripts\make_real_target_calibration.py `
+  --target-pos 0.550 0.050 0.650 `
+  --output configs\real_hole_target_calibration.yaml `
+  --summary-md results\real_target_calibration_builder_summary.md
+```
+
+Smoke-test the builder without hardware:
+
+```powershell
+python scripts\make_real_target_calibration.py `
+  --synthetic-smoke `
+  --synthetic-input-output results\real_target_calibration_builder_synthetic_input.csv `
+  --output configs\real_hole_target_calibration_generated_smoke.yaml `
+  --summary-md results\real_target_calibration_builder_smoke_summary.md
+```
+
 Run the complete real dry-run preflight gate. This wrapper first runs
 `run_real_policy_dryrun.py`, then runs `check_real_dryrun_trace.py`, and finally
 writes a compact summary. It still does not command robot motion:

@@ -1,0 +1,5 @@
+step,timestamp,target_frame,target_x,target_y,target_z
+0,0.0,robot_base,0.55,0.05,0.65
+1,0.05,robot_base,0.5502,0.0499,0.6501
+2,0.1,robot_base,0.5499,0.0501,0.6499
+3,0.15000000000000002,robot_base,0.5501,0.05,0.65
