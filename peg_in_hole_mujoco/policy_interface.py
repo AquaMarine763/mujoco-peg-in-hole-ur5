@@ -313,6 +313,9 @@ class PolicyInferenceSession:
             "pose_frame": str(info.get("pose_frame", "")),
             "pose_step": int(info.get("pose_step", -1)),
             "pose_timestamp": float(info.get("pose_timestamp", float("nan"))),
+            "target_source": str(info.get("target_source", "")),
+            "target_frame": str(info.get("target_frame", "")),
+            "target_timestamp": float(info.get("target_timestamp", float("nan"))),
         }
         row.update(vector_fields("target", info.get("target_pos", (float("nan"),) * 3), 3))
         row.update(vector_fields("peg_tip", info.get("peg_tip_pos", (float("nan"),) * 3), 3))

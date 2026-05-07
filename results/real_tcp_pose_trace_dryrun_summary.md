@@ -30,6 +30,9 @@ target_x, target_y, target_z
 ```
 
 If target columns are absent, the dry-run config `target_pos` is used.
+Alternatively, pass `--target-calibration` to load the target from a separate
+fixture/hole calibration file; see
+`results\real_target_calibration_dryrun_summary.md`.
 
 ## Conversion
 

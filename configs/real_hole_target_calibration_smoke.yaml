@@ -1,0 +1,6 @@
+# Fixed hole/fixture pose in the robot base frame.
+target_id: smoke_hole
+target_source: fixture_calibration
+pose_frame: robot_base
+target_pos: [0.55, 0.05, 0.65]
+target_timestamp: 0.0

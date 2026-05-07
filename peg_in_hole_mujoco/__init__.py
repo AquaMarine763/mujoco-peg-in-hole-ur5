@@ -37,6 +37,7 @@ from peg_in_hole_mujoco.real_backend import (
     RealCameraConfig,
     RealCameraObservationProvider,
     RealPoseSample,
+    RealTargetCalibration,
     RealPoseTrace,
     ZeroPolicyAdapter,
 )
@@ -66,6 +67,7 @@ __all__ = [
     "RealCameraObservationProvider",
     "RealGuardStateProvider",
     "RealPoseSample",
+    "RealTargetCalibration",
     "RealPoseTrace",
     "SB3PolicyAdapter",
     "SafetyConfig",

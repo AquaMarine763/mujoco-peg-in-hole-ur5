@@ -25,6 +25,7 @@ from peg_in_hole_mujoco.real_backend import (
     DryRunUR5ActionExecutor,
     RealCameraConfig,
     RealCameraObservationProvider,
+    RealTargetCalibration,
     ZeroPolicyAdapter,
 )
 
@@ -51,6 +52,7 @@ DEFAULTS = {
     "safety_workspace_high": (0.65, 0.15, 0.82),
     "peg_tip_pos": (0.55, 0.05, 0.78),
     "target_pos": (0.55, 0.05, 0.65),
+    "target_calibration": None,
     "pose_trace": None,
     "tcp_pose_trace": None,
     "pose_frame": "robot_base",
@@ -91,6 +93,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--safety-workspace-high", nargs=3, type=float, default=None)
     parser.add_argument("--peg-tip-pos", nargs=3, type=float, default=None)
     parser.add_argument("--target-pos", nargs=3, type=float, default=None)
+    parser.add_argument("--target-calibration", type=Path, default=None)
     parser.add_argument("--guarded-policy", action="store_true")
     parser.add_argument(
         "--guard-scenario-filter",
@@ -200,6 +203,16 @@ def get_tcp_to_peg_tip_xyz(
     return tuple(float(item) for item in value)
 
 
+def get_target_calibration(
+    args: argparse.Namespace,
+    config: dict[str, Any],
+) -> RealTargetCalibration | None:
+    path = get_value(args, config, "target_calibration")
+    if path is None:
+        return None
+    return RealTargetCalibration.from_file(path)
+
+
 def make_policy(args: argparse.Namespace):
     if args.zero_policy:
         return ZeroPolicyAdapter()
@@ -307,12 +320,14 @@ def main() -> None:
         peg_tip_pos=get_tuple(args, config, "peg_tip_pos"),
         target_pos=get_tuple(args, config, "target_pos"),
     )
+    target_calibration = get_target_calibration(args, config)
     observation_provider = RealCameraObservationProvider(
         config=camera_config,
         image_path=args.image_path,
         image_dir=args.image_dir,
         pose_trace_path=get_value(args, config, "pose_trace"),
         tcp_pose_trace_path=get_value(args, config, "tcp_pose_trace"),
+        target_calibration=target_calibration,
         pose_frame=str(get_value(args, config, "pose_frame")),
         tcp_to_peg_tip_xyz=get_tcp_to_peg_tip_xyz(args, config),
     )

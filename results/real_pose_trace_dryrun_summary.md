@@ -108,3 +108,5 @@ motion.
 
 The next step is to replace the target placeholder with a calibrated hole-pose
 estimate from camera/fixture registration while keeping the same trace schema.
+That path is now started in
+`results\real_target_calibration_dryrun_summary.md`.

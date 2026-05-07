@@ -1886,6 +1886,30 @@ python scripts\run_real_policy_dryrun.py `
   --output results\real_policy_dryrun_tcp_pose_guarded_smoke.csv
 ```
 
+Run TCP trace replay with a separate fixed hole/fixture calibration file. This
+is the preferred dry-run structure when TCP pose comes from UR RTDE and target
+pose comes from fixture registration or hand-eye calibration:
+
+```powershell
+python scripts\run_real_policy_dryrun.py `
+  --zero-policy `
+  --episodes 1 `
+  --max-steps 3 `
+  --tcp-pose-trace configs\real_tcp_pose_trace_no_target_smoke.csv `
+  --target-calibration configs\real_hole_target_calibration_smoke.yaml `
+  --tcp-to-peg-tip-xyz 0 0 -0.11 `
+  --guarded-policy `
+  --guard-scenario-filter geometry `
+  --guard-scenario-level full_light_geometry `
+  --guard-start-z 0.10 `
+  --guard-action-limit 0.002 `
+  --output results\real_policy_dryrun_target_calibration_guarded_smoke.csv
+```
+
+The output trace includes `target_source`, `target_frame`, and
+`target_timestamp`. Details are in
+`results\real_target_calibration_dryrun_summary.md`.
+
 Record a read-only UR RTDE TCP pose trace for later dry-run replay. This script
 does not command robot motion:
 

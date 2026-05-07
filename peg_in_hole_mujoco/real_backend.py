@@ -44,8 +44,73 @@ class RealPoseSample:
     step: int | None = None
     timestamp: float | None = None
     pose_frame: str = "robot_base"
+    target_source: str = "static"
+    target_frame: str = "robot_base"
+    target_timestamp: float | None = None
     tcp_pos: tuple[float, float, float] | None = None
     tcp_rotvec: tuple[float, float, float] | None = None
+
+
+@dataclass(frozen=True)
+class RealTargetCalibration:
+    target_pos: tuple[float, float, float]
+    pose_frame: str = "robot_base"
+    target_source: str = "calibration"
+    target_id: str = "hole"
+    timestamp: float | None = None
+
+    @classmethod
+    def from_file(cls, path: Path | str) -> "RealTargetCalibration":
+        path = Path(path)
+        suffix = path.suffix.lower()
+        if suffix == ".csv":
+            return cls.from_csv(path)
+        if suffix in (".yaml", ".yml"):
+            return cls.from_simple_yaml(path)
+        raise ValueError("target calibration must be .csv, .yaml, or .yml")
+
+    @classmethod
+    def from_csv(cls, path: Path | str) -> "RealTargetCalibration":
+        with Path(path).open("r", newline="", encoding="utf-8-sig") as file:
+            rows = list(csv.DictReader(file))
+        if not rows:
+            raise ValueError(f"target calibration is empty: {path}")
+        row = rows[0]
+        return cls(
+            target_pos=(
+                _required_float(row, ("target_x", "hole_x"), row_index=0),
+                _required_float(row, ("target_y", "hole_y"), row_index=0),
+                _required_float(row, ("target_z", "hole_z"), row_index=0),
+            ),
+            pose_frame=_first_text(row, ("target_frame", "pose_frame", "frame")) or "robot_base",
+            target_source=_first_text(row, ("target_source", "source")) or "calibration_csv",
+            target_id=_first_text(row, ("target_id", "hole_id", "id")) or "hole",
+            timestamp=_optional_float(row, ("target_timestamp", "timestamp", "time")),
+        )
+
+    @classmethod
+    def from_simple_yaml(cls, path: Path | str) -> "RealTargetCalibration":
+        values = _load_simple_key_values(Path(path))
+        target_pos = values.get("target_pos", values.get("hole_pos"))
+        if target_pos is None:
+            target_pos = [
+                values.get("target_x", values.get("hole_x")),
+                values.get("target_y", values.get("hole_y")),
+                values.get("target_z", values.get("hole_z")),
+            ]
+        if target_pos is None or len(target_pos) != 3 or any(value is None for value in target_pos):
+            raise ValueError("target calibration must define target_pos or target_x/y/z.")
+        return cls(
+            target_pos=tuple(float(value) for value in target_pos),
+            pose_frame=str(values.get("target_frame", values.get("pose_frame", "robot_base"))),
+            target_source=str(values.get("target_source", "calibration_yaml")),
+            target_id=str(values.get("target_id", values.get("hole_id", "hole"))),
+            timestamp=(
+                None
+                if values.get("target_timestamp", values.get("timestamp")) is None
+                else float(values.get("target_timestamp", values.get("timestamp")))
+            ),
+        )
 
 
 @dataclass(frozen=True)
@@ -70,6 +135,9 @@ class RealPoseTrace:
         path: Path | str,
         *,
         target_pos: tuple[float, float, float],
+        default_target_source: str,
+        default_target_frame: str,
+        default_target_timestamp: float | None,
         tcp_to_peg_tip_xyz: tuple[float, float, float],
         default_pose_frame: str = "robot_base",
     ) -> "RealPoseTrace":
@@ -82,6 +150,9 @@ class RealPoseTrace:
                 row,
                 row_index=index,
                 default_target_pos=target_pos,
+                default_target_source=default_target_source,
+                default_target_frame=default_target_frame,
+                default_target_timestamp=default_target_timestamp,
                 tcp_to_peg_tip_xyz=tcp_to_peg_tip_xyz,
                 default_pose_frame=default_pose_frame,
             )
@@ -111,6 +182,7 @@ class RealCameraObservationProvider:
         image_dir: Path | None = None,
         pose_trace_path: Path | str | None = None,
         tcp_pose_trace_path: Path | str | None = None,
+        target_calibration: RealTargetCalibration | None = None,
         pose_frame: str = "robot_base",
         tcp_to_peg_tip_xyz: tuple[float, float, float] = (0.0, 0.0, 0.0),
     ):
@@ -118,6 +190,11 @@ class RealCameraObservationProvider:
             raise ValueError("Use either pose_trace_path or tcp_pose_trace_path, not both.")
         self.config = config
         self.image_paths = self._resolve_image_paths(image_path, image_dir)
+        self.target_calibration = target_calibration or RealTargetCalibration(
+            target_pos=tuple(float(value) for value in config.target_pos),
+            pose_frame=pose_frame,
+            target_source="static",
+        )
         self.pose_trace: RealPoseTrace | None = None
         self.pose_source = "static"
         if pose_trace_path is not None:
@@ -129,7 +206,10 @@ class RealCameraObservationProvider:
         if tcp_pose_trace_path is not None:
             self.pose_trace = RealPoseTrace.from_tcp_csv(
                 tcp_pose_trace_path,
-                target_pos=tuple(float(value) for value in config.target_pos),
+                target_pos=self.target_calibration.target_pos,
+                default_target_source=self.target_calibration.target_source,
+                default_target_frame=self.target_calibration.pose_frame,
+                default_target_timestamp=self.target_calibration.timestamp,
                 tcp_to_peg_tip_xyz=tuple(float(value) for value in tcp_to_peg_tip_xyz),
                 default_pose_frame=pose_frame,
             )
@@ -177,6 +257,13 @@ class RealCameraObservationProvider:
             "pose_timestamp": (
                 float("nan") if pose_sample.timestamp is None else float(pose_sample.timestamp)
             ),
+            "target_source": pose_sample.target_source,
+            "target_frame": pose_sample.target_frame,
+            "target_timestamp": (
+                float("nan")
+                if pose_sample.target_timestamp is None
+                else float(pose_sample.target_timestamp)
+            ),
             "tcp_pos": (
                 np.full(3, np.nan, dtype=np.float32)
                 if pose_sample.tcp_pos is None
@@ -194,9 +281,12 @@ class RealCameraObservationProvider:
             return self.pose_trace.sample_for_step(self.step_count)
         return RealPoseSample(
             peg_tip_pos=tuple(float(value) for value in self.config.peg_tip_pos),
-            target_pos=tuple(float(value) for value in self.config.target_pos),
+            target_pos=self.target_calibration.target_pos,
             step=self.step_count,
             pose_frame=self.pose_frame,
+            target_source=self.target_calibration.target_source,
+            target_frame=self.target_calibration.pose_frame,
+            target_timestamp=self.target_calibration.timestamp,
         )
 
     def _next_image(self) -> np.ndarray:
@@ -277,6 +367,9 @@ def _pose_sample_from_row(
         step=step,
         timestamp=timestamp,
         pose_frame=pose_frame,
+        target_source="pose_csv",
+        target_frame=_first_text(row, ("target_frame", "hole_frame")) or pose_frame,
+        target_timestamp=_optional_float(row, ("target_timestamp", "hole_timestamp")),
     )
 
 
@@ -285,6 +378,9 @@ def _pose_sample_from_tcp_row(
     *,
     row_index: int,
     default_target_pos: tuple[float, float, float],
+    default_target_source: str,
+    default_target_frame: str,
+    default_target_timestamp: float | None,
     tcp_to_peg_tip_xyz: tuple[float, float, float],
     default_pose_frame: str,
 ) -> RealPoseSample:
@@ -306,6 +402,7 @@ def _pose_sample_from_tcp_row(
         _optional_float(row, ("target_y", "hole_y")),
         _optional_float(row, ("target_z", "hole_z")),
     )
+    row_has_target = any(value is not None for value in target_pos)
     resolved_target = tuple(
         float(default_value if value is None else value)
         for value, default_value in zip(target_pos, default_target_pos)
@@ -321,6 +418,19 @@ def _pose_sample_from_tcp_row(
         step=step,
         timestamp=timestamp,
         pose_frame=pose_frame,
+        target_source=(
+            _first_text(row, ("target_source", "hole_source"))
+            or ("tcp_csv" if row_has_target else default_target_source)
+        ),
+        target_frame=(
+            _first_text(row, ("target_frame", "hole_frame"))
+            or (pose_frame if row_has_target else default_target_frame)
+        ),
+        target_timestamp=(
+            _optional_float(row, ("target_timestamp", "hole_timestamp"))
+            if row_has_target
+            else default_target_timestamp
+        ),
         tcp_pos=tcp_pos,
         tcp_rotvec=tcp_rotvec,
     )
@@ -388,3 +498,37 @@ def _first_text(row: dict[str, str], keys: tuple[str, ...]) -> str | None:
         if value is not None and value.strip():
             return value.strip()
     return None
+
+
+def _load_simple_key_values(path: Path) -> dict[str, Any]:
+    values: dict[str, Any] = {}
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.split("#", 1)[0].strip()
+        if not line or ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        values[key.strip()] = _parse_simple_value(value.strip())
+    return values
+
+
+def _parse_simple_value(text: str) -> Any:
+    if not text:
+        return ""
+    lower = text.lower()
+    if lower in ("none", "null"):
+        return None
+    if lower == "true":
+        return True
+    if lower == "false":
+        return False
+    if text.startswith("[") and text.endswith("]"):
+        content = text[1:-1].strip()
+        if not content:
+            return []
+        return [_parse_simple_value(part.strip()) for part in content.split(",")]
+    try:
+        if any(char in lower for char in (".", "e")):
+            return float(text)
+        return int(text)
+    except ValueError:
+        return text.strip("'\"")
