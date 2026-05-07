@@ -23,6 +23,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Write deterministic synthetic TCP poses without connecting to a UR controller.",
     )
+    parser.add_argument(
+        "--no-target-columns",
+        action="store_true",
+        help="Omit target_x/y/z columns so downstream calibration can supply the target separately.",
+    )
     return parser.parse_args()
 
 
@@ -55,7 +60,7 @@ def synthetic_tcp_pose(index: int) -> tuple[float, float, float, float, float, f
     )
 
 
-def write_rows(path: Path, rows: list[dict[str, Any]]) -> None:
+def write_rows(path: Path, rows: list[dict[str, Any]], *, include_target_columns: bool) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fieldnames = [
         "step",
@@ -67,10 +72,14 @@ def write_rows(path: Path, rows: list[dict[str, Any]]) -> None:
         "tcp_rx",
         "tcp_ry",
         "tcp_rz",
-        "target_x",
-        "target_y",
-        "target_z",
     ]
+    if include_target_columns:
+        fieldnames.extend(["target_x", "target_y", "target_z"])
+    else:
+        for row in rows:
+            row.pop("target_x", None)
+            row.pop("target_y", None)
+            row.pop("target_z", None)
     with path.open("w", newline="", encoding="utf-8") as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
@@ -113,9 +122,10 @@ def main() -> None:
         if sleep_time > 0.0 and step + 1 < args.samples:
             time.sleep(sleep_time)
 
-    write_rows(args.output, rows)
+    write_rows(args.output, rows, include_target_columns=not args.no_target_columns)
     print(f"saved TCP pose trace to {args.output}")
     print(f"samples={len(rows)}")
+    print(f"target_columns={'included' if not args.no_target_columns else 'omitted'}")
 
 
 if __name__ == "__main__":

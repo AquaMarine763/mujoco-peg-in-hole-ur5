@@ -2041,7 +2041,22 @@ python scripts\record_ur_rtde_tcp_pose_trace.py `
   --host 192.168.0.10 `
   --samples 200 `
   --frequency-hz 20 `
+  --pose-frame robot_base `
   --target-pos 0.55 0.05 0.65 `
+  --output results\ur_rtde_tcp_pose_trace.csv
+```
+
+When the hole target comes from a separate fixture calibration, omit embedded
+target columns so the dry-run path uses `--target-calibration` instead of a
+target pose inside the TCP trace:
+
+```powershell
+python scripts\record_ur_rtde_tcp_pose_trace.py `
+  --host 192.168.0.10 `
+  --samples 200 `
+  --frequency-hz 20 `
+  --pose-frame robot_base `
+  --no-target-columns `
   --output results\ur_rtde_tcp_pose_trace.csv
 ```
 
@@ -2176,6 +2191,69 @@ python scripts\run_real_camera_policy_preflight.py `
   --dryrun-summary-md results\real_dryrun_camera_policy_preflight_synthetic_smoke_summary.md `
   --summary-md results\real_camera_policy_preflight_synthetic_smoke_summary.md `
   --output-json results\real_camera_policy_preflight_synthetic_smoke_summary.json
+```
+
+Run a read-only capture bundle and preflight it in one command. This records
+camera frames and UR TCP poses in parallel, then runs
+`run_real_camera_policy_preflight.py`. Arguments not recognized by the bundle
+script, such as `--model`, `--zero-policy`, `--tcp-to-peg-tip-xyz`, and camera
+preprocessing flags, are forwarded to the combined preflight:
+
+```powershell
+python scripts\run_real_capture_bundle.py `
+  --record-camera-device-index 0 `
+  --record-camera-frames 20 `
+  --record-camera-frequency-hz 5 `
+  --record-camera-warmup-frames 10 `
+  --record-tcp-host 192.168.0.10 `
+  --record-tcp-samples 20 `
+  --record-tcp-frequency-hz 20 `
+  --record-tcp-pose-frame robot_base `
+  --target-calibration configs\real_hole_target_calibration.yaml `
+  --model checkpoints_image_bc_50k_sidecam_visual_camera_control_delay3_oracle\sac_image_bc.zip `
+  --episodes 1 `
+  --max-steps 20 `
+  --tcp-to-peg-tip-xyz 0 0 -0.11 `
+  --camera-crop-xywh 0 0 640 480 `
+  --camera-rotate-k 0 `
+  --expected-pose-frame robot_base `
+  --summary-md results\real_capture_bundle_summary.md `
+  --preflight-summary-md results\real_capture_bundle_preflight_summary.md `
+  --preflight-output-json results\real_capture_bundle_preflight_summary.json
+```
+
+Smoke-test the capture bundle without a robot or live camera:
+
+```powershell
+python scripts\run_real_capture_bundle.py `
+  --record-camera-synthetic-smoke `
+  --record-camera-frames 4 `
+  --record-camera-frequency-hz 100 `
+  --record-camera-output-dir results\real_capture_bundle_synthetic_smoke_camera_frames `
+  --record-camera-stats-output results\real_capture_bundle_synthetic_smoke_camera_stats.csv `
+  --record-camera-summary-md results\real_capture_bundle_synthetic_smoke_camera_record_summary.md `
+  --record-tcp-synthetic-smoke `
+  --record-tcp-samples 4 `
+  --record-tcp-frequency-hz 100 `
+  --record-tcp-output results\real_capture_bundle_synthetic_smoke_tcp_pose_trace.csv `
+  --target-calibration configs\real_hole_target_calibration_smoke.yaml `
+  --zero-policy `
+  --episodes 1 `
+  --max-steps 3 `
+  --tcp-to-peg-tip-xyz 0 0 -0.11 `
+  --camera-max-frames 4 `
+  --camera-output-dir results\real_capture_bundle_synthetic_smoke_preflight_camera_frames `
+  --camera-stats-output results\real_capture_bundle_synthetic_smoke_preflight_camera_stats.csv `
+  --camera-summary-md results\real_capture_bundle_synthetic_smoke_preflight_camera_summary.md `
+  --camera-output-json results\real_capture_bundle_synthetic_smoke_preflight_camera_summary.json `
+  --dryrun-trace-output results\real_capture_bundle_synthetic_smoke_policy_trace.csv `
+  --dryrun-check-output-md results\real_capture_bundle_synthetic_smoke_dryrun_check.md `
+  --dryrun-check-output-json results\real_capture_bundle_synthetic_smoke_dryrun_check.json `
+  --dryrun-summary-md results\real_capture_bundle_synthetic_smoke_dryrun_summary.md `
+  --summary-md results\real_capture_bundle_synthetic_smoke_summary.md `
+  --output-json results\real_capture_bundle_synthetic_smoke_summary.json `
+  --preflight-summary-md results\real_capture_bundle_synthetic_smoke_preflight_summary.md `
+  --preflight-output-json results\real_capture_bundle_synthetic_smoke_preflight_summary.json
 ```
 
 ## Evaluation Matrix
