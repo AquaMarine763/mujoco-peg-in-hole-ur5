@@ -1910,6 +1910,41 @@ The output trace includes `target_source`, `target_frame`, and
 `target_timestamp`. Details are in
 `results\real_target_calibration_dryrun_summary.md`.
 
+Check a dry-run trace before using it for real deployment decisions. The
+checker validates required trace columns, pose/target frames and sources,
+safe-action limits, workspace clipping, guard activation behavior, distance
+consistency, and optional TCP-to-peg-tip conversion:
+
+```powershell
+python scripts\check_real_dryrun_trace.py `
+  --trace results\real_policy_dryrun_target_calibration_guarded_smoke.csv `
+  --output-md results\real_dryrun_trace_check_target_calibration_smoke.md `
+  --max-safe-action 0.002 `
+  --expected-pose-frame robot_base `
+  --require-nonstatic-target `
+  --tcp-to-peg-tip-xyz 0 0 -0.11
+```
+
+For older TCP-pose and direct pose-trace smoke files:
+
+```powershell
+python scripts\check_real_dryrun_trace.py `
+  --trace results\real_policy_dryrun_tcp_pose_guarded_smoke.csv `
+  --output-md results\real_dryrun_trace_check_tcp_pose_smoke.md `
+  --max-safe-action 0.002 `
+  --expected-pose-frame robot_base `
+  --tcp-to-peg-tip-xyz 0 0 -0.11
+
+python scripts\check_real_dryrun_trace.py `
+  --trace results\real_policy_dryrun_pose_trace_guarded_smoke.csv `
+  --output-md results\real_dryrun_trace_check_pose_trace_smoke.md `
+  --max-safe-action 0.002 `
+  --expected-pose-frame robot_base
+```
+
+The current checker smoke summary is in
+`results\real_dryrun_trace_checker_summary.md`.
+
 Record a read-only UR RTDE TCP pose trace for later dry-run replay. This script
 does not command robot motion:
 
