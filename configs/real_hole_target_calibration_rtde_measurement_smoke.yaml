@@ -1,0 +1,6 @@
+# Fixed hole/fixture pose in the declared target frame.
+target_id: real_hole
+target_source: fixture_calibration
+pose_frame: robot_base
+target_pos: [0.550108028, 0.050014284, 0.650052319]
+target_timestamp: 0.051417800

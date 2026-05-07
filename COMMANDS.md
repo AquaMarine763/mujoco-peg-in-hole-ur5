@@ -1950,6 +1950,37 @@ measurements. The measurement CSV should contain `target_x/y/z` or `hole_x/y/z`
 in meters, plus an optional frame column such as `target_frame` or
 `pose_frame`:
 
+Record repeated hole/target measurements from UR RTDE. This is read-only: move
+the robot manually or by teach pendant so that the active TCP is at the measured
+hole target point, then record samples. If the active TCP is not exactly the
+target point, provide the measured TCP-frame offset with `--tcp-to-target-xyz`:
+
+```powershell
+python scripts\record_ur_rtde_target_measurements.py `
+  --host 192.168.0.10 `
+  --samples 20 `
+  --frequency-hz 5 `
+  --pose-frame robot_base `
+  --target-id real_hole `
+  --tcp-to-target-xyz 0 0 0 `
+  --output results\real_hole_measurements.csv `
+  --summary-md results\real_hole_measurements_summary.md
+```
+
+Smoke-test the target measurement recorder without hardware:
+
+```powershell
+python scripts\record_ur_rtde_target_measurements.py `
+  --synthetic-smoke `
+  --samples 6 `
+  --frequency-hz 100 `
+  --output results\real_hole_measurements_synthetic_smoke.csv `
+  --summary-md results\real_hole_measurements_synthetic_smoke_summary.md
+```
+
+Convert the recorded measurement CSV into the fixed target calibration consumed
+by the real dry-run and preflight scripts:
+
 ```powershell
 python scripts\make_real_target_calibration.py `
   --input-csv results\real_hole_measurements.csv `
