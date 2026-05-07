@@ -1809,6 +1809,30 @@ python scripts\run_policy_inference.py --agent sac --observation-mode image --mo
 
 ## Real Backend Dry Run
 
+Check the static real deployment configuration before recording real camera or
+UR TCP data. This does not connect to hardware:
+
+```powershell
+python scripts\check_real_deployment_config.py `
+  --config configs\real_ur5_dryrun.yaml `
+  --target-calibration configs\real_hole_target_calibration.yaml `
+  --model checkpoints_image_bc_50k_sidecam_visual_camera_control_delay3_oracle\sac_image_bc.zip `
+  --expected-pose-frame robot_base `
+  --tcp-to-peg-tip-xyz 0 0 -0.11 `
+  --output-md results\real_deployment_config_check.md `
+  --output-json results\real_deployment_config_check.json
+```
+
+Smoke-test the static configuration checker without hardware:
+
+```powershell
+python scripts\check_real_deployment_config.py `
+  --config configs\real_ur5_dryrun.yaml `
+  --target-calibration configs\real_hole_target_calibration_smoke.yaml `
+  --output-md results\real_deployment_config_check_synthetic_smoke.md `
+  --output-json results\real_deployment_config_check_synthetic_smoke.json
+```
+
 Validate the real-robot provider/executor path without loading a model or moving
 hardware:
 
