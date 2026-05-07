@@ -35,6 +35,19 @@ def parse_args() -> tuple[argparse.Namespace, list[str]]:
         ),
         allow_abbrev=False,
     )
+    parser.add_argument("--config", type=Path, default=Path("configs/real_ur5_dryrun.yaml"))
+    parser.add_argument("--skip-config-check", action="store_true")
+    parser.add_argument("--config-check-fail-on-warn", action="store_true")
+    parser.add_argument(
+        "--config-check-output-md",
+        type=Path,
+        default=Path("results/real_capture_bundle_config_check.md"),
+    )
+    parser.add_argument(
+        "--config-check-output-json",
+        type=Path,
+        default=Path("results/real_capture_bundle_config_check.json"),
+    )
     parser.add_argument("--record-camera-source", default=None)
     parser.add_argument("--record-camera-device-index", type=int, default=0)
     parser.add_argument("--record-camera-output-dir", type=Path, default=Path("results/real_capture_bundle_camera_frames"))
@@ -182,6 +195,58 @@ def build_tcp_record_command(args: argparse.Namespace) -> list[str]:
     return command
 
 
+def argument_values(args: list[str], flag: str, count: int) -> list[str] | None:
+    for index, item in enumerate(args):
+        if item == flag:
+            values = args[index + 1:index + 1 + count]
+            return values if len(values) == count else None
+        if count == 1 and item.startswith(f"{flag}="):
+            return [item.split("=", 1)[1]]
+    return None
+
+
+def preflight_has_flag(args: list[str], flag: str) -> bool:
+    return any(item == flag or item.startswith(f"{flag}=") for item in args)
+
+
+def extend_argument_values(command: list[str], output_flag: str, values: list[str] | None) -> None:
+    if values is not None:
+        command.append(output_flag)
+        command.extend(values)
+
+
+def build_config_check_command(args: argparse.Namespace, preflight_args: list[str]) -> list[str]:
+    command = [
+        sys.executable,
+        "scripts/check_real_deployment_config.py",
+        "--config",
+        path_arg(args.config) or "",
+        "--output-md",
+        path_arg(args.config_check_output_md) or "",
+        "--output-json",
+        path_arg(args.config_check_output_json) or "",
+    ]
+    if args.target_calibration is not None:
+        command.extend(["--target-calibration", path_arg(args.target_calibration) or ""])
+
+    model_values = argument_values(preflight_args, "--model", 1)
+    if model_values is not None:
+        command.extend(["--model", model_values[0]])
+    elif not preflight_has_flag(preflight_args, "--zero-policy"):
+        command.append("--require-model")
+
+    extend_argument_values(command, "--tcp-to-peg-tip-xyz", argument_values(preflight_args, "--tcp-to-peg-tip-xyz", 3))
+    safety_values = argument_values(preflight_args, "--safety-max-action", 1)
+    if safety_values is not None:
+        command.extend(["--max-safe-action", safety_values[0]])
+    expected_pose_values = argument_values(preflight_args, "--expected-pose-frame", 1)
+    if expected_pose_values is not None:
+        command.extend(["--expected-pose-frame", expected_pose_values[0]])
+    if args.config_check_fail_on_warn:
+        command.append("--fail-on-warn")
+    return command
+
+
 def validate_args(args: argparse.Namespace, preflight_args: list[str]) -> None:
     if args.record_camera_frames <= 0:
         raise ValueError("--record-camera-frames must be positive.")
@@ -239,6 +304,10 @@ def run_command(name: str, command: list[str]) -> CommandResult:
     return finish_command(name, command, process)
 
 
+def skipped_result(name: str) -> CommandResult:
+    return CommandResult(name=name, command=[], returncode=-1, stdout="", stderr="skipped")
+
+
 def run_recorders(camera_command: list[str], tcp_command: list[str]) -> tuple[CommandResult, CommandResult]:
     camera_process = launch_command("camera_record", camera_command)
     tcp_process = launch_command("tcp_record", tcp_command)
@@ -251,6 +320,8 @@ def build_preflight_command(args: argparse.Namespace, preflight_args: list[str])
     command = [
         sys.executable,
         "scripts/run_real_camera_policy_preflight.py",
+        "--config",
+        path_arg(args.config) or "",
         "--image-input",
         path_arg(args.record_camera_output_dir) or "",
         "--tcp-pose-trace",
@@ -331,16 +402,26 @@ def load_json(path: Path) -> dict[str, Any] | None:
     return json.loads(resolved.read_text(encoding="utf-8"))
 
 
-def preflight_verdict(payload: dict[str, Any] | None, result: CommandResult | None) -> str:
+def clear_output_file(path: Path) -> None:
+    resolved = repo_path(path)
+    if resolved.exists() and resolved.is_file():
+        resolved.unlink()
+
+
+def payload_verdict(payload: dict[str, Any] | None, result: CommandResult | None) -> str:
     if payload is not None and "verdict" in payload:
         return str(payload["verdict"])
     if result is None:
+        return "SKIPPED"
+    if result.returncode < 0:
         return "SKIPPED"
     return "PASS" if result.returncode == 0 else "FAIL"
 
 
 def overall_verdict(
     *,
+    config_result: CommandResult | None,
+    config_payload: dict[str, Any] | None,
     camera_result: CommandResult,
     tcp_result: CommandResult,
     preflight_result: CommandResult | None,
@@ -348,6 +429,10 @@ def overall_verdict(
     camera_metrics: dict[str, Any],
     tcp_metrics: dict[str, Any],
 ) -> str:
+    config_status = payload_verdict(config_payload, config_result)
+    if config_result is not None and (config_result.returncode != 0 or config_status == "FAIL"):
+        return "FAIL"
+    has_warning = config_status == "WARN"
     if camera_result.returncode != 0 or tcp_result.returncode != 0:
         return "FAIL"
     if camera_metrics.get("timestamp_monotonic") is False:
@@ -364,10 +449,12 @@ def overall_verdict(
         return "FAIL"
     if preflight_result is None:
         return "FAIL"
-    verdict = preflight_verdict(preflight_payload, preflight_result)
+    verdict = payload_verdict(preflight_payload, preflight_result)
     if preflight_result.returncode != 0 or verdict == "FAIL":
         return "FAIL"
     if verdict == "WARN":
+        has_warning = True
+    if has_warning:
         return "WARN"
     return "PASS"
 
@@ -384,9 +471,24 @@ def metric_rows(prefix: str, metrics: dict[str, Any]) -> list[tuple[str, Any]]:
     return [(f"{prefix}.{key}", metrics[key]) for key in sorted(metrics)]
 
 
+def append_command_section(lines: list[str], title: str, result: CommandResult | None) -> None:
+    lines.extend([title, ""])
+    if result is None or not result.command:
+        lines.extend(["SKIPPED", ""])
+        return
+    lines.extend([
+        "```powershell",
+        command_text(result.command),
+        "```",
+        "",
+    ])
+
+
 def render_summary(
     *,
     args: argparse.Namespace,
+    config_result: CommandResult | None,
+    config_payload: dict[str, Any] | None,
     camera_result: CommandResult,
     tcp_result: CommandResult,
     preflight_result: CommandResult | None,
@@ -395,11 +497,13 @@ def render_summary(
     tcp_metrics: dict[str, Any],
     result: str,
 ) -> str:
-    preflight_result_text = preflight_verdict(preflight_payload, preflight_result)
+    config_result_text = payload_verdict(config_payload, config_result)
+    preflight_result_text = payload_verdict(preflight_payload, preflight_result)
     lines = [
         "# Real Capture Bundle Summary",
         "",
         f"- Overall: **{result}**",
+        f"- Config check verdict: **{config_result_text}**",
         f"- Camera recorder return code: `{camera_result.returncode}`",
         f"- TCP recorder return code: `{tcp_result.returncode}`",
         f"- Combined preflight verdict: **{preflight_result_text}**",
@@ -413,34 +517,17 @@ def render_summary(
         "",
         "## Commands",
         "",
-        "Camera recorder:",
-        "",
-        "```powershell",
-        command_text(camera_result.command),
-        "```",
-        "",
-        "TCP recorder:",
-        "",
-        "```powershell",
-        command_text(tcp_result.command),
-        "```",
-        "",
     ]
-    if preflight_result is not None:
-        lines.extend(
-            [
-                "Combined preflight:",
-                "",
-                "```powershell",
-                command_text(preflight_result.command),
-                "```",
-                "",
-            ]
-        )
+    append_command_section(lines, "Config check:", config_result)
+    append_command_section(lines, "Camera recorder:", camera_result)
+    append_command_section(lines, "TCP recorder:", tcp_result)
+    append_command_section(lines, "Combined preflight:", preflight_result)
     lines.extend(["## Metrics", "", "| Metric | Value |", "| --- | ---: |"])
     for key, value in metric_rows("camera", camera_metrics) + metric_rows("tcp", tcp_metrics):
         lines.append(f"| `{key}` | {format_value(value)} |")
     if preflight_payload is not None:
+        if config_payload is not None:
+            lines.append(f"| `config_check.verdict` | {config_payload.get('verdict', '')} |")
         lines.append(f"| `preflight.verdict` | {preflight_payload.get('verdict', '')} |")
         camera_payload = preflight_payload.get("camera", {}).get("payload")
         dryrun_payload = preflight_payload.get("dryrun", {}).get("payload")
@@ -457,6 +544,8 @@ def write_json_summary(
     path: Path,
     result: str,
     session_id: str,
+    config_result: CommandResult | None,
+    config_payload: dict[str, Any] | None,
     camera_result: CommandResult,
     tcp_result: CommandResult,
     preflight_result: CommandResult | None,
@@ -468,6 +557,15 @@ def write_json_summary(
     payload = {
         "verdict": result,
         "session_id": session_id,
+        "config_check": (
+            None
+            if config_result is None
+            else {
+                "returncode": config_result.returncode,
+                "command": config_result.command,
+                "payload": config_payload,
+            }
+        ),
         "camera_record": {
             "returncode": camera_result.returncode,
             "command": camera_result.command,
@@ -497,20 +595,41 @@ def main() -> None:
         args.session_id = make_session_id()
     validate_args(args, preflight_args)
 
-    camera_command = build_camera_record_command(args)
-    tcp_command = build_tcp_record_command(args)
-    camera_result, tcp_result = run_recorders(camera_command, tcp_command)
+    config_result = None
+    config_payload = None
+    if not args.skip_config_check:
+        clear_output_file(args.config_check_output_json)
+        config_command = build_config_check_command(args, preflight_args)
+        config_result = run_command("config_check", config_command)
+        config_payload = load_json(args.config_check_output_json)
+
+    can_continue = config_result is None or (
+        config_result.returncode == 0 and payload_verdict(config_payload, config_result) != "FAIL"
+    )
+
+    if can_continue:
+        camera_command = build_camera_record_command(args)
+        tcp_command = build_tcp_record_command(args)
+        clear_output_file(args.record_camera_stats_output)
+        clear_output_file(args.record_tcp_output)
+        camera_result, tcp_result = run_recorders(camera_command, tcp_command)
+    else:
+        camera_result = skipped_result("camera_record")
+        tcp_result = skipped_result("tcp_record")
 
     preflight_result = None
     preflight_payload = None
     if camera_result.returncode == 0 and tcp_result.returncode == 0:
         preflight_command = build_preflight_command(args, preflight_args)
+        clear_output_file(args.preflight_output_json)
         preflight_result = run_command("combined_preflight", preflight_command)
         preflight_payload = load_json(args.preflight_output_json)
 
-    camera_metrics = timestamp_metrics(load_csv_rows(args.record_camera_stats_output))
-    tcp_metrics = timestamp_metrics(load_csv_rows(args.record_tcp_output))
+    camera_metrics = timestamp_metrics(load_csv_rows(args.record_camera_stats_output)) if camera_result.command else {}
+    tcp_metrics = timestamp_metrics(load_csv_rows(args.record_tcp_output)) if tcp_result.command else {}
     result = overall_verdict(
+        config_result=config_result,
+        config_payload=config_payload,
         camera_result=camera_result,
         tcp_result=tcp_result,
         preflight_result=preflight_result,
@@ -524,6 +643,8 @@ def main() -> None:
     summary_path.write_text(
         render_summary(
             args=args,
+            config_result=config_result,
+            config_payload=config_payload,
             camera_result=camera_result,
             tcp_result=tcp_result,
             preflight_result=preflight_result,
@@ -538,6 +659,8 @@ def main() -> None:
         path=repo_path(args.output_json),
         result=result,
         session_id=args.session_id,
+        config_result=config_result,
+        config_payload=config_payload,
         camera_result=camera_result,
         tcp_result=tcp_result,
         preflight_result=preflight_result,
@@ -548,6 +671,9 @@ def main() -> None:
     print(f"saved capture bundle summary to {args.summary_md}")
     print(f"verdict={result}")
     if result == "FAIL":
+        config_status = payload_verdict(config_payload, config_result)
+        if config_result is not None and (config_result.returncode != 0 or config_status == "FAIL"):
+            sys.exit(config_result.returncode if config_result.returncode != 0 else 1)
         if camera_result.returncode != 0:
             sys.exit(camera_result.returncode)
         if tcp_result.returncode != 0:

@@ -2217,16 +2217,21 @@ python scripts\run_real_camera_policy_preflight.py `
   --output-json results\real_camera_policy_preflight_synthetic_smoke_summary.json
 ```
 
-Run a read-only capture bundle and preflight it in one command. This records
-camera frames and UR TCP poses in parallel, then runs
-`run_real_camera_policy_preflight.py`. Arguments not recognized by the bundle
-script, such as `--model`, `--zero-policy`, `--tcp-to-peg-tip-xyz`, and camera
-preprocessing flags, are forwarded to the combined preflight. The bundle
-generates one session id and writes it into both recorder CSVs; pass
-`--session-id` only when you want a specific id in the logs:
+Run a read-only capture bundle and preflight it in one command. The bundle now
+runs `check_real_deployment_config.py` first, then records camera frames and UR
+TCP poses in parallel, and finally runs `run_real_camera_policy_preflight.py`.
+If the config check fails, it skips recorder startup and still writes a summary.
+Arguments not recognized by the bundle script, such as `--model`,
+`--zero-policy`, `--tcp-to-peg-tip-xyz`, and camera preprocessing flags, are
+forwarded to the combined preflight. The bundle generates one session id and
+writes it into both recorder CSVs; pass `--session-id` only when you want a
+specific id in the logs:
 
 ```powershell
 python scripts\run_real_capture_bundle.py `
+  --config configs\real_ur5_dryrun.yaml `
+  --config-check-output-md results\real_capture_bundle_config_check.md `
+  --config-check-output-json results\real_capture_bundle_config_check.json `
   --record-camera-device-index 0 `
   --record-camera-frames 20 `
   --record-camera-frequency-hz 5 `
@@ -2252,36 +2257,46 @@ Smoke-test the capture bundle without a robot or live camera:
 
 ```powershell
 python scripts\run_real_capture_bundle.py `
-  --session-id synthetic_smoke_session `
+  --session-id synthetic_config_gate_smoke `
+  --config configs\real_ur5_dryrun.yaml `
+  --config-check-output-md results\real_capture_bundle_config_gate_synthetic_smoke_config_check.md `
+  --config-check-output-json results\real_capture_bundle_config_gate_synthetic_smoke_config_check.json `
   --record-camera-synthetic-smoke `
   --record-camera-frames 4 `
   --record-camera-frequency-hz 100 `
-  --record-camera-output-dir results\real_capture_bundle_session_synthetic_smoke_camera_frames `
-  --record-camera-stats-output results\real_capture_bundle_session_synthetic_smoke_camera_stats.csv `
-  --record-camera-summary-md results\real_capture_bundle_session_synthetic_smoke_camera_record_summary.md `
+  --record-camera-output-dir results\real_capture_bundle_config_gate_synthetic_smoke_camera_frames `
+  --record-camera-stats-output results\real_capture_bundle_config_gate_synthetic_smoke_camera_stats.csv `
+  --record-camera-summary-md results\real_capture_bundle_config_gate_synthetic_smoke_camera_record_summary.md `
   --record-tcp-synthetic-smoke `
   --record-tcp-samples 4 `
   --record-tcp-frequency-hz 100 `
-  --record-tcp-output results\real_capture_bundle_session_synthetic_smoke_tcp_pose_trace.csv `
+  --record-tcp-output results\real_capture_bundle_config_gate_synthetic_smoke_tcp_pose_trace.csv `
   --target-calibration configs\real_hole_target_calibration_smoke.yaml `
   --zero-policy `
   --episodes 1 `
   --max-steps 3 `
   --tcp-to-peg-tip-xyz 0 0 -0.11 `
   --camera-max-frames 4 `
-  --camera-output-dir results\real_capture_bundle_session_synthetic_smoke_preflight_camera_frames `
-  --camera-stats-output results\real_capture_bundle_session_synthetic_smoke_preflight_camera_stats.csv `
-  --camera-summary-md results\real_capture_bundle_session_synthetic_smoke_preflight_camera_summary.md `
-  --camera-output-json results\real_capture_bundle_session_synthetic_smoke_preflight_camera_summary.json `
-  --dryrun-trace-output results\real_capture_bundle_session_synthetic_smoke_policy_trace.csv `
-  --dryrun-check-output-md results\real_capture_bundle_session_synthetic_smoke_dryrun_check.md `
-  --dryrun-check-output-json results\real_capture_bundle_session_synthetic_smoke_dryrun_check.json `
-  --dryrun-summary-md results\real_capture_bundle_session_synthetic_smoke_dryrun_summary.md `
-  --summary-md results\real_capture_bundle_session_synthetic_smoke_summary.md `
-  --output-json results\real_capture_bundle_session_synthetic_smoke_summary.json `
-  --preflight-summary-md results\real_capture_bundle_session_synthetic_smoke_preflight_summary.md `
-  --preflight-output-json results\real_capture_bundle_session_synthetic_smoke_preflight_summary.json
+  --camera-output-dir results\real_capture_bundle_config_gate_synthetic_smoke_preflight_camera_frames `
+  --camera-stats-output results\real_capture_bundle_config_gate_synthetic_smoke_preflight_camera_stats.csv `
+  --camera-summary-md results\real_capture_bundle_config_gate_synthetic_smoke_preflight_camera_summary.md `
+  --camera-output-json results\real_capture_bundle_config_gate_synthetic_smoke_preflight_camera_summary.json `
+  --dryrun-trace-output results\real_capture_bundle_config_gate_synthetic_smoke_policy_trace.csv `
+  --dryrun-check-output-md results\real_capture_bundle_config_gate_synthetic_smoke_dryrun_check.md `
+  --dryrun-check-output-json results\real_capture_bundle_config_gate_synthetic_smoke_dryrun_check.json `
+  --dryrun-summary-md results\real_capture_bundle_config_gate_synthetic_smoke_dryrun_summary.md `
+  --summary-md results\real_capture_bundle_config_gate_synthetic_smoke_summary.md `
+  --output-json results\real_capture_bundle_config_gate_synthetic_smoke_summary.json `
+  --preflight-summary-md results\real_capture_bundle_config_gate_synthetic_smoke_preflight_summary.md `
+  --preflight-output-json results\real_capture_bundle_config_gate_synthetic_smoke_preflight_summary.json
 ```
+
+Checked gate smoke outputs:
+
+| Scenario | Expected exit | Summary |
+| --- | ---: | --- |
+| config pass | 0 | `results\real_capture_bundle_config_gate_synthetic_smoke_summary.md` |
+| missing config | 1 | `results\real_capture_bundle_config_gate_failure_smoke_summary.md` |
 
 ## Evaluation Matrix
 

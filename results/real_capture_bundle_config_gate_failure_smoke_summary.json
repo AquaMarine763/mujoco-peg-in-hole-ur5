@@ -1,0 +1,86 @@
+{
+  "verdict": "FAIL",
+  "session_id": "synthetic_config_gate_failure_smoke",
+  "config_check": {
+    "returncode": 1,
+    "command": [
+      "D:\\ProgramData\\miniconda3\\python.exe",
+      "scripts/check_real_deployment_config.py",
+      "--config",
+      "configs\\missing_real_ur5_dryrun.yaml",
+      "--output-md",
+      "results\\real_capture_bundle_config_gate_failure_smoke_config_check.md",
+      "--output-json",
+      "results\\real_capture_bundle_config_gate_failure_smoke_config_check.json",
+      "--target-calibration",
+      "configs\\real_hole_target_calibration_smoke.yaml",
+      "--tcp-to-peg-tip-xyz",
+      "0",
+      "0",
+      "-0.11"
+    ],
+    "payload": {
+      "verdict": "FAIL",
+      "metrics": {
+        "control_frequency_hz": 20.0,
+        "image_width": 100.0,
+        "image_height": 100.0,
+        "max_steps": 50.0,
+        "safety_max_action": 0.002,
+        "pose_frame": "robot_base",
+        "safety_action_filter_alpha": 0.6,
+        "target_calibration_path": "configs\\real_hole_target_calibration_smoke.yaml",
+        "target_id": "smoke_hole",
+        "target_source": "fixture_calibration",
+        "target_frame": "robot_base",
+        "target_pos": [
+          0.55,
+          0.05,
+          0.65
+        ],
+        "safety_workspace_low": [
+          0.45,
+          -0.1,
+          0.6
+        ],
+        "safety_workspace_high": [
+          0.65,
+          0.15,
+          0.82
+        ],
+        "peg_tip_pos": [
+          0.55,
+          0.05,
+          0.78
+        ],
+        "tcp_to_peg_tip_xyz": [
+          0.0,
+          0.0,
+          -0.11
+        ],
+        "tcp_to_peg_tip_norm": 0.11,
+        "tool0_tcp_offset_mismatch": 0.0
+      },
+      "issues": [
+        {
+          "severity": "ERROR",
+          "code": "config_not_found",
+          "message": "Config file does not exist.",
+          "count": 1,
+          "details": "configs\\missing_real_ur5_dryrun.yaml"
+        }
+      ]
+    }
+  },
+  "camera_record": {
+    "returncode": -1,
+    "command": [],
+    "metrics": {}
+  },
+  "tcp_record": {
+    "returncode": -1,
+    "command": [],
+    "metrics": {}
+  },
+  "preflight": null
+}
