@@ -42,6 +42,8 @@ Guidelines:
 
 - Keep the UR5e adapter as the default development model on this branch.
 - Keep the legacy UR5-like model only for comparison and regression checks.
+- Put repeatable UR5e command defaults under `configs/sim/ur5e/` before adding
+  another long command to `COMMANDS.md`.
 - Put new UR5e experiments under `*_ur5e_*` names and new real-robot
   readiness outputs under `results/real/`.
 - Do not rename historical artifact paths unless a script or command is being

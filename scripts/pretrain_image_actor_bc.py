@@ -9,6 +9,7 @@ import torch.nn.functional as F
 from stable_baselines3 import SAC
 
 from peg_in_hole_mujoco import PegInHoleMujocoEnv
+from peg_in_hole_mujoco.sim_config import parse_args_with_config
 
 
 def parse_args() -> argparse.Namespace:
@@ -47,7 +48,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--buffer-size", type=int, default=100_000)
     parser.add_argument("--learning-starts", type=int, default=1_000)
     parser.add_argument("--ent-coef", default="auto_0.01")
-    return parser.parse_args()
+    return parse_args_with_config(parser)
 
 
 def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:

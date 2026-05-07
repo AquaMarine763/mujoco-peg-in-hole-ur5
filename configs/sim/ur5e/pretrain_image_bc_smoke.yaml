@@ -1,0 +1,31 @@
+# One-epoch BC smoke using the structured UR5e artifact layout.
+dataset: datasets/ur5e/smoke/image_expert_smoke.npz
+output: checkpoints/ur5e/smoke/sac_image_bc_smoke.zip
+model: checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4/sac_image_bc.zip
+epochs: 1
+batch_size: 64
+learning_rate: 0.000015
+validation_split: 0.1
+device: cpu
+seed: 40000
+image_width: 100
+image_height: 100
+include_near_hole_crop: true
+near_hole_crop_size: 64
+max_steps: 200
+action_scale: 0.005
+target_low: [0.50, 0.00, 0.65]
+target_high: [0.60, 0.10, 0.65]
+success_xy_tolerance: 0.005
+success_z_tolerance: 0.01
+approach_xy_tolerance: 0.06
+approach_height: 0.08
+staged_xy_weight: 2.0
+staged_z_weight: 1.0
+success_bonus: 120.0
+collision_penalty: 300.0
+timeout_penalty: 10.0
+progress_reward_scale: 20.0
+distance_reward_scale: 2.0
+action_penalty_scale: 0.002
+action_alignment_scale: 2.0

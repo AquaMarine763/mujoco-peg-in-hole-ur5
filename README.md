@@ -51,6 +51,15 @@ simplified UR5-like MJCF remains available at `assets/ur5_peg_in_hole.xml` and
 can still be passed with `--model-path` for regression checks. See
 `PROJECT_STRUCTURE.md` for the recommended local artifact layout.
 
+The common UR5e evaluation, guarded-demo, oracle-data, and BC-smoke defaults
+are also captured under `configs/sim/ur5e/`. For example:
+
+```bash
+python scripts/eval_matrix.py --config configs/sim/ur5e/eval_image_crop.yaml
+python scripts/eval_guarded_policy.py --config configs/sim/ur5e/eval_guarded_image_crop.yaml
+python scripts/demo_policy.py --config configs/sim/ur5e/demo_guarded_image_crop.yaml
+```
+
 The current UR5e adapter fixed-camera baseline is documented in `COMMANDS.md`.
 It uses `checkpoints_image_bc_ur5e_adapter_fixedcam_50k_scratch/sac_image_bc.zip`
 when regenerated locally.

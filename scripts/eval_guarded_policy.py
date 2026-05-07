@@ -16,6 +16,7 @@ from peg_in_hole_mujoco import (
     OracleControllerConfig,
     PegInHoleMujocoEnv,
 )
+from peg_in_hole_mujoco.sim_config import parse_args_with_config
 
 
 AGENTS = {
@@ -144,7 +145,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--guarded-max-down-action", type=float, default=0.0035)
     parser.add_argument("--guarded-max-up-action", type=float, default=0.005)
     parser.add_argument("--guarded-prediction-steps", type=float, default=1.0)
-    return parser.parse_args()
+    return parse_args_with_config(parser)
 
 
 def make_env(args: argparse.Namespace, scenario: Scenario) -> PegInHoleMujocoEnv:

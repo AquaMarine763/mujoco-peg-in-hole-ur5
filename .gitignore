@@ -7,6 +7,8 @@ __pycache__/
 debug/
 results/ur5e_camera_candidates/
 results/ur5e_camera_debug/
+results/ur5e/smoke/
+demos/ur5e/smoke/
 build/
 dist/
 *.egg-info/

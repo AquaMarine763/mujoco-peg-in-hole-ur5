@@ -7,6 +7,9 @@
   -->
   <compiler angle="radian" autolimits="true"/>
   <option timestep="0.002" gravity="0 0 -9.81" integrator="implicitfast"/>
+  <visual>
+    <global offwidth="2560" offheight="1440"/>
+  </visual>
   <custom>
     <numeric name="ik_joint_count" data="6"/>
   </custom>

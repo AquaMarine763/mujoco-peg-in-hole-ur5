@@ -16,6 +16,7 @@ from peg_in_hole_mujoco import (
     OracleControllerConfig,
     PegInHoleMujocoEnv,
 )
+from peg_in_hole_mujoco.sim_config import parse_args_with_config
 
 
 AGENTS = {
@@ -121,7 +122,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--guarded-max-down-action", type=float, default=0.0035)
     parser.add_argument("--guarded-max-up-action", type=float, default=0.005)
     parser.add_argument("--guarded-prediction-steps", type=float, default=1.0)
-    return parser.parse_args()
+    return parse_args_with_config(parser)
 
 
 def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
@@ -304,6 +305,23 @@ def save_trajectory_csv(path: Path, rows: list[dict[str, Any]]) -> None:
     print(f"saved trajectory diagnostics to {path}")
 
 
+def save_demo_frames(imageio: Any, path: Path, frames: list[np.ndarray], fps: int) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        imageio.mimsave(path, frames, fps=fps)
+        print(f"saved demo to {path}")
+        return path
+    except ValueError as exc:
+        video_suffixes = {".mp4", ".mov", ".avi", ".mkv"}
+        if path.suffix.lower() not in video_suffixes:
+            raise
+        fallback = path.with_suffix(".gif")
+        imageio.mimsave(fallback, frames, fps=fps)
+        print(f"video backend unavailable for {path}: {exc}")
+        print(f"saved GIF fallback to {fallback}")
+        return fallback
+
+
 def main() -> None:
     try:
         import imageio.v2 as imageio
@@ -436,9 +454,7 @@ def main() -> None:
         demo_renderer.close()
         env.close()
 
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    imageio.mimsave(args.output, frames, fps=args.fps)
-    print(f"saved demo to {args.output}")
+    save_demo_frames(imageio, args.output, frames, args.fps)
     if args.trajectory_output is not None:
         save_trajectory_csv(args.trajectory_output, trajectory_rows)
 

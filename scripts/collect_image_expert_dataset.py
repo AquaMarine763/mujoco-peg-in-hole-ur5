@@ -8,6 +8,7 @@ import numpy as np
 from stable_baselines3 import SAC
 
 from peg_in_hole_mujoco import OracleControllerConfig, PegInHoleMujocoEnv, oracle_action
+from peg_in_hole_mujoco.sim_config import parse_args_with_config
 
 
 SCALAR_DIAGNOSTIC_KEYS = (
@@ -206,7 +207,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--distance-reward-scale", type=float, default=2.0)
     parser.add_argument("--action-penalty-scale", type=float, default=0.002)
     parser.add_argument("--action-alignment-scale", type=float, default=2.0)
-    return parser.parse_args()
+    return parse_args_with_config(parser)
 
 
 def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:

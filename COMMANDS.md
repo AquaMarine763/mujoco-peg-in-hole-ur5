@@ -79,6 +79,32 @@ python scripts\eval_matrix.py --agent sac --observation-mode image --include-nea
 python scripts\eval_guarded_policy.py --agent sac --observation-mode image --include-near-hole-crop --near-hole-crop-size 64 --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip --episodes 100 --seed 90000 --device cpu --include-hard-bucket --output-csv results\ur5e\mainline\eval_guarded_default_ur5e_750k_blend075.csv --output-md results\ur5e\mainline\eval_guarded_default_ur5e_750k_blend075.md --success-xy-tolerance 0.005 --success-z-tolerance 0.01 --guard-scenario-filter geometry --guard-start-xy 0.06 --guard-start-z 0.08 --guard-risk-xy 0.0 --guard-blend 0.75 --guard-min-policy-steps 0
 ```
 
+The same UR5e mainline commands are now available as config-driven short
+commands. These use the branch-default UR5e model and the recommended
+near-hole crop policy:
+
+```powershell
+python scripts\eval_matrix.py --config configs\sim\ur5e\eval_image_crop.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e\eval_guarded_image_crop.yaml
+python scripts\demo_policy.py --config configs\sim\ur5e\demo_guarded_image_crop.yaml
+```
+
+Structured-layout smoke for future UR5e data and BC experiments:
+
+```powershell
+python scripts\collect_image_expert_dataset.py --config configs\sim\ur5e\collect_image_expert_smoke.yaml
+python scripts\pretrain_image_actor_bc.py --config configs\sim\ur5e\pretrain_image_bc_smoke.yaml
+```
+
+For MP4 demo output, install the current dependency set:
+
+```powershell
+python -m pip install -r requirements.txt
+```
+
+If the MP4 backend is still unavailable, `demo_policy.py` automatically saves a
+same-stem GIF fallback.
+
 Checked UR5e mainline result:
 
 | Evaluation | Clean | Visual camera | Visual camera control | Full light | Full contact | Hard bucket |
