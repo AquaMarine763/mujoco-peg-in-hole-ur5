@@ -1945,6 +1945,28 @@ python scripts\check_real_dryrun_trace.py `
 The current checker smoke summary is in
 `results\real_dryrun_trace_checker_summary.md`.
 
+Run the complete real dry-run preflight gate. This wrapper first runs
+`run_real_policy_dryrun.py`, then runs `check_real_dryrun_trace.py`, and finally
+writes a compact summary. It still does not command robot motion:
+
+```powershell
+python scripts\run_real_dryrun_preflight.py `
+  --zero-policy `
+  --episodes 1 `
+  --max-steps 3 `
+  --tcp-pose-trace configs\real_tcp_pose_trace_no_target_smoke.csv `
+  --target-calibration configs\real_hole_target_calibration_smoke.yaml `
+  --tcp-to-peg-tip-xyz 0 0 -0.11 `
+  --trace-output results\real_policy_dryrun_preflight_target_calibration_smoke.csv `
+  --check-output-md results\real_dryrun_preflight_target_calibration_check.md `
+  --summary-md results\real_dryrun_preflight_target_calibration_summary.md
+```
+
+For a real preflight, replace the smoke TCP CSV with a trace recorded from UR
+RTDE and replace the target calibration file with the measured fixture/hole
+calibration. The default preflight requires non-static pose and target sources,
+uses guarded final insertion, and fails on checker errors.
+
 Record a read-only UR RTDE TCP pose trace for later dry-run replay. This script
 does not command robot motion:
 
