@@ -1,0 +1,23 @@
+{
+  "model_path": "assets\\ur5_peg_in_hole.xml",
+  "valid": true,
+  "missing": {
+    "joints": [],
+    "actuators": [],
+    "bodies": [],
+    "sites": [],
+    "cameras": [],
+    "geoms": []
+  },
+  "counts": {
+    "nq": 6,
+    "nv": 6,
+    "nu": 6,
+    "nbody": 10,
+    "njnt": 6,
+    "ngeom": 16,
+    "nsite": 3,
+    "ncam": 2
+  },
+  "warnings": []
+}

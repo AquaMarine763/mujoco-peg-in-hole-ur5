@@ -7,11 +7,18 @@ Large generated artifacts are intentionally not committed:
 
 - `checkpoints*/`: Stable-Baselines3 model checkpoints and cloned actor models.
 - `logs*/`: TensorBoard and training logs.
-- `datasets/*.npz`: image expert datasets, including 50k-sample runs.
+- `datasets/*.npz` and `datasets/**/*.npz`: image expert datasets, including
+  50k-sample runs.
 - `debug/`, `.tmp/`, `.deps/`: local scratch and dependency caches.
 
 The JSON files under `datasets/` are small run metadata records and are kept so
 the dataset settings remain inspectable.
+
+For new UR5e work, prefer the structured artifact layout in
+`PROJECT_STRUCTURE.md`, for example `results/ur5e/mainline/`,
+`datasets/ur5e/`, `checkpoints/ur5e/`, and `demos/ur5e/`. Existing historical
+root-level artifact directories are kept as-is to preserve reproducibility of
+older command records.
 
 To reproduce the current strongest image baseline, regenerate the
 visual+camera+control dataset and behavior-cloned model:

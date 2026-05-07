@@ -1,8 +1,9 @@
 # UR5e Adapter
 
-This directory contains a lightweight UR5e MJCF adapter. The project still
-runs on `assets/ur5_peg_in_hole.xml` by default unless scripts are called with
-`--model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml`.
+This directory contains the lightweight UR5e MJCF adapter. On the
+`feature/ur5e-mainline` branch this is the default simulation model. The older
+UR5-like model remains available at `assets/ur5_peg_in_hole.xml` for regression
+checks.
 
 `ur5e_peg_in_hole.xml` is derived from the DeepMind MuJoCo Menagerie
 `universal_robots_ur5e/ur5e.xml` model. It keeps the UR5e joint chain,
@@ -36,8 +37,8 @@ From the repository root:
 python scripts\inspect_robot_model.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --output-md results\robot_model_ur5e_adapter.md --fail-on-missing
 ```
 
-If the report is compatible, the same XML can be passed to training,
-evaluation, demo, and dataset commands with:
+If the report is compatible, the same XML can still be passed explicitly to
+training, evaluation, demo, and dataset commands with:
 
 ```powershell
 --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml

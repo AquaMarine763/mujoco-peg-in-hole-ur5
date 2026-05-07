@@ -23,6 +23,8 @@ except ImportError as exc:  # pragma: no cover - exercised before dependencies a
         "`python -m pip install -r requirements.txt`."
     ) from exc
 
+from peg_in_hole_mujoco.paths import resolve_model_path
+
 
 ObservationMode = Literal["image", "state"]
 DomainRandomizationLevel = Literal[
@@ -254,11 +256,7 @@ class PegInHoleMujocoEnv(gym.Env):
         self.current_joint_damping_multiplier = 1.0
         self.current_actuator_kp_multiplier = 1.0
 
-        asset_path = (
-            Path(model_path)
-            if model_path is not None
-            else Path(__file__).resolve().parents[2] / "assets" / "ur5_peg_in_hole.xml"
-        )
+        asset_path = resolve_model_path(model_path)
         self.model = mujoco.MjModel.from_xml_path(str(asset_path))
         self.data = mujoco.MjData(self.model)
         self.ik_data = mujoco.MjData(self.model)

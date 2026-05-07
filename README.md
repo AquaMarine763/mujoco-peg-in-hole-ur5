@@ -45,10 +45,11 @@ For the current recommended training, evaluation, demo, and scan commands, see
 `COMMANDS.md`. For the real-robot migration checklist, see
 `REAL_ROBOT_PLAN.md`.
 
-The default model is still a simplified UR5-like MJCF. A lightweight UR5e
-adapter is available at `assets/ur5e_adapter/ur5e_peg_in_hole.xml`; it can be
-checked with `scripts/inspect_robot_model.py` and passed to training/evaluation
-scripts via `--model-path`.
+On the UR5e mainline branch, the default simulation model is the lightweight
+UR5e adapter at `assets/ur5e_adapter/ur5e_peg_in_hole.xml`. The older
+simplified UR5-like MJCF remains available at `assets/ur5_peg_in_hole.xml` and
+can still be passed with `--model-path` for regression checks. See
+`PROJECT_STRUCTURE.md` for the recommended local artifact layout.
 
 The current UR5e adapter fixed-camera baseline is documented in `COMMANDS.md`.
 It uses `checkpoints_image_bc_ur5e_adapter_fixedcam_50k_scratch/sac_image_bc.zip`

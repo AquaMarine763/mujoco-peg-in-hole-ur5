@@ -36,41 +36,55 @@ python scripts\random_rollout.py --observation-mode state --episodes 1 --domain-
 
 ## Robot Model Compatibility / UR5e Adapter
 
-The default simulator still uses the simplified UR5-like model at
-`assets\ur5_peg_in_hole.xml`. A lightweight UR5e adapter is available at
-`assets\ur5e_adapter\ur5e_peg_in_hole.xml`. It is derived from the DeepMind
-MuJoCo Menagerie UR5e model and keeps the UR5e joint chain, inertials,
-actuator style, and simplified collision geoms without vendoring large visual
-mesh assets.
+On the `feature/ur5e-mainline` branch, the default simulator uses the
+lightweight UR5e adapter at `assets\ur5e_adapter\ur5e_peg_in_hole.xml`. It is
+derived from the DeepMind MuJoCo Menagerie UR5e model and keeps the UR5e joint
+chain, inertials, actuator style, and simplified collision geoms without
+vendoring large visual mesh assets. The older simplified UR5-like model remains
+available at `assets\ur5_peg_in_hole.xml` for regression checks.
 
 Check that the default model exposes the task interface names used by the
 environment:
 
 ```powershell
-python scripts\inspect_robot_model.py --model-path assets\ur5_peg_in_hole.xml --output-md results\robot_model_current.md --fail-on-missing
+python scripts\inspect_robot_model.py --output-md results\ur5e\mainline\robot_model_default_ur5e.md --fail-on-missing
 ```
 
-Check the UR5e adapter:
+Check the legacy UR5-like model explicitly:
 
 ```powershell
-python scripts\inspect_robot_model.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --output-md results\robot_model_ur5e_adapter.md --fail-on-missing
+python scripts\inspect_robot_model.py --model-path assets\ur5_peg_in_hole.xml --output-md results\ur5e\mainline\robot_model_legacy_ur5_like.md --fail-on-missing
 ```
 
-Smoke-test the UR5e adapter through reset, IK, stepping, and rendering. Random
-actions are not expected to succeed; use the oracle command to verify that the
-model can complete the task:
+Smoke-test the default UR5e adapter through reset, IK, stepping, and rendering.
+Random actions are not expected to succeed; use the oracle command to verify
+that the model can complete the task:
 
 ```powershell
-python scripts\random_rollout.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --observation-mode state --episodes 1
-python scripts\random_rollout.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --observation-mode image --episodes 1
-python scripts\oracle_rollout.py --model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml --observation-mode state --episodes 3
+python scripts\random_rollout.py --observation-mode state --episodes 1
+python scripts\random_rollout.py --observation-mode image --episodes 1
+python scripts\oracle_rollout.py --observation-mode state --episodes 3
 ```
 
-All main environment scripts accept the same override:
+All main environment scripts still accept an explicit model override:
 
 ```powershell
---model-path assets\ur5e_adapter\ur5e_peg_in_hole.xml
+--model-path assets\ur5_peg_in_hole.xml
 ```
+
+UR5e mainline branch verification:
+
+```powershell
+python scripts\eval_matrix.py --agent sac --observation-mode image --include-near-hole-crop --near-hole-crop-size 64 --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip --episodes 100 --device cpu --output-csv results\ur5e\mainline\eval_matrix_default_ur5e_750k_crop.csv --output-md results\ur5e\mainline\eval_matrix_default_ur5e_750k_crop.md --success-xy-tolerance 0.005 --success-z-tolerance 0.01
+python scripts\eval_guarded_policy.py --agent sac --observation-mode image --include-near-hole-crop --near-hole-crop-size 64 --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip --episodes 100 --seed 90000 --device cpu --include-hard-bucket --output-csv results\ur5e\mainline\eval_guarded_default_ur5e_750k_blend075.csv --output-md results\ur5e\mainline\eval_guarded_default_ur5e_750k_blend075.md --success-xy-tolerance 0.005 --success-z-tolerance 0.01 --guard-scenario-filter geometry --guard-start-xy 0.06 --guard-start-z 0.08 --guard-risk-xy 0.0 --guard-blend 0.75 --guard-min-policy-steps 0
+```
+
+Checked UR5e mainline result:
+
+| Evaluation | Clean | Visual camera | Visual camera control | Full light | Full contact | Hard bucket |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| policy only | 0.980 | 0.980 | 0.920 | 0.580 | 0.600 | - |
+| guarded blend 0.75 | 0.980 | 0.980 | 0.910 | 0.710 | 0.640 | 0.530 |
 
 ## UR5e Adapter Fixed-Camera Baselines
 
