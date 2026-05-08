@@ -55,6 +55,10 @@ Current implementation:
   from DeepMind MuJoCo Menagerie. It keeps the UR5e joint chain, inertials,
   actuator style, and simplified collision geoms, but does not include the
   large visual mesh assets.
+- `assets/ur5e_full/ur5e_peg_in_hole_full.xml`: full UR5e task adapter with
+  vendored Menagerie visual meshes, Menagerie inertials/collision geometry, and
+  the same task-facing joint, actuator, `tool0`, `peg_tip`, `wrist_cam`, and
+  fixture names used by the environment.
 
 The action is a Cartesian peg-tip displacement in meters. The default step
 limit is `0.005 m`. The current MuJoCo session logs a `50 Hz` control
@@ -90,6 +94,12 @@ The adapter must preserve the current task-facing names, including
 six joint/actuator names. If the source UR5e MJCF uses different internal link
 or collision names, wrap it with adapter sites/bodies/actuators instead of
 changing the training scripts.
+
+For demos that need the actual UR5e mesh, use:
+
+```powershell
+python scripts\demo_policy.py --model-path assets\ur5e_full\ur5e_peg_in_hole_full.xml ...
+```
 
 Current limitation: this adapter is useful for validating UR5e kinematics and
 the model-selection pipeline, but it is not yet a calibrated visual/dynamics

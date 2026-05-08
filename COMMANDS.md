@@ -72,6 +72,36 @@ All main environment scripts still accept an explicit model override:
 --model-path assets\ur5_peg_in_hole.xml
 ```
 
+Use the full UR5e model when demo rendering should show the actual UR5e mesh
+and Menagerie collision/inertial model. The branch default remains the lighter
+adapter so older training/evaluation numbers stay comparable:
+
+```powershell
+python scripts\inspect_robot_model.py `
+  --model-path assets\ur5e_full\ur5e_peg_in_hole_full.xml `
+  --output-md results\robot_model_ur5e_full.md `
+  --output-json results\robot_model_ur5e_full.json `
+  --fail-on-missing
+
+python scripts\oracle_rollout.py `
+  --model-path assets\ur5e_full\ur5e_peg_in_hole_full.xml `
+  --observation-mode state `
+  --episodes 3 `
+  --max-steps 120
+
+python scripts\demo_policy.py `
+  --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip `
+  --model-path assets\ur5e_full\ur5e_peg_in_hole_full.xml `
+  --observation-mode image `
+  --include-near-hole-crop `
+  --episodes 1 `
+  --max-steps 12 `
+  --output results\ur5e_full_demo.gif `
+  --render-width 1280 `
+  --render-height 720 `
+  --render-camera overview
+```
+
 UR5e mainline branch verification:
 
 ```powershell

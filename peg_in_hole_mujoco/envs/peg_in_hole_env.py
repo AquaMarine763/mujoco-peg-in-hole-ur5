@@ -81,9 +81,12 @@ class PegInHoleMujocoEnv(gym.Env):
     ROBOT_GEOMS = {
         "base_geom",
         "shoulder_geom",
+        "upper_arm_shoulder_geom",
         "upper_arm_geom",
+        "forearm_elbow_geom",
         "forearm_geom",
         "wrist_1_geom",
+        "wrist_2_base_geom",
         "wrist_2_geom",
         "wrist_3_geom",
         "camera_geom",

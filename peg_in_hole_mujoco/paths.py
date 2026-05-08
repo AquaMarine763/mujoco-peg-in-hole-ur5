@@ -7,6 +7,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 ASSETS_ROOT = REPO_ROOT / "assets"
 
 UR5E_MAINLINE_MODEL = ASSETS_ROOT / "ur5e_adapter" / "ur5e_peg_in_hole.xml"
+UR5E_FULL_MODEL = ASSETS_ROOT / "ur5e_full" / "ur5e_peg_in_hole_full.xml"
 UR5_LIKE_LEGACY_MODEL = ASSETS_ROOT / "ur5_peg_in_hole.xml"
 DEFAULT_MODEL_PATH = UR5E_MAINLINE_MODEL
 
