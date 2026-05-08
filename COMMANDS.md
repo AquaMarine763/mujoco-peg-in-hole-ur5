@@ -1874,6 +1874,24 @@ Edit the local YAML before running the generated commands. The strict real
 preflight now requires measured `crop_xywh`, camera intrinsics, and
 `tool0_to_camera_*` values:
 
+Tune camera crop and orientation from recorded frames:
+
+```powershell
+python scripts\inspect_real_camera_crop.py `
+  --input results\real\ur5e\real_ur5e_YYYYMMDD\camera_tuning_frames `
+  --output-dir results\real\ur5e\real_ur5e_YYYYMMDD\crop_inspection `
+  --summary-md results\real\ur5e\real_ur5e_YYYYMMDD\crop_inspection_summary.md `
+  --stats-output results\real\ur5e\real_ur5e_YYYYMMDD\crop_inspection_stats.csv `
+  --output-json results\real\ur5e\real_ur5e_YYYYMMDD\crop_inspection_summary.json `
+  --auto-crop-fractions 0.50 0.65 0.80 `
+  --auto-offset-fraction 0.15 `
+  --include-flips `
+  --max-combinations 240
+```
+
+Use the top-ranked candidate only as a starting point. Inspect the preview
+sheets before copying the config snippet.
+
 ```powershell
 python scripts\check_real_deployment_config.py `
   --config configs\real\ur5e\real_ur5e_YYYYMMDD_local.yaml `
@@ -1912,6 +1930,18 @@ python scripts\check_real_motion_readiness.py `
   --allow-smoke-paths `
   --output-md results\real\ur5e\smoke\motion_readiness_synthetic_allowed.md `
   --output-json results\real\ur5e\smoke\motion_readiness_synthetic_allowed.json
+
+python scripts\inspect_real_camera_crop.py `
+  --synthetic-smoke `
+  --output-dir results\real\ur5e\smoke\crop_inspection `
+  --stats-output results\real\ur5e\smoke\crop_inspection_stats.csv `
+  --summary-md results\real\ur5e\smoke\crop_inspection_summary.md `
+  --output-json results\real\ur5e\smoke\crop_inspection_summary.json `
+  --max-frames 3 `
+  --auto-crop-fractions 0.60 0.80 `
+  --auto-offset-fraction 0.10 `
+  --include-flips `
+  --max-combinations 160
 ```
 
 Checked UR5e real smoke outputs:
@@ -1920,6 +1950,7 @@ Checked UR5e real smoke outputs:
 | --- | --- | --- |
 | config check | PASS | `results\real\ur5e\smoke\config_check.md` |
 | dry-run preflight | PASS | `results\real\ur5e\smoke\dryrun_summary.md` |
+| crop/orientation inspection | PASS | `results\real\ur5e\smoke\crop_inspection_summary.md` |
 | synthetic capture bundle | PASS | `results\real\ur5e\smoke\capture_bundle_summary.md` |
 | readiness with synthetic allowed | PASS | `results\real\ur5e\smoke\motion_readiness_synthetic_allowed.md` |
 | readiness default synthetic gate | FAIL expected | `results\real\ur5e\smoke\motion_readiness_synthetic_expected_fail.md` |

@@ -38,6 +38,8 @@ Current implementation:
   preprocessing and image statistics.
 - `scripts/prepare_real_ur5e_session.py`: creates an ignored local UR5e
   read-only capture session config and command checklist.
+- `scripts/inspect_real_camera_crop.py`: generates real camera crop/orientation
+  preview sheets for selecting `crop_xywh`, `rotate_k`, and flip settings.
 - `scripts/run_real_capture_bundle.py`: records camera frames and UR TCP poses,
   then runs the combined read-only policy preflight.
 - `scripts/check_real_motion_readiness.py`: checks a capture bundle before any
@@ -111,7 +113,8 @@ tool, camera, peg, table, and fixture transforms.
    with `scripts/prepare_real_ur5e_session.py`, then replace placeholder
    camera/tool/fixture values with measured values.
 2. Validate `crop_xywh`, `rotate_k`, and flip settings with representative
-   real wrist-camera frames, including `near_hole_crop=64`.
+   real wrist-camera frames, including `near_hole_crop=64`, using
+   `scripts/inspect_real_camera_crop.py`.
 3. Run a real read-only capture bundle and require
    `--require-camera-calibration`, `--require-image-crop`, and
    `--fail-on-warn` to pass.

@@ -18,6 +18,7 @@ current UR5e image policy. It does not authorize or command real robot motion.
 | Static deployment config | PASS | `results\real\ur5e\smoke\config_check.md` |
 | Direct guarded dry-run | PASS | `results\real\ur5e\smoke\direct_dryrun_trace.csv` |
 | Dry-run preflight | PASS | `results\real\ur5e\smoke\dryrun_summary.md` |
+| Crop/orientation inspection | PASS | `results\real\ur5e\smoke\crop_inspection_summary.md` |
 | Synthetic capture bundle | PASS | `results\real\ur5e\smoke\capture_bundle_summary.md` |
 | Motion readiness, synthetic allowed | PASS | `results\real\ur5e\smoke\motion_readiness_synthetic_allowed.md` |
 | Motion readiness, default gate | FAIL expected | `results\real\ur5e\smoke\motion_readiness_synthetic_expected_fail.md` |

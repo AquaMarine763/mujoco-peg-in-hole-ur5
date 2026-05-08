@@ -128,6 +128,12 @@ def camera_record_args(args: argparse.Namespace) -> list[str]:
     return [f"--record-camera-device-index {args.camera_device_index}"]
 
 
+def camera_tuning_args(args: argparse.Namespace) -> list[str]:
+    if args.camera_source is not None:
+        return [f"--source {args.camera_source}"]
+    return [f"--device-index {args.camera_device_index}"]
+
+
 def xyz_args(values: tuple[float, float, float] | list[float]) -> list[str]:
     return [float_text(float(value)) for value in values]
 
@@ -141,6 +147,13 @@ def render_commands(
     target_measurements: Path,
     target_calibration: Path,
 ) -> str:
+    camera_tuning_frames = results_dir / "camera_tuning_frames"
+    camera_tuning_stats = results_dir / "camera_tuning_stats.csv"
+    camera_tuning_summary = results_dir / "camera_tuning_summary.md"
+    crop_inspection_dir = results_dir / "crop_inspection"
+    crop_inspection_stats = results_dir / "crop_inspection_stats.csv"
+    crop_inspection_md = results_dir / "crop_inspection_summary.md"
+    crop_inspection_json = results_dir / "crop_inspection_summary.json"
     camera_frames = results_dir / "camera_frames"
     camera_stats = results_dir / "camera_stats.csv"
     camera_summary = results_dir / "camera_summary.md"
@@ -154,6 +167,31 @@ def render_commands(
     readiness_md = results_dir / "motion_readiness.md"
     readiness_json = results_dir / "motion_readiness.json"
 
+    camera_tuning_command = [
+        "python scripts\\record_real_camera_frames.py",
+        *camera_tuning_args(args),
+        f"--output-dir {ps_path(camera_tuning_frames)}",
+        f"--stats-output {ps_path(camera_tuning_stats)}",
+        f"--summary-md {ps_path(camera_tuning_summary)}",
+        "--frames 20",
+        f"--frequency-hz {float_text(args.record_camera_frequency_hz)}",
+        f"--warmup-frames {args.record_camera_warmup_frames}",
+        "--prefix camera_tuning_frame",
+        f"--session-id {session_id}",
+    ]
+    crop_inspection_command = [
+        "python scripts\\inspect_real_camera_crop.py",
+        f"--input {ps_path(camera_tuning_frames)}",
+        f"--output-dir {ps_path(crop_inspection_dir)}",
+        f"--stats-output {ps_path(crop_inspection_stats)}",
+        f"--summary-md {ps_path(crop_inspection_md)}",
+        f"--output-json {ps_path(crop_inspection_json)}",
+        "--max-frames 6",
+        "--auto-crop-fractions 0.50 0.65 0.80",
+        "--auto-offset-fraction 0.15",
+        "--include-flips",
+        "--max-combinations 240",
+    ]
     target_measurement_command = [
         "python scripts\\record_ur_rtde_target_measurements.py",
         f"--host {args.ur_host}",
@@ -247,23 +285,34 @@ def render_commands(
             "Edit the local config first. Replace `crop_xywh`, camera intrinsics, `tool0_to_camera_*`, "
             "`safety_workspace_*`, and `tcp_to_peg_tip_xyz` with measured values.",
             "",
-            "## 1. Record Target Measurements",
+            "## 1. Record Camera Frames For Crop Tuning",
+            "",
+            command_block(camera_tuning_command),
+            "",
+            "## 2. Inspect Crop And Orientation Candidates",
+            "",
+            command_block(crop_inspection_command),
+            "",
+            "After inspecting the generated sheets, copy the chosen `crop_xywh`, `rotate_k`, "
+            "`flip_horizontal`, and `flip_vertical` values into the local config.",
+            "",
+            "## 3. Record Target Measurements",
             "",
             command_block(target_measurement_command),
             "",
-            "## 2. Build Target Calibration",
+            "## 4. Build Target Calibration",
             "",
             command_block(target_calibration_command),
             "",
-            "## 3. Strict Static Check",
+            "## 5. Strict Static Check",
             "",
             command_block(config_check_command),
             "",
-            "## 4. Capture Camera/TCP And Run Policy Preflight",
+            "## 6. Capture Camera/TCP And Run Policy Preflight",
             "",
             command_block(capture_command),
             "",
-            "## 5. Motion Readiness Gate",
+            "## 7. Motion Readiness Gate",
             "",
             command_block(readiness_command),
             "",

@@ -13,6 +13,8 @@ configs/real/ur5e/*local*.yaml
 results/real/ur5e/*local*/
 results/real/ur5e/real_*/
 results/real/ur5e/smoke/*frames/
+results/real/ur5e/smoke/crop_inspection/
+results/real_camera_crop_inspection*/
 build/
 dist/
 *.egg-info/

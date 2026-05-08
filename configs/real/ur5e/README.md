@@ -22,6 +22,12 @@ measured `crop_xywh`, camera intrinsics, `tool0_to_camera_*`,
 `tcp_to_peg_tip_xyz`, workspace bounds, and fixture target calibration before
 running the generated `COMMANDS.md`.
 
+Use `scripts/inspect_real_camera_crop.py` on recorded camera tuning frames to
+compare crop/orientation candidates. It writes preview sheets for `cam_image`
+and `near_hole_crop`, a CSV of image statistics, and a config snippet for the
+best heuristic candidate. Inspect the sheets visually before copying values
+into the local config.
+
 For real readiness, run config checks with `--require-camera-calibration`,
 `--require-image-crop`, and `--fail-on-warn`. These flags intentionally reject
 the unmeasured placeholders in `dryrun_template.yaml`.
