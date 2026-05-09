@@ -66,7 +66,7 @@ class Scenario:
 
 
 CLEARANCE_TIERS = {
-    "wide_current": ClearanceTier("wide_current", (0.025, 0.029), (0.0115, 0.0125)),
+    "wide_legacy": ClearanceTier("wide_legacy", (0.025, 0.029), (0.0115, 0.0125)),
     "medium": ClearanceTier("medium", (0.020, 0.024), (0.0115, 0.0125)),
     "narrow": ClearanceTier("narrow", (0.017, 0.021), (0.0115, 0.0125)),
     "tight": ClearanceTier("tight", (0.015, 0.018), (0.0115, 0.0125)),
@@ -117,7 +117,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--tier-preset",
-        choices=["wide", "medium", "wide_medium", "all"],
+        choices=["wide", "medium", "narrow", "tight", "wide_medium", "medium_narrow", "all"],
         default="wide_medium",
     )
     parser.add_argument("--width", type=int, default=100)
@@ -157,11 +157,17 @@ def parse_args() -> argparse.Namespace:
 
 def tiers_for_args(args: argparse.Namespace) -> list[ClearanceTier]:
     if args.tier_preset == "wide":
-        return [CLEARANCE_TIERS["wide_current"]]
+        return [CLEARANCE_TIERS["wide_legacy"]]
     if args.tier_preset == "medium":
         return [CLEARANCE_TIERS["medium"]]
+    if args.tier_preset == "narrow":
+        return [CLEARANCE_TIERS["narrow"]]
+    if args.tier_preset == "tight":
+        return [CLEARANCE_TIERS["tight"]]
     if args.tier_preset == "wide_medium":
-        return [CLEARANCE_TIERS["wide_current"], CLEARANCE_TIERS["medium"]]
+        return [CLEARANCE_TIERS["wide_legacy"], CLEARANCE_TIERS["medium"]]
+    if args.tier_preset == "medium_narrow":
+        return [CLEARANCE_TIERS["medium"], CLEARANCE_TIERS["narrow"]]
     return list(CLEARANCE_TIERS.values())
 
 

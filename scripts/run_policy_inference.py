@@ -63,7 +63,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--geometry-hole-center-xy-jitter", nargs=2, type=float, default=(0.002, 0.002))
     parser.add_argument("--geometry-fixture-height-jitter", type=float, default=0.001)
     parser.add_argument("--geometry-table-height-jitter", type=float, default=0.001)
-    parser.add_argument("--geometry-hole-half-size-range", nargs=2, type=float, default=(0.025, 0.029))
+    parser.add_argument("--geometry-hole-half-size-range", nargs=2, type=float, default=(0.017, 0.021))
     parser.add_argument("--geometry-peg-radius-range", nargs=2, type=float, default=(0.0115, 0.0125))
     parser.add_argument("--contact-friction-multiplier-range", nargs=2, type=float, default=(0.7, 1.3))
     parser.add_argument("--contact-solref-time-multiplier-range", nargs=2, type=float, default=(0.8, 1.25))
@@ -104,6 +104,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--guard-min-policy-steps", type=int, default=0)
     parser.add_argument("--guard-block-down-when-unaligned", action="store_true")
     parser.add_argument("--guard-release-on-high", action="store_true")
+    parser.add_argument(
+        "--guarded-oracle-mode",
+        choices=["guarded_two_stage", "high_start_two_phase"],
+        default="guarded_two_stage",
+    )
     parser.add_argument("--guard-action-gain", type=float, default=1.0)
     parser.add_argument("--guarded-align-xy-tolerance", type=float, default=0.025)
     parser.add_argument("--guarded-insert-xy-tolerance", type=float, default=0.005)
@@ -171,7 +176,7 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         guard_block_down_when_unaligned=args.guard_block_down_when_unaligned,
         guard_release_on_high=args.guard_release_on_high,
         oracle=OracleControllerConfig(
-            mode="guarded_two_stage",
+            mode=args.guarded_oracle_mode,
             action_gain=args.guard_action_gain,
             guarded_align_xy_tolerance=args.guarded_align_xy_tolerance,
             guarded_insert_xy_tolerance=args.guarded_insert_xy_tolerance,

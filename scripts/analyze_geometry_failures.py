@@ -48,7 +48,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--geometry-hole-center-xy-jitter", nargs=2, type=float, default=(0.0, 0.0))
     parser.add_argument("--geometry-fixture-height-jitter", type=float, default=0.0)
     parser.add_argument("--geometry-table-height-jitter", type=float, default=0.0)
-    parser.add_argument("--geometry-hole-half-size-range", nargs=2, type=float, default=(0.025, 0.029))
+    parser.add_argument("--geometry-hole-half-size-range", nargs=2, type=float, default=(0.017, 0.021))
     parser.add_argument("--geometry-peg-radius-range", nargs=2, type=float, default=(0.012, 0.012))
     parser.add_argument("--success-xy-tolerance", type=float, default=0.005)
     parser.add_argument("--success-z-tolerance", type=float, default=0.01)

@@ -7,7 +7,7 @@ import numpy as np
 
 from peg_in_hole_mujoco.oracle_controller import (
     OracleControllerConfig,
-    guarded_two_stage_oracle_action_from_state,
+    oracle_action_from_state,
 )
 
 
@@ -140,8 +140,10 @@ class GuardedPolicyConfig:
             raise ValueError("guard_blend must be between 0 and 1.")
         if self.guard_min_policy_steps < 0:
             raise ValueError("guard_min_policy_steps cannot be negative.")
-        if self.oracle.mode != "guarded_two_stage":
-            raise ValueError("GuardedPolicyConfig.oracle must use guarded_two_stage mode.")
+        if self.oracle.mode not in ("guarded_two_stage", "high_start_two_phase"):
+            raise ValueError(
+                "GuardedPolicyConfig.oracle must use guarded_two_stage or high_start_two_phase mode."
+            )
 
 
 @dataclass
@@ -245,15 +247,17 @@ class GuardedPolicyController:
                 activated_this_step = False
 
         if not self.guard_active:
+            action = policy_action.copy()
+            down_blocked = self._block_down_if_unaligned(action, dist_xy)
             result = GuardedPolicyStep(
-                action=policy_action,
+                action=action.astype(np.float32),
                 guarded=False,
                 guard_active=False,
                 guard_enabled=True,
                 guard_should_activate=should_activate,
                 guard_can_activate=can_activate,
                 guard_activated=False,
-                guard_down_blocked=False,
+                guard_down_blocked=down_blocked,
                 guard_steps_since_reset=step_index,
                 guard_dist_xy=dist_xy,
                 guard_z_above_target=z_above_target,
@@ -263,7 +267,7 @@ class GuardedPolicyController:
             self.steps_since_reset += 1
             return result
 
-        guarded_action = guarded_two_stage_oracle_action_from_state(
+        guarded_action = oracle_action_from_state(
             peg_tip_pos=_as_vector3(state.peg_tip_pos, "peg_tip_pos"),
             target_pos=_as_vector3(state.target_pos, "target_pos"),
             applied_action=_as_vector3(state.applied_action, "applied_action"),
@@ -274,14 +278,7 @@ class GuardedPolicyController:
         )
         blend = float(np.clip(self.config.guard_blend, 0.0, 1.0))
         action = (1.0 - blend) * policy_action + blend * guarded_action
-        down_blocked = False
-        if (
-            self.config.guard_block_down_when_unaligned
-            and dist_xy > self.config.oracle.guarded_align_xy_tolerance
-            and action[2] < 0.0
-        ):
-            action[2] = 0.0
-            down_blocked = True
+        down_blocked = self._block_down_if_unaligned(action, dist_xy)
         action = np.clip(action, state.action_low, state.action_high).astype(np.float32)
         self.guard_steps += 1
         result = GuardedPolicyStep(
@@ -334,6 +331,16 @@ class GuardedPolicyController:
             scenario_name=scenario_name,
             scenario_level=scenario_level,
         )
+
+    def _block_down_if_unaligned(self, action: np.ndarray, dist_xy: float) -> bool:
+        if (
+            self.config.guard_block_down_when_unaligned
+            and dist_xy > self.config.oracle.guarded_align_xy_tolerance
+            and action[2] < 0.0
+        ):
+            action[2] = 0.0
+            return True
+        return False
 
 
 def _as_vector3(value: Any, name: str) -> np.ndarray:

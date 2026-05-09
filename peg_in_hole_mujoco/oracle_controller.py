@@ -6,7 +6,7 @@ from typing import Any, Literal
 import numpy as np
 
 
-OracleMode = Literal["staged", "guarded_two_stage"]
+OracleMode = Literal["staged", "guarded_two_stage", "high_start_two_phase"]
 
 
 @dataclass(frozen=True)
@@ -32,6 +32,8 @@ def oracle_action(env: Any, info: dict[str, Any], config: OracleControllerConfig
         return _clip_to_action_space(env, action)
     if config.mode == "guarded_two_stage":
         return guarded_two_stage_oracle_action(env, info, config)
+    if config.mode == "high_start_two_phase":
+        return high_start_two_phase_oracle_action(env, info, config)
     raise ValueError(f"Unknown oracle mode: {config.mode}")
 
 
@@ -49,6 +51,55 @@ def guarded_two_stage_oracle_action(
         action_high=np.asarray(env.action_space.high, dtype=np.float64),
         config=config,
     )
+
+
+def high_start_two_phase_oracle_action(
+    env: Any,
+    info: dict[str, Any],
+    config: OracleControllerConfig,
+) -> np.ndarray:
+    return high_start_two_phase_oracle_action_from_state(
+        peg_tip_pos=_tip_pos(info),
+        target_pos=_target_pos(info),
+        applied_action=np.asarray(info.get("applied_action", np.zeros(3)), dtype=np.float64),
+        approach_height=float(env.approach_height),
+        action_low=np.asarray(env.action_space.low, dtype=np.float64),
+        action_high=np.asarray(env.action_space.high, dtype=np.float64),
+        config=config,
+    )
+
+
+def oracle_action_from_state(
+    *,
+    peg_tip_pos: np.ndarray,
+    target_pos: np.ndarray,
+    applied_action: np.ndarray,
+    approach_height: float,
+    action_low: np.ndarray,
+    action_high: np.ndarray,
+    config: OracleControllerConfig,
+) -> np.ndarray:
+    if config.mode == "guarded_two_stage":
+        return guarded_two_stage_oracle_action_from_state(
+            peg_tip_pos=peg_tip_pos,
+            target_pos=target_pos,
+            applied_action=applied_action,
+            approach_height=approach_height,
+            action_low=action_low,
+            action_high=action_high,
+            config=config,
+        )
+    if config.mode == "high_start_two_phase":
+        return high_start_two_phase_oracle_action_from_state(
+            peg_tip_pos=peg_tip_pos,
+            target_pos=target_pos,
+            applied_action=applied_action,
+            approach_height=approach_height,
+            action_low=action_low,
+            action_high=action_high,
+            config=config,
+        )
+    raise ValueError(f"Unsupported deployment oracle mode: {config.mode}")
 
 
 def guarded_two_stage_oracle_action_from_state(
@@ -92,6 +143,47 @@ def guarded_two_stage_oracle_action_from_state(
     return _clip_to_bounds(action, action_low, action_high)
 
 
+def high_start_two_phase_oracle_action_from_state(
+    *,
+    peg_tip_pos: np.ndarray,
+    target_pos: np.ndarray,
+    applied_action: np.ndarray,
+    approach_height: float,
+    action_low: np.ndarray,
+    action_high: np.ndarray,
+    config: OracleControllerConfig,
+) -> np.ndarray:
+    tip = np.asarray(peg_tip_pos, dtype=np.float64).reshape(3)
+    target = np.asarray(target_pos, dtype=np.float64).reshape(3)
+    applied_action = np.asarray(applied_action, dtype=np.float64).reshape(3)
+    control_tip = _predicted_tip_pos_from_action(
+        tip,
+        applied_action,
+        config.guarded_prediction_steps,
+    )
+    dist_xy = float(np.linalg.norm(control_tip[:2] - target[:2]))
+
+    safe_z = float(target[2] + approach_height)
+    preinsert_z = float(target[2] + config.guarded_preinsert_height)
+    desired_z = _high_start_two_phase_desired_z(
+        tip_z=float(control_tip[2]),
+        target_z=float(target[2]),
+        safe_z=safe_z,
+        preinsert_z=preinsert_z,
+        dist_xy=dist_xy,
+        config=config,
+    )
+    desired = np.asarray([target[0], target[1], desired_z], dtype=np.float64)
+    action = config.action_gain * (desired - control_tip)
+    action = _limit_xy_action(action, config.guarded_max_xy_action)
+    action = _limit_z_action(
+        action,
+        max_down_action=config.guarded_max_down_action,
+        max_up_action=config.guarded_max_up_action,
+    )
+    return _clip_to_bounds(action, action_low, action_high)
+
+
 def _guarded_desired_z(
     *,
     tip_z: float,
@@ -117,6 +209,28 @@ def _guarded_desired_z(
         return preinsert_z
 
     return target_z
+
+
+def _high_start_two_phase_desired_z(
+    *,
+    tip_z: float,
+    target_z: float,
+    safe_z: float,
+    preinsert_z: float,
+    dist_xy: float,
+    config: OracleControllerConfig,
+) -> float:
+    if dist_xy > config.guarded_align_xy_tolerance:
+        return max(float(tip_z), float(safe_z))
+
+    return _guarded_desired_z(
+        tip_z=tip_z,
+        target_z=target_z,
+        safe_z=safe_z,
+        preinsert_z=preinsert_z,
+        dist_xy=dist_xy,
+        config=config,
+    )
 
 
 def _staged_desired_position(info: dict[str, Any]) -> np.ndarray:

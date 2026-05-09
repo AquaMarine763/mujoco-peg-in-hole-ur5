@@ -1,0 +1,44 @@
+# High-resolution demo for the narrowed-hole full UR5e guarded policy.
+model_path: assets/ur5e_full/ur5e_peg_in_hole_full.xml
+agent: sac
+model: checkpoints/ur5e_full/adapt/sac_image_bc_50k_narrow_hole_full_light_geometry.zip
+output: demos/ur5e_full/adapt/demo_guarded_all_50k_narrow_hole_full_light_geometry.mp4
+observation_mode: image
+episodes: 1
+fps: 20
+width: 100
+height: 100
+include_near_hole_crop: true
+near_hole_crop_size: 64
+render_width: 1280
+render_height: 720
+render_cameras: [overview, wrist_cam]
+trajectory_output: results/ur5e_full/adapt/demo_guarded_all_50k_narrow_hole_full_light_geometry_trace.csv
+device: cpu
+seed: 1000
+domain_randomization: true
+domain_randomization_level: full_light_geometry
+max_steps: 400
+action_scale: 0.005
+success_xy_tolerance: 0.005
+success_z_tolerance: 0.01
+geometry_hole_half_size_range: [0.017, 0.021]
+approach_xy_tolerance: 0.06
+approach_height: 0.08
+guarded_policy: true
+guard_scenario_filter: all
+guard_scenario_name: full_light_geometry
+guard_start_xy: 0.06
+guard_start_z: 0.08
+guard_risk_xy: 0.0
+guard_blend: 1.0
+guard_min_policy_steps: 0
+guard_action_gain: 1.0
+guarded_align_xy_tolerance: 0.020
+guarded_insert_xy_tolerance: 0.005
+guarded_retract_xy_tolerance: 0.012
+guarded_preinsert_height: 0.0
+guarded_max_xy_action: 0.005
+guarded_max_down_action: 0.0035
+guarded_max_up_action: 0.005
+guarded_prediction_steps: 1.0

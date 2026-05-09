@@ -16,6 +16,8 @@ from peg_in_hole_mujoco.oracle_controller import (
     OracleControllerConfig,
     OracleMode,
     guarded_two_stage_oracle_action_from_state,
+    high_start_two_phase_oracle_action_from_state,
+    oracle_action_from_state,
     oracle_action,
 )
 from peg_in_hole_mujoco.policy_interface import (
@@ -75,6 +77,8 @@ __all__ = [
     "StepResult",
     "ZeroPolicyAdapter",
     "guarded_two_stage_oracle_action_from_state",
+    "high_start_two_phase_oracle_action_from_state",
+    "oracle_action_from_state",
     "oracle_action",
     "preprocess_camera_image",
 ]

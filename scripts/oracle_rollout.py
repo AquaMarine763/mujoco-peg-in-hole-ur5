@@ -14,7 +14,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=123)
     parser.add_argument("--max-steps", type=int, default=200)
     parser.add_argument("--action-gain", type=float, default=1.0)
-    parser.add_argument("--oracle-mode", choices=["staged", "guarded_two_stage"], default="staged")
+    parser.add_argument(
+        "--oracle-mode",
+        choices=["staged", "guarded_two_stage", "high_start_two_phase"],
+        default="staged",
+    )
     parser.add_argument("--guarded-align-xy-tolerance", type=float, default=0.025)
     parser.add_argument("--guarded-insert-xy-tolerance", type=float, default=0.005)
     parser.add_argument("--guarded-retract-xy-tolerance", type=float, default=0.012)
@@ -25,6 +29,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--guarded-prediction-steps", type=float, default=1.0)
     parser.add_argument("--success-xy-tolerance", type=float, default=0.005)
     parser.add_argument("--success-z-tolerance", type=float, default=0.01)
+    parser.add_argument("--geometry-hole-half-size-range", nargs=2, type=float, default=(0.017, 0.021))
+    parser.add_argument(
+        "--initialization-mode",
+        choices=["fixed", "target_relative_high_start"],
+        default="fixed",
+    )
+    parser.add_argument("--initial-tip-z-above-range", nargs=2, type=float, default=(0.15, 0.25))
+    parser.add_argument("--initial-tip-xy-offset-range", nargs=2, type=float, default=(0.08, 0.16))
+    parser.add_argument("--initial-tip-xy-angle-range-deg", nargs=2, type=float, default=(0.0, 360.0))
+    parser.add_argument("--initial-ik-max-attempts", type=int, default=20)
     parser.add_argument("--image-width", type=int, default=100)
     parser.add_argument("--image-height", type=int, default=100)
     return parser.parse_args()
@@ -39,6 +53,12 @@ def main() -> None:
         max_steps=args.max_steps,
         success_xy_tolerance=args.success_xy_tolerance,
         success_z_tolerance=args.success_z_tolerance,
+        geometry_hole_half_size_range=tuple(args.geometry_hole_half_size_range),
+        initialization_mode=args.initialization_mode,
+        initial_tip_z_above_range=tuple(args.initial_tip_z_above_range),
+        initial_tip_xy_offset_range=tuple(args.initial_tip_xy_offset_range),
+        initial_tip_xy_angle_range_deg=tuple(args.initial_tip_xy_angle_range_deg),
+        initial_ik_max_attempts=args.initial_ik_max_attempts,
     )
     oracle_config = OracleControllerConfig(
         mode=args.oracle_mode,

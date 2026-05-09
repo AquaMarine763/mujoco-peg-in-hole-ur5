@@ -138,7 +138,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--samples", type=int, default=50_000)
     parser.add_argument("--expert-model", type=Path, default=None)
     parser.add_argument("--expert-action-gain", type=float, default=1.0)
-    parser.add_argument("--oracle-mode", choices=["staged", "guarded_two_stage"], default="staged")
+    parser.add_argument(
+        "--oracle-mode",
+        choices=["staged", "guarded_two_stage", "high_start_two_phase"],
+        default="staged",
+    )
     parser.add_argument("--guarded-align-xy-tolerance", type=float, default=0.025)
     parser.add_argument("--guarded-insert-xy-tolerance", type=float, default=0.005)
     parser.add_argument("--guarded-retract-xy-tolerance", type=float, default=0.012)
@@ -184,7 +188,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--geometry-hole-center-xy-jitter", nargs=2, type=float, default=(0.002, 0.002))
     parser.add_argument("--geometry-fixture-height-jitter", type=float, default=0.001)
     parser.add_argument("--geometry-table-height-jitter", type=float, default=0.001)
-    parser.add_argument("--geometry-hole-half-size-range", nargs=2, type=float, default=(0.025, 0.029))
+    parser.add_argument("--geometry-hole-half-size-range", nargs=2, type=float, default=(0.017, 0.021))
     parser.add_argument("--geometry-peg-radius-range", nargs=2, type=float, default=(0.0115, 0.0125))
     parser.add_argument("--contact-friction-multiplier-range", nargs=2, type=float, default=(0.7, 1.3))
     parser.add_argument("--contact-solref-time-multiplier-range", nargs=2, type=float, default=(0.8, 1.25))
@@ -194,6 +198,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dynamics-actuator-kp-multiplier-range", nargs=2, type=float, default=(0.8, 1.2))
     parser.add_argument("--target-low", nargs=3, type=float, default=(0.50, 0.00, 0.65))
     parser.add_argument("--target-high", nargs=3, type=float, default=(0.60, 0.10, 0.65))
+    parser.add_argument(
+        "--initialization-mode",
+        choices=["fixed", "target_relative_high_start"],
+        default="fixed",
+    )
+    parser.add_argument("--initial-tip-z-above-range", nargs=2, type=float, default=(0.15, 0.25))
+    parser.add_argument("--initial-tip-xy-offset-range", nargs=2, type=float, default=(0.08, 0.16))
+    parser.add_argument("--initial-tip-xy-angle-range-deg", nargs=2, type=float, default=(0.0, 360.0))
+    parser.add_argument("--initial-ik-max-attempts", type=int, default=20)
     parser.add_argument("--success-xy-tolerance", type=float, default=0.005)
     parser.add_argument("--success-z-tolerance", type=float, default=0.01)
     parser.add_argument("--approach-xy-tolerance", type=float, default=0.06)
@@ -222,6 +235,11 @@ def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
         action_scale=args.action_scale,
         target_low=tuple(args.target_low),
         target_high=tuple(args.target_high),
+        initialization_mode=args.initialization_mode,
+        initial_tip_z_above_range=tuple(args.initial_tip_z_above_range),
+        initial_tip_xy_offset_range=tuple(args.initial_tip_xy_offset_range),
+        initial_tip_xy_angle_range_deg=tuple(args.initial_tip_xy_angle_range_deg),
+        initial_ik_max_attempts=args.initial_ik_max_attempts,
         success_xy_tolerance=args.success_xy_tolerance,
         success_z_tolerance=args.success_z_tolerance,
         approach_xy_tolerance=args.approach_xy_tolerance,
@@ -459,6 +477,11 @@ def main() -> None:
         "dynamics_actuator_kp_multiplier_range": list(args.dynamics_actuator_kp_multiplier_range),
         "target_low": list(args.target_low),
         "target_high": list(args.target_high),
+        "initialization_mode": args.initialization_mode,
+        "initial_tip_z_above_range": list(args.initial_tip_z_above_range),
+        "initial_tip_xy_offset_range": list(args.initial_tip_xy_offset_range),
+        "initial_tip_xy_angle_range_deg": list(args.initial_tip_xy_angle_range_deg),
+        "initial_ik_max_attempts": args.initial_ik_max_attempts,
         "array_metadata": array_metadata(arrays),
         "diagnostics": {
             "hole_clearance": summarize_float_array(arrays["hole_clearance"]),

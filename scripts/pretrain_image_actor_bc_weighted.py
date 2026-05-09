@@ -11,6 +11,7 @@ import torch.nn.functional as F
 from stable_baselines3 import SAC
 
 from peg_in_hole_mujoco import PegInHoleMujocoEnv
+from peg_in_hole_mujoco.sim_config import parse_args_with_config
 
 
 @dataclass
@@ -51,6 +52,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--target-high", nargs=3, type=float, default=(0.60, 0.10, 0.65))
     parser.add_argument("--success-xy-tolerance", type=float, default=0.005)
     parser.add_argument("--success-z-tolerance", type=float, default=0.01)
+    parser.add_argument("--geometry-hole-half-size-range", nargs=2, type=float, default=(0.017, 0.021))
     parser.add_argument("--approach-xy-tolerance", type=float, default=0.06)
     parser.add_argument("--approach-height", type=float, default=0.08)
     parser.add_argument("--staged-xy-weight", type=float, default=2.0)
@@ -65,7 +67,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--buffer-size", type=int, default=100_000)
     parser.add_argument("--learning-starts", type=int, default=1_000)
     parser.add_argument("--ent-coef", default="auto_0.01")
-    return parser.parse_args()
+    return parse_args_with_config(parser)
 
 
 def normalize_weights(weights: list[float], count: int) -> np.ndarray:
@@ -91,6 +93,7 @@ def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
         target_high=tuple(args.target_high),
         success_xy_tolerance=args.success_xy_tolerance,
         success_z_tolerance=args.success_z_tolerance,
+        geometry_hole_half_size_range=tuple(args.geometry_hole_half_size_range),
         approach_xy_tolerance=args.approach_xy_tolerance,
         approach_height=args.approach_height,
         staged_xy_weight=args.staged_xy_weight,

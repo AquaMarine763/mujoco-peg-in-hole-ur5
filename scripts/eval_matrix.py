@@ -52,6 +52,7 @@ class Scenario:
     contact_solimp_width_multiplier_range: tuple[float, float] = (1.0, 1.0)
     dynamics_joint_damping_multiplier_range: tuple[float, float] = (1.0, 1.0)
     dynamics_actuator_kp_multiplier_range: tuple[float, float] = (1.0, 1.0)
+    geometry_hole_half_size_range: tuple[float, float] = (0.017, 0.021)
 
 
 CORE_SCENARIOS = (
@@ -116,8 +117,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--near-hole-crop-size", type=int, default=64)
     parser.add_argument("--max-steps", type=int, default=200)
     parser.add_argument("--action-scale", type=float, default=0.005)
+    parser.add_argument(
+        "--initialization-mode",
+        choices=["fixed", "target_relative_high_start"],
+        default="fixed",
+    )
+    parser.add_argument("--initial-tip-z-above-range", nargs=2, type=float, default=(0.15, 0.25))
+    parser.add_argument("--initial-tip-xy-offset-range", nargs=2, type=float, default=(0.08, 0.16))
+    parser.add_argument("--initial-tip-xy-angle-range-deg", nargs=2, type=float, default=(0.0, 360.0))
+    parser.add_argument("--initial-ik-max-attempts", type=int, default=20)
     parser.add_argument("--success-xy-tolerance", type=float, default=0.005)
     parser.add_argument("--success-z-tolerance", type=float, default=0.01)
+    parser.add_argument("--geometry-hole-half-size-range", nargs=2, type=float, default=(0.017, 0.021))
     parser.add_argument("--approach-xy-tolerance", type=float, default=0.06)
     parser.add_argument("--approach-height", type=float, default=0.08)
     parser.add_argument("--staged-xy-weight", type=float, default=2.0)
@@ -142,6 +153,11 @@ def make_env(args: argparse.Namespace, scenario: Scenario) -> PegInHoleMujocoEnv
         near_hole_crop_size=args.near_hole_crop_size,
         max_steps=args.max_steps,
         action_scale=args.action_scale,
+        initialization_mode=args.initialization_mode,
+        initial_tip_z_above_range=tuple(args.initial_tip_z_above_range),
+        initial_tip_xy_offset_range=tuple(args.initial_tip_xy_offset_range),
+        initial_tip_xy_angle_range_deg=tuple(args.initial_tip_xy_angle_range_deg),
+        initial_ik_max_attempts=args.initial_ik_max_attempts,
         success_xy_tolerance=args.success_xy_tolerance,
         success_z_tolerance=args.success_z_tolerance,
         approach_xy_tolerance=args.approach_xy_tolerance,
@@ -160,6 +176,7 @@ def make_env(args: argparse.Namespace, scenario: Scenario) -> PegInHoleMujocoEnv
         control_action_noise_std_range=scenario.control_action_noise_std_range,
         control_action_delay_range=scenario.control_action_delay_range,
         control_action_filter_alpha_range=scenario.control_action_filter_alpha_range,
+        geometry_hole_half_size_range=tuple(args.geometry_hole_half_size_range),
         contact_friction_multiplier_range=scenario.contact_friction_multiplier_range,
         contact_solref_time_multiplier_range=scenario.contact_solref_time_multiplier_range,
         contact_solref_damping_multiplier_range=scenario.contact_solref_damping_multiplier_range,

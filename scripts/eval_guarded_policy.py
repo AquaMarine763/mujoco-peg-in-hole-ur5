@@ -55,7 +55,7 @@ class Scenario:
     geometry_hole_center_xy_jitter: tuple[float, float] = (0.002, 0.002)
     geometry_fixture_height_jitter: float = 0.001
     geometry_table_height_jitter: float = 0.001
-    geometry_hole_half_size_range: tuple[float, float] = (0.025, 0.029)
+    geometry_hole_half_size_range: tuple[float, float] = (0.017, 0.021)
     geometry_peg_radius_range: tuple[float, float] = (0.0115, 0.0125)
     contact_friction_multiplier_range: tuple[float, float] = (1.0, 1.0)
     contact_solref_time_multiplier_range: tuple[float, float] = (1.0, 1.0)
@@ -116,8 +116,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--near-hole-crop-size", type=int, default=64)
     parser.add_argument("--max-steps", type=int, default=200)
     parser.add_argument("--action-scale", type=float, default=0.005)
+    parser.add_argument(
+        "--initialization-mode",
+        choices=["fixed", "target_relative_high_start"],
+        default="fixed",
+    )
+    parser.add_argument("--initial-tip-z-above-range", nargs=2, type=float, default=(0.15, 0.25))
+    parser.add_argument("--initial-tip-xy-offset-range", nargs=2, type=float, default=(0.08, 0.16))
+    parser.add_argument("--initial-tip-xy-angle-range-deg", nargs=2, type=float, default=(0.0, 360.0))
+    parser.add_argument("--initial-ik-max-attempts", type=int, default=20)
     parser.add_argument("--success-xy-tolerance", type=float, default=0.005)
     parser.add_argument("--success-z-tolerance", type=float, default=0.01)
+    parser.add_argument("--geometry-hole-half-size-range", nargs=2, type=float, default=(0.017, 0.021))
     parser.add_argument("--approach-xy-tolerance", type=float, default=0.02)
     parser.add_argument("--approach-height", type=float, default=0.08)
     parser.add_argument("--staged-xy-weight", type=float, default=2.0)
@@ -136,6 +146,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--guard-min-policy-steps", type=int, default=0)
     parser.add_argument("--guard-block-down-when-unaligned", action="store_true")
     parser.add_argument("--guard-release-on-high", action="store_true")
+    parser.add_argument(
+        "--guarded-oracle-mode",
+        choices=["guarded_two_stage", "high_start_two_phase"],
+        default="guarded_two_stage",
+    )
     parser.add_argument("--guard-action-gain", type=float, default=1.0)
     parser.add_argument("--guarded-align-xy-tolerance", type=float, default=0.025)
     parser.add_argument("--guarded-insert-xy-tolerance", type=float, default=0.005)
@@ -158,6 +173,11 @@ def make_env(args: argparse.Namespace, scenario: Scenario) -> PegInHoleMujocoEnv
         near_hole_crop_size=args.near_hole_crop_size,
         max_steps=args.max_steps,
         action_scale=args.action_scale,
+        initialization_mode=args.initialization_mode,
+        initial_tip_z_above_range=tuple(args.initial_tip_z_above_range),
+        initial_tip_xy_offset_range=tuple(args.initial_tip_xy_offset_range),
+        initial_tip_xy_angle_range_deg=tuple(args.initial_tip_xy_angle_range_deg),
+        initial_ik_max_attempts=args.initial_ik_max_attempts,
         success_xy_tolerance=args.success_xy_tolerance,
         success_z_tolerance=args.success_z_tolerance,
         approach_xy_tolerance=args.approach_xy_tolerance,
@@ -179,7 +199,7 @@ def make_env(args: argparse.Namespace, scenario: Scenario) -> PegInHoleMujocoEnv
         geometry_hole_center_xy_jitter=scenario.geometry_hole_center_xy_jitter,
         geometry_fixture_height_jitter=scenario.geometry_fixture_height_jitter,
         geometry_table_height_jitter=scenario.geometry_table_height_jitter,
-        geometry_hole_half_size_range=scenario.geometry_hole_half_size_range,
+        geometry_hole_half_size_range=tuple(args.geometry_hole_half_size_range),
         geometry_peg_radius_range=scenario.geometry_peg_radius_range,
         contact_friction_multiplier_range=scenario.contact_friction_multiplier_range,
         contact_solref_time_multiplier_range=scenario.contact_solref_time_multiplier_range,
@@ -201,7 +221,7 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         guard_block_down_when_unaligned=args.guard_block_down_when_unaligned,
         guard_release_on_high=args.guard_release_on_high,
         oracle=OracleControllerConfig(
-            mode="guarded_two_stage",
+            mode=args.guarded_oracle_mode,
             action_gain=args.guard_action_gain,
             guarded_align_xy_tolerance=args.guarded_align_xy_tolerance,
             guarded_insert_xy_tolerance=args.guarded_insert_xy_tolerance,
@@ -325,6 +345,7 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Guard blend: `{args.guard_blend}`",
         f"- Guard min policy steps: `{args.guard_min_policy_steps}`",
         f"- Guard block down when unaligned: `{args.guard_block_down_when_unaligned}`",
+        f"- Guarded oracle mode: `{args.guarded_oracle_mode}`",
         f"- Guarded align/insert XY: `{args.guarded_align_xy_tolerance}/{args.guarded_insert_xy_tolerance}`",
         f"- Guarded max XY/down/up action: `{args.guarded_max_xy_action}/{args.guarded_max_down_action}/{args.guarded_max_up_action}`",
         f"- Guarded prediction steps: `{args.guarded_prediction_steps}`",

@@ -32,8 +32,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--action-scale", type=float, default=0.005)
     parser.add_argument("--target-low", nargs=3, type=float, default=(0.50, 0.00, 0.65))
     parser.add_argument("--target-high", nargs=3, type=float, default=(0.60, 0.10, 0.65))
+    parser.add_argument(
+        "--initialization-mode",
+        choices=["fixed", "target_relative_high_start"],
+        default="fixed",
+    )
+    parser.add_argument("--initial-tip-z-above-range", nargs=2, type=float, default=(0.15, 0.25))
+    parser.add_argument("--initial-tip-xy-offset-range", nargs=2, type=float, default=(0.08, 0.16))
+    parser.add_argument("--initial-tip-xy-angle-range-deg", nargs=2, type=float, default=(0.0, 360.0))
+    parser.add_argument("--initial-ik-max-attempts", type=int, default=20)
     parser.add_argument("--success-xy-tolerance", type=float, default=0.005)
     parser.add_argument("--success-z-tolerance", type=float, default=0.01)
+    parser.add_argument("--geometry-hole-half-size-range", nargs=2, type=float, default=(0.017, 0.021))
     parser.add_argument("--approach-xy-tolerance", type=float, default=0.06)
     parser.add_argument("--approach-height", type=float, default=0.08)
     parser.add_argument("--staged-xy-weight", type=float, default=2.0)
@@ -63,8 +73,14 @@ def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
         action_scale=args.action_scale,
         target_low=tuple(args.target_low),
         target_high=tuple(args.target_high),
+        initialization_mode=args.initialization_mode,
+        initial_tip_z_above_range=tuple(args.initial_tip_z_above_range),
+        initial_tip_xy_offset_range=tuple(args.initial_tip_xy_offset_range),
+        initial_tip_xy_angle_range_deg=tuple(args.initial_tip_xy_angle_range_deg),
+        initial_ik_max_attempts=args.initial_ik_max_attempts,
         success_xy_tolerance=args.success_xy_tolerance,
         success_z_tolerance=args.success_z_tolerance,
+        geometry_hole_half_size_range=tuple(args.geometry_hole_half_size_range),
         approach_xy_tolerance=args.approach_xy_tolerance,
         approach_height=args.approach_height,
         staged_xy_weight=args.staged_xy_weight,

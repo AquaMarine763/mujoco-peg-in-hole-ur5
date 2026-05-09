@@ -27,6 +27,7 @@ from peg_in_hole_mujoco.paths import resolve_model_path
 
 
 ObservationMode = Literal["image", "state"]
+InitializationMode = Literal["fixed", "target_relative_high_start"]
 DomainRandomizationLevel = Literal[
     "none",
     "visual",
@@ -45,6 +46,11 @@ DOMAIN_RANDOMIZATION_LEVELS = (
     "full_light_geometry",
     "full_contact_light",
     "full",
+)
+
+INITIALIZATION_MODES = (
+    "fixed",
+    "target_relative_high_start",
 )
 
 
@@ -145,7 +151,7 @@ class PegInHoleMujocoEnv(gym.Env):
         geometry_hole_center_xy_jitter: tuple[float, float] = (0.002, 0.002),
         geometry_fixture_height_jitter: float = 0.001,
         geometry_table_height_jitter: float = 0.001,
-        geometry_hole_half_size_range: tuple[float, float] = (0.025, 0.029),
+        geometry_hole_half_size_range: tuple[float, float] = (0.017, 0.021),
         geometry_peg_radius_range: tuple[float, float] = (0.0115, 0.0125),
         contact_friction_multiplier_range: tuple[float, float] = (0.7, 1.3),
         contact_solref_time_multiplier_range: tuple[float, float] = (0.8, 1.25),
@@ -154,9 +160,20 @@ class PegInHoleMujocoEnv(gym.Env):
         dynamics_joint_damping_multiplier_range: tuple[float, float] = (0.8, 1.2),
         dynamics_actuator_kp_multiplier_range: tuple[float, float] = (0.8, 1.2),
         ik_joint_count: int | None = None,
+        initialization_mode: InitializationMode = "fixed",
+        initial_tip_z_above_range: tuple[float, float] = (0.15, 0.25),
+        initial_tip_xy_offset_range: tuple[float, float] = (0.08, 0.16),
+        initial_tip_xy_angle_range_deg: tuple[float, float] = (0.0, 360.0),
+        initial_ik_max_attempts: int = 20,
     ):
         if observation_mode not in ("image", "state"):
             raise ValueError("observation_mode must be 'image' or 'state'.")
+        if initialization_mode not in INITIALIZATION_MODES:
+            raise ValueError(
+                "initialization_mode must be one of: "
+                + ", ".join(INITIALIZATION_MODES)
+                + "."
+            )
         if domain_randomization_level not in DOMAIN_RANDOMIZATION_LEVELS:
             raise ValueError(
                 "domain_randomization_level must be one of: "
@@ -235,6 +252,11 @@ class PegInHoleMujocoEnv(gym.Env):
         self.dynamics_actuator_kp_multiplier_range = tuple(
             float(v) for v in dynamics_actuator_kp_multiplier_range
         )
+        self.initialization_mode = initialization_mode
+        self.initial_tip_z_above_range = tuple(float(v) for v in initial_tip_z_above_range)
+        self.initial_tip_xy_offset_range = tuple(float(v) for v in initial_tip_xy_offset_range)
+        self.initial_tip_xy_angle_range_deg = tuple(float(v) for v in initial_tip_xy_angle_range_deg)
+        self.initial_ik_max_attempts = int(initial_ik_max_attempts)
         self._validate_randomization_ranges()
         self.current_image_brightness = 1.0
         self.current_image_contrast = 1.0
@@ -250,6 +272,9 @@ class PegInHoleMujocoEnv(gym.Env):
         self.current_hole_center_offset = np.zeros(2, dtype=np.float64)
         self.current_fixture_height_offset = 0.0
         self.current_table_height_offset = 0.0
+        self.current_initial_tip_target = np.zeros(3, dtype=np.float64)
+        self.current_initial_ik_error = 0.0
+        self.current_initial_ik_attempts = 0
         self.current_hole_half_size = 0.027
         self.current_peg_radius = 0.012
         self.current_contact_friction_multiplier = 1.0
@@ -372,8 +397,7 @@ class PegInHoleMujocoEnv(gym.Env):
 
         self._sample_target()
         self._maybe_randomize_domain()
-        self._set_arm_qpos(self.data, self.rest_qpos)
-        self._set_arm_control(self.rest_qpos)
+        self._initialize_arm_pose()
         self.data.qvel[:] = 0.0
 
         mujoco.mj_forward(self.model, self.data)
@@ -446,6 +470,9 @@ class PegInHoleMujocoEnv(gym.Env):
             ("contact_solimp_width_multiplier_range", self.contact_solimp_width_multiplier_range),
             ("dynamics_joint_damping_multiplier_range", self.dynamics_joint_damping_multiplier_range),
             ("dynamics_actuator_kp_multiplier_range", self.dynamics_actuator_kp_multiplier_range),
+            ("initial_tip_z_above_range", self.initial_tip_z_above_range),
+            ("initial_tip_xy_offset_range", self.initial_tip_xy_offset_range),
+            ("initial_tip_xy_angle_range_deg", self.initial_tip_xy_angle_range_deg),
         )
         for name, value_range in ranges:
             if len(value_range) != 2 or value_range[0] > value_range[1]:
@@ -488,6 +515,12 @@ class PegInHoleMujocoEnv(gym.Env):
         for name, value_range in positive_multiplier_ranges:
             if value_range[0] <= 0.0:
                 raise ValueError(f"{name} must stay positive.")
+        if self.initial_tip_z_above_range[0] < 0.0:
+            raise ValueError("initial_tip_z_above_range cannot be negative.")
+        if self.initial_tip_xy_offset_range[0] < 0.0:
+            raise ValueError("initial_tip_xy_offset_range cannot be negative.")
+        if self.initial_ik_max_attempts < 1:
+            raise ValueError("initial_ik_max_attempts must be positive.")
 
     def _joint_id(self, name: str) -> int:
         return self._named_id(mujoco.mjtObj.mjOBJ_JOINT, name)
@@ -537,6 +570,89 @@ class PegInHoleMujocoEnv(gym.Env):
         ctrlrange = self.model.actuator_ctrlrange[self.arm_actuator_ids]
         qpos = np.clip(qpos, ctrlrange[:, 0], ctrlrange[:, 1])
         self.data.ctrl[self.arm_actuator_ids] = qpos
+
+    def _initialize_arm_pose(self) -> None:
+        if self.initialization_mode == "fixed":
+            self._set_arm_qpos(self.data, self.rest_qpos)
+            self._set_arm_control(self.rest_qpos)
+            mujoco.mj_forward(self.model, self.data)
+            tip_pos = self._site_xpos(self.data, self.peg_tip_site_id)
+            self.current_initial_tip_target = tip_pos
+            self.current_initial_ik_error = 0.0
+            self.current_initial_ik_attempts = 1
+            return
+
+        q_target, tip_target, ik_error, attempts = self._sample_high_start_qpos()
+        self._set_arm_qpos(self.data, q_target)
+        self._set_arm_control(q_target)
+        mujoco.mj_forward(self.model, self.data)
+        self.current_initial_tip_target = tip_target
+        self.current_initial_ik_error = ik_error
+        self.current_initial_ik_attempts = attempts
+
+    def _sample_high_start_qpos(self) -> tuple[np.ndarray, np.ndarray, float, int]:
+        best_qpos = self.rest_qpos.copy()
+        best_target = self._target_relative_tip_position(
+            xy_offset=self.initial_tip_xy_offset_range[0],
+            angle_rad=np.deg2rad(self.initial_tip_xy_angle_range_deg[0]),
+            z_above=self.initial_tip_z_above_range[0],
+        )
+        best_error = float("inf")
+        attempts = 0
+
+        for attempts in range(1, self.initial_ik_max_attempts + 1):
+            candidate_target = self._sample_high_start_tip_target()
+            if candidate_target is None:
+                continue
+
+            self._set_arm_qpos(self.data, self.rest_qpos)
+            self._set_arm_control(self.rest_qpos)
+            mujoco.mj_forward(self.model, self.data)
+            qpos = self._solve_position_ik(candidate_target)
+            self._set_arm_qpos(self.data, qpos)
+            mujoco.mj_forward(self.model, self.data)
+
+            achieved_tip = self._site_xpos(self.data, self.peg_tip_site_id)
+            error = float(np.linalg.norm(achieved_tip - candidate_target))
+            if error < best_error:
+                best_qpos = qpos.copy()
+                best_target = candidate_target.copy()
+                best_error = error
+            if error < 0.005:
+                return best_qpos, best_target, best_error, attempts
+
+        return best_qpos, best_target, best_error, max(attempts, 1)
+
+    def _sample_high_start_tip_target(self) -> np.ndarray | None:
+        xy_offset = float(self.np_random.uniform(*self.initial_tip_xy_offset_range))
+        angle_rad = float(
+            np.deg2rad(self.np_random.uniform(*self.initial_tip_xy_angle_range_deg))
+        )
+        z_above = float(self.np_random.uniform(*self.initial_tip_z_above_range))
+        candidate = self._target_relative_tip_position(
+            xy_offset=xy_offset,
+            angle_rad=angle_rad,
+            z_above=z_above,
+        )
+        if np.any(candidate < self.workspace_low) or np.any(candidate > self.workspace_high):
+            return None
+        return candidate
+
+    def _target_relative_tip_position(
+        self,
+        *,
+        xy_offset: float,
+        angle_rad: float,
+        z_above: float,
+    ) -> np.ndarray:
+        return np.asarray(
+            [
+                self.target_pos[0] + xy_offset * np.cos(angle_rad),
+                self.target_pos[1] + xy_offset * np.sin(angle_rad),
+                self.target_pos[2] + z_above,
+            ],
+            dtype=np.float64,
+        )
 
     def _sample_target(self) -> None:
         self.fixture_pos = self.np_random.uniform(self.target_low, self.target_high)
@@ -1132,4 +1248,8 @@ class PegInHoleMujocoEnv(gym.Env):
             "contact_solimp_width_multiplier": self.current_contact_solimp_width_multiplier,
             "joint_damping_multiplier": self.current_joint_damping_multiplier,
             "actuator_kp_multiplier": self.current_actuator_kp_multiplier,
+            "initialization_mode": self.initialization_mode,
+            "initial_tip_target": self.current_initial_tip_target.astype(np.float32),
+            "initial_ik_error": self.current_initial_ik_error,
+            "initial_ik_attempts": self.current_initial_ik_attempts,
         }

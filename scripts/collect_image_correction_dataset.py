@@ -10,6 +10,7 @@ import numpy as np
 from stable_baselines3 import A2C, PPO, SAC
 
 from peg_in_hole_mujoco import OracleControllerConfig, PegInHoleMujocoEnv, oracle_action
+from peg_in_hole_mujoco.sim_config import parse_args_with_config
 
 
 AGENTS = {
@@ -61,7 +62,7 @@ class Scenario:
 
 
 CLEARANCE_TIERS = {
-    "wide_current": ClearanceTier("wide_current", (0.025, 0.029), (0.0115, 0.0125)),
+    "wide_legacy": ClearanceTier("wide_legacy", (0.025, 0.029), (0.0115, 0.0125)),
     "medium": ClearanceTier("medium", (0.020, 0.024), (0.0115, 0.0125)),
     "narrow": ClearanceTier("narrow", (0.017, 0.021), (0.0115, 0.0125)),
     "tight": ClearanceTier("tight", (0.015, 0.018), (0.0115, 0.0125)),
@@ -69,6 +70,8 @@ CLEARANCE_TIERS = {
 
 
 SCENARIOS = {
+    "visual_camera": Scenario("visual_camera", "visual_camera"),
+    "visual_camera_control": Scenario("visual_camera_control", "visual_camera_control", **CONTROL_RANGES),
     "full_light_geometry": Scenario("full_light_geometry", "full_light_geometry", **CONTROL_RANGES),
     "hard_full_light_bucket": Scenario(
         "hard_full_light_bucket",
@@ -124,12 +127,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--compressed", action="store_true")
     parser.add_argument(
         "--scenario-preset",
-        choices=["geometry", "hard", "targeted", "contact"],
+        choices=[
+            "visual",
+            "visual_control",
+            "geometry",
+            "hard",
+            "targeted",
+            "contact",
+            "high_start_targeted",
+        ],
         default="targeted",
     )
     parser.add_argument(
         "--tier-preset",
-        choices=["wide", "medium", "wide_medium", "all"],
+        choices=["wide", "medium", "narrow", "tight", "wide_medium", "medium_narrow", "all"],
         default="medium",
     )
     parser.add_argument(
@@ -159,6 +170,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--near-hole-crop-size", type=int, default=64)
     parser.add_argument("--max-steps", type=int, default=200)
     parser.add_argument("--action-scale", type=float, default=0.005)
+    parser.add_argument(
+        "--initialization-mode",
+        choices=["fixed", "target_relative_high_start"],
+        default="fixed",
+    )
+    parser.add_argument("--initial-tip-z-above-range", nargs=2, type=float, default=(0.15, 0.25))
+    parser.add_argument("--initial-tip-xy-offset-range", nargs=2, type=float, default=(0.08, 0.16))
+    parser.add_argument(
+        "--initial-tip-xy-angle-range-deg",
+        nargs=2,
+        type=float,
+        default=(0.0, 360.0),
+    )
+    parser.add_argument("--initial-ik-max-attempts", type=int, default=20)
     parser.add_argument("--success-xy-tolerance", type=float, default=0.005)
     parser.add_argument("--success-z-tolerance", type=float, default=0.01)
     parser.add_argument("--approach-xy-tolerance", type=float, default=0.02)
@@ -181,26 +206,42 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--guarded-max-down-action", type=float, default=0.0035)
     parser.add_argument("--guarded-max-up-action", type=float, default=0.005)
     parser.add_argument("--guarded-prediction-steps", type=float, default=1.0)
-    return parser.parse_args()
+    return parse_args_with_config(parser)
 
 
 def tiers_for_args(args: argparse.Namespace) -> list[ClearanceTier]:
     if args.tier_preset == "wide":
-        return [CLEARANCE_TIERS["wide_current"]]
+        return [CLEARANCE_TIERS["wide_legacy"]]
     if args.tier_preset == "medium":
         return [CLEARANCE_TIERS["medium"]]
+    if args.tier_preset == "narrow":
+        return [CLEARANCE_TIERS["narrow"]]
+    if args.tier_preset == "tight":
+        return [CLEARANCE_TIERS["tight"]]
     if args.tier_preset == "wide_medium":
-        return [CLEARANCE_TIERS["wide_current"], CLEARANCE_TIERS["medium"]]
+        return [CLEARANCE_TIERS["wide_legacy"], CLEARANCE_TIERS["medium"]]
+    if args.tier_preset == "medium_narrow":
+        return [CLEARANCE_TIERS["medium"], CLEARANCE_TIERS["narrow"]]
     return list(CLEARANCE_TIERS.values())
 
 
 def scenarios_for_args(args: argparse.Namespace) -> list[Scenario]:
+    if args.scenario_preset == "visual":
+        return [SCENARIOS["visual_camera"]]
+    if args.scenario_preset == "visual_control":
+        return [SCENARIOS["visual_camera"], SCENARIOS["visual_camera_control"]]
     if args.scenario_preset == "geometry":
         return [SCENARIOS["full_light_geometry"]]
     if args.scenario_preset == "hard":
         return [SCENARIOS["hard_full_light_bucket"]]
     if args.scenario_preset == "contact":
         return [SCENARIOS["full_light_geometry"], SCENARIOS["full_contact_light"]]
+    if args.scenario_preset == "high_start_targeted":
+        return [
+            SCENARIOS["visual_camera"],
+            SCENARIOS["visual_camera_control"],
+            SCENARIOS["hard_full_light_bucket"],
+        ]
     return [SCENARIOS["full_light_geometry"], SCENARIOS["hard_full_light_bucket"]]
 
 
@@ -214,6 +255,11 @@ def make_env(args: argparse.Namespace, scenario: Scenario, tier: ClearanceTier) 
         near_hole_crop_size=args.near_hole_crop_size,
         max_steps=args.max_steps,
         action_scale=args.action_scale,
+        initialization_mode=args.initialization_mode,
+        initial_tip_z_above_range=tuple(args.initial_tip_z_above_range),
+        initial_tip_xy_offset_range=tuple(args.initial_tip_xy_offset_range),
+        initial_tip_xy_angle_range_deg=tuple(args.initial_tip_xy_angle_range_deg),
+        initial_ik_max_attempts=args.initial_ik_max_attempts,
         success_xy_tolerance=args.success_xy_tolerance,
         success_z_tolerance=args.success_z_tolerance,
         approach_xy_tolerance=args.approach_xy_tolerance,
@@ -700,6 +746,11 @@ def main() -> None:
         "model_path": str(args.model_path) if args.model_path is not None else "default",
         "scenario_preset": args.scenario_preset,
         "tier_preset": args.tier_preset,
+        "initialization_mode": args.initialization_mode,
+        "initial_tip_z_above_range": list(args.initial_tip_z_above_range),
+        "initial_tip_xy_offset_range": list(args.initial_tip_xy_offset_range),
+        "initial_tip_xy_angle_range_deg": list(args.initial_tip_xy_angle_range_deg),
+        "initial_ik_max_attempts": args.initial_ik_max_attempts,
         "selection": args.selection,
         "episode_outcome_filter": args.episode_outcome_filter,
         "failure_window_steps": args.failure_window_steps,

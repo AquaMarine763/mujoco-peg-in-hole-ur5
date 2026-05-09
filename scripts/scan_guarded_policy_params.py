@@ -56,7 +56,7 @@ class Scenario:
     geometry_hole_center_xy_jitter: tuple[float, float] = (0.002, 0.002)
     geometry_fixture_height_jitter: float = 0.001
     geometry_table_height_jitter: float = 0.001
-    geometry_hole_half_size_range: tuple[float, float] = (0.025, 0.029)
+    geometry_hole_half_size_range: tuple[float, float] = (0.017, 0.021)
     geometry_peg_radius_range: tuple[float, float] = (0.0115, 0.0125)
     contact_friction_multiplier_range: tuple[float, float] = (1.0, 1.0)
     contact_solref_time_multiplier_range: tuple[float, float] = (1.0, 1.0)
@@ -76,6 +76,7 @@ class GuardCandidate:
     guard_blend: float = 1.0
     guard_min_policy_steps: int = 0
     guard_block_down_when_unaligned: bool = False
+    guard_release_on_high: bool = False
     guard_action_gain: float = 1.0
     guarded_align_xy_tolerance: float = 0.025
     guarded_insert_xy_tolerance: float = 0.005
@@ -85,6 +86,7 @@ class GuardCandidate:
     guarded_max_down_action: float = 0.0035
     guarded_max_up_action: float = 0.005
     guarded_prediction_steps: float = 1.0
+    guarded_oracle_mode: str = "guarded_two_stage"
 
 
 CORE_SCENARIOS = (
@@ -162,8 +164,27 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--near-hole-crop-size", type=int, default=64)
     parser.add_argument("--max-steps", type=int, default=200)
     parser.add_argument("--action-scale", type=float, default=0.005)
+    parser.add_argument(
+        "--initialization-mode",
+        choices=["fixed", "target_relative_high_start"],
+        default="fixed",
+    )
+    parser.add_argument("--initial-tip-z-above-range", nargs=2, type=float, default=(0.15, 0.25))
+    parser.add_argument("--initial-tip-xy-offset-range", nargs=2, type=float, default=(0.08, 0.16))
+    parser.add_argument(
+        "--initial-tip-xy-angle-range-deg",
+        nargs=2,
+        type=float,
+        default=(0.0, 360.0),
+    )
+    parser.add_argument("--initial-ik-max-attempts", type=int, default=20)
     parser.add_argument("--success-xy-tolerance", type=float, default=0.005)
     parser.add_argument("--success-z-tolerance", type=float, default=0.01)
+    parser.add_argument("--geometry-hole-center-xy-jitter", nargs=2, type=float, default=(0.002, 0.002))
+    parser.add_argument("--geometry-fixture-height-jitter", type=float, default=0.001)
+    parser.add_argument("--geometry-table-height-jitter", type=float, default=0.001)
+    parser.add_argument("--geometry-hole-half-size-range", nargs=2, type=float, default=(0.017, 0.021))
+    parser.add_argument("--geometry-peg-radius-range", nargs=2, type=float, default=(0.0115, 0.0125))
     parser.add_argument("--approach-xy-tolerance", type=float, default=0.02)
     parser.add_argument("--approach-height", type=float, default=0.08)
     parser.add_argument("--staged-xy-weight", type=float, default=2.0)
@@ -177,6 +198,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--action-alignment-scale", type=float, default=2.0)
     parser.add_argument("--guard-risk-xy", type=float, default=0.0)
     parser.add_argument("--guard-block-down-when-unaligned", action="store_true")
+    parser.add_argument(
+        "--scan-guard-block-down-when-unaligned",
+        action="store_true",
+        help="For grid scans, include both block-down=false and true candidates.",
+    )
+    parser.add_argument("--guard-release-on-high", action="store_true")
     parser.add_argument("--guard-action-gain", type=float, default=1.0)
     parser.add_argument("--guarded-insert-xy-tolerance", type=float, default=0.005)
     parser.add_argument("--guarded-retract-xy-tolerance", type=float, default=0.012)
@@ -190,6 +217,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--guard-min-policy-step-values", nargs="+", type=int, default=(0,))
     parser.add_argument("--guarded-max-down-action-values", nargs="+", type=float, default=(0.0025, 0.0035, 0.0045))
     parser.add_argument("--guarded-align-xy-tolerance-values", nargs="+", type=float, default=(0.015, 0.020, 0.025))
+    parser.add_argument(
+        "--guarded-oracle-mode-values",
+        nargs="+",
+        choices=["guarded_two_stage", "high_start_two_phase"],
+        default=("guarded_two_stage",),
+    )
     parser.add_argument("--include-no-guard-baseline", action="store_true", default=True)
     parser.add_argument("--no-no-guard-baseline", dest="include_no_guard_baseline", action="store_false")
     parser.add_argument("--max-configs", type=int, default=None)
@@ -206,6 +239,11 @@ def make_env(args: argparse.Namespace, scenario: Scenario) -> PegInHoleMujocoEnv
         near_hole_crop_size=args.near_hole_crop_size,
         max_steps=args.max_steps,
         action_scale=args.action_scale,
+        initialization_mode=args.initialization_mode,
+        initial_tip_z_above_range=tuple(args.initial_tip_z_above_range),
+        initial_tip_xy_offset_range=tuple(args.initial_tip_xy_offset_range),
+        initial_tip_xy_angle_range_deg=tuple(args.initial_tip_xy_angle_range_deg),
+        initial_ik_max_attempts=args.initial_ik_max_attempts,
         success_xy_tolerance=args.success_xy_tolerance,
         success_z_tolerance=args.success_z_tolerance,
         approach_xy_tolerance=args.approach_xy_tolerance,
@@ -224,11 +262,11 @@ def make_env(args: argparse.Namespace, scenario: Scenario) -> PegInHoleMujocoEnv
         control_action_noise_std_range=scenario.control_action_noise_std_range,
         control_action_delay_range=scenario.control_action_delay_range,
         control_action_filter_alpha_range=scenario.control_action_filter_alpha_range,
-        geometry_hole_center_xy_jitter=scenario.geometry_hole_center_xy_jitter,
-        geometry_fixture_height_jitter=scenario.geometry_fixture_height_jitter,
-        geometry_table_height_jitter=scenario.geometry_table_height_jitter,
-        geometry_hole_half_size_range=scenario.geometry_hole_half_size_range,
-        geometry_peg_radius_range=scenario.geometry_peg_radius_range,
+        geometry_hole_center_xy_jitter=tuple(args.geometry_hole_center_xy_jitter),
+        geometry_fixture_height_jitter=args.geometry_fixture_height_jitter,
+        geometry_table_height_jitter=args.geometry_table_height_jitter,
+        geometry_hole_half_size_range=tuple(args.geometry_hole_half_size_range),
+        geometry_peg_radius_range=tuple(args.geometry_peg_radius_range),
         contact_friction_multiplier_range=scenario.contact_friction_multiplier_range,
         contact_solref_time_multiplier_range=scenario.contact_solref_time_multiplier_range,
         contact_solref_damping_multiplier_range=scenario.contact_solref_damping_multiplier_range,
@@ -247,8 +285,9 @@ def make_guarded_config(candidate: GuardCandidate) -> GuardedPolicyConfig:
         guard_blend=candidate.guard_blend,
         guard_min_policy_steps=candidate.guard_min_policy_steps,
         guard_block_down_when_unaligned=candidate.guard_block_down_when_unaligned,
+        guard_release_on_high=candidate.guard_release_on_high,
         oracle=OracleControllerConfig(
-            mode="guarded_two_stage",
+            mode=candidate.guarded_oracle_mode,
             action_gain=candidate.guard_action_gain,
             guarded_align_xy_tolerance=candidate.guarded_align_xy_tolerance,
             guarded_insert_xy_tolerance=candidate.guarded_insert_xy_tolerance,
@@ -270,20 +309,28 @@ def grid_candidates(args: argparse.Namespace) -> list[GuardCandidate]:
     candidates = []
     if args.include_no_guard_baseline:
         candidates.append(GuardCandidate("no_guard", scenario_filter="none"))
-    for xy, z, blend, min_steps, down, align in itertools.product(
+    block_down_values = (
+        (False, True)
+        if args.scan_guard_block_down_when_unaligned
+        else (bool(args.guard_block_down_when_unaligned),)
+    )
+    for xy, z, blend, min_steps, down, align, oracle_mode, block_down in itertools.product(
         args.guard_start_xy_values,
         args.guard_start_z_values,
         args.guard_blend_values,
         args.guard_min_policy_step_values,
         args.guarded_max_down_action_values,
         args.guarded_align_xy_tolerance_values,
+        args.guarded_oracle_mode_values,
+        block_down_values,
     ):
         candidates.append(
             GuardCandidate(
                 name=(
                     f"guard_xy{value_name(xy)}_z{value_name(z)}_blend{value_name(blend)}_"
                     f"min{min_steps}_"
-                    f"down{value_name(down)}_align{value_name(align)}"
+                    f"down{value_name(down)}_align{value_name(align)}_"
+                    f"{oracle_mode.replace('_', '')}_block{int(block_down)}"
                 ),
                 scenario_filter=args.guard_scenario_filter,
                 guard_start_xy=xy,
@@ -291,7 +338,8 @@ def grid_candidates(args: argparse.Namespace) -> list[GuardCandidate]:
                 guard_risk_xy=args.guard_risk_xy,
                 guard_blend=blend,
                 guard_min_policy_steps=min_steps,
-                guard_block_down_when_unaligned=args.guard_block_down_when_unaligned,
+                guard_block_down_when_unaligned=block_down,
+                guard_release_on_high=args.guard_release_on_high,
                 guard_action_gain=args.guard_action_gain,
                 guarded_align_xy_tolerance=align,
                 guarded_insert_xy_tolerance=args.guarded_insert_xy_tolerance,
@@ -301,6 +349,7 @@ def grid_candidates(args: argparse.Namespace) -> list[GuardCandidate]:
                 guarded_max_down_action=down,
                 guarded_max_up_action=args.guarded_max_up_action,
                 guarded_prediction_steps=args.guarded_prediction_steps,
+                guarded_oracle_mode=oracle_mode,
             )
         )
     return candidates
@@ -314,6 +363,7 @@ def candidates_for_args(args: argparse.Namespace) -> list[GuardCandidate]:
     else:
         candidates = grid_candidates(args)
 
+    default_oracle_mode = args.guarded_oracle_mode_values[0]
     candidates = [
         candidate if candidate.scenario_filter == "none" else GuardCandidate(
             name=candidate.name,
@@ -324,6 +374,7 @@ def candidates_for_args(args: argparse.Namespace) -> list[GuardCandidate]:
             guard_blend=candidate.guard_blend,
             guard_min_policy_steps=candidate.guard_min_policy_steps,
             guard_block_down_when_unaligned=args.guard_block_down_when_unaligned,
+            guard_release_on_high=args.guard_release_on_high,
             guard_action_gain=args.guard_action_gain,
             guarded_align_xy_tolerance=candidate.guarded_align_xy_tolerance,
             guarded_insert_xy_tolerance=args.guarded_insert_xy_tolerance,
@@ -333,6 +384,7 @@ def candidates_for_args(args: argparse.Namespace) -> list[GuardCandidate]:
             guarded_max_down_action=candidate.guarded_max_down_action,
             guarded_max_up_action=args.guarded_max_up_action,
             guarded_prediction_steps=args.guarded_prediction_steps,
+            guarded_oracle_mode=default_oracle_mode,
         )
         for candidate in candidates
     ]
@@ -437,6 +489,7 @@ def evaluate_candidate(
         "guard_blend": candidate.guard_blend,
         "guard_min_policy_steps": candidate.guard_min_policy_steps,
         "guard_block_down_when_unaligned": candidate.guard_block_down_when_unaligned,
+        "guard_release_on_high": candidate.guard_release_on_high,
         "guard_action_gain": candidate.guard_action_gain,
         "guarded_align_xy_tolerance": candidate.guarded_align_xy_tolerance,
         "guarded_insert_xy_tolerance": candidate.guarded_insert_xy_tolerance,
@@ -446,6 +499,7 @@ def evaluate_candidate(
         "guarded_max_down_action": candidate.guarded_max_down_action,
         "guarded_max_up_action": candidate.guarded_max_up_action,
         "guarded_prediction_steps": candidate.guarded_prediction_steps,
+        "guarded_oracle_mode": candidate.guarded_oracle_mode,
         "control_scale_range": range_text(scenario.control_action_scale_range),
         "control_noise_std_range": range_text(scenario.control_action_noise_std_range),
         "control_delay_range": range_text(scenario.control_action_delay_range),
@@ -511,6 +565,11 @@ def write_markdown(
         f"- Episodes per candidate/scenario: `{args.episodes}`",
         f"- Seed: `{args.seed}`",
         f"- Guard scenario filter: `{args.guard_scenario_filter}`",
+        f"- Initialization mode: `{args.initialization_mode}`",
+        f"- Initial tip Z above target range: `{list(args.initial_tip_z_above_range)}`",
+        f"- Initial tip XY offset range: `{list(args.initial_tip_xy_offset_range)}`",
+        f"- Guarded oracle mode values: `{list(args.guarded_oracle_mode_values)}`",
+        f"- Scan block-down values: `{args.scan_guard_block_down_when_unaligned}`",
         "",
         "## Candidate Summary",
         "",
@@ -556,13 +615,13 @@ def main() -> None:
     candidates = candidates_for_args(args)
     scenarios = scenarios_for_args(args)
     rows: list[dict[str, Any]] = []
+    model = AGENTS[args.agent].load(args.model, device=args.device)
 
     for scenario in scenarios:
         for candidate in candidates:
             # Domain randomization mutates MuJoCo model parameters. A fresh env per
             # candidate keeps matched-seed comparisons independent and reproducible.
             env = make_env(args, scenario)
-            model = AGENTS[args.agent].load(args.model, env=env, device=args.device)
             try:
                 row = evaluate_candidate(args, env, model, scenario, candidate)
                 rows.append(row)

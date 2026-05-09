@@ -1,6 +1,6 @@
 # Robot Model Compatibility Report
 
-- Model path: `mujoco_peg_in_hole\assets\ur5_peg_in_hole.xml`
+- Model path: `assets\ur5e_full\ur5e_peg_in_hole_full.xml`
 - Compatible with current task interface: `True`
 
 ## Counts
@@ -12,7 +12,7 @@
 | nu | 6 |
 | nbody | 10 |
 | njnt | 6 |
-| ngeom | 16 |
+| ngeom | 39 |
 | nsite | 3 |
 | ncam | 2 |
 

@@ -1,0 +1,45 @@
+# Full UR5e high-start visual-search oracle dataset.
+model_path: assets/ur5e_full/ur5e_peg_in_hole_full.xml
+output: datasets/ur5e_full/high_start/image_expert_50k_high_start_visual_camera.npz
+samples: 50000
+oracle_mode: guarded_two_stage
+rollout_noise_std: 0.0005
+seed: 510000
+success_only: true
+compressed: true
+domain_randomization: true
+domain_randomization_level: visual_camera
+image_width: 100
+image_height: 100
+include_near_hole_crop: true
+near_hole_crop_size: 64
+max_steps: 1000
+action_scale: 0.005
+initialization_mode: target_relative_high_start
+initial_tip_z_above_range: [0.15, 0.25]
+initial_tip_xy_offset_range: [0.08, 0.16]
+initial_tip_xy_angle_range_deg: [0.0, 360.0]
+initial_ik_max_attempts: 30
+control_action_scale_range: [0.8, 1.2]
+control_action_noise_std_range: [0.0, 0.0008]
+control_action_delay_range: [0, 2]
+control_action_filter_alpha_range: [0.55, 1.0]
+geometry_hole_center_xy_jitter: [0.002, 0.002]
+geometry_fixture_height_jitter: 0.001
+geometry_table_height_jitter: 0.001
+geometry_hole_half_size_range: [0.017, 0.021]
+geometry_peg_radius_range: [0.0115, 0.0125]
+target_low: [0.50, 0.00, 0.65]
+target_high: [0.60, 0.10, 0.65]
+success_xy_tolerance: 0.005
+success_z_tolerance: 0.01
+approach_xy_tolerance: 0.06
+approach_height: 0.08
+guarded_align_xy_tolerance: 0.020
+guarded_insert_xy_tolerance: 0.005
+guarded_retract_xy_tolerance: 0.012
+guarded_preinsert_height: 0.0
+guarded_max_xy_action: 0.005
+guarded_max_down_action: 0.0035
+guarded_max_up_action: 0.005
+guarded_prediction_steps: 1.0

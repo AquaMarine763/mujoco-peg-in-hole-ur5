@@ -81,7 +81,7 @@ class GuardMode:
 
 
 CLEARANCE_TIERS = (
-    ClearanceTier("wide_current", (0.025, 0.029), (0.0115, 0.0125)),
+    ClearanceTier("wide_legacy", (0.025, 0.029), (0.0115, 0.0125)),
     ClearanceTier("medium", (0.020, 0.024), (0.0115, 0.0125)),
     ClearanceTier("narrow", (0.017, 0.021), (0.0115, 0.0125)),
     ClearanceTier("tight", (0.015, 0.018), (0.0115, 0.0125)),

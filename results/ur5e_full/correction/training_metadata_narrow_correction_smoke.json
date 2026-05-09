@@ -1,0 +1,45 @@
+{
+  "output": "checkpoints\\ur5e_full\\correction\\smoke\\sac_image_bc_narrow_correction_smoke.zip",
+  "base_model": "checkpoints\\ur5e_full\\adapt\\sac_image_bc_50k_narrow_hole_full_light_geometry.zip",
+  "model_path": "assets\\ur5e_full\\ur5e_peg_in_hole_full.xml",
+  "datasets": [
+    {
+      "path": "datasets\\ur5e_full\\adapt\\image_expert_50k_narrow_hole_full_light_geometry.npz",
+      "samples": 50000,
+      "train_samples": 47500,
+      "validation_samples": 2500,
+      "weight": 0.9,
+      "has_near_hole_crops": true
+    },
+    {
+      "path": "datasets\\ur5e_full\\correction\\image_correction_narrow_near_hole_failure_window_smoke.npz",
+      "samples": 256,
+      "train_samples": 244,
+      "validation_samples": 12,
+      "weight": 0.1,
+      "has_near_hole_crops": true
+    }
+  ],
+  "epochs": 1,
+  "samples_per_epoch": 4096,
+  "batch_size": 256,
+  "learning_rate": 5e-06,
+  "validation_split": 0.05,
+  "validation_batches": 4,
+  "seed": 630000,
+  "device": "cpu",
+  "include_near_hole_crop": true,
+  "near_hole_crop_size": 64,
+  "success_xy_tolerance": 0.005,
+  "success_z_tolerance": 0.01,
+  "approach_xy_tolerance": 0.06,
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 0.11111798696219921,
+      "val_loss": 0.08330613421276212
+    }
+  ],
+  "final_train_loss": 0.11111798696219921,
+  "final_val_loss": 0.08330613421276212
+}

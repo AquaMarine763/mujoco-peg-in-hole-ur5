@@ -23,6 +23,9 @@ logs*/
 videos/
 datasets/*.npz
 datasets/**/*.npz
+datasets/**/*.npz.json
 datasets/*smoke*.npz.json
 datasets/**/*smoke*.npz.json
 *.zip
+demos/ur5e_full/
+Report/

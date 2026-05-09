@@ -34,7 +34,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--episodes", type=int, default=100)
     parser.add_argument("--seed", type=int, default=120_000)
     parser.add_argument("--gains", nargs="+", type=float, default=(1.0, 0.7, 0.5, 0.35, 0.25))
-    parser.add_argument("--oracle-mode", choices=["staged", "guarded_two_stage"], default="staged")
+    parser.add_argument(
+        "--oracle-mode",
+        choices=["staged", "guarded_two_stage", "high_start_two_phase"],
+        default="staged",
+    )
     parser.add_argument("--guarded-align-xy-tolerance", type=float, default=0.025)
     parser.add_argument("--guarded-insert-xy-tolerance", type=float, default=0.005)
     parser.add_argument("--guarded-retract-xy-tolerance", type=float, default=0.012)
@@ -194,7 +198,7 @@ def write_markdown(path: Path, args: argparse.Namespace, results: list[GainResul
         f"- Control delay range: `{args.control_action_delay_range[0]}:{args.control_action_delay_range[1]}`",
         f"- Control filter alpha range: `{args.control_action_filter_alpha_range[0]}:{args.control_action_filter_alpha_range[1]}`",
     ]
-    if args.oracle_mode == "guarded_two_stage":
+    if args.oracle_mode in ("guarded_two_stage", "high_start_two_phase"):
         lines.extend(
             [
                 f"- Guarded align XY tolerance: `{args.guarded_align_xy_tolerance}`",

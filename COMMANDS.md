@@ -102,6 +102,416 @@ python scripts\demo_policy.py `
   --render-camera overview
 ```
 
+Full UR5e short commands are also available through config files:
+
+```powershell
+python scripts\eval_matrix.py --config configs\sim\ur5e_full\eval_image_crop.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_guarded_image_crop.yaml
+python scripts\demo_policy.py --config configs\sim\ur5e_full\demo_guarded_image_crop.yaml
+```
+
+Current full UR5e task geometry hides the debug `hole_site`, `eef_site`, and
+`peg_tip` markers in rendered demos. The peg diameter is about `24 mm`; the
+base hole opening is about `40 mm`; geometry-randomized full UR5e configs use
+`geometry_hole_half_size_range: [0.017, 0.021]`, i.e. about `34 - 42 mm`
+opening. Metrics collected before this change used a wider hole and should be
+refreshed before comparison. The main guarded full UR5e demo now uses
+`max_steps: 400` so it has time to show the final insertion instead of ending
+mid-descent. Full UR5e guarded configs now use
+`guarded_align_xy_tolerance: 0.020`, selected from a 30-episode narrow-hole
+scan.
+
+Full UR5e visual-adaptation smoke and 50k commands:
+
+```powershell
+python scripts\collect_image_expert_dataset.py --config configs\sim\ur5e_full\collect_image_expert_smoke.yaml
+python scripts\pretrain_image_actor_bc.py --config configs\sim\ur5e_full\pretrain_image_bc_smoke.yaml
+python scripts\collect_image_expert_dataset.py --config configs\sim\ur5e_full\collect_image_expert_50k.yaml
+python scripts\pretrain_image_actor_bc.py --config configs\sim\ur5e_full\pretrain_image_bc_50k.yaml
+```
+
+Current strongest full UR5e adapted commands:
+
+```powershell
+python scripts\eval_matrix.py --config configs\sim\ur5e_full\eval_image_narrow_50k.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_guarded_narrow_50k_all.yaml
+python scripts\demo_policy.py --config configs\sim\ur5e_full\demo_guarded_narrow_50k_all.yaml
+```
+
+Full UR5e narrowed-hole correction pass:
+
+```powershell
+python scripts\collect_image_correction_dataset.py --config configs\sim\ur5e_full\collect_correction_narrow_smoke.yaml
+python scripts\inspect_image_correction_dataset.py `
+  --dataset datasets\ur5e_full\correction\image_correction_narrow_near_hole_failure_window_smoke.npz `
+  --output-md results\ur5e_full\correction\image_correction_narrow_smoke_inspection.md `
+  --output-csv results\ur5e_full\correction\image_correction_narrow_smoke_inspection.csv
+python scripts\pretrain_image_actor_bc_weighted.py --config configs\sim\ur5e_full\pretrain_correction_narrow_smoke.yaml
+
+python scripts\collect_image_correction_dataset.py --config configs\sim\ur5e_full\collect_correction_narrow_8k.yaml
+python scripts\inspect_image_correction_dataset.py `
+  --dataset datasets\ur5e_full\correction\image_correction_narrow_near_hole_failure_window_8k_min006.npz `
+  --output-md results\ur5e_full\correction\image_correction_narrow_8k_inspection.md `
+  --output-csv results\ur5e_full\correction\image_correction_narrow_8k_inspection.csv
+python scripts\pretrain_image_actor_bc_weighted.py --config configs\sim\ur5e_full\pretrain_correction_narrow_8k_w10_e2.yaml
+python scripts\eval_matrix.py --config configs\sim\ur5e_full\eval_image_narrow_correction_8k_w10_e2.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_guarded_narrow_correction_8k_w10_e2.yaml
+```
+
+The latest correction checkpoint is:
+
+```text
+checkpoints\ur5e_full\correction\sac_image_bc_50k_narrow_correction_8k_w10_e2.zip
+```
+
+It is a candidate checkpoint, not the current default, because its 100-episode
+results were mostly flat versus the narrowed-hole adapted checkpoint.
+
+Full UR5e narrow-hole guarded scans:
+
+```powershell
+python scripts\scan_guarded_policy_params.py --config configs\sim\ur5e_full\scan_guarded_narrow_hole_smoke.yaml
+python scripts\scan_guarded_policy_params.py --config configs\sim\ur5e_full\scan_guarded_narrow_hole_focused.yaml
+```
+
+Full UR5e high-start visual-search smoke:
+
+```powershell
+python scripts\collect_image_expert_dataset.py --config configs\sim\ur5e_full\collect_high_start_smoke.yaml
+python scripts\pretrain_image_actor_bc.py --config configs\sim\ur5e_full\pretrain_high_start_smoke.yaml
+python scripts\demo_policy.py --config configs\sim\ur5e_full\demo_high_start_guarded_smoke.yaml
+```
+
+Full UR5e high-start 50k curriculum stage:
+
+```powershell
+python scripts\collect_image_expert_dataset.py --config configs\sim\ur5e_full\collect_high_start_50k.yaml
+python scripts\pretrain_image_actor_bc.py --config configs\sim\ur5e_full\pretrain_high_start_50k.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_guarded_50k.yaml
+python scripts\demo_policy.py --config configs\sim\ur5e_full\demo_high_start_guarded_50k.yaml
+```
+
+The first 50k high-start run completed end to end but is not yet strong enough
+to become the default policy. The checkpoint is:
+
+```text
+checkpoints\ur5e_full\high_start\sac_image_bc_50k_high_start_visual_camera.zip
+```
+
+Collection summary: `50000` samples from `225` successful episodes out of
+`1044` attempted episodes, `0.216` oracle success, `0.552` collision. BC
+summary: 10 epochs, final train loss `0.062912`, final validation loss
+`0.066407`.
+
+100-episode high-start guarded-all result with standard near-hole guard:
+
+| Evaluation | Clean | Visual camera | Visual camera control | Full light | Full contact | Hard bucket |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| high-start 50k guarded all | 0.190 | 0.240 | 0.180 | 0.170 | 0.220 | 0.150 |
+
+The high-start demo from `demo_high_start_guarded_50k.yaml` timed out at
+`1000` steps with final XY about `8.8 mm` and final Z about `47.6 mm`, so this
+stage needs an easier curriculum or better high-start oracle before larger XY
+randomization.
+
+Full UR5e easy high-start curriculum:
+
+```powershell
+python scripts\collect_image_expert_dataset.py --config configs\sim\ur5e_full\collect_high_start_easy_smoke.yaml
+python scripts\collect_image_expert_dataset.py --config configs\sim\ur5e_full\collect_high_start_easy_20k.yaml
+python scripts\pretrain_image_actor_bc.py --config configs\sim\ur5e_full\pretrain_high_start_easy_20k.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_easy_guarded_20k.yaml
+python scripts\demo_policy.py --config configs\sim\ur5e_full\demo_high_start_easy_guarded_20k.yaml
+
+python scripts\collect_image_expert_dataset.py --config configs\sim\ur5e_full\collect_high_start_easy_50k.yaml
+python scripts\pretrain_image_actor_bc.py --config configs\sim\ur5e_full\pretrain_high_start_easy_50k.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_easy_guarded_50k.yaml
+python scripts\demo_policy.py --config configs\sim\ur5e_full\demo_high_start_easy_guarded_50k.yaml
+```
+
+Current easy high-start checkpoint:
+
+```text
+checkpoints\ur5e_full\high_start\easy\sac_image_bc_50k_high_start_easy_visual_camera.zip
+```
+
+Easy reset range: `0.08 - 0.15 m` above the hole and `0.04 - 0.10 m` initial
+XY offset. Easy 50k collection summary: `50000` samples, `377` episodes,
+`0.647` oracle success, `0.119` collision. BC summary: 10 epochs, final train
+loss `0.061749`, final validation loss `0.061968`.
+
+Easy 50k 100-episode high-start guarded-all result:
+
+| Evaluation | Clean | Visual camera | Visual camera control | Full light | Full contact | Hard bucket |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| seed 542000 | 0.670 | 0.540 | 0.500 | 0.530 | 0.530 | 0.530 |
+| seed 534000 | 0.620 | 0.630 | 0.590 | 0.580 | 0.540 | 0.480 |
+
+Successful easy 50k demo:
+
+```text
+demos\ur5e_full\high_start\easy\demo_high_start_easy_50k_visual_camera_standard_guard_seed534000.gif
+```
+
+It inserted in `247` steps from about `6.9 cm` XY offset and `12.0 cm` above
+the hole. The default demo seed `542000` timed out, so this checkpoint is a
+curriculum stepping stone rather than a final high-start policy.
+
+Full UR5e medium high-start curriculum:
+
+```powershell
+python scripts\collect_image_expert_dataset.py --config configs\sim\ur5e_full\collect_high_start_medium_smoke.yaml
+python scripts\collect_image_expert_dataset.py --config configs\sim\ur5e_full\collect_high_start_medium_20k.yaml
+python scripts\pretrain_image_actor_bc.py --config configs\sim\ur5e_full\pretrain_high_start_medium_20k.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_medium_guarded_20k.yaml
+python scripts\demo_policy.py --config configs\sim\ur5e_full\demo_high_start_medium_guarded_20k.yaml
+
+python scripts\collect_image_expert_dataset.py --config configs\sim\ur5e_full\collect_high_start_medium_50k.yaml
+python scripts\pretrain_image_actor_bc.py --config configs\sim\ur5e_full\pretrain_high_start_medium_50k.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_medium_guarded_50k.yaml
+python scripts\demo_policy.py --config configs\sim\ur5e_full\demo_high_start_medium_guarded_50k.yaml
+```
+
+Current medium high-start checkpoint:
+
+```text
+checkpoints\ur5e_full\high_start\medium\sac_image_bc_50k_high_start_medium_visual_camera.zip
+```
+
+Medium reset range: `0.10 - 0.18 m` above the hole and `0.06 - 0.12 m`
+initial XY offset. Medium 50k collection summary: `50000` samples, `287`
+episodes, `0.627` oracle success, `0.087` collision. BC summary: 10 epochs,
+final train loss `0.045268`, final validation loss `0.044958`.
+
+Medium 50k 100-episode high-start guarded-all result:
+
+| Evaluation | Clean | Visual camera | Visual camera control | Full light | Full contact | Hard bucket |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| medium 50k | 0.680 | 0.620 | 0.510 | 0.510 | 0.510 | 0.490 |
+
+Successful medium 50k demo:
+
+```text
+demos\ur5e_full\high_start\medium\demo_high_start_medium_50k_visual_camera_standard_guard.gif
+```
+
+It inserted in `285` steps from about `8.65 cm` XY offset and `11.25 cm`
+above the hole.
+
+Full UR5e hard high-start re-test and safe-height curriculum:
+
+```powershell
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_from_medium_guarded_50k.yaml
+python scripts\demo_policy.py --config configs\sim\ur5e_full\demo_high_start_hard_from_medium_guarded_50k.yaml
+
+python scripts\collect_image_expert_dataset.py --config configs\sim\ur5e_full\collect_high_start_hard_safe_smoke.yaml
+python scripts\collect_image_expert_dataset.py --config configs\sim\ur5e_full\collect_high_start_hard_safe_20k.yaml
+python scripts\pretrain_image_actor_bc.py --config configs\sim\ur5e_full\pretrain_high_start_hard_safe_20k.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_safe_20k.yaml
+python scripts\demo_policy.py --config configs\sim\ur5e_full\demo_high_start_hard_safe_20k.yaml
+
+python scripts\collect_image_expert_dataset.py --config configs\sim\ur5e_full\collect_high_start_hard_safe_50k.yaml
+python scripts\pretrain_image_actor_bc.py --config configs\sim\ur5e_full\pretrain_high_start_hard_safe_50k.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_safe_50k.yaml
+python scripts\demo_policy.py --config configs\sim\ur5e_full\demo_high_start_hard_safe_50k.yaml
+```
+
+Current hard-range candidate:
+
+```text
+checkpoints\ur5e_full\high_start\hard\sac_image_bc_50k_high_start_hard_safe_visual_camera.zip
+```
+
+Hard range: `0.15 - 0.25 m` above the hole and `0.08 - 0.16 m` initial XY
+offset. Hard-safe uses `approach_height: 0.12` and `guard_start_z: 0.12`.
+
+Hard-safe 20k result:
+
+| Evaluation | Clean | Visual camera | Visual camera control | Full light | Full contact | Hard bucket |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| hard-safe 20k | 0.480 | 0.400 | 0.340 | 0.350 | 0.390 | 0.240 |
+
+Hard-safe 50k result:
+
+| Evaluation | Clean | Visual camera | Visual camera control | Full light | Full contact | Hard bucket |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| hard-safe 50k | 0.480 | 0.450 | 0.330 | 0.270 | 0.310 | 0.330 |
+
+Successful hard demos:
+
+```text
+demos\ur5e_full\high_start\hard\demo_high_start_hard_from_medium_50k_standard_guard.gif
+demos\ur5e_full\high_start\hard\demo_high_start_hard_safe_20k_visual_camera_standard_guard.gif
+demos\ur5e_full\high_start\hard\demo_high_start_hard_safe_50k_visual_camera_standard_guard.gif
+```
+
+Hard-safe 50k did not clearly beat hard-safe 20k, so the next work should
+improve the high-start controller/oracle and collect failure/correction data
+instead of continuing to add more success-only hard data.
+
+Two-phase hard high-start controller checks:
+
+```powershell
+python scripts\collect_image_expert_dataset.py --config configs\sim\ur5e_full\collect_high_start_hard_twophase_smoke.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_twophase_hard_safe_50k.yaml
+python scripts\demo_policy.py --config configs\sim\ur5e_full\demo_high_start_hard_twophase_hard_safe_50k.yaml
+```
+
+This uses `oracle_mode: high_start_two_phase` for collection and
+`guarded_oracle_mode: high_start_two_phase` plus
+`guard_block_down_when_unaligned: true` for guarded evaluation/demo. The first
+100-episode result was mixed:
+
+| Evaluation | Clean | Visual camera | Visual camera control | Full light | Full contact | Hard bucket |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| hard-safe 50k + two-phase guard | 0.490 | 0.340 | 0.320 | 0.350 | 0.350 | 0.270 |
+
+It reduced some collision risk but increased timeout, so this should be tuned
+before use as a default.
+
+Hard high-start guard parameter scan and focused validation:
+
+```powershell
+python scripts\scan_guarded_policy_params.py --config configs\sim\ur5e_full\scan_high_start_hard_twophase_guarded_smoke.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_align025_guarded_50k.yaml
+python scripts\demo_policy.py --config configs\sim\ur5e_full\demo_high_start_hard_align025_guarded_50k.yaml
+```
+
+The scan compares `guarded_two_stage` vs `high_start_two_phase`, align
+thresholds `0.020/0.025/0.030`, and block-down false/true on the hard
+high-start reset. The 5-episode smoke did not find a clear two-phase or
+block-down improvement. The focused `align=0.025`, `guarded_two_stage`
+100-episode result was:
+
+| Evaluation | Clean | Visual camera | Visual camera control | Full light | Full contact | Hard bucket |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| hard-safe 50k + align 0.025 guard | 0.530 | 0.370 | 0.310 | 0.340 | 0.290 | 0.270 |
+
+The corresponding demo timed out at `1000` steps with no collision, final XY
+about `8.4 mm`, and final Z about `32.8 mm`. This is not a promoted default;
+it points to near-hole plateau correction as the next step.
+
+Hard high-start correction smoke:
+
+```powershell
+python scripts\collect_image_correction_dataset.py --config configs\sim\ur5e_full\collect_high_start_hard_correction_smoke.yaml
+python scripts\inspect_image_correction_dataset.py `
+  --dataset datasets\ur5e_full\high_start\hard\correction\image_correction_high_start_hard_near_hole_plateau_smoke.npz `
+  --output-md results\ur5e_full\high_start\hard\correction\image_correction_high_start_hard_smoke_inspection.md `
+  --output-csv results\ur5e_full\high_start\hard\correction\image_correction_high_start_hard_smoke_inspection.csv
+python scripts\pretrain_image_actor_bc_weighted.py --config configs\sim\ur5e_full\pretrain_high_start_hard_correction_smoke.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_correction_smoke.yaml
+python scripts\demo_policy.py --config configs\sim\ur5e_full\demo_high_start_hard_correction_smoke.yaml
+```
+
+The smoke collected `256` near-hole failure samples from `29` visual_camera
+hard high-start episodes. It is high-signal data: `72.3%` opposed actions and
+`86.7%` policy-down/oracle-up-or-less-down. The 1-epoch weighted BC smoke is
+not a default checkpoint; same-seed 20-episode evaluation was mixed and the
+demo still timed out near `8.4 mm` XY error.
+
+Current narrowed-hole full UR5e adapted checkpoint:
+
+```text
+checkpoints\ur5e_full\adapt\sac_image_bc_50k_narrow_hole_full_light_geometry.zip
+```
+
+Pre-narrow-hole full UR5e adapted checkpoint:
+
+```text
+checkpoints\ur5e_full\adapt\sac_image_bc_50k_full_light_geometry.zip
+```
+
+Checked full UR5e result before adaptation, using the adapter-trained image policy:
+
+| Evaluation | Clean | Visual camera | Visual camera control | Full light | Full contact | Hard bucket |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| policy only | 0.080 | 0.260 | 0.250 | 0.140 | 0.150 | - |
+| guarded blend 0.75 | 0.080 | 0.260 | 0.250 | 0.620 | 0.650 | 0.590 |
+
+Checked full UR5e result after 50k full-model BC adaptation, before the
+narrow-hole geometry update:
+
+| Evaluation | Clean | Visual camera | Visual camera control | Full light | Full contact | Hard bucket |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| policy only | 0.950 | 0.660 | 0.610 | 0.680 | 0.650 | - |
+| guarded geometry | 0.950 | 0.660 | 0.610 | 0.840 | 0.840 | 0.810 |
+| guarded all | 0.990 | 0.970 | 0.950 | 0.840 | 0.840 | 0.820 |
+
+Checked after hiding full UR5e debug markers and narrowing the hole to about
+`40 mm` base opening, using the same adapted checkpoint and guarded-all mode:
+
+| Evaluation | Clean | Visual camera | Visual camera control | Full light | Full contact | Hard bucket |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| guarded all, 10 episodes | 0.800 | 0.800 | 0.800 | 0.800 | 0.800 | 0.700 |
+| guarded all, 30 episodes, align 0.025 | 0.800 | 0.800 | 0.800 | 0.767 | 0.767 | 0.667 |
+| guarded all, 30 episodes, align 0.020, blend 1.0 | 0.933 | 0.900 | 0.833 | 0.867 | 0.867 | 0.800 |
+| guarded all, 100 episodes, align 0.020, blend 1.0 | 0.970 | 0.910 | 0.860 | 0.830 | 0.830 | 0.770 |
+
+Policy-only 100-episode narrowed-hole baseline:
+
+| Evaluation | Clean | Visual camera | Visual camera control | Full light | Full contact |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| policy only | 0.750 | 0.690 | 0.640 | 0.600 | 0.620 |
+
+After collecting and training the 50k narrowed-hole dataset:
+
+```text
+datasets\ur5e_full\adapt\image_expert_50k_narrow_hole_full_light_geometry.npz
+checkpoints\ur5e_full\adapt\sac_image_bc_50k_narrow_hole_full_light_geometry.zip
+```
+
+Collection summary: `50000` samples, `545` episodes, `0.824` success, `0.154`
+collision. BC summary: 10 epochs, final train loss `0.039346`, final validation
+loss `0.041165`.
+
+| Evaluation | Clean | Visual camera | Visual camera control | Full light | Full contact | Hard bucket |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| policy only, 100 episodes | 0.850 | 0.800 | 0.740 | 0.740 | 0.740 | - |
+| guarded all, 100 episodes | 0.980 | 0.930 | 0.860 | 0.830 | 0.840 | 0.780 |
+
+After the narrowed-hole correction pass:
+
+```text
+datasets\ur5e_full\correction\image_correction_narrow_near_hole_failure_window_8k_min006.npz
+checkpoints\ur5e_full\correction\sac_image_bc_50k_narrow_correction_8k_w10_e2.zip
+```
+
+The command requested 8k correction samples, but the strict
+`min_correction_norm=0.006` filter and `max_episodes_per_config=2000` cap
+produced `1836` high-signal samples. Weighted BC used 90% narrowed-hole expert
+replay and 10% correction replay for 2 epochs.
+
+| Evaluation | Clean | Visual camera | Visual camera control | Full light | Full contact | Hard bucket |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| correction policy only, 100 episodes | 0.870 | 0.780 | 0.760 | 0.750 | 0.720 | - |
+| correction guarded all, 100 episodes | 0.970 | 0.940 | 0.870 | 0.830 | 0.840 | 0.780 |
+
+The refreshed demo with `guarded_align_xy_tolerance=0.020` and
+`guard_blend=1.0` succeeded in `91` steps and was written to:
+
+```text
+demos\ur5e_full\adapt\demo_guarded_all_50k_narrow_hole_full_light_geometry.gif
+```
+
+The current best full UR5e demo/deployment-style simulation is the adapted
+checkpoint `checkpoints\ur5e_full\adapt\sac_image_bc_50k_narrow_hole_full_light_geometry.zip`
+with `guard_scenario_filter=all`, `guarded_align_xy_tolerance=0.020`, and
+`guard_blend=1.0`. The remaining weakness is the `0.13 - 0.18` collision rate
+under visual_camera_control/full/hard conditions.
+
+Checked high-start smoke:
+
+| Stage | Domain | Result |
+| --- | --- | --- |
+| reset | high-start | starts about `0.15 - 0.25 m` above and `0.08 - 0.16 m` away in XY |
+| oracle smoke | visual_camera | `1.000` success, `0.000` collision |
+| oracle smoke | full_light_geometry | too hard for first stage: `0.143` success, `0.571` collision |
+| BC smoke | visual_camera | 1 epoch completed |
+
+Use `visual_camera` as the first high-start curriculum stage. Add control and
+geometry randomization only after high-start search works reliably.
+
 UR5e mainline branch verification:
 
 ```powershell
@@ -1392,7 +1802,7 @@ Guarded blend `0.75` result:
 
 | Tier | Mean clearance | Full light | Hard bucket | Full contact |
 | --- | ---: | ---: | ---: | ---: |
-| wide_current | 14.9 mm | 0.600 | 0.400 | 0.633 |
+| wide_legacy | 14.9 mm | 0.600 | 0.400 | 0.633 |
 | medium | 9.9 mm | 0.667 | 0.333 | 0.567 |
 | narrow | 6.9 mm | 0.533 | 0.367 | 0.600 |
 | tight | 4.4 mm | 0.467 | 0.267 | 0.533 |
@@ -1572,8 +1982,8 @@ Checked result:
 
 | Tier | Scenario | Success | Collision | Failure corr | Failure opposed | Policy down / oracle up |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| wide_current | full_light_geometry | 0.640 | 0.360 | 0.005 | 0.035 | 0.065 |
-| wide_current | hard_full_light_bucket | 0.320 | 0.680 | 0.004 | 0.007 | 0.070 |
+| wide_legacy | full_light_geometry | 0.640 | 0.360 | 0.005 | 0.035 | 0.065 |
+| wide_legacy | hard_full_light_bucket | 0.320 | 0.680 | 0.004 | 0.007 | 0.070 |
 | medium | full_light_geometry | 0.660 | 0.300 | 0.005 | 0.189 | 0.125 |
 | medium | hard_full_light_bucket | 0.400 | 0.560 | 0.004 | 0.076 | 0.059 |
 
