@@ -1,0 +1,46 @@
+# 10% high-approach correction 2k fine-tune, one epoch.
+model_path: assets/ur5e_full/ur5e_peg_in_hole_full.xml
+datasets: [datasets/ur5e_full/high_start/hard/image_expert_50k_high_start_hard_wrist_pose_visual_camera_seed564k.npz, datasets/ur5e_full/high_start/hard/image_expert_10k_high_start_hard_wrist_pose_control_state_visual_camera_control_seed590k.npz, datasets/ur5e_full/high_start/hard/correction/image_correction_2k_high_start_hard_wrist_pose_control_state_approach.npz]
+dataset_weights: [0.55, 0.35, 0.10]
+phase_balanced_recovery: true
+recovery_phase_names: [approach_recenter]
+recovery_phase_weights: [1.0]
+model: checkpoints/ur5e_full/high_start/hard/sac_image_bc_60k_high_start_hard_wrist_pose_control_state_mix_scratch_e8.zip
+output: checkpoints/ur5e_full/high_start/hard/correction/sac_image_bc_wrist_pose_control_state_approach_2k_w10_e1.zip
+metadata_output: results/ur5e_full/high_start/hard/correction/training_metadata_wrist_pose_control_state_approach_2k_w10_e1.json
+epochs: 1
+samples_per_epoch: 8192
+batch_size: 256
+learning_rate: 0.000005
+validation_split: 0.05
+validation_batches: 4
+device: cpu
+seed: 615000
+image_width: 100
+image_height: 100
+include_near_hole_crop: true
+near_hole_crop_size: 64
+near_hole_crop_offset: [-18, 0]
+include_control_state: true
+image_frame_stack: 1
+wrist_camera_pos_offset: [-0.04, -0.04, 0.0]
+wrist_camera_rot_offset_deg: [0.0, 0.0, 0.0]
+wrist_camera_fovy: 100.0
+max_steps: 1000
+action_scale: 0.005
+target_low: [0.50, 0.00, 0.65]
+target_high: [0.60, 0.10, 0.65]
+success_xy_tolerance: 0.005
+success_z_tolerance: 0.01
+geometry_hole_half_size_range: [0.017, 0.021]
+approach_xy_tolerance: 0.06
+approach_height: 0.12
+staged_xy_weight: 2.0
+staged_z_weight: 1.0
+success_bonus: 120.0
+collision_penalty: 300.0
+timeout_penalty: 10.0
+progress_reward_scale: 20.0
+distance_reward_scale: 2.0
+action_penalty_scale: 0.002
+action_alignment_scale: 2.0

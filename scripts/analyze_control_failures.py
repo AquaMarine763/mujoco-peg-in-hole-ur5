@@ -12,6 +12,7 @@ import numpy as np
 from stable_baselines3 import A2C, PPO, SAC
 
 from peg_in_hole_mujoco import PegInHoleMujocoEnv
+from peg_in_hole_mujoco.sim_config import parse_args_with_config
 
 
 AGENTS = {
@@ -57,6 +58,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--seed", type=int, default=150_000)
     parser.add_argument(
+        "--image-ablation",
+        choices=["normal", "black", "noise", "shuffle"],
+        default="normal",
+        help="Corrupt image observations before policy inference while preserving non-image inputs.",
+    )
+    parser.add_argument(
         "--output-csv",
         type=Path,
         default=Path("results/control_failure_analysis_episodes.csv"),
@@ -79,16 +86,40 @@ def parse_args() -> argparse.Namespace:
         ],
         default="visual_camera_control",
     )
+    parser.add_argument("--include-hard-bucket", action="store_true")
     parser.add_argument("--width", type=int, default=100)
     parser.add_argument("--height", type=int, default=100)
     parser.add_argument("--include-near-hole-crop", action="store_true")
     parser.add_argument("--near-hole-crop-size", type=int, default=64)
+    parser.add_argument("--near-hole-crop-offset", nargs=2, type=int, default=(0, 0))
+    parser.add_argument("--include-control-state", action="store_true")
+    parser.add_argument("--image-frame-stack", type=int, default=1)
+    parser.add_argument("--wrist-camera-pos-offset", nargs=3, type=float, default=(0.0, 0.0, 0.0))
+    parser.add_argument(
+        "--wrist-camera-rot-offset-deg",
+        nargs=3,
+        type=float,
+        default=(0.0, 0.0, 0.0),
+    )
+    parser.add_argument("--wrist-camera-fovy", type=float, default=None)
     parser.add_argument("--max-steps", type=int, default=200)
     parser.add_argument("--action-scale", type=float, default=0.005)
+    parser.add_argument("--target-low", nargs=3, type=float, default=(0.50, 0.00, 0.65))
+    parser.add_argument("--target-high", nargs=3, type=float, default=(0.60, 0.10, 0.65))
+    parser.add_argument(
+        "--initialization-mode",
+        choices=["fixed", "target_relative_high_start"],
+        default="fixed",
+    )
+    parser.add_argument("--initial-tip-z-above-range", nargs=2, type=float, default=(0.15, 0.25))
+    parser.add_argument("--initial-tip-xy-offset-range", nargs=2, type=float, default=(0.08, 0.16))
+    parser.add_argument("--initial-tip-xy-angle-range-deg", nargs=2, type=float, default=(0.0, 360.0))
+    parser.add_argument("--initial-ik-max-attempts", type=int, default=20)
     parser.add_argument("--control-action-scale-range", nargs=2, type=float, default=(0.8, 1.2))
     parser.add_argument("--control-action-noise-std-range", nargs=2, type=float, default=(0.0, 0.0008))
     parser.add_argument("--control-action-delay-range", nargs=2, type=int, default=(0, 2))
     parser.add_argument("--control-action-filter-alpha-range", nargs=2, type=float, default=(0.55, 1.0))
+    parser.add_argument("--geometry-hole-half-size-range", nargs=2, type=float, default=(0.017, 0.021))
     parser.add_argument("--success-xy-tolerance", type=float, default=0.005)
     parser.add_argument("--success-z-tolerance", type=float, default=0.01)
     parser.add_argument("--approach-xy-tolerance", type=float, default=0.06)
@@ -102,7 +133,28 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--distance-reward-scale", type=float, default=2.0)
     parser.add_argument("--action-penalty-scale", type=float, default=0.002)
     parser.add_argument("--action-alignment-scale", type=float, default=2.0)
-    return parser.parse_args()
+    # Accepted for compatibility with guarded-eval config files. This analyzer
+    # intentionally runs the learned policy directly and does not use guards.
+    parser.add_argument("--guard-scenario-filter", default="all")
+    parser.add_argument("--guard-start-xy", type=float, default=0.060)
+    parser.add_argument("--guard-start-z", type=float, default=0.100)
+    parser.add_argument("--guard-risk-xy", type=float, default=0.0)
+    parser.add_argument("--guard-blend", type=float, default=1.0)
+    parser.add_argument("--guard-min-policy-steps", type=int, default=0)
+    parser.add_argument("--guard-block-down-when-unaligned", action="store_true")
+    parser.add_argument("--guard-release-on-high", action="store_true")
+    parser.add_argument("--guarded-oracle-mode", default="guarded_two_stage")
+    parser.add_argument("--guard-action-gain", type=float, default=1.0)
+    parser.add_argument("--guarded-align-xy-tolerance", type=float, default=0.020)
+    parser.add_argument("--guarded-insert-xy-tolerance", type=float, default=0.005)
+    parser.add_argument("--guarded-retract-xy-tolerance", type=float, default=0.012)
+    parser.add_argument("--guarded-preinsert-height", type=float, default=0.0)
+    parser.add_argument("--guarded-max-xy-action", type=float, default=0.005)
+    parser.add_argument("--guarded-max-down-action", type=float, default=0.0035)
+    parser.add_argument("--guarded-max-up-action", type=float, default=0.005)
+    parser.add_argument("--guarded-prediction-steps", type=float, default=0.0)
+    parser.add_argument("--guarded-hold-z-until-insert", action="store_true")
+    return parse_args_with_config(parser)
 
 
 def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
@@ -113,8 +165,21 @@ def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
         image_height=args.height,
         include_near_hole_crop=args.include_near_hole_crop,
         near_hole_crop_size=args.near_hole_crop_size,
+        near_hole_crop_offset=tuple(args.near_hole_crop_offset),
+        include_control_state=args.include_control_state,
+        image_frame_stack=args.image_frame_stack,
+        wrist_camera_pos_offset=tuple(args.wrist_camera_pos_offset),
+        wrist_camera_rot_offset_deg=tuple(args.wrist_camera_rot_offset_deg),
+        wrist_camera_fovy=args.wrist_camera_fovy,
         max_steps=args.max_steps,
         action_scale=args.action_scale,
+        target_low=tuple(args.target_low),
+        target_high=tuple(args.target_high),
+        initialization_mode=args.initialization_mode,
+        initial_tip_z_above_range=tuple(args.initial_tip_z_above_range),
+        initial_tip_xy_offset_range=tuple(args.initial_tip_xy_offset_range),
+        initial_tip_xy_angle_range_deg=tuple(args.initial_tip_xy_angle_range_deg),
+        initial_ik_max_attempts=args.initial_ik_max_attempts,
         success_xy_tolerance=args.success_xy_tolerance,
         success_z_tolerance=args.success_z_tolerance,
         approach_xy_tolerance=args.approach_xy_tolerance,
@@ -129,6 +194,7 @@ def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
         action_penalty_scale=args.action_penalty_scale,
         action_alignment_scale=args.action_alignment_scale,
         domain_randomization_level=args.domain_randomization_level,
+        geometry_hole_half_size_range=tuple(args.geometry_hole_half_size_range),
         control_action_scale_range=tuple(args.control_action_scale_range),
         control_action_noise_std_range=tuple(args.control_action_noise_std_range),
         control_action_delay_range=tuple(args.control_action_delay_range),
@@ -164,10 +230,76 @@ def mean(values: list[float]) -> float:
     return float(np.mean(values)) if values else 0.0
 
 
+def clone_observation(obs: Any) -> Any:
+    if isinstance(obs, dict):
+        return {key: clone_observation(value) for key, value in obs.items()}
+    if isinstance(obs, np.ndarray):
+        return obs.copy()
+    return obs
+
+
+def black_like(obs: Any) -> Any:
+    if isinstance(obs, dict):
+        return {key: black_like(value) for key, value in obs.items()}
+    if isinstance(obs, np.ndarray):
+        if obs.dtype == np.uint8:
+            return np.zeros_like(obs)
+        return obs.copy()
+    return obs
+
+
+def noise_like(obs: Any, rng: np.random.Generator) -> Any:
+    if isinstance(obs, dict):
+        return {key: noise_like(value, rng) for key, value in obs.items()}
+    if isinstance(obs, np.ndarray) and obs.dtype == np.uint8:
+        return rng.integers(0, 256, size=obs.shape, dtype=np.uint8)
+    if isinstance(obs, np.ndarray):
+        return obs.copy()
+    return obs
+
+
+def preserve_non_image_values(ablated: Any, original: Any) -> Any:
+    if isinstance(ablated, dict) and isinstance(original, dict):
+        merged = {}
+        for key, value in ablated.items():
+            merged[key] = preserve_non_image_values(value, original.get(key, value))
+        return merged
+    if isinstance(ablated, np.ndarray) and isinstance(original, np.ndarray):
+        if ablated.dtype != np.uint8:
+            return original.copy()
+    return ablated
+
+
+def policy_observation(
+    obs: Any,
+    *,
+    mode: str,
+    rng: np.random.Generator,
+    shuffle_bank: list[Any],
+) -> Any:
+    if mode == "normal":
+        return obs
+    if mode == "black":
+        return black_like(obs)
+    if mode == "noise":
+        return noise_like(obs, rng)
+    if mode == "shuffle":
+        if shuffle_bank:
+            index = int(rng.integers(0, len(shuffle_bank)))
+            ablated = clone_observation(shuffle_bank[index])
+        else:
+            ablated = black_like(obs)
+        shuffle_bank.append(clone_observation(obs))
+        return preserve_non_image_values(ablated, obs)
+    raise ValueError(f"Unknown image ablation mode: {mode}")
+
+
 def evaluate_policy(args: argparse.Namespace) -> list[dict[str, Any]]:
     env = make_env(args)
     model = AGENTS[args.agent].load(args.model, env=env, device=args.device)
     rows: list[dict[str, Any]] = []
+    ablation_rng = np.random.default_rng(args.seed + 1_000_003)
+    shuffle_bank: list[Any] = []
 
     try:
         for episode in range(args.episodes):
@@ -180,7 +312,13 @@ def evaluate_policy(args: argparse.Namespace) -> list[dict[str, Any]]:
             mean_applied_norms: list[float] = []
 
             while True:
-                action, _ = model.predict(obs, deterministic=True)
+                model_obs = policy_observation(
+                    obs,
+                    mode=args.image_ablation,
+                    rng=ablation_rng,
+                    shuffle_bank=shuffle_bank,
+                )
+                action, _ = model.predict(model_obs, deterministic=True)
                 obs, reward, terminated, truncated, info = env.step(action)
                 episode_return += float(reward)
                 commanded = np.asarray(info.get("commanded_action", action), dtype=np.float64)
@@ -320,6 +458,9 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Model: `{args.model}`",
         f"- MuJoCo model path: `{args.model_path or 'default'}`",
         f"- Observation mode: `{args.observation_mode}`",
+        f"- Include control state: `{args.include_control_state}`",
+        f"- Image frame stack: `{args.image_frame_stack}`",
+        f"- Image ablation: `{args.image_ablation}`",
         f"- Domain randomization level: `{args.domain_randomization_level}`",
         f"- Episodes: `{episodes}`",
         f"- Seed: `{args.seed}`",
@@ -381,6 +522,8 @@ def main() -> None:
     args = parse_args()
     if args.episodes <= 0:
         raise ValueError("--episodes must be positive.")
+    if args.image_ablation != "normal" and args.observation_mode != "image":
+        raise ValueError("--image-ablation requires --observation-mode image.")
 
     rows = evaluate_policy(args)
     write_csv(args.output_csv, rows)

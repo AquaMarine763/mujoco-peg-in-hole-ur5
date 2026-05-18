@@ -110,6 +110,88 @@ python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_guarde
 python scripts\demo_policy.py --config configs\sim\ur5e_full\demo_guarded_image_crop.yaml
 ```
 
+Full UR5e low-level controller diagnostics:
+
+```powershell
+python scripts\diagnose_ur5e_controller.py --episodes 3
+```
+
+The diagnostic compares the default position-only IK against the experimental
+pose IK. It first places the peg tip near the hole with `ik_settle`, then
+probes low-Z `+X/-X/+Y/-Y` tracking. Outputs:
+
+```text
+results\ur5e_full\controller_diagnostics\ur5e_controller_direction_rows.csv
+results\ur5e_full\controller_diagnostics\ur5e_controller_summary.md
+```
+
+Use pose IK in guarded evaluation or demos with:
+
+```powershell
+--ik-control-mode pose `
+--ik-orientation-weight 0.12 `
+--ik-posture-weight 0.01 `
+--ik-step-limit 0.06 `
+--ik-max-iterations 24
+```
+
+Current pose-IK hard-bucket check:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_insert_drift_2k_w10_e1_final_servo_20ep.yaml `
+  --ik-control-mode pose `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_insert_drift_2k_w10_e1_final_servo_pose_ik_20ep_seed602000.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_insert_drift_2k_w10_e1_final_servo_pose_ik_20ep_seed602000.md `
+  --episode-output-csv results\ur5e_full\high_start\hard\correction\eval_insert_drift_2k_w10_e1_final_servo_pose_ik_episodes_20ep_seed602000.csv `
+  --step-output-csv results\ur5e_full\high_start\hard\correction\eval_insert_drift_2k_w10_e1_final_servo_pose_ik_failure_step_trace_20ep_seed602000.csv
+```
+
+Current pose-IK 60ep gate:
+
+```powershell
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_insert_drift_2k_w10_e1_final_servo_pose_ik_hard_60ep.yaml
+```
+
+Position-IK 60ep comparison:
+
+```powershell
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_insert_drift_2k_w10_e1_final_servo_hard_60ep.yaml --output-csv results\ur5e_full\high_start\hard\correction\eval_insert_drift_2k_w10_e1_final_servo_hard_60ep_position_seed602000.csv --output-md results\ur5e_full\high_start\hard\correction\eval_insert_drift_2k_w10_e1_final_servo_hard_60ep_position_seed602000.md
+```
+
+Current pose-IK 100ep matrix:
+
+```powershell
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_insert_drift_2k_w10_e1_final_servo_pose_ik_matrix_100ep.yaml
+```
+
+Position-IK 100ep matrix comparison:
+
+```powershell
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_insert_drift_2k_w10_e1_final_servo_pose_ik_matrix_100ep.yaml --ik-control-mode position --output-csv results\ur5e_full\high_start\hard\correction\eval_insert_drift_2k_w10_e1_final_servo_position_ik_matrix_100ep_seed602000.csv --output-md results\ur5e_full\high_start\hard\correction\eval_insert_drift_2k_w10_e1_final_servo_position_ik_matrix_100ep_seed602000.md
+```
+
+Pose-IK tail correction collection and weighted BC:
+
+```powershell
+python scripts\collect_image_correction_dataset.py --config configs\sim\ur5e_full\collect_high_start_hard_wrist_pose_control_state_near_hole_pose_ik_2k.yaml
+python scripts\collect_image_correction_dataset.py --config configs\sim\ur5e_full\collect_high_start_hard_wrist_pose_control_state_fixture_wall_pose_ik_2k.yaml
+python scripts\pretrain_image_actor_bc_weighted.py --config configs\sim\ur5e_full\pretrain_high_start_hard_wrist_pose_control_state_pose_ik_tail_2k_w10_e1.yaml
+```
+
+The expected output checkpoint for this pass is:
+
+```text
+checkpoints\ur5e_full\high_start\hard\correction\sac_image_bc_wrist_pose_control_state_pose_ik_tail_2k_w10_e1.zip
+```
+
+Post-retrain evaluation:
+
+```powershell
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_pose_ik_tail_2k_w10_e1_final_servo_pose_ik_hard_60ep.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_pose_ik_tail_2k_w10_e1_final_servo_pose_ik_matrix_100ep.yaml
+```
+
 Current full UR5e task geometry hides the debug `hole_site`, `eef_site`, and
 `peg_tip` markers in rendered demos. The peg diameter is about `24 mm`; the
 base hole opening is about `40 mm`; geometry-randomized full UR5e configs use
@@ -409,6 +491,613 @@ hard high-start episodes. It is high-signal data: `72.3%` opposed actions and
 `86.7%` policy-down/oracle-up-or-less-down. The 1-epoch weighted BC smoke is
 not a default checkpoint; same-seed 20-episode evaluation was mixed and the
 demo still timed out near `8.4 mm` XY error.
+
+Hard high-start correction 2k pass:
+
+```powershell
+python scripts\collect_image_correction_dataset.py --config configs\sim\ur5e_full\collect_high_start_hard_correction_2k.yaml
+python scripts\inspect_image_correction_dataset.py `
+  --dataset datasets\ur5e_full\high_start\hard\correction\image_correction_high_start_hard_near_hole_plateau_2k.npz `
+  --output-md results\ur5e_full\high_start\hard\correction\image_correction_high_start_hard_2k_inspection.md `
+  --output-csv results\ur5e_full\high_start\hard\correction\image_correction_high_start_hard_2k_inspection.csv
+python scripts\pretrain_image_actor_bc_weighted.py --config configs\sim\ur5e_full\pretrain_high_start_hard_correction_2k_w05_e2.yaml
+python scripts\pretrain_image_actor_bc_weighted.py --config configs\sim\ur5e_full\pretrain_high_start_hard_correction_2k_w10_e2.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_correction_2k_w05_e2.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_correction_2k_w10_e2.yaml
+python scripts\demo_policy.py --config configs\sim\ur5e_full\demo_high_start_hard_correction_2k_w10_e2.yaml
+```
+
+The 2k dataset balances `1000` visual_camera and `1000` visual_camera_control
+samples. It keeps strong correction signal: `74.9%` opposed actions and
+`86.8%` policy-down/oracle-up. In same-seed 20-episode eval, 5% replay was
+effectively baseline, while 10% replay only improved hard bucket from `0.35`
+to `0.40` and reduced hard-bucket collision from `0.45` to `0.35`. The demo
+still timed out near `8.4 mm` XY error, so this is not a promoted checkpoint.
+
+Hard high-start guarded retry prototype:
+
+```powershell
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_retry_guarded_50k.yaml
+python scripts\demo_policy.py --config configs\sim\ur5e_full\demo_high_start_hard_retry_guarded_50k.yaml
+```
+
+This adds deployment-time retry diagnostics and a bounded re-align/retry state
+machine. It is not promoted: same-seed 20-episode evaluation was mostly worse
+than the hard-safe 50k baseline (`clean 0.300`, `visual_camera 0.150`,
+`visual_camera_control 0.250`, `full_light_geometry 0.250`,
+`full_contact_light 0.250`, `hard_full_light_bucket 0.300`). The demo still
+timed out near `8.4 mm` XY error. Treat this as evidence that the next fix
+should be guarded oracle / IK near-hole alignment behavior, not more retry
+attempts with the current controller.
+
+Hard high-start no-prediction guarded controller:
+
+```powershell
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_pred0_guarded_50k.yaml
+python scripts\demo_policy.py --config configs\sim\ur5e_full\demo_high_start_hard_pred0_guarded_50k.yaml
+```
+
+This is the strongest current controller-only improvement for the hard
+high-start checkpoint. It keeps `guarded_two_stage` but sets
+`guarded_prediction_steps: 0.0`, avoiding the old one-step prediction that
+could falsely assume the peg had already entered the `5 mm` insert band. In
+same-seed 100-episode evaluation it improved success to clean `0.560`,
+visual_camera `0.500`, visual_camera_control `0.530`, full_light_geometry
+`0.450`, full_contact_light `0.380`, hard bucket `0.430`. The demo seed
+`571001` inserts in `411` steps. Seed `571000` remains a useful failure case.
+
+Hard high-start strict-align hold-Z check:
+
+```powershell
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_strict_align_guarded_50k.yaml
+python scripts\demo_policy.py --config configs\sim\ur5e_full\demo_high_start_hard_strict_align_guarded_50k.yaml
+```
+
+`guarded_hold_z_until_insert: true` alone was not enough. With the old
+prediction setting it still timed out near `8.4 mm`; with prediction disabled
+it can enter the `5 mm` band but tends to oscillate if XY drifts back out
+during descent. Keep it as diagnostic evidence, not as the default.
+
+Hard high-start insert latch / descent hysteresis diagnostic:
+
+```powershell
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_pred0_latch_guarded_50k.yaml --hard-bucket-only --episodes 10
+python scripts\demo_policy.py --config configs\sim\ur5e_full\demo_high_start_hard_pred0_latch_guarded_50k.yaml
+```
+
+This is experimental only. It adds a stateful latch after the peg enters the
+`5 mm` insert band, pauses descent when XY drifts back out, and can run a
+two-stage recenter attempt that lifts before lateral re-alignment. The current
+hard-bucket smoke is not good enough to promote: `10` episodes, success
+`0.400`, collision `0.500`, timeout `0.100`. The hard seed `571000` still
+fails, and diagnostics show the peg becomes wedged inside the hole-wall height
+range where physical tracking is extremely slow. The next learning step should
+be contact-aware failure correction / DAgger, not more latch threshold tuning.
+
+Hard high-start Track A hover / descent-gate diagnostic:
+
+```powershell
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_pred0_hover_guarded_50k.yaml --hard-bucket-only --episodes 10
+python scripts\demo_policy.py --config configs\sim\ur5e_full\demo_high_start_hard_pred0_hover_guarded_50k.yaml
+```
+
+This is also experimental only. It adds near-hole hover alignment, stateful
+descent release, descent blocking when XY drifts out, and near-hole action
+limiting. Same-seed 10-episode hard-bucket smoke was flat versus pred0 guarded
+baseline: both reached success `0.400`, collision `0.500`, timeout `0.100`.
+Seed `571000` now latches and starts descent near `3.8 mm` XY, but still
+wedges around `5.1 - 5.3 mm` and times out. Treat this as support for the next
+Track B step: contact-aware unjam / DAgger labels.
+
+Hard high-start Track B contact-aware correction smoke:
+
+```powershell
+python scripts\collect_image_correction_dataset.py --config configs\sim\ur5e_full\collect_high_start_hard_contact_recovery_smoke.yaml
+python scripts\inspect_image_correction_dataset.py `
+  --dataset datasets\ur5e_full\high_start\hard\correction\image_correction_high_start_hard_contact_recovery_smoke.npz `
+  --output-md results\ur5e_full\high_start\hard\correction\image_correction_high_start_hard_contact_recovery_smoke_inspection.md `
+  --output-csv results\ur5e_full\high_start\hard\correction\image_correction_high_start_hard_contact_recovery_smoke_inspection.csv
+python scripts\pretrain_image_actor_bc_weighted.py --config configs\sim\ur5e_full\pretrain_high_start_hard_contact_recovery_smoke_w10_e1.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_contact_recovery_smoke_w10_e1.yaml --hard-bucket-only --episodes 10
+```
+
+This smoke verifies the Track B label path. The dataset has `256` samples, all
+from near-hole timeout windows. It is deliberately strong: `oracle_lift_action`
+rate is `1.000`, `opposed_actions` is `0.953`, and every sample is labeled as
+`unjam_lift`. The 10% replay / 1 epoch checkpoint is not promoted: hard-bucket
+10-episode success stayed flat at `0.400`. The next Track B data pass should
+include three phases: low-Z `unjam_lift`, lifted `realign`, and aligned
+`slow_insert`.
+
+Hard high-start Track B staged correction smoke:
+
+```powershell
+python scripts\collect_image_correction_dataset.py --config configs\sim\ur5e_full\collect_high_start_hard_contact_recovery_staged_smoke.yaml
+python scripts\inspect_image_correction_dataset.py `
+  --dataset datasets\ur5e_full\high_start\hard\correction\image_correction_high_start_hard_contact_recovery_staged_smoke.npz `
+  --output-md results\ur5e_full\high_start\hard\correction\image_correction_high_start_hard_contact_recovery_staged_smoke_inspection.md `
+  --output-csv results\ur5e_full\high_start\hard\correction\image_correction_high_start_hard_contact_recovery_staged_smoke_inspection.csv
+python scripts\pretrain_image_actor_bc_weighted.py --config configs\sim\ur5e_full\pretrain_high_start_hard_contact_recovery_staged_smoke_w15_e1.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_contact_recovery_staged_smoke_w15_e1.yaml --hard-bucket-only --episodes 10
+```
+
+This is the current Track B data-pipeline smoke. It adds branch rollouts from
+failed low-Z states plus synthetic recovery curriculum states. Latest staged
+smoke phase counts: `unjam_lift=410`, `realign=49`, `slow_insert=53`. The
+staged smoke checkpoint is not promoted: hard-bucket 10-episode success
+remained `0.400`, and seed `571000` collided. Scale staged data cautiously
+with lower replay weight before treating it as a training candidate.
+
+Hard high-start Track B staged correction 2k pass:
+
+```powershell
+python scripts\collect_image_correction_dataset.py --config configs\sim\ur5e_full\collect_high_start_hard_contact_recovery_staged_2k.yaml
+python scripts\inspect_image_correction_dataset.py `
+  --dataset datasets\ur5e_full\high_start\hard\correction\image_correction_high_start_hard_contact_recovery_staged_2k.npz `
+  --output-md results\ur5e_full\high_start\hard\correction\image_correction_high_start_hard_contact_recovery_staged_2k_inspection.md `
+  --output-csv results\ur5e_full\high_start\hard\correction\image_correction_high_start_hard_contact_recovery_staged_2k_inspection.csv
+python scripts\pretrain_image_actor_bc_weighted.py --config configs\sim\ur5e_full\pretrain_high_start_hard_contact_recovery_staged_2k_w05_e2.yaml
+python scripts\pretrain_image_actor_bc_weighted.py --config configs\sim\ur5e_full\pretrain_high_start_hard_contact_recovery_staged_2k_w10_e2.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_contact_recovery_staged_2k_w05_e2.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_contact_recovery_staged_2k_w10_e2.yaml
+```
+
+Use this as the next Track B scale-up, not as a promoted model. The first
+acceptance check is a same-seed 20-episode matrix: success must beat the
+current pred0 guarded baseline or clearly lower hard-bucket collisions without
+hurting clean/visual_camera too much.
+
+Checked staged 2k pass:
+
+- dataset: `2048` samples, balanced as `1024` visual_camera and `1024`
+  visual_camera_control
+- recovery branch rate: `0.521`
+- synthetic recovery state rate: `0.167`
+- phase counts: `unjam_lift=1674`, `realign=172`, `slow_insert=202`
+
+Same-seed 20-episode guarded eval:
+
+| Checkpoint | Clean | Visual camera | Visual camera control | Full light | Full contact | Hard bucket |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| staged 2k w05 e2 | 0.550 | 0.500 | 0.500 | 0.400 | 0.350 | 0.450 |
+| staged 2k w10 e2 | 0.550 | 0.550 | 0.500 | 0.400 | 0.350 | 0.450 |
+
+The staged 2k checkpoints are not promoted. They give only a small hard-bucket
+signal, and the known hard seed `571000` still collides with the 10% replay
+checkpoint. Next Track B work should rebalance or oversample `realign` and
+`slow_insert` labels before scaling to a larger dataset.
+
+Hard high-start Track B phase-balanced staged correction:
+
+```powershell
+python scripts\pretrain_image_actor_bc_weighted.py --config configs\sim\ur5e_full\pretrain_high_start_hard_contact_recovery_staged_2k_phase_w10_e2.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_contact_recovery_staged_2k_phase_w10_e2.yaml
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_contact_recovery_staged_2k_phase_w10_e2.yaml `
+  --hard-bucket-only `
+  --episodes 1 `
+  --seed 571000 `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_high_start_hard_contact_recovery_staged_2k_phase_w10_e2_seed571000.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_high_start_hard_contact_recovery_staged_2k_phase_w10_e2_seed571000.md
+python scripts\pretrain_image_actor_bc_weighted.py --config configs\sim\ur5e_full\pretrain_high_start_hard_contact_recovery_staged_2k_phase_w15_e2.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_contact_recovery_staged_2k_phase_w15_e2.yaml
+```
+
+This keeps the staged 2k dataset fixed but changes correction sampling. Inside
+the correction dataset, batches use `unjam_lift/realign/slow_insert =
+0.30/0.35/0.35` instead of the raw dataset ratio `1674/172/202`.
+
+Same-seed 20-episode guarded eval:
+
+| Checkpoint | Clean | Visual camera | Visual camera control | Full light | Full contact | Hard bucket |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| staged 2k w10 e2 | 0.550 | 0.550 | 0.500 | 0.400 | 0.350 | 0.450 |
+| phase staged 2k w10 e2 | 0.550 | 0.550 | 0.500 | 0.350 | 0.350 | 0.500 |
+| phase staged 2k w15 e2 | 0.550 | 0.550 | 0.500 | 0.350 | 0.350 | 0.450 |
+
+The phase-balanced w10 checkpoint is the best Track B signal so far, but it is
+not promoted: `full_light_geometry` drops to `0.350`, and hard seed `571000`
+still collides. The w15 run regressed, so the next step is better
+failure-state coverage or a guarded recovery gate, not higher correction
+weight.
+
+Hard-bucket v3 timeout trace diagnosis:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_hard_bucket_v3_2k_w10_e1.yaml `
+  --hard-bucket-only `
+  --episodes 60 `
+  --seed 604000 `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_v3_e1_hard_step_trace_60ep_seed604k.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_v3_e1_hard_step_trace_60ep_seed604k.md `
+  --episode-output-csv results\ur5e_full\high_start\hard\correction\eval_v3_e1_hard_episode_trace_60ep_seed604k.csv `
+  --step-output-csv results\ur5e_full\high_start\hard\correction\eval_v3_e1_hard_step_trace_timeout_60ep_seed604k.csv `
+  --step-trace-outcome-filter timeout
+```
+
+This is the current diagnostic for the v3 hard-bucket timeout bottleneck. The
+seed `604000` 60-episode run produced success/collision/timeout
+`0.383/0.133/0.483`; `22/29` timeout episodes entered the strict `5 mm` XY
+band at least once. Soft latch, faster latch, `guarded_insert_xy_tolerance:
+0.008`, contact-aware deployment guard, policy-only, and `guard_blend: 0.75`
+did not improve the same seed window. See:
+
+```text
+results\ur5e_full\high_start\hard\correction\hard_bucket_timeout_trace_v3_summary.md
+```
+
+Hard-bucket timeout-progress v4 smoke:
+
+```powershell
+python scripts\collect_image_correction_dataset.py --config configs\sim\ur5e_full\collect_high_start_hard_wrist_pose_control_state_timeout_progress_v4_smoke.yaml
+python scripts\inspect_image_correction_dataset.py `
+  --dataset datasets\ur5e_full\high_start\hard\correction\image_correction_512_high_start_hard_wrist_pose_control_state_timeout_progress_v4_smoke.npz `
+  --output-md results\ur5e_full\high_start\hard\correction\image_correction_timeout_progress_v4_smoke_inspection.md `
+  --output-csv results\ur5e_full\high_start\hard\correction\image_correction_timeout_progress_v4_smoke_inspection.csv
+python scripts\pretrain_image_actor_bc_weighted.py --config configs\sim\ur5e_full\pretrain_high_start_hard_wrist_pose_control_state_timeout_progress_v4_smoke_w10_e1.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_timeout_progress_v4_smoke_w10_e1.yaml
+python scripts\pretrain_image_actor_bc_weighted.py --config configs\sim\ur5e_full\pretrain_high_start_hard_wrist_pose_control_state_timeout_progress_v4_smoke_w03_e1.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_timeout_progress_v4_smoke_w03_e1.yaml
+```
+
+This v4 smoke is not promoted. The dataset correctly captures timeout-progress
+states (`512` samples, all timeout, all near-hole, `oracle_down_action=1.000`,
+`oracle_lift_action=0.000`), but progress-only labels are unsafe: on seed
+`622000`, v3 e1 hard bucket was `0.500/0.150/0.350`, v4 w10 became
+`0.250/0.550/0.200`, and v4 w03 became `0.400/0.300/0.300`. It reduces timeout
+mostly by increasing collision. See:
+
+```text
+results\ur5e_full\high_start\hard\correction\timeout_progress_v4_smoke_summary.md
+```
+
+Hard high-start visual contribution audit:
+
+```powershell
+$base = 'configs\sim\ur5e_full\eval_high_start_hard_pred0_guarded_50k.yaml'
+python scripts\eval_guarded_policy.py --config $base --hard-bucket-only --episodes 10 --control-mode policy --image-ablation normal --output-csv results\ur5e_full\high_start\hard\visual_audit\eval_visual_audit_pred0_policy_normal_10ep.csv --output-md results\ur5e_full\high_start\hard\visual_audit\eval_visual_audit_pred0_policy_normal_10ep.md
+python scripts\eval_guarded_policy.py --config $base --hard-bucket-only --episodes 10 --control-mode policy --image-ablation black --output-csv results\ur5e_full\high_start\hard\visual_audit\eval_visual_audit_pred0_policy_black_10ep.csv --output-md results\ur5e_full\high_start\hard\visual_audit\eval_visual_audit_pred0_policy_black_10ep.md
+python scripts\eval_guarded_policy.py --config $base --hard-bucket-only --episodes 10 --control-mode policy --image-ablation noise --output-csv results\ur5e_full\high_start\hard\visual_audit\eval_visual_audit_pred0_policy_noise_10ep.csv --output-md results\ur5e_full\high_start\hard\visual_audit\eval_visual_audit_pred0_policy_noise_10ep.md
+python scripts\eval_guarded_policy.py --config $base --hard-bucket-only --episodes 10 --control-mode policy --image-ablation shuffle --output-csv results\ur5e_full\high_start\hard\visual_audit\eval_visual_audit_pred0_policy_shuffle_10ep.csv --output-md results\ur5e_full\high_start\hard\visual_audit\eval_visual_audit_pred0_policy_shuffle_10ep.md
+python scripts\eval_guarded_policy.py --config $base --hard-bucket-only --episodes 10 --control-mode guarded --image-ablation normal --output-csv results\ur5e_full\high_start\hard\visual_audit\eval_visual_audit_pred0_guarded_normal_10ep.csv --output-md results\ur5e_full\high_start\hard\visual_audit\eval_visual_audit_pred0_guarded_normal_10ep.md
+python scripts\eval_guarded_policy.py --config $base --hard-bucket-only --episodes 10 --control-mode guarded --image-ablation black --output-csv results\ur5e_full\high_start\hard\visual_audit\eval_visual_audit_pred0_guarded_black_10ep.csv --output-md results\ur5e_full\high_start\hard\visual_audit\eval_visual_audit_pred0_guarded_black_10ep.md
+python scripts\eval_guarded_policy.py --config $base --hard-bucket-only --episodes 10 --control-mode guarded --image-ablation noise --output-csv results\ur5e_full\high_start\hard\visual_audit\eval_visual_audit_pred0_guarded_noise_10ep.csv --output-md results\ur5e_full\high_start\hard\visual_audit\eval_visual_audit_pred0_guarded_noise_10ep.md
+python scripts\eval_guarded_policy.py --config $base --hard-bucket-only --episodes 10 --control-mode guarded --image-ablation shuffle --output-csv results\ur5e_full\high_start\hard\visual_audit\eval_visual_audit_pred0_guarded_shuffle_10ep.csv --output-md results\ur5e_full\high_start\hard\visual_audit\eval_visual_audit_pred0_guarded_shuffle_10ep.md
+python scripts\eval_guarded_policy.py --config $base --hard-bucket-only --episodes 10 --control-mode guard_only --output-csv results\ur5e_full\high_start\hard\visual_audit\eval_visual_audit_pred0_guard_only_10ep.csv --output-md results\ur5e_full\high_start\hard\visual_audit\eval_visual_audit_pred0_guard_only_10ep.md
+```
+
+Hard high-start key-frame visibility audit:
+
+```powershell
+$base = 'configs\sim\ur5e_full\eval_high_start_hard_pred0_guarded_50k.yaml'
+python scripts\audit_visual_visibility.py `
+  --config $base `
+  --episodes 3 `
+  --segmentation-stride 10 `
+  --max-frames-per-episode 8 `
+  --visibility-output-csv results\ur5e_full\high_start\hard\visual_audit\visibility_pred0_guarded_3ep.csv `
+  --visibility-output-md results\ur5e_full\high_start\hard\visual_audit\visibility_pred0_guarded_3ep.md `
+  --frame-dir results\ur5e_full\high_start\hard\visual_audit\frames_pred0_guarded_3ep
+```
+
+Hard high-start crop offset scan:
+
+```powershell
+$base = 'configs\sim\ur5e_full\eval_high_start_hard_pred0_guarded_50k.yaml'
+python scripts\scan_visual_crop_offset.py `
+  --config $base `
+  --episodes 3 `
+  --segmentation-stride 10 `
+  --scan-x-offsets -32 -24 -18 -12 -6 0 6 12 `
+  --scan-y-offsets -24 -16 -8 0 8 16 24 `
+  --scan-output-csv results\ur5e_full\high_start\hard\visual_audit\crop_offset_scan_pred0_guarded_3ep.csv `
+  --scan-output-md results\ur5e_full\high_start\hard\visual_audit\crop_offset_scan_pred0_guarded_3ep.md
+```
+
+The smoke audit is summarized in `VISUAL_AUDIT.md`. Main result: visual input
+does matter, because policy-only normal image reached `0.100` while
+black/noise/shuffle reached `0.000`, and guarded normal reached `0.400` while
+guarded corrupted-image runs reached `0.100`. But the privileged guard/oracle
+still contributes heavily: guard-only reached `0.500`.
+
+The key-frame visibility audit shows why the next visual step should be
+camera/crop work: hole center and peg tip project into the full wrist frame,
+but the current center crop never contains both in the 3-episode hard smoke;
+segmentation found hole geometry in the crop but no peg geometry in the crop.
+The crop offset scan selected `near_hole_crop_offset: [-18, 0]` as the first
+visibility candidate. This is a candidate for new data collection and
+fine-tuning, not a setting to apply directly to the old center-crop checkpoint.
+
+Shifted-crop smoke collection and fine-tuning:
+
+```powershell
+python scripts\collect_image_expert_dataset.py `
+  --config configs\sim\ur5e_full\collect_high_start_hard_safe_50k.yaml `
+  --samples 1024 `
+  --output datasets\ur5e_full\high_start\hard\image_expert_1k_high_start_hard_safe_visual_camera_crop_left.npz `
+  --near-hole-crop-offset -18 0
+
+python scripts\pretrain_image_actor_bc.py `
+  --config configs\sim\ur5e_full\pretrain_high_start_hard_safe_50k.yaml `
+  --dataset datasets\ur5e_full\high_start\hard\image_expert_1k_high_start_hard_safe_visual_camera_crop_left.npz `
+  --output checkpoints\ur5e_full\high_start\hard\sac_image_bc_1k_high_start_hard_safe_visual_camera_crop_left.zip `
+  --model checkpoints\ur5e_full\high_start\hard\sac_image_bc_50k_high_start_hard_safe_visual_camera.zip `
+  --epochs 2 `
+  --near-hole-crop-offset -18 0
+```
+
+Conservative larger-data shifted-crop check:
+
+```powershell
+python scripts\collect_image_expert_dataset.py `
+  --config configs\sim\ur5e_full\collect_high_start_hard_safe_50k.yaml `
+  --samples 10000 `
+  --output datasets\ur5e_full\high_start\hard\image_expert_10k_high_start_hard_safe_visual_camera_crop_left.npz `
+  --near-hole-crop-offset -18 0
+
+python scripts\pretrain_image_actor_bc.py `
+  --config configs\sim\ur5e_full\pretrain_high_start_hard_safe_50k.yaml `
+  --dataset datasets\ur5e_full\high_start\hard\image_expert_10k_high_start_hard_safe_visual_camera_crop_left.npz `
+  --output checkpoints\ur5e_full\high_start\hard\sac_image_bc_10k_high_start_hard_safe_visual_camera_crop_left_lr3e6_e1.zip `
+  --model checkpoints\ur5e_full\high_start\hard\sac_image_bc_50k_high_start_hard_safe_visual_camera.zip `
+  --epochs 1 `
+  --learning-rate 0.000003 `
+  --near-hole-crop-offset -18 0
+```
+
+Same-seed comparison/evaluation commands:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_pred0_guarded_50k.yaml `
+  --model-path assets\ur5e_full\ur5e_peg_in_hole_full.xml `
+  --model checkpoints\ur5e_full\high_start\hard\sac_image_bc_50k_high_start_hard_safe_visual_camera.zip `
+  --episodes 10 `
+  --output-csv results\ur5e_full\high_start\hard\visual_audit\eval_center_baseline_50k_10ep.csv `
+  --output-md results\ur5e_full\high_start\hard\visual_audit\eval_center_baseline_50k_10ep.md
+
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_pred0_guarded_50k.yaml `
+  --model-path assets\ur5e_full\ur5e_peg_in_hole_full.xml `
+  --model checkpoints\ur5e_full\high_start\hard\sac_image_bc_1k_high_start_hard_safe_visual_camera_crop_left.zip `
+  --episodes 10 `
+  --near-hole-crop-offset -18 0 `
+  --output-csv results\ur5e_full\high_start\hard\visual_audit\eval_crop_left_1k_e2_10ep.csv `
+  --output-md results\ur5e_full\high_start\hard\visual_audit\eval_crop_left_1k_e2_10ep.md
+
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_pred0_guarded_50k.yaml `
+  --model-path assets\ur5e_full\ur5e_peg_in_hole_full.xml `
+  --model checkpoints\ur5e_full\high_start\hard\sac_image_bc_10k_high_start_hard_safe_visual_camera_crop_left_lr3e6_e1.zip `
+  --episodes 10 `
+  --near-hole-crop-offset -18 0 `
+  --output-csv results\ur5e_full\high_start\hard\visual_audit\eval_crop_left_10k_lr3e6_e1_10ep.csv `
+  --output-md results\ur5e_full\high_start\hard\visual_audit\eval_crop_left_10k_lr3e6_e1_10ep.md
+```
+
+Shifted-crop visibility audit after conservative fine-tune:
+
+```powershell
+python scripts\audit_visual_visibility.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_pred0_guarded_50k.yaml `
+  --model-path assets\ur5e_full\ur5e_peg_in_hole_full.xml `
+  --model checkpoints\ur5e_full\high_start\hard\sac_image_bc_10k_high_start_hard_safe_visual_camera_crop_left_lr3e6_e1.zip `
+  --episodes 2 `
+  --near-hole-crop-offset -18 0 `
+  --segmentation-stride 10 `
+  --max-frames-per-episode 8 `
+  --visibility-output-csv results\ur5e_full\high_start\hard\visual_audit\visibility_crop_left_10k_lr3e6_e1_2ep.csv `
+  --visibility-output-md results\ur5e_full\high_start\hard\visual_audit\visibility_crop_left_10k_lr3e6_e1_2ep.md `
+  --frame-dir results\ur5e_full\high_start\hard\visual_audit\frames_crop_left_10k_lr3e6_e1_2ep
+```
+
+Result: crop-left improves the geometric framing metric, but it is not a
+better policy after short BC fine-tuning. Same-seed 10-episode guarded matrix:
+center baseline reached clean `0.600`, visual_camera `0.700`,
+visual_camera_control `0.500`, hard bucket `0.400`; the `1k` crop-left
+fine-tune reached `0.500`, `0.400`, `0.300`, `0.300`; the conservative `10k`
+crop-left fine-tune reached `0.500`, `0.400`, `0.100`, `0.200`. Keep the center
+baseline for demos and use the crop result to motivate camera-pose / second-view
+audits before collecting larger shifted-crop datasets.
+
+Wrist camera pose / crop scan:
+
+```powershell
+python scripts\scan_wrist_camera_pose.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_pred0_guarded_50k.yaml `
+  --model-path assets\ur5e_full\ur5e_peg_in_hole_full.xml `
+  --model checkpoints\ur5e_full\high_start\hard\sac_image_bc_50k_high_start_hard_safe_visual_camera.zip `
+  --episodes 3 `
+  --sample-stride 10 `
+  --scan-pos-x-offsets 0 `
+  --scan-pos-y-offsets 0 `
+  --scan-pos-z-offsets 0 `
+  --scan-roll-deg 0 `
+  --scan-pitch-deg -15 0 15 `
+  --scan-yaw-deg -15 0 15 `
+  --scan-fovy 90 100 120 `
+  --scan-crop-x-offsets 0 -18 -24 `
+  --scan-crop-y-offsets 0 `
+  --scan-output-csv results\ur5e_full\high_start\hard\visual_audit\wrist_camera_pose_scan_rot_fov_crop_3ep.csv `
+  --scan-output-md results\ur5e_full\high_start\hard\visual_audit\wrist_camera_pose_scan_rot_fov_crop_3ep.md
+```
+
+Position scan around the wrist camera mount:
+
+```powershell
+python scripts\scan_wrist_camera_pose.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_pred0_guarded_50k.yaml `
+  --model-path assets\ur5e_full\ur5e_peg_in_hole_full.xml `
+  --model checkpoints\ur5e_full\high_start\hard\sac_image_bc_50k_high_start_hard_safe_visual_camera.zip `
+  --episodes 3 `
+  --sample-stride 10 `
+  --scan-pos-x-offsets -0.04 0 0.04 `
+  --scan-pos-y-offsets -0.04 0 0.04 `
+  --scan-pos-z-offsets -0.04 0 0.04 `
+  --scan-roll-deg 0 `
+  --scan-pitch-deg 0 `
+  --scan-yaw-deg 0 15 `
+  --scan-fovy 100 `
+  --scan-crop-x-offsets -18 `
+  --scan-crop-y-offsets 0 `
+  --save-candidate-ids 3 27 `
+  --frame-dir results\ur5e_full\high_start\hard\visual_audit\frames_wrist_camera_pose_scan_pos_yaw_crop_3ep `
+  --max-saved-frames-per-candidate 8 `
+  --scan-output-csv results\ur5e_full\high_start\hard\visual_audit\wrist_camera_pose_scan_pos_yaw_crop_3ep.csv `
+  --scan-output-md results\ur5e_full\high_start\hard\visual_audit\wrist_camera_pose_scan_pos_yaw_crop_3ep.md
+```
+
+Current result: rotation/FOV alone is weak, but moving the wrist camera local
+position by `[-0.04,-0.04,0.00]` with crop `[-18,0]` reached sampled
+insert-band and near-XY crop-visible rates of `1.000` in the 3-episode hard
+visibility scan. This is a visibility candidate only; next training must collect
+data with that camera pose instead of evaluating the old center-crop checkpoint
+as if it were trained for the new camera.
+
+Wrist camera pose smoke dataset/training/eval:
+
+```powershell
+python scripts\collect_image_expert_dataset.py `
+  --config configs\sim\ur5e_full\collect_high_start_hard_wrist_pose_smoke.yaml
+
+python scripts\inspect_image_expert_dataset.py `
+  --dataset datasets\ur5e_full\high_start\hard\image_expert_1k_high_start_hard_wrist_pose_visual_camera.npz `
+  --output-md results\ur5e_full\high_start\hard\visual_audit\image_expert_1k_wrist_pose_inspection.md `
+  --output-csv results\ur5e_full\high_start\hard\visual_audit\image_expert_1k_wrist_pose_inspection.csv
+
+python scripts\pretrain_image_actor_bc.py `
+  --config configs\sim\ur5e_full\pretrain_high_start_hard_wrist_pose_smoke.yaml
+
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_smoke.yaml
+```
+
+Smoke result: the new camera config path works, but the 1k/2-epoch checkpoint is
+not usable. Dataset collection had only `0.214` oracle success over `14`
+episodes, and the guarded 10-episode eval reached clean `0.200`,
+visual_camera `0.300`, visual_camera_control `0.100`, full_light_geometry
+`0.200`, full_contact_light `0.100`, and hard bucket `0.000` with collision
+`1.000`. Treat this as a wiring/feasibility check. The next real training run
+needs a larger wrist-pose replay/scratch dataset, not another tiny fine-tune.
+
+Wrist camera pose 10k scratch smoke:
+
+```powershell
+python scripts\collect_image_expert_dataset.py `
+  --config configs\sim\ur5e_full\collect_high_start_hard_wrist_pose_smoke.yaml `
+  --samples 10000 `
+  --seed 564000 `
+  --output datasets\ur5e_full\high_start\hard\image_expert_10k_high_start_hard_wrist_pose_visual_camera_seed564k.npz
+
+python scripts\inspect_image_expert_dataset.py `
+  --dataset datasets\ur5e_full\high_start\hard\image_expert_10k_high_start_hard_wrist_pose_visual_camera_seed564k.npz `
+  --output-md results\ur5e_full\high_start\hard\visual_audit\image_expert_10k_wrist_pose_seed564k_inspection.md `
+  --output-csv results\ur5e_full\high_start\hard\visual_audit\image_expert_10k_wrist_pose_seed564k_inspection.csv
+
+python scripts\pretrain_image_actor_bc.py `
+  --config configs\sim\ur5e_full\pretrain_high_start_hard_wrist_pose_10k_scratch.yaml
+
+python scripts\pretrain_image_actor_bc.py `
+  --config configs\sim\ur5e_full\pretrain_high_start_hard_wrist_pose_10k_scratch.yaml `
+  --model checkpoints\ur5e_full\high_start\hard\sac_image_bc_10k_high_start_hard_wrist_pose_visual_camera_scratch_e10.zip `
+  --output checkpoints\ur5e_full\high_start\hard\sac_image_bc_10k_high_start_hard_wrist_pose_visual_camera_scratch_e20.zip `
+  --epochs 10 `
+  --learning-rate 0.00005
+
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_10k_scratch.yaml
+
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_10k_scratch.yaml `
+  --model checkpoints\ur5e_full\high_start\hard\sac_image_bc_10k_high_start_hard_wrist_pose_visual_camera_scratch_e20.zip `
+  --output-csv results\ur5e_full\high_start\hard\visual_audit\eval_wrist_pose_10k_scratch_e20_10ep.csv `
+  --output-md results\ur5e_full\high_start\hard\visual_audit\eval_wrist_pose_10k_scratch_e20_10ep.md
+```
+
+Result: `10k` scratch is much better than the `1k` fine-tune, but still not
+promoted. e20 reached clean `0.500`, visual_camera `0.500`,
+visual_camera_control `0.400`, full_light_geometry `0.100`, full_contact_light
+`0.400`, and hard bucket `0.300`. The next run should scale to about `50k`
+wrist-pose samples or use weighted replay; just adding more epochs to the 10k
+scratch model is unlikely to close the gap alone.
+
+Wrist camera pose 50k scratch:
+
+```powershell
+python scripts\collect_image_expert_dataset.py `
+  --config configs\sim\ur5e_full\collect_high_start_hard_wrist_pose_50k.yaml
+
+python scripts\inspect_image_expert_dataset.py `
+  --dataset datasets\ur5e_full\high_start\hard\image_expert_50k_high_start_hard_wrist_pose_visual_camera_seed564k.npz `
+  --output-md results\ur5e_full\high_start\hard\visual_audit\image_expert_50k_wrist_pose_seed564k_inspection.md `
+  --output-csv results\ur5e_full\high_start\hard\visual_audit\image_expert_50k_wrist_pose_seed564k_inspection.csv
+
+python scripts\pretrain_image_actor_bc.py `
+  --config configs\sim\ur5e_full\pretrain_high_start_hard_wrist_pose_50k_scratch.yaml
+
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_50k_scratch.yaml
+```
+
+Current 50k result:
+
+| Model | Episodes | Clean | Visual camera | Visual camera control | Full light | Full contact | Hard |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| old center-camera baseline | 20 | 0.550 | 0.500 | 0.500 | 0.400 | 0.400 | 0.450 |
+| wrist-pose 50k scratch e20 | 20 | 0.550 | 0.600 | 0.350 | 0.400 | 0.400 | 0.400 |
+
+The wrist-pose 50k model is competitive but not yet promoted. It improves
+visual_camera but regresses on visual_camera_control, so the next run should add
+wrist-pose control-randomized expert data and weighted replay from the 50k
+scratch checkpoint.
+
+Wrist camera pose control replay:
+
+```powershell
+python scripts\collect_image_expert_dataset.py `
+  --config configs\sim\ur5e_full\collect_high_start_hard_wrist_pose_control_50k.yaml
+
+python scripts\inspect_image_expert_dataset.py `
+  --dataset datasets\ur5e_full\high_start\hard\image_expert_50k_high_start_hard_wrist_pose_visual_camera_control_seed580k.npz `
+  --output-md results\ur5e_full\high_start\hard\visual_audit\image_expert_50k_wrist_pose_control_seed580k_inspection.md `
+  --output-csv results\ur5e_full\high_start\hard\visual_audit\image_expert_50k_wrist_pose_control_seed580k_inspection.csv
+
+python scripts\pretrain_image_actor_bc_weighted.py `
+  --config configs\sim\ur5e_full\pretrain_high_start_hard_wrist_pose_control_replay_100k_e4.yaml
+
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_replay_100k_e4.yaml
+```
+
+Heavier control replay check:
+
+```powershell
+python scripts\pretrain_image_actor_bc_weighted.py `
+  --config configs\sim\ur5e_full\pretrain_high_start_hard_wrist_pose_control_replay_100k_e4.yaml `
+  --dataset-weights 0.25 0.75 `
+  --output checkpoints\ur5e_full\high_start\hard\sac_image_bc_100k_high_start_hard_wrist_pose_control_replay_w75_e4.zip `
+  --metadata-output results\ur5e_full\high_start\hard\visual_audit\training_metadata_wrist_pose_control_replay_100k_w75_e4.json `
+  --seed 582000
+
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_replay_100k_e4.yaml `
+  --model checkpoints\ur5e_full\high_start\hard\sac_image_bc_100k_high_start_hard_wrist_pose_control_replay_w75_e4.zip `
+  --output-csv results\ur5e_full\high_start\hard\visual_audit\eval_wrist_pose_control_replay_100k_w75_e4_20ep.csv `
+  --output-md results\ur5e_full\high_start\hard\visual_audit\eval_wrist_pose_control_replay_100k_w75_e4_20ep.md
+```
+
+Replay result:
+
+| Model | Clean | Visual camera | Visual camera control | Full light | Full contact | Hard |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| wrist-pose 50k scratch e20 | 0.550 | 0.600 | 0.350 | 0.400 | 0.400 | 0.400 |
+| control replay 0.55 e4 | 0.550 | 0.600 | 0.350 | 0.400 | 0.300 | 0.400 |
+| control replay 0.75 e4 | 0.550 | 0.600 | 0.350 | 0.400 | 0.300 | 0.400 |
+
+Generic control replay did not improve `visual_camera_control`. Next should be
+control failure analysis by delay/filter/scale buckets, then targeted data or
+guarded-control adjustment for the failing regime.
 
 Current narrowed-hole full UR5e adapted checkpoint:
 
@@ -2934,6 +3623,896 @@ Checked readiness smoke outputs:
 | synthetic default gate | 1 | `results\real_motion_readiness_synthetic_expected_fail.md` |
 | synthetic explicitly allowed | 0 | `results\real_motion_readiness_synthetic_smoke.md` |
 
+## UR5e High-Start Wrist-Pose Control Work
+
+Control-state observation smoke commands:
+
+```powershell
+python scripts\collect_image_expert_dataset.py --config configs\sim\ur5e_full\collect_high_start_hard_wrist_pose_control_state_smoke.yaml
+```
+
+```powershell
+python scripts\inspect_image_expert_dataset.py `
+  --dataset datasets\ur5e_full\high_start\hard\image_expert_512_high_start_hard_wrist_pose_control_state_smoke.npz `
+  --output-md results\ur5e_full\high_start\hard\visual_audit\image_expert_512_wrist_pose_control_state_smoke_inspection.md `
+  --output-csv results\ur5e_full\high_start\hard\visual_audit\image_expert_512_wrist_pose_control_state_smoke_inspection.csv
+```
+
+```powershell
+python scripts\pretrain_image_actor_bc.py --config configs\sim\ur5e_full\pretrain_high_start_hard_wrist_pose_control_state_smoke.yaml
+```
+
+```powershell
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_smoke.yaml
+```
+
+Weighted replay smoke for `control_state`:
+
+```powershell
+python scripts\pretrain_image_actor_bc_weighted.py `
+  --model-path assets\ur5e_full\ur5e_peg_in_hole_full.xml `
+  --datasets datasets\ur5e_full\high_start\hard\image_expert_512_high_start_hard_wrist_pose_control_state_smoke.npz `
+  --output checkpoints\ur5e_full\high_start\hard\sac_image_bc_512_high_start_hard_wrist_pose_control_state_weighted_smoke.zip `
+  --metadata-output results\ur5e_full\high_start\hard\visual_audit\training_metadata_wrist_pose_control_state_weighted_smoke.json `
+  --epochs 1 `
+  --samples-per-epoch 256 `
+  --batch-size 128 `
+  --learning-rate 0.0001 `
+  --validation-batches 2 `
+  --device cpu `
+  --seed 588100 `
+  --image-width 100 `
+  --image-height 100 `
+  --include-near-hole-crop `
+  --near-hole-crop-size 64 `
+  --near-hole-crop-offset -18 0 `
+  --include-control-state `
+  --wrist-camera-pos-offset -0.04 -0.04 0.0 `
+  --wrist-camera-rot-offset-deg 0 0 0 `
+  --wrist-camera-fovy 100 `
+  --max-steps 1000 `
+  --action-scale 0.005 `
+  --target-low 0.50 0.00 0.65 `
+  --target-high 0.60 0.10 0.65 `
+  --success-xy-tolerance 0.005 `
+  --success-z-tolerance 0.01 `
+  --geometry-hole-half-size-range 0.017 0.021 `
+  --approach-xy-tolerance 0.06 `
+  --approach-height 0.12
+```
+
+Derived-control-state smoke from an older dataset without a stored
+`control_state` array:
+
+```powershell
+python scripts\pretrain_image_actor_bc_weighted.py `
+  --model-path assets\ur5e_full\ur5e_peg_in_hole_full.xml `
+  --datasets datasets\ur5e_full\high_start\hard\image_expert_10k_high_start_hard_wrist_pose_visual_camera_seed564k.npz `
+  --output checkpoints\ur5e_full\high_start\hard\sac_image_bc_10k_high_start_hard_wrist_pose_control_state_derived_smoke.zip `
+  --metadata-output results\ur5e_full\high_start\hard\visual_audit\training_metadata_wrist_pose_control_state_derived_smoke.json `
+  --epochs 1 `
+  --samples-per-epoch 128 `
+  --batch-size 64 `
+  --learning-rate 0.0001 `
+  --validation-batches 1 `
+  --device cpu `
+  --seed 588200 `
+  --image-width 100 `
+  --image-height 100 `
+  --include-near-hole-crop `
+  --near-hole-crop-size 64 `
+  --near-hole-crop-offset -18 0 `
+  --include-control-state `
+  --wrist-camera-pos-offset -0.04 -0.04 0.0 `
+  --wrist-camera-rot-offset-deg 0 0 0 `
+  --wrist-camera-fovy 100 `
+  --max-steps 1000 `
+  --action-scale 0.005 `
+  --target-low 0.50 0.00 0.65 `
+  --target-high 0.60 0.10 0.65 `
+  --success-xy-tolerance 0.005 `
+  --success-z-tolerance 0.01 `
+  --geometry-hole-half-size-range 0.017 0.021 `
+  --approach-xy-tolerance 0.06 `
+  --approach-height 0.12
+```
+
+The smoke checkpoint is wiring-only. Do not use it as a performance model.
+
+10k control-state signal run:
+
+```powershell
+python scripts\collect_image_expert_dataset.py --config configs\sim\ur5e_full\collect_high_start_hard_wrist_pose_control_state_10k.yaml
+python scripts\inspect_image_expert_dataset.py `
+  --dataset datasets\ur5e_full\high_start\hard\image_expert_10k_high_start_hard_wrist_pose_control_state_visual_camera_control_seed590k.npz `
+  --output-md results\ur5e_full\high_start\hard\visual_audit\image_expert_10k_wrist_pose_control_state_visual_camera_control_seed590k_inspection.md `
+  --output-csv results\ur5e_full\high_start\hard\visual_audit\image_expert_10k_wrist_pose_control_state_visual_camera_control_seed590k_inspection.csv
+python scripts\pretrain_image_actor_bc.py --config configs\sim\ur5e_full\pretrain_high_start_hard_wrist_pose_control_state_10k_scratch.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_10k_scratch.yaml
+```
+
+60k mixed control-state scratch run:
+
+```powershell
+python scripts\pretrain_image_actor_bc_weighted.py --config configs\sim\ur5e_full\pretrain_high_start_hard_wrist_pose_control_state_mix_60k_scratch_e8.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_mix_60k_scratch_e8.yaml
+python scripts\analyze_control_failures.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_mix_60k_scratch_e8.yaml `
+  --model checkpoints\ur5e_full\high_start\hard\sac_image_bc_60k_high_start_hard_wrist_pose_control_state_mix_scratch_e8.zip `
+  --episodes 80 `
+  --seed 584000 `
+  --domain-randomization-level visual_camera_control `
+  --output-csv results\ur5e_full\high_start\hard\visual_audit\control_failure_wrist_pose_control_state_mix_60k_scratch_e8_80ep.csv `
+  --output-md results\ur5e_full\high_start\hard\visual_audit\control_failure_wrist_pose_control_state_mix_60k_scratch_e8_80ep.md
+```
+
+Stack3 frame-stacking trial. This is wired and tested, but the performance run
+regressed, so use it as a reference experiment rather than a promoted model:
+
+```powershell
+python scripts\collect_image_expert_dataset.py --config configs\sim\ur5e_full\collect_high_start_hard_wrist_pose_control_state_stack3_smoke.yaml
+python scripts\inspect_image_expert_dataset.py `
+  --dataset datasets\ur5e_full\high_start\hard\image_expert_512_high_start_hard_wrist_pose_control_state_stack3_smoke.npz `
+  --output-md results\ur5e_full\high_start\hard\visual_audit\image_expert_stack3_smoke_inspection.md `
+  --output-csv results\ur5e_full\high_start\hard\visual_audit\image_expert_stack3_smoke_inspection.csv
+python scripts\pretrain_image_actor_bc.py --config configs\sim\ur5e_full\pretrain_high_start_hard_wrist_pose_control_state_stack3_smoke.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_stack3_smoke.yaml
+```
+
+```powershell
+python scripts\pretrain_image_actor_bc_weighted.py --config configs\sim\ur5e_full\pretrain_high_start_hard_wrist_pose_control_state_mix_stack3_scratch_e6.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_mix_stack3_scratch_e6.yaml
+python scripts\analyze_control_failures.py --config configs\sim\ur5e_full\analyze_high_start_hard_wrist_pose_control_state_mix_stack3_scratch_e6.yaml
+```
+
+DAgger v2 handoff correction for the wrist-pose + control-state model:
+
+```powershell
+python scripts\collect_image_correction_dataset.py --config configs\sim\ur5e_full\collect_high_start_hard_wrist_pose_control_state_dagger_v2_2k.yaml
+python scripts\inspect_image_correction_dataset.py `
+  --dataset datasets\ur5e_full\high_start\hard\correction\image_correction_2k_high_start_hard_wrist_pose_control_state_dagger_v2.npz `
+  --output-md results\ur5e_full\high_start\hard\correction\image_correction_wrist_pose_control_state_dagger_v2_2k_inspection.md `
+  --output-csv results\ur5e_full\high_start\hard\correction\image_correction_wrist_pose_control_state_dagger_v2_2k_inspection.csv
+python scripts\pretrain_image_actor_bc_weighted.py --config configs\sim\ur5e_full\pretrain_high_start_hard_wrist_pose_control_state_dagger_v2_2k_w10_e2.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_dagger_v2_2k_w10_e2.yaml
+python scripts\analyze_control_failures.py --config configs\sim\ur5e_full\analyze_high_start_hard_wrist_pose_control_state_dagger_v2_2k_w10_e2.yaml
+```
+
+DAgger v2 image ablation checks:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_dagger_v2_2k_w10_e2.yaml `
+  --image-ablation black `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_dagger_v2_2k_w10_e2_black_guarded_20ep.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_dagger_v2_2k_w10_e2_black_guarded_20ep.md
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_dagger_v2_2k_w10_e2.yaml `
+  --image-ablation noise `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_dagger_v2_2k_w10_e2_noise_guarded_20ep.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_dagger_v2_2k_w10_e2_noise_guarded_20ep.md
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_dagger_v2_2k_w10_e2.yaml `
+  --image-ablation shuffle `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_dagger_v2_2k_w10_e2_shuffle_guarded_20ep.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_dagger_v2_2k_w10_e2_shuffle_guarded_20ep.md
+```
+
+```powershell
+python scripts\analyze_control_failures.py `
+  --config configs\sim\ur5e_full\analyze_high_start_hard_wrist_pose_control_state_dagger_v2_2k_w10_e2.yaml `
+  --episodes 40 `
+  --image-ablation black `
+  --output-csv results\ur5e_full\high_start\hard\correction\control_failure_wrist_pose_control_state_dagger_v2_2k_w10_e2_black_40ep.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\control_failure_wrist_pose_control_state_dagger_v2_2k_w10_e2_black_40ep.md
+python scripts\analyze_control_failures.py `
+  --config configs\sim\ur5e_full\analyze_high_start_hard_wrist_pose_control_state_dagger_v2_2k_w10_e2.yaml `
+  --episodes 40 `
+  --image-ablation noise `
+  --output-csv results\ur5e_full\high_start\hard\correction\control_failure_wrist_pose_control_state_dagger_v2_2k_w10_e2_noise_40ep.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\control_failure_wrist_pose_control_state_dagger_v2_2k_w10_e2_noise_40ep.md
+python scripts\analyze_control_failures.py `
+  --config configs\sim\ur5e_full\analyze_high_start_hard_wrist_pose_control_state_dagger_v2_2k_w10_e2.yaml `
+  --episodes 40 `
+  --image-ablation shuffle `
+  --output-csv results\ur5e_full\high_start\hard\correction\control_failure_wrist_pose_control_state_dagger_v2_2k_w10_e2_shuffle_40ep.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\control_failure_wrist_pose_control_state_dagger_v2_2k_w10_e2_shuffle_40ep.md
+```
+
+Current DAgger v2 2k w10 e2 signal:
+
+| Check | Result |
+| --- | --- |
+| guarded visual_camera_control | `0.500` success, `0.300` collision |
+| policy-only visual_camera_control 80ep | `0.263` success, `0.438` collision, `0.300` timeout |
+| policy-only ablation normal/black/noise/shuffle | `0.300/0.000/0.000/0.000` success over 40-episode windows |
+| second-seed guarded 60ep vs mixed e8 | DAgger v2 `0.650/0.500/0.500/0.400/0.417/0.217`; mixed e8 `0.633/0.450/0.483/0.367/0.417/0.217` |
+| second-seed policy-only 160ep vs mixed e8 | DAgger v2 `0.181/0.556/0.263`; mixed e8 `0.156/0.575/0.269` |
+| hard-bucket multi-seed 60ep | seed602 `0.217/0.217`, seed604 `0.200/0.250`, seed605 `0.450/0.433` for DAgger v2 / mixed e8 |
+| status | real but modest gain; no hard-bucket net gain; not promoted and do not scale this exact DAgger v2 recipe |
+
+DAgger v2 validation commands for a larger second-seed comparison:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_dagger_v2_2k_w10_e2.yaml `
+  --episodes 60 `
+  --seed 602000 `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_dagger_v2_2k_w10_e2_60ep_seed602k.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_dagger_v2_2k_w10_e2_60ep_seed602k.md
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_mix_60k_scratch_e8.yaml `
+  --episodes 60 `
+  --seed 602000 `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_mix_60k_scratch_e8_60ep_seed602k.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_mix_60k_scratch_e8_60ep_seed602k.md
+python scripts\analyze_control_failures.py `
+  --config configs\sim\ur5e_full\analyze_high_start_hard_wrist_pose_control_state_dagger_v2_2k_w10_e2.yaml `
+  --episodes 160 `
+  --seed 603000 `
+  --output-csv results\ur5e_full\high_start\hard\correction\control_failure_wrist_pose_control_state_dagger_v2_2k_w10_e2_160ep_seed603k.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\control_failure_wrist_pose_control_state_dagger_v2_2k_w10_e2_160ep_seed603k.md
+python scripts\analyze_control_failures.py `
+  --config configs\sim\ur5e_full\analyze_high_start_hard_wrist_pose_control_state_mix_60k_scratch_e8.yaml `
+  --episodes 160 `
+  --seed 603000 `
+  --output-csv results\ur5e_full\high_start\hard\correction\control_failure_wrist_pose_control_state_mix_60k_scratch_e8_160ep_seed603k.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\control_failure_wrist_pose_control_state_mix_60k_scratch_e8_160ep_seed603k.md
+```
+
+The hard-bucket-only multi-seed comparison below is the current scale-up gate:
+it did not justify scaling DAgger v2 to `5k - 10k`.
+
+Hard-bucket-only validation commands:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_dagger_v2_2k_w10_e2.yaml `
+  --hard-bucket-only `
+  --episodes 60 `
+  --seed 604000 `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_dagger_v2_2k_w10_e2_hard_60ep_seed604k.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_dagger_v2_2k_w10_e2_hard_60ep_seed604k.md
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_mix_60k_scratch_e8.yaml `
+  --hard-bucket-only `
+  --episodes 60 `
+  --seed 604000 `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_mix_60k_scratch_e8_hard_60ep_seed604k.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_mix_60k_scratch_e8_hard_60ep_seed604k.md
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_dagger_v2_2k_w10_e2.yaml `
+  --hard-bucket-only `
+  --episodes 60 `
+  --seed 605000 `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_dagger_v2_2k_w10_e2_hard_60ep_seed605k.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_dagger_v2_2k_w10_e2_hard_60ep_seed605k.md
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_mix_60k_scratch_e8.yaml `
+  --hard-bucket-only `
+  --episodes 60 `
+  --seed 605000 `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_mix_60k_scratch_e8_hard_60ep_seed605k.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_mix_60k_scratch_e8_hard_60ep_seed605k.md
+```
+
+Current decision: keep DAgger v2 as a diagnostic model, but change the next
+correction data recipe toward hard-bucket low-Z misalignment and
+geometry/contact failures instead of simply increasing this dataset size.
+
+Hard-bucket episode trace diagnostics. These use the same guarded evaluator but
+write one row per episode with guard-step counts, final/min XY/Z, low-Z
+misalignment counters, insert-band misalignment counters, and sampled
+control/geometry parameters:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_dagger_v2_2k_w10_e2.yaml `
+  --hard-bucket-only `
+  --episodes 60 `
+  --seed 604000 `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_dagger_v2_2k_w10_e2_hard_trace_60ep_seed604k.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_dagger_v2_2k_w10_e2_hard_trace_60ep_seed604k.md `
+  --episode-output-csv results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_dagger_v2_2k_w10_e2_hard_trace_episodes_60ep_seed604k.csv
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_mix_60k_scratch_e8.yaml `
+  --hard-bucket-only `
+  --episodes 60 `
+  --seed 604000 `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_mix_60k_scratch_e8_hard_trace_60ep_seed604k.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_mix_60k_scratch_e8_hard_trace_60ep_seed604k.md `
+  --episode-output-csv results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_mix_60k_scratch_e8_hard_trace_episodes_60ep_seed604k.csv
+```
+
+Seed `604000` trace result:
+
+| Model | Success | Collision | Timeout | Pre-guard failures | Guarded failures | Low-Z misaligned failures | Mean guarded-failure XY |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| DAgger v2 | 12/60 | 26/60 | 22/60 | 16 | 32 | 32 | 0.01824 |
+| mixed e8 | 15/60 | 23/60 | 22/60 | 15 | 30 | 33 | 0.01856 |
+
+This means the hard-bucket issue is not only final `5 mm` insertion. Many
+failures happen before the guard activates, and guarded failures still end
+around `18 mm` XY error. The next correction dataset should include
+hard-bucket approach/handoff states, not just low-Z insertion recovery.
+
+Hard-bucket-focused correction v3. This is the current strongest hard-bucket
+line, but it is still a candidate because timeout remains high:
+
+```powershell
+python scripts\collect_image_correction_dataset.py --config configs\sim\ur5e_full\collect_high_start_hard_wrist_pose_control_state_hard_bucket_v3_smoke.yaml
+python scripts\inspect_image_correction_dataset.py `
+  --dataset datasets\ur5e_full\high_start\hard\correction\image_correction_512_high_start_hard_wrist_pose_control_state_hard_bucket_v3_smoke.npz `
+  --output-md results\ur5e_full\high_start\hard\correction\image_correction_wrist_pose_control_state_hard_bucket_v3_smoke_inspection.md `
+  --output-csv results\ur5e_full\high_start\hard\correction\image_correction_wrist_pose_control_state_hard_bucket_v3_smoke_inspection.csv
+python scripts\pretrain_image_actor_bc_weighted.py --config configs\sim\ur5e_full\pretrain_high_start_hard_wrist_pose_control_state_hard_bucket_v3_smoke_w10_e1.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_hard_bucket_v3_smoke_w10_e1.yaml
+
+python scripts\collect_image_correction_dataset.py --config configs\sim\ur5e_full\collect_high_start_hard_wrist_pose_control_state_hard_bucket_v3_2k.yaml
+python scripts\inspect_image_correction_dataset.py `
+  --dataset datasets\ur5e_full\high_start\hard\correction\image_correction_2k_high_start_hard_wrist_pose_control_state_hard_bucket_v3.npz `
+  --output-md results\ur5e_full\high_start\hard\correction\image_correction_wrist_pose_control_state_hard_bucket_v3_2k_inspection.md `
+  --output-csv results\ur5e_full\high_start\hard\correction\image_correction_wrist_pose_control_state_hard_bucket_v3_2k_inspection.csv
+python scripts\pretrain_image_actor_bc_weighted.py --config configs\sim\ur5e_full\pretrain_high_start_hard_wrist_pose_control_state_hard_bucket_v3_2k_w10_e2.yaml
+python scripts\pretrain_image_actor_bc_weighted.py --config configs\sim\ur5e_full\pretrain_high_start_hard_wrist_pose_control_state_hard_bucket_v3_2k_w10_e1.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_hard_bucket_v3_2k_w10_e2.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_hard_bucket_v3_2k_w10_e1.yaml
+```
+
+Hard-bucket v3 2k gate commands:
+
+```powershell
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_hard_bucket_v3_2k_w10_e2.yaml --hard-bucket-only --episodes 60 --seed 602000 --output-csv results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_hard_bucket_v3_2k_w10_e2_hard_trace_60ep_seed602k.csv --output-md results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_hard_bucket_v3_2k_w10_e2_hard_trace_60ep_seed602k.md --episode-output-csv results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_hard_bucket_v3_2k_w10_e2_hard_trace_episodes_60ep_seed602k.csv
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_hard_bucket_v3_2k_w10_e2.yaml --hard-bucket-only --episodes 60 --seed 604000 --output-csv results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_hard_bucket_v3_2k_w10_e2_hard_trace_60ep_seed604k.csv --output-md results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_hard_bucket_v3_2k_w10_e2_hard_trace_60ep_seed604k.md --episode-output-csv results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_hard_bucket_v3_2k_w10_e2_hard_trace_episodes_60ep_seed604k.csv
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_hard_bucket_v3_2k_w10_e2.yaml --hard-bucket-only --episodes 60 --seed 605000 --output-csv results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_hard_bucket_v3_2k_w10_e2_hard_trace_60ep_seed605k.csv --output-md results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_hard_bucket_v3_2k_w10_e2_hard_trace_60ep_seed605k.md --episode-output-csv results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_hard_bucket_v3_2k_w10_e2_hard_trace_episodes_60ep_seed605k.csv
+
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_hard_bucket_v3_2k_w10_e1.yaml --hard-bucket-only --episodes 60 --seed 602000 --output-csv results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_hard_bucket_v3_2k_w10_e1_hard_trace_60ep_seed602k.csv --output-md results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_hard_bucket_v3_2k_w10_e1_hard_trace_60ep_seed602k.md --episode-output-csv results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_hard_bucket_v3_2k_w10_e1_hard_trace_episodes_60ep_seed602k.csv
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_hard_bucket_v3_2k_w10_e1.yaml --hard-bucket-only --episodes 60 --seed 604000 --output-csv results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_hard_bucket_v3_2k_w10_e1_hard_trace_60ep_seed604k.csv --output-md results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_hard_bucket_v3_2k_w10_e1_hard_trace_60ep_seed604k.md --episode-output-csv results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_hard_bucket_v3_2k_w10_e1_hard_trace_episodes_60ep_seed604k.csv
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_hard_bucket_v3_2k_w10_e1.yaml --hard-bucket-only --episodes 60 --seed 605000 --output-csv results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_hard_bucket_v3_2k_w10_e1_hard_trace_60ep_seed605k.csv --output-md results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_hard_bucket_v3_2k_w10_e1_hard_trace_60ep_seed605k.md --episode-output-csv results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_hard_bucket_v3_2k_w10_e1_hard_trace_episodes_60ep_seed605k.csv
+```
+
+Hard-bucket gate summary:
+
+| Model | Avg success | Avg collision | Avg timeout |
+| --- | ---: | ---: | ---: |
+| mixed e8 | 0.300 | 0.406 | 0.295 |
+| DAgger v2 | 0.289 | 0.417 | 0.295 |
+| hard v3 smoke | 0.356 | 0.300 | 0.344 |
+| hard v3 2k w10 e2 | 0.417 | 0.145 | 0.439 |
+| hard v3 2k w10 e1 | 0.416 | 0.167 | 0.417 |
+
+Use `results\ur5e_full\high_start\hard\correction\hard_bucket_v3_2k_summary.md`
+for the compact interpretation. Current decision: keep e1/e2 as candidates,
+but do not promote yet because timeout is too high.
+
+Hard-bucket timeout correction v4b/v4b2 diagnostics. These are recorded as
+negative-result commands; do not scale the recipe without changing the label or
+controller design:
+
+```powershell
+python scripts\collect_image_correction_dataset.py --config configs\sim\ur5e_full\collect_high_start_hard_wrist_pose_control_state_balanced_v4b_smoke.yaml
+python scripts\inspect_image_correction_dataset.py `
+  --dataset datasets\ur5e_full\high_start\hard\correction\image_correction_512_high_start_hard_wrist_pose_control_state_balanced_v4b_smoke.npz `
+  --output-md results\ur5e_full\high_start\hard\correction\image_correction_balanced_v4b_smoke_inspection.md `
+  --output-csv results\ur5e_full\high_start\hard\correction\image_correction_balanced_v4b_smoke_inspection.csv
+
+python scripts\collect_image_correction_dataset.py --config configs\sim\ur5e_full\collect_high_start_hard_wrist_pose_control_state_balanced_v4b2_smoke.yaml
+python scripts\inspect_image_correction_dataset.py `
+  --dataset datasets\ur5e_full\high_start\hard\correction\image_correction_512_high_start_hard_wrist_pose_control_state_balanced_v4b2_smoke.npz `
+  --output-md results\ur5e_full\high_start\hard\correction\image_correction_balanced_v4b2_smoke_inspection.md `
+  --output-csv results\ur5e_full\high_start\hard\correction\image_correction_balanced_v4b2_smoke_inspection.csv
+
+python scripts\pretrain_image_actor_bc_weighted.py --config configs\sim\ur5e_full\pretrain_high_start_hard_wrist_pose_control_state_balanced_v4b2_smoke_w03_e1.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_balanced_v4b2_smoke_w03_e1.yaml
+
+python scripts\pretrain_image_actor_bc_weighted.py --config configs\sim\ur5e_full\pretrain_high_start_hard_wrist_pose_control_state_balanced_v4b2_smoke_w01_e1.yaml
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_balanced_v4b2_smoke_w01_e1.yaml
+```
+
+High-approach correction smoke. This is the next positive data path after the
+fixture-clearance diagnostics: collect high-altitude recenter labels before the
+peg enters fixture height.
+
+```powershell
+python -m py_compile scripts\collect_image_correction_dataset.py scripts\inspect_image_correction_dataset.py
+
+python scripts\collect_image_correction_dataset.py --config configs\sim\ur5e_full\collect_high_start_hard_wrist_pose_control_state_approach_smoke.yaml
+
+python scripts\inspect_image_correction_dataset.py `
+  --dataset datasets\ur5e_full\high_start\hard\correction\image_correction_512_high_start_hard_wrist_pose_control_state_approach_smoke.npz `
+  --output-md results\ur5e_full\high_start\hard\correction\image_correction_approach_smoke_inspection.md `
+  --output-csv results\ur5e_full\high_start\hard\correction\image_correction_approach_smoke_inspection.csv
+```
+
+Smoke acceptance result: `512` samples from `26` hard/narrow episodes,
+`approach_window_rate=1.000`, `approach_recenter=512`, mean XY/Z above target
+about `69.8 mm / 108.9 mm`.
+
+High-approach correction 2k candidate:
+
+```powershell
+python scripts\collect_image_correction_dataset.py --config configs\sim\ur5e_full\collect_high_start_hard_wrist_pose_control_state_approach_2k.yaml
+
+python scripts\inspect_image_correction_dataset.py `
+  --dataset datasets\ur5e_full\high_start\hard\correction\image_correction_2k_high_start_hard_wrist_pose_control_state_approach.npz `
+  --output-md results\ur5e_full\high_start\hard\correction\image_correction_approach_2k_inspection.md `
+  --output-csv results\ur5e_full\high_start\hard\correction\image_correction_approach_2k_inspection.csv
+
+python scripts\pretrain_image_actor_bc_weighted.py --config configs\sim\ur5e_full\pretrain_high_start_hard_wrist_pose_control_state_approach_2k_w10_e1.yaml
+
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_approach_2k_w10_e1.yaml
+
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_approach_2k_w10_e1.yaml `
+  --seed 614000 `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_approach_2k_w10_e1_20ep_seed614k.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_wrist_pose_control_state_approach_2k_w10_e1_20ep_seed614k.md
+
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_approach_2k_w10_e1.yaml `
+  --hard-bucket-only `
+  --episodes 20 `
+  --seed 622000 `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_approach_2k_w10_e1_hard_20ep_seed622k.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_approach_2k_w10_e1_hard_20ep_seed622k.md
+```
+
+2k result: dataset has `2048` samples, `approach_window_rate=1.000`, and
+`approach_recenter=2048`. The 10% replay / 1 epoch candidate saved to
+`checkpoints\ur5e_full\high_start\hard\correction\sac_image_bc_wrist_pose_control_state_approach_2k_w10_e1.zip`.
+Same-seed `614000` matrix reached clean/visual_camera/visual_camera_control/
+full_light/full_contact/hard success `0.700/0.700/0.600/0.700/0.650/0.650`.
+Hard-only seed `622000` reached `0.500/0.150/0.350`, flat versus v3 but not
+regressed.
+
+Approach 2k candidate multi-seed and visual ablation:
+
+```powershell
+foreach ($seed in 602000,604000,605000) {
+  python scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_approach_2k_w10_e1.yaml `
+    --hard-bucket-only `
+    --episodes 60 `
+    --seed $seed `
+    --output-csv "results\ur5e_full\high_start\hard\correction\eval_approach_2k_w10_e1_hard_60ep_seed$seed.csv" `
+    --output-md "results\ur5e_full\high_start\hard\correction\eval_approach_2k_w10_e1_hard_60ep_seed$seed.md"
+}
+
+foreach ($mode in 'normal','black','noise','shuffle') {
+  python scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_approach_2k_w10_e1.yaml `
+    --hard-bucket-only `
+    --episodes 40 `
+    --seed 617000 `
+    --control-mode policy `
+    --image-ablation $mode `
+    --output-csv "results\ur5e_full\high_start\hard\correction\eval_approach_2k_w10_e1_policy_hard_${mode}_40ep.csv" `
+    --output-md "results\ur5e_full\high_start\hard\correction\eval_approach_2k_w10_e1_policy_hard_${mode}_40ep.md"
+}
+```
+
+Result: approach 2k is visual-positive but not promoted. Hard-only 60-episode
+multi-seed average is about `0.400/0.194/0.406`, slightly below v3's
+`0.417/0.167/0.417`. Policy-only image ablation shows the learned model still
+uses vision: normal hard-bucket success `0.300`, black/noise/shuffle `0.000`.
+See `results\ur5e_full\high_start\hard\correction\approach_2k_candidate_summary.md`.
+
+Failure trace and controller-gate diagnostics for approach 2k:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_approach_2k_w10_e1.yaml `
+  --hard-bucket-only `
+  --episodes 60 `
+  --seed 602000 `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_approach_2k_w10_e1_hard_trace_60ep_seed602k.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_approach_2k_w10_e1_hard_trace_60ep_seed602k.md `
+  --episode-output-csv results\ur5e_full\high_start\hard\correction\eval_approach_2k_w10_e1_hard_trace_episodes_60ep_seed602k.csv `
+  --step-output-csv results\ur5e_full\high_start\hard\correction\eval_approach_2k_w10_e1_hard_failure_step_trace_60ep_seed602k.csv `
+  --step-trace-outcome-filter failure
+
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_hard_bucket_v3_2k_w10_e1.yaml `
+  --hard-bucket-only `
+  --episodes 60 `
+  --seed 602000 `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_v3_e1_hard_trace_60ep_seed602k.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_v3_e1_hard_trace_60ep_seed602k.md `
+  --episode-output-csv results\ur5e_full\high_start\hard\correction\eval_v3_e1_hard_trace_episodes_60ep_seed602k.csv `
+  --step-output-csv results\ur5e_full\high_start\hard\correction\eval_v3_e1_hard_failure_step_trace_60ep_seed602k.csv `
+  --step-trace-outcome-filter failure
+
+python scripts\analyze_step_trace_failures.py `
+  --trace v3=results\ur5e_full\high_start\hard\correction\eval_v3_e1_hard_failure_step_trace_60ep_seed602k.csv `
+  --trace approach=results\ur5e_full\high_start\hard\correction\eval_approach_2k_w10_e1_hard_failure_step_trace_60ep_seed602k.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\approach_vs_v3_failure_trace_seed602k_summary.md `
+  --output-csv results\ur5e_full\high_start\hard\correction\approach_vs_v3_failure_trace_seed602k_episodes.csv
+```
+
+Controller gate diagnostics on approach 2k, seed `602000`, 60 hard-bucket
+episodes:
+
+| Variant | Success | Collision | Timeout |
+| --- | ---: | ---: | ---: |
+| approach baseline | 0.367 | 0.267 | 0.367 |
+| fixture clearance gate | 0.350 | 0.283 | 0.367 |
+| hover/descent gate | 0.350 | 0.267 | 0.383 |
+| lift-before-lateral gate | 0.150 | 0.267 | 0.583 |
+
+Conclusion: do not promote these broad controller gates. See
+`results\ur5e_full\high_start\hard\correction\controller_gate_diagnostics_seed602k_summary.md`.
+
+Fixture-wall pre-contact correction smoke. This targets the collision band where
+the peg is still above the fixture but already laterally close enough to hit the
+fixture wall during descent.
+
+```powershell
+python -m py_compile scripts\collect_image_correction_dataset.py scripts\inspect_image_correction_dataset.py
+
+python scripts\collect_image_correction_dataset.py --config configs\sim\ur5e_full\collect_high_start_hard_wrist_pose_control_state_fixture_wall_smoke.yaml
+
+python scripts\inspect_image_correction_dataset.py `
+  --dataset datasets\ur5e_full\high_start\hard\correction\image_correction_512_high_start_hard_wrist_pose_control_state_fixture_wall_smoke.npz `
+  --output-md results\ur5e_full\high_start\hard\correction\image_correction_fixture_wall_smoke_inspection.md `
+  --output-csv results\ur5e_full\high_start\hard\correction\image_correction_fixture_wall_smoke_inspection.csv
+```
+
+Smoke acceptance result: `512` samples from `23` source episodes,
+`fixture_wall_window_rate=1.000`, `fixture_wall_recenter=512`, median XY/Z
+above target about `32.3 mm / 69.9 mm`, and `oracle_down_action_rate=0.000`.
+This validates the data path; it is not a trained/promoted checkpoint yet.
+
+Fixture-wall correction 2k candidate:
+
+```powershell
+python scripts\collect_image_correction_dataset.py --config configs\sim\ur5e_full\collect_high_start_hard_wrist_pose_control_state_fixture_wall_2k.yaml
+
+python scripts\inspect_image_correction_dataset.py `
+  --dataset datasets\ur5e_full\high_start\hard\correction\image_correction_2k_high_start_hard_wrist_pose_control_state_fixture_wall.npz `
+  --output-md results\ur5e_full\high_start\hard\correction\image_correction_fixture_wall_2k_inspection.md `
+  --output-csv results\ur5e_full\high_start\hard\correction\image_correction_fixture_wall_2k_inspection.csv
+
+python scripts\pretrain_image_actor_bc_weighted.py --config configs\sim\ur5e_full\pretrain_high_start_hard_wrist_pose_control_state_fixture_wall_2k_w10_e1.yaml
+
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_fixture_wall_2k_w10_e1.yaml
+
+foreach ($seed in 602000,604000,605000) {
+  python scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_fixture_wall_2k_w10_e1.yaml `
+    --hard-bucket-only `
+    --episodes 60 `
+    --seed $seed `
+    --output-csv "results\ur5e_full\high_start\hard\correction\eval_fixture_wall_2k_w10_e1_hard_60ep_seed$seed.csv" `
+    --output-md "results\ur5e_full\high_start\hard\correction\eval_fixture_wall_2k_w10_e1_hard_60ep_seed$seed.md"
+}
+```
+
+Result: fixture-wall 2k w10 e1 is not promoted. Three-seed hard-bucket average
+is `0.428/0.128/0.444`, compared with v3 `0.417/0.167/0.417` and approach
+2k `0.400/0.194/0.406`. It reduces collision but increases timeout.
+
+Fixture-wall trace and lower replay-weight check:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_fixture_wall_2k_w10_e1.yaml `
+  --hard-bucket-only `
+  --episodes 60 `
+  --seed 602000 `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_fixture_wall_2k_w10_e1_hard_trace_60ep_seed602k.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_fixture_wall_2k_w10_e1_hard_trace_60ep_seed602k.md `
+  --episode-output-csv results\ur5e_full\high_start\hard\correction\eval_fixture_wall_2k_w10_e1_hard_trace_episodes_60ep_seed602k.csv `
+  --step-output-csv results\ur5e_full\high_start\hard\correction\eval_fixture_wall_2k_w10_e1_hard_failure_step_trace_60ep_seed602k.csv `
+  --step-trace-outcome-filter failure
+
+python scripts\analyze_step_trace_failures.py `
+  --trace fixture_wall=results\ur5e_full\high_start\hard\correction\eval_fixture_wall_2k_w10_e1_hard_failure_step_trace_60ep_seed602k.csv `
+  --trace approach=results\ur5e_full\high_start\hard\correction\eval_approach_2k_w10_e1_hard_failure_step_trace_60ep_seed602k.csv `
+  --trace v3=results\ur5e_full\high_start\hard\correction\eval_v3_e1_hard_failure_step_trace_60ep_seed602k.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\fixture_wall_vs_v3_approach_failure_trace_seed602k_summary.md `
+  --output-csv results\ur5e_full\high_start\hard\correction\fixture_wall_vs_v3_approach_failure_trace_seed602k_episodes.csv
+
+python scripts\pretrain_image_actor_bc_weighted.py --config configs\sim\ur5e_full\pretrain_high_start_hard_wrist_pose_control_state_fixture_wall_2k_w05_e1.yaml
+
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_fixture_wall_2k_w05_e1.yaml
+
+foreach ($seed in 602000,604000,605000) {
+  python scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_fixture_wall_2k_w05_e1.yaml `
+    --hard-bucket-only `
+    --episodes 60 `
+    --seed $seed `
+    --output-csv "results\ur5e_full\high_start\hard\correction\eval_fixture_wall_2k_w05_e1_hard_60ep_seed$seed.csv" `
+    --output-md "results\ur5e_full\high_start\hard\correction\eval_fixture_wall_2k_w05_e1_hard_60ep_seed$seed.md"
+}
+```
+
+Result: w05 is also not promoted. Three-seed hard-bucket average is
+`0.405/0.139/0.456`, worse than w10. The failure trace shows the next recipe
+needs explicit timeout-progress / slow-insert supervision, not just different
+fixture-wall replay weight.
+
+Fixture-wall plus small timeout-progress replay smoke:
+
+```powershell
+python scripts\pretrain_image_actor_bc_weighted.py --config configs\sim\ur5e_full\pretrain_high_start_hard_wrist_pose_control_state_fixture_wall_progress_w03_e1.yaml
+
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_fixture_wall_progress_w03_e1.yaml
+
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_fixture_wall_progress_w03_e1.yaml `
+  --hard-bucket-only `
+  --episodes 20 `
+  --seed 621000 `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_fixture_wall_progress_w03_e1_hard_20ep_seed621k.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_fixture_wall_progress_w03_e1_hard_20ep_seed621k.md
+
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_fixture_wall_progress_w03_e1.yaml `
+  --hard-bucket-only `
+  --episodes 20 `
+  --seed 622000 `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_fixture_wall_progress_w03_e1_hard_20ep_seed622k.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_fixture_wall_progress_w03_e1_hard_20ep_seed622k.md
+```
+
+Result: not promoted. It reached hard bucket `0.500/0.050/0.450` in the
+default 20-episode matrix, but clean/full-light regressed and same-seed hard
+checks were unstable: seed `621000` `0.300/0.150/0.550`, seed `622000`
+`0.450/0.250/0.300`.
+
+Same-seed hard-bucket gate on seed `622000`, 20 episodes:
+
+| Model | Success | Collision | Timeout |
+| --- | ---: | ---: | ---: |
+| v3 e1 baseline | 0.500 | 0.150 | 0.350 |
+| v4 progress-only w03 e1 | 0.400 | 0.300 | 0.300 |
+| v4b2 w03 e1 | 0.350 | 0.400 | 0.250 |
+| v4b2 w01 e1 | 0.400 | 0.300 | 0.300 |
+
+Conclusion: v4b2 improved label balance versus v4b, but still converts too
+many timeout cases into collision. Keep it as a diagnostic dataset only.
+
+Collision-conversion trace diagnostics:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_hard_bucket_v3_2k_w10_e1.yaml `
+  --hard-bucket-only `
+  --episodes 20 `
+  --seed 622000 `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_v3_e1_hard_failure_trace_contacts_20ep_seed622k.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_v3_e1_hard_failure_trace_contacts_20ep_seed622k.md `
+  --episode-output-csv results\ur5e_full\high_start\hard\correction\eval_v3_e1_hard_failure_trace_contacts_episodes_20ep_seed622k.csv `
+  --step-output-csv results\ur5e_full\high_start\hard\correction\eval_v3_e1_hard_failure_step_trace_contacts_20ep_seed622k.csv `
+  --step-trace-outcome-filter failure
+
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_balanced_v4b2_smoke_w01_e1.yaml `
+  --hard-bucket-only `
+  --episodes 20 `
+  --seed 622000 `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_v4b2_w01_hard_failure_trace_contacts_20ep_seed622k.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_v4b2_w01_hard_failure_trace_contacts_20ep_seed622k.md `
+  --episode-output-csv results\ur5e_full\high_start\hard\correction\eval_v4b2_w01_hard_failure_trace_contacts_episodes_20ep_seed622k.csv `
+  --step-output-csv results\ur5e_full\high_start\hard\correction\eval_v4b2_w01_hard_failure_step_trace_contacts_20ep_seed622k.csv `
+  --step-trace-outcome-filter failure
+
+python scripts\analyze_step_trace_failures.py `
+  --trace v3_e1=results\ur5e_full\high_start\hard\correction\eval_v3_e1_hard_failure_step_trace_contacts_20ep_seed622k.csv `
+  --trace v4b2_w01=results\ur5e_full\high_start\hard\correction\eval_v4b2_w01_hard_failure_step_trace_contacts_20ep_seed622k.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\v4b2_collision_conversion_trace_contacts_summary.md `
+  --output-csv results\ur5e_full\high_start\hard\correction\v4b2_collision_conversion_trace_contacts_episodes.csv
+```
+
+The trace showed v4b2 collisions are approach/fixture-clearance failures, not
+final insert-band misses. A wider contact-aware guard was also tested and is not
+promoted:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_balanced_v4b2_smoke_w01_e1.yaml `
+  --hard-bucket-only `
+  --episodes 20 `
+  --seed 622000 `
+  --guard-start-xy 0.09 `
+  --guarded-oracle-mode contact_aware_recovery `
+  --contact-recovery-z-max 0.10 `
+  --contact-recovery-lift-height 0.12 `
+  --contact-recovery-lift-z-tolerance 0.015 `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_v4b2_w01_contact_guard09_hard_20ep_seed622k.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_v4b2_w01_contact_guard09_hard_20ep_seed622k.md
+```
+
+It reached only `0.050/0.400/0.550`, so broad early oracle takeover should not
+be used.
+
+Fixture-clearance safety gate diagnostic. This keeps normal guard activation
+narrow and only forces a Z-up action when the peg is already low over the
+fixture while still laterally far from the hole:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_balanced_v4b2_smoke_w01_e1.yaml `
+  --hard-bucket-only `
+  --episodes 20 `
+  --seed 622000 `
+  --guard-fixture-clearance-enabled `
+  --guard-fixture-clearance-xy-min 0.020 `
+  --guard-fixture-clearance-xy-max 0.130 `
+  --guard-fixture-clearance-z-max 0.060 `
+  --guard-fixture-clearance-lift-height 0.100 `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_v4b2_w01_fixture_gate_xy13_hard_20ep_seed622k.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_v4b2_w01_fixture_gate_xy13_hard_20ep_seed622k.md `
+  --episode-output-csv results\ur5e_full\high_start\hard\correction\eval_v4b2_w01_fixture_gate_xy13_hard_episodes_20ep_seed622k.csv
+```
+
+Current same-seed fixture-gate result:
+
+| Variant | Success | Collision | Timeout |
+| --- | ---: | ---: | ---: |
+| v4b2 w01 no fixture gate | 0.400 | 0.300 | 0.300 |
+| fixture `xy_max=0.09,z_max=0.06,lift=0.10` | 0.400 | 0.250 | 0.350 |
+| fixture `xy_max=0.13,z_max=0.06,lift=0.10` | 0.400 | 0.200 | 0.400 |
+| fixture `xy_max=0.13,z_max=0.08,lift=0.12` | 0.400 | 0.200 | 0.400 |
+
+Interpretation: the gate reduces approach/fixture collisions, but it mostly
+converts one collision into timeout and does not recover success. Keep it as a
+diagnostic/deployment safety feature; do not treat it as a promoted training
+result.
+
+Two-stage fixture realign diagnostic. This keeps the fixture gate active after
+lifting and tries to re-align at a safe height before release:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_balanced_v4b2_smoke_w01_e1.yaml `
+  --hard-bucket-only `
+  --episodes 20 `
+  --seed 622000 `
+  --guard-fixture-clearance-enabled `
+  --guard-fixture-clearance-realign-enabled `
+  --guard-fixture-clearance-xy-min 0.020 `
+  --guard-fixture-clearance-xy-max 0.130 `
+  --guard-fixture-clearance-z-max 0.060 `
+  --guard-fixture-clearance-lift-height 0.100 `
+  --guard-fixture-clearance-realign-start-z 0.060 `
+  --guard-fixture-clearance-realign-xy 0.020 `
+  --guard-fixture-clearance-max-steps 240 `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_v4b2_w01_fixture_gate_realign_start06_xy13_hard_20ep_seed622k.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_v4b2_w01_fixture_gate_realign_start06_xy13_hard_20ep_seed622k.md `
+  --episode-output-csv results\ur5e_full\high_start\hard\correction\eval_v4b2_w01_fixture_gate_realign_start06_xy13_hard_episodes_20ep_seed622k.csv
+```
+
+Current same-seed realign results:
+
+| Variant | Success | Collision | Timeout |
+| --- | ---: | ---: | ---: |
+| realign start Z `0.060`, max XY `0.005` | 0.400 | 0.250 | 0.350 |
+| realign start Z `0.045`, max XY `0.005` | 0.400 | 0.300 | 0.300 |
+| realign start Z `0.045`, max XY `0.002` | 0.400 | 0.300 | 0.300 |
+
+Interpretation: high-threshold realign barely activates, while earlier realign
+reintroduces low-altitude scraping. Keep this as a diagnostic option, not a
+default controller.
+
+Control-state image ablation audit. These commands preserve `control_state` and
+only corrupt image observations:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_mix_60k_scratch_e8.yaml `
+  --image-ablation black `
+  --output-csv results\ur5e_full\high_start\hard\visual_audit\eval_wrist_pose_control_state_mix_60k_scratch_e8_black_guarded_20ep.csv `
+  --output-md results\ur5e_full\high_start\hard\visual_audit\eval_wrist_pose_control_state_mix_60k_scratch_e8_black_guarded_20ep.md
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_mix_60k_scratch_e8.yaml `
+  --image-ablation noise `
+  --output-csv results\ur5e_full\high_start\hard\visual_audit\eval_wrist_pose_control_state_mix_60k_scratch_e8_noise_guarded_20ep.csv `
+  --output-md results\ur5e_full\high_start\hard\visual_audit\eval_wrist_pose_control_state_mix_60k_scratch_e8_noise_guarded_20ep.md
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_mix_60k_scratch_e8.yaml `
+  --image-ablation shuffle `
+  --output-csv results\ur5e_full\high_start\hard\visual_audit\eval_wrist_pose_control_state_mix_60k_scratch_e8_shuffle_guarded_20ep.csv `
+  --output-md results\ur5e_full\high_start\hard\visual_audit\eval_wrist_pose_control_state_mix_60k_scratch_e8_shuffle_guarded_20ep.md
+```
+
+Policy-only ablation audit:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_mix_60k_scratch_e8.yaml `
+  --control-mode policy `
+  --image-ablation normal `
+  --output-csv results\ur5e_full\high_start\hard\visual_audit\eval_wrist_pose_control_state_mix_60k_scratch_e8_normal_policy_20ep.csv `
+  --output-md results\ur5e_full\high_start\hard\visual_audit\eval_wrist_pose_control_state_mix_60k_scratch_e8_normal_policy_20ep.md
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_mix_60k_scratch_e8.yaml `
+  --control-mode policy `
+  --image-ablation black `
+  --output-csv results\ur5e_full\high_start\hard\visual_audit\eval_wrist_pose_control_state_mix_60k_scratch_e8_black_policy_20ep.csv `
+  --output-md results\ur5e_full\high_start\hard\visual_audit\eval_wrist_pose_control_state_mix_60k_scratch_e8_black_policy_20ep.md
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_mix_60k_scratch_e8.yaml `
+  --control-mode policy `
+  --image-ablation noise `
+  --output-csv results\ur5e_full\high_start\hard\visual_audit\eval_wrist_pose_control_state_mix_60k_scratch_e8_noise_policy_20ep.csv `
+  --output-md results\ur5e_full\high_start\hard\visual_audit\eval_wrist_pose_control_state_mix_60k_scratch_e8_noise_policy_20ep.md
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_mix_60k_scratch_e8.yaml `
+  --control-mode policy `
+  --image-ablation shuffle `
+  --output-csv results\ur5e_full\high_start\hard\visual_audit\eval_wrist_pose_control_state_mix_60k_scratch_e8_shuffle_policy_20ep.csv `
+  --output-md results\ur5e_full\high_start\hard\visual_audit\eval_wrist_pose_control_state_mix_60k_scratch_e8_shuffle_policy_20ep.md
+```
+
+Guard-only ceiling for the same scenarios:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_mix_60k_scratch_e8.yaml `
+  --control-mode guard_only `
+  --output-csv results\ur5e_full\high_start\hard\visual_audit\eval_wrist_pose_control_state_mix_60k_scratch_e8_guard_only_20ep.csv `
+  --output-md results\ur5e_full\high_start\hard\visual_audit\eval_wrist_pose_control_state_mix_60k_scratch_e8_guard_only_20ep.md
+```
+
+Collect the targeted delay-2 control dataset:
+
+```powershell
+python scripts\collect_image_expert_dataset.py --config configs\sim\ur5e_full\collect_high_start_hard_wrist_pose_control_targeted_delay2_20k.yaml
+```
+
+Inspect the targeted dataset:
+
+```powershell
+python scripts\inspect_image_expert_dataset.py `
+  --dataset datasets\ur5e_full\high_start\hard\image_expert_20k_high_start_hard_wrist_pose_control_targeted_delay2_seed585k.npz `
+  --output-md results\ur5e_full\high_start\hard\visual_audit\image_expert_20k_wrist_pose_control_targeted_delay2_seed585k_inspection.md `
+  --output-csv results\ur5e_full\high_start\hard\visual_audit\image_expert_20k_wrist_pose_control_targeted_delay2_seed585k_inspection.csv
+```
+
+Train the targeted replay checkpoint:
+
+```powershell
+python scripts\pretrain_image_actor_bc_weighted.py --config configs\sim\ur5e_full\pretrain_high_start_hard_wrist_pose_control_targeted_delay2_w60_e4.yaml
+```
+
+Evaluate the targeted replay checkpoint:
+
+```powershell
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_targeted_delay2_w60_e4.yaml
+```
+
+Analyze control failures for the targeted checkpoint:
+
+```powershell
+python scripts\analyze_control_failures.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_targeted_delay2_w60_e4.yaml `
+  --model checkpoints\ur5e_full\high_start\hard\sac_image_bc_70k_high_start_hard_wrist_pose_control_targeted_delay2_w60_e4.zip `
+  --episodes 80 `
+  --seed 584000 `
+  --domain-randomization-level visual_camera_control `
+  --output-csv results\ur5e_full\high_start\hard\visual_audit\control_failure_wrist_pose_control_targeted_delay2_w60_e4_80ep.csv `
+  --output-md results\ur5e_full\high_start\hard\visual_audit\control_failure_wrist_pose_control_targeted_delay2_w60_e4_80ep.md
+```
+
+Near-action limiter checks already run and are not promoted:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_50k_scratch.yaml `
+  --model checkpoints\ur5e_full\high_start\hard\sac_image_bc_50k_high_start_hard_wrist_pose_visual_camera_scratch_e20.zip `
+  --episodes 20 `
+  --seed 574000 `
+  --guard-near-action-scale-enabled `
+  --guard-near-action-xy-tolerance 0.020 `
+  --guard-near-action-z-threshold 0.070 `
+  --guard-near-max-xy-action 0.005 `
+  --guard-near-max-down-action 0.0025 `
+  --output-csv results\ur5e_full\high_start\hard\visual_audit\eval_wrist_pose_50k_scratch_e20_near_limiter_mild_20ep.csv `
+  --output-md results\ur5e_full\high_start\hard\visual_audit\eval_wrist_pose_50k_scratch_e20_near_limiter_mild_20ep.md
+```
+
 ## Evaluation Matrix
 
 Run the standard five-environment matrix:
@@ -3018,3 +4597,463 @@ UR5e adapter fixedcam models:
 | full_light_geometry hard-weighted 500k e5 | 0.300 | 0.660 |
 | full_contact_light hard-weighted 500k e5 | 0.310 | 0.660 |
 | clean fixedcam 5k scratch | 0.790 | 0.200 |
+
+## Insert-Drift Late-Stage Correction
+
+Collect and inspect the late insert-band drift correction dataset:
+
+```powershell
+python scripts\collect_image_correction_dataset.py `
+  --config configs\sim\ur5e_full\collect_high_start_hard_wrist_pose_control_state_insert_drift_2k.yaml
+
+python scripts\inspect_image_correction_dataset.py `
+  --dataset datasets\ur5e_full\high_start\hard\correction\image_correction_2k_high_start_hard_wrist_pose_control_state_insert_drift.npz `
+  --output-md results\ur5e_full\high_start\hard\correction\image_correction_insert_drift_2k_inspection.md `
+  --output-csv results\ur5e_full\high_start\hard\correction\image_correction_insert_drift_2k_inspection.csv
+```
+
+Train the current non-promoted insert-drift candidate:
+
+```powershell
+python scripts\pretrain_image_actor_bc_weighted.py `
+  --config configs\sim\ur5e_full\pretrain_high_start_hard_wrist_pose_control_state_insert_drift_2k_w10_e1.yaml
+```
+
+Evaluate it:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_insert_drift_2k_w10_e1.yaml
+
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_insert_drift_2k_w10_e1_hard_60ep.yaml
+```
+
+## Insert-Settle Late-Stage Correction
+
+Collect and inspect the insert-settle dataset:
+
+```powershell
+python scripts\collect_image_correction_dataset.py `
+  --config configs\sim\ur5e_full\collect_high_start_hard_wrist_pose_control_state_insert_settle_2k.yaml
+
+python scripts\inspect_image_correction_dataset.py `
+  --dataset datasets\ur5e_full\high_start\hard\correction\image_correction_2k_high_start_hard_wrist_pose_control_state_insert_settle.npz `
+  --output-md results\ur5e_full\high_start\hard\correction\image_correction_insert_settle_2k_inspection.md `
+  --output-csv results\ur5e_full\high_start\hard\correction\image_correction_insert_settle_2k_inspection.csv
+```
+
+Train and evaluate the two non-promoted insert-settle candidates:
+
+```powershell
+python scripts\pretrain_image_actor_bc_weighted.py `
+  --config configs\sim\ur5e_full\pretrain_high_start_hard_wrist_pose_control_state_insert_settle_2k_w05_e1.yaml
+
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_insert_settle_2k_w05_e1.yaml
+
+python scripts\pretrain_image_actor_bc_weighted.py `
+  --config configs\sim\ur5e_full\pretrain_high_start_hard_wrist_pose_control_state_insert_settle_2k_w10_e1.yaml
+
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_insert_settle_2k_w10_e1.yaml
+```
+
+## Insert Late-Stage Timeout Trace And Guard Scan
+
+Generate timeout-only step traces for the two late-stage BC candidates:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_insert_drift_2k_w10_e1_hard_60ep.yaml `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_insert_drift_2k_w10_e1_hard_trace_60ep_seed602000.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_insert_drift_2k_w10_e1_hard_trace_60ep_seed602000.md `
+  --episode-output-csv results\ur5e_full\high_start\hard\correction\eval_insert_drift_2k_w10_e1_hard_trace_episodes_60ep_seed602000.csv `
+  --step-output-csv results\ur5e_full\high_start\hard\correction\eval_insert_drift_2k_w10_e1_hard_timeout_step_trace_60ep_seed602000.csv `
+  --step-trace-outcome-filter timeout
+
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_insert_settle_2k_w05_e1_hard_60ep.yaml `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_insert_settle_2k_w05_e1_hard_trace_60ep_seed602000.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_insert_settle_2k_w05_e1_hard_trace_60ep_seed602000.md `
+  --episode-output-csv results\ur5e_full\high_start\hard\correction\eval_insert_settle_2k_w05_e1_hard_trace_episodes_60ep_seed602000.csv `
+  --step-output-csv results\ur5e_full\high_start\hard\correction\eval_insert_settle_2k_w05_e1_hard_timeout_step_trace_60ep_seed602000.csv `
+  --step-trace-outcome-filter timeout
+```
+
+Summarize timeout failure modes:
+
+```powershell
+python scripts\analyze_step_trace_failures.py `
+  --trace insert_drift_w10=results\ur5e_full\high_start\hard\correction\eval_insert_drift_2k_w10_e1_hard_timeout_step_trace_60ep_seed602000.csv `
+  --trace insert_settle_w05=results\ur5e_full\high_start\hard\correction\eval_insert_settle_2k_w05_e1_hard_timeout_step_trace_60ep_seed602000.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\insert_late_bc_timeout_trace_seed602000_summary.md `
+  --output-csv results\ur5e_full\high_start\hard\correction\insert_late_bc_timeout_trace_seed602000_episodes.csv `
+  --success-xy-tolerance 0.005 `
+  --near-xy 0.010 `
+  --low-z 0.020 `
+  --window-steps 20
+```
+
+Latest conclusion:
+
+- both insert-drift and insert-settle w05 produced `27/60` timeouts on hard seed `602000`
+- most timeouts entered the strict 5 mm insert band, then drifted out to about `6 - 7 mm` XY
+- scalar guard scans did not improve the same-seed baseline; results are recorded in:
+
+```text
+results\ur5e_full\high_start\hard\correction\insert_late_bc_guard_scalar_scan_seed602000_summary.md
+```
+
+Next implementation should be a stateful final insertion servo, not more
+single-threshold guarded-two-stage tuning.
+
+## Final Servo MVP
+
+Run the current non-promoted fast-latch final-servo smoke:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_insert_drift_2k_w10_e1_final_servo_20ep.yaml
+```
+
+Run the same hard-bucket 60-episode gate:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_insert_drift_2k_w10_e1_final_servo_hard_60ep.yaml
+```
+
+Current result:
+
+```text
+20ep hard seed 602000: 0.500 / 0.150 / 0.350
+60ep hard seed 602000: 0.417 / 0.133 / 0.450
+```
+
+Numbers are `success / collision / timeout`. This is flat versus the
+insert-drift baseline, so final servo is implemented and traceable but not
+promoted as a performance improvement yet.
+
+Summary:
+
+```text
+results\ur5e_full\high_start\hard\correction\final_servo_mvp_summary.md
+```
+
+## Final Servo Soft-Unjam And Bias Diagnostics
+
+Run the current soft-unjam 20ep diagnostic config:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_insert_drift_2k_w10_e1_final_servo_soft_unjam_20ep.yaml
+```
+
+Run the +3mm X final-descent bias diagnostic from the fast-latch config:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_insert_drift_2k_w10_e1_final_servo_20ep.yaml `
+  --guard-final-servo-descend-xy-bias 0.003 0.0 `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_insert_drift_2k_w10_e1_final_servo_biasx3mm_20ep_seed602000.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_insert_drift_2k_w10_e1_final_servo_biasx3mm_20ep_seed602000.md `
+  --episode-output-csv results\ur5e_full\high_start\hard\correction\eval_insert_drift_2k_w10_e1_final_servo_biasx3mm_episodes_20ep_seed602000.csv `
+  --step-output-csv results\ur5e_full\high_start\hard\correction\eval_insert_drift_2k_w10_e1_final_servo_biasx3mm_failure_step_trace_20ep_seed602000.csv
+```
+
+Current conclusion:
+
+```text
+soft-unjam Z-first 20mm: 0.500 / 0.150 / 0.350, mean return 273.706
+descend bias +3mm X:    0.500 / 0.150 / 0.350, mean return 218.903
+```
+
+Numbers are `success / collision / timeout`. These diagnostics are not
+promoted. They indicate that the remaining timeout bucket is already
+contact-limited after wedging; next work should prevent the low-Z drift before
+the peg gets wedged.
+
+## Preinsert Recenter Diagnostics
+
+Run the current preinsert recenter smoke config:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_insert_drift_2k_w10_e1_preinsert_recenter_20ep.yaml
+```
+
+Run the earlier 35mm diagnostic variant:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_insert_drift_2k_w10_e1_preinsert_recenter_20ep.yaml `
+  --guard-preinsert-recenter-start-z 0.035 `
+  --guard-preinsert-recenter-trigger-xy 0.0035 `
+  --guard-preinsert-recenter-stable-xy 0.003 `
+  --guard-preinsert-recenter-height 0.035 `
+  --guard-preinsert-recenter-z-tolerance 0.008 `
+  --guard-preinsert-recenter-max-steps 60 `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_insert_drift_2k_w10_e1_preinsert_recenter_early35_20ep_seed602000.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_insert_drift_2k_w10_e1_preinsert_recenter_early35_20ep_seed602000.md `
+  --episode-output-csv results\ur5e_full\high_start\hard\correction\eval_insert_drift_2k_w10_e1_preinsert_recenter_early35_episodes_20ep_seed602000.csv `
+  --step-output-csv results\ur5e_full\high_start\hard\correction\eval_insert_drift_2k_w10_e1_preinsert_recenter_early35_failure_step_trace_20ep_seed602000.csv
+```
+
+Current conclusion:
+
+```text
+preinsert 25mm:       0.500 / 0.150 / 0.350, mean return 420.434
+preinsert early 35mm: 0.500 / 0.150 / 0.350, mean return 460.382
+preinsert short:      0.500 / 0.150 / 0.350, mean return 441.059
+```
+
+Numbers are `success / collision / timeout`. These diagnostics are not
+promoted. They show that threshold-only pre-wedge guards improve trajectory
+quality but do not solve the insertion timeout. Next work should improve the
+low-level UR5e controller so commanded Cartesian recentering reliably moves the
+peg tip toward the hole.
+
+## Pose-IK Recovery Sequence
+
+Collect the smoke dataset:
+
+```powershell
+python scripts\collect_image_correction_dataset.py `
+  --config configs\sim\ur5e_full\collect_high_start_hard_wrist_pose_control_state_recovery_sequence_pose_ik_smoke.yaml
+```
+
+Collect the 2k dataset:
+
+```powershell
+python scripts\collect_image_correction_dataset.py `
+  --config configs\sim\ur5e_full\collect_high_start_hard_wrist_pose_control_state_recovery_sequence_pose_ik_2k.yaml
+```
+
+Train the low-weight replay checkpoint:
+
+```powershell
+python scripts\pretrain_image_actor_bc_weighted.py `
+  --config configs\sim\ur5e_full\pretrain_high_start_hard_wrist_pose_control_state_recovery_sequence_pose_ik_2k_w08_e1.yaml
+```
+
+Run the hard-bucket gate:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_recovery_sequence_pose_ik_2k_w08_e1_final_servo_pose_ik_hard_60ep.yaml
+```
+
+Generic runtime lift-before-lateral smoke:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_insert_drift_2k_w10_e1_final_servo_pose_ik_hard_60ep.yaml `
+  --episodes 20 `
+  --guarded-lift-before-lateral `
+  --guarded-lift-before-lateral-xy-tolerance 0.020 `
+  --guarded-lift-before-lateral-z-margin 0.010
+```
+
+Current conclusion:
+
+```text
+recovery sequence hard 60ep:        0.717 / 0.100 / 0.183
+runtime lift-before-lateral 20ep:   0.150 / 0.800 / 0.050
+```
+
+Numbers are `success / collision / timeout`. Do not scale this replay family
+until the controller/guard structure changes.
+
+## Controller Gain And Frame-Skip Diagnostics
+
+Run the nominal Kp=2 hard gate:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_insert_drift_2k_w10_e1_final_servo_pose_ik_hard_60ep.yaml `
+  --episodes 60 `
+  --nominal-actuator-kp-multiplier 2.0 `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_insert_drift_pose_ik_kp2_hard_60ep_seed602000.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_insert_drift_pose_ik_kp2_hard_60ep_seed602000.md `
+  --episode-output-csv results\ur5e_full\high_start\hard\correction\eval_insert_drift_pose_ik_kp2_hard_episodes_60ep_seed602000.csv `
+  --step-output-csv results\ur5e_full\high_start\hard\correction\eval_insert_drift_pose_ik_kp2_hard_failure_step_trace_60ep_seed602000.csv
+```
+
+Run the Kp=2 + `frame_skip=20` hard gate:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_insert_drift_2k_w10_e1_final_servo_pose_ik_hard_60ep.yaml `
+  --episodes 60 `
+  --nominal-actuator-kp-multiplier 2.0 `
+  --frame-skip 20 `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_insert_drift_pose_ik_kp2_fs20_hard_60ep_seed602000.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_insert_drift_pose_ik_kp2_fs20_hard_60ep_seed602000.md `
+  --episode-output-csv results\ur5e_full\high_start\hard\correction\eval_insert_drift_pose_ik_kp2_fs20_hard_episodes_60ep_seed602000.csv `
+  --step-output-csv results\ur5e_full\high_start\hard\correction\eval_insert_drift_pose_ik_kp2_fs20_hard_failure_step_trace_60ep_seed602000.csv
+```
+
+Run the current IK-weight candidate hard gate:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_insert_drift_2k_w10_e1_final_servo_pose_ik_wori006_it48_hard_60ep.yaml
+```
+
+Run the current IK-weight candidate 100ep matrix:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_insert_drift_2k_w10_e1_final_servo_pose_ik_wori006_it48_matrix_100ep.yaml
+```
+
+Run the current best Kp2 controller hard gate:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_insert_drift_2k_w10_e1_final_servo_pose_ik_wori006_it48_kp2_hard_60ep.yaml
+```
+
+Run the current best Kp2 controller 100ep matrix:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_insert_drift_2k_w10_e1_final_servo_pose_ik_wori006_it48_kp2_matrix_100ep.yaml
+```
+
+Render the current best Kp2 controller high-resolution demo:
+
+```powershell
+python scripts\demo_policy.py `
+  --config configs\sim\ur5e_full\demo_high_start_hard_wrist_pose_control_state_insert_drift_2k_w10_e1_final_servo_pose_ik_wori006_it48_kp2.yaml
+```
+
+Checked demo result:
+
+```text
+success=True, collision=False, steps=309, final XY/Z error about 4.3 mm / 9.7 mm
+output: demos\ur5e_full\high_start\hard\correction\demo_insert_drift_pose_ik_wori006_it48_kp2.gif
+trace:  results\ur5e_full\high_start\hard\correction\demo_insert_drift_pose_ik_wori006_it48_kp2_trace.csv
+```
+
+The demo config requests MP4 output, but on the current machine `imageio`
+lacks an ffmpeg/pyav backend, so `demo_policy.py` falls back to a `2560x720`
+GIF. `python -m pip install imageio-ffmpeg` timed out in this environment.
+
+Run the current best lower-orientation Kp2 controller hard gate:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_insert_drift_2k_w10_e1_final_servo_pose_ik_wori003_it64_kp2_hard_60ep.yaml
+```
+
+Run the current best lower-orientation Kp2 controller 100ep matrix:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_insert_drift_2k_w10_e1_final_servo_pose_ik_wori003_it64_kp2_matrix_100ep.yaml
+```
+
+Render the current best lower-orientation Kp2 controller high-resolution demo:
+
+```powershell
+python scripts\demo_policy.py `
+  --config configs\sim\ur5e_full\demo_high_start_hard_wrist_pose_control_state_insert_drift_2k_w10_e1_final_servo_pose_ik_wori003_it64_kp2.yaml
+```
+
+Checked lower-orientation result:
+
+```text
+hard 60ep seed602000: 0.883 / 0.000 / 0.117
+hard 60ep seed604000: 0.900 / 0.000 / 0.100
+100ep matrix:
+  clean:                 0.970 / 0.000 / 0.030
+  visual_camera:         0.970 / 0.000 / 0.030
+  visual_camera_control: 0.940 / 0.000 / 0.060
+  full_light_geometry:   0.910 / 0.000 / 0.090
+  full_contact_light:    0.910 / 0.000 / 0.090
+  hard_full_light_bucket:0.910 / 0.000 / 0.090
+demo: success=True, collision=False, steps=335, final XY/Z error about 4.5 mm / 9.6 mm
+output: demos\ur5e_full\high_start\hard\correction\demo_insert_drift_pose_ik_wori003_it64_kp2.gif
+trace:  results\ur5e_full\high_start\hard\correction\demo_insert_drift_pose_ik_wori003_it64_kp2_trace.csv
+```
+
+The first five 100ep matrix rows are in
+`eval_insert_drift_pose_ik_wori003_it64_kp2_matrix_100ep_seed602000.*`.
+The hard-bucket 100ep row is in
+`eval_insert_drift_pose_ik_wori003_it64_kp2_hard_100ep_seed602000.*`.
+The matrix config has been fixed to include `include_hard_bucket: true` for
+future reruns.
+
+Summarize Kp=2 failure modes:
+
+```powershell
+python scripts\analyze_step_trace_failures.py `
+  --trace kp2=results\ur5e_full\high_start\hard\correction\eval_insert_drift_pose_ik_kp2_hard_failure_step_trace_60ep_seed602000.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_insert_drift_pose_ik_kp2_hard_failure_modes_60ep_seed602000.md `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_insert_drift_pose_ik_kp2_hard_failure_modes_60ep_seed602000.csv
+```
+
+Current conclusion:
+
+```text
+pose-IK baseline hard 60ep: 0.717 / 0.100 / 0.183
+Kp=2 hard 60ep:            0.733 / 0.000 / 0.267
+Kp=2 + fs20 hard 60ep:     0.733 / 0.000 / 0.267
+Kp=4 hard 20ep:            0.250 / 0.000 / 0.750
+IK 0.06/48 hard 60ep:      0.767 / 0.100 / 0.133
+IK 0.06/48 20ep x3 avg:    0.767 / 0.100 / 0.133
+IK 0.06/48 + Kp2 hard 60:  0.850 / 0.000 / 0.150
+IK 0.06/48 + Kp2 seed604:  0.867 / 0.000 / 0.133
+IK 0.03/64 + Kp2 hard 60:  0.883 / 0.000 / 0.117
+IK 0.03/64 + Kp2 seed604:  0.900 / 0.000 / 0.100
+```
+
+100ep matrix success rates for IK `0.06/48`:
+
+```text
+clean:                 0.850
+visual_camera:         0.840
+visual_camera_control: 0.840
+full_light_geometry:   0.850
+full_contact_light:    0.850
+hard_full_light_bucket:0.790
+```
+
+100ep matrix success rates for IK `0.06/48 + Kp2`:
+
+```text
+clean:                 0.910 / 0.000 / 0.090
+visual_camera:         0.910 / 0.000 / 0.090
+visual_camera_control: 0.910 / 0.000 / 0.090
+full_light_geometry:   0.900 / 0.000 / 0.100
+full_contact_light:    0.900 / 0.000 / 0.100
+hard_full_light_bucket:0.890 / 0.000 / 0.110
+```
+
+Analyze the hard-gate failure modes for the candidate:
+
+```powershell
+python scripts\analyze_step_trace_failures.py `
+  --trace wori006_it48=results\ur5e_full\high_start\hard\correction\eval_insert_drift_pose_ik_wori006_it48_hard_failure_step_trace_60ep_seed602000.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_insert_drift_pose_ik_wori006_it48_hard_failure_modes_60ep_seed602000.md `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_insert_drift_pose_ik_wori006_it48_hard_failure_modes_60ep_seed602000.csv
+```
+
+Analyze the hard-gate failure modes for the Kp2 candidate:
+
+```powershell
+python scripts\analyze_step_trace_failures.py `
+  --trace wori006_it48_kp2=results\ur5e_full\high_start\hard\correction\eval_insert_drift_pose_ik_wori006_it48_kp2_hard_failure_step_trace_60ep_seed602000.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_insert_drift_pose_ik_wori006_it48_kp2_hard_failure_modes_60ep_seed602000.md `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_insert_drift_pose_ik_wori006_it48_kp2_hard_failure_modes_60ep_seed602000.csv
+```
+
+Kp=2 removes collisions but mostly turns them into timeouts, so it is not
+promoted alone as a default. Combined with lower orientation-weight pose IK,
+Kp2 is now the current best controller candidate because it improves hard-gate
+success and keeps collisions at zero. Treat `ik_orientation_weight=0.03`,
+`ik_max_iterations=64`, and `nominal_actuator_kp_multiplier=2.0` as current
+best. Wider align tolerance `0.030` regressed to
+`0.833 / 0.000 / 0.167`, so do not promote wider align.

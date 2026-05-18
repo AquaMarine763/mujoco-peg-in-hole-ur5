@@ -1,0 +1,85 @@
+# High-start fixture-wall pre-contact correction smoke.
+#
+# Purpose:
+# - collect labels just above fixture height where wall collisions are likely
+# - teach the policy to recenter before descending into the insert band
+model_path: assets/ur5e_full/ur5e_peg_in_hole_full.xml
+model: checkpoints/ur5e_full/high_start/hard/correction/sac_image_bc_wrist_pose_control_state_approach_2k_w10_e1.zip
+output: datasets/ur5e_full/high_start/hard/correction/image_correction_512_high_start_hard_wrist_pose_control_state_fixture_wall_smoke.npz
+samples: 512
+samples_per_config: 512
+max_episodes_per_config: 180
+device: cpu
+seed: 618000
+compressed: true
+scenario_preset: hard
+tier_preset: narrow
+selection: fixture_wall_window
+episode_outcome_filter: any
+keep_success_episodes: false
+failure_window_steps: 500
+near_hole_xy: 0.120
+near_hole_z: 0.160
+min_correction_norm: 0.0005
+max_samples_per_episode: 24
+image_width: 100
+image_height: 100
+include_near_hole_crop: true
+near_hole_crop_size: 64
+near_hole_crop_offset: [-18, 0]
+include_control_state: true
+image_frame_stack: 1
+wrist_camera_pos_offset: [-0.04, -0.04, 0.0]
+wrist_camera_rot_offset_deg: [0.0, 0.0, 0.0]
+wrist_camera_fovy: 100.0
+max_steps: 1000
+action_scale: 0.005
+initialization_mode: target_relative_high_start
+initial_tip_z_above_range: [0.15, 0.25]
+initial_tip_xy_offset_range: [0.08, 0.16]
+initial_tip_xy_angle_range_deg: [0.0, 360.0]
+initial_ik_max_attempts: 30
+success_xy_tolerance: 0.005
+success_z_tolerance: 0.01
+approach_xy_tolerance: 0.02
+approach_height: 0.12
+staged_xy_weight: 2.0
+staged_z_weight: 1.0
+success_bonus: 120.0
+collision_penalty: 300.0
+timeout_penalty: 10.0
+progress_reward_scale: 20.0
+distance_reward_scale: 2.0
+action_penalty_scale: 0.002
+action_alignment_scale: 2.0
+oracle_mode: guarded_two_stage
+oracle_action_gain: 1.0
+guarded_align_xy_tolerance: 0.020
+guarded_insert_xy_tolerance: 0.005
+guarded_retract_xy_tolerance: 0.012
+guarded_preinsert_height: 0.0
+guarded_max_xy_action: 0.005
+guarded_max_down_action: 0.0035
+guarded_max_up_action: 0.005
+guarded_prediction_steps: 0.0
+contact_recovery_xy_tolerance: 0.005
+contact_recovery_z_max: 0.050
+contact_recovery_lift_height: 0.060
+contact_recovery_lift_z_tolerance: 0.010
+contact_recovery_max_down_action: 0.001
+fixture_wall_correction_labels: true
+fixture_wall_window_xy_min: 0.020
+fixture_wall_window_xy_max: 0.090
+fixture_wall_window_z_min: 0.040
+fixture_wall_window_z_max: 0.080
+fixture_wall_correction_target_height: 0.080
+fixture_wall_correction_max_xy_action: 0.003
+fixture_wall_correction_max_down_action: 0.0
+recovery_branch_rollout: false
+recovery_branch_from_near_hole: false
+recovery_branch_max_starts_per_episode: 3
+recovery_branch_max_steps: 90
+recovery_branch_stride: 2
+recovery_branch_stop_on_success: true
+recovery_branch_clear_control_history: true
+recovery_branch_synthetic_stages: false

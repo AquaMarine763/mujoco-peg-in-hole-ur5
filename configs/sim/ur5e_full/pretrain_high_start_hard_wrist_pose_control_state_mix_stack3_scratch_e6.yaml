@@ -1,0 +1,44 @@
+# Scratch stacked-frame control-state BC mixing the 50k wrist-pose visual dataset
+# and the 10k control-state control dataset. The source datasets are single-frame;
+# the training loader derives 3-frame stacks from episode_id/step_id.
+model_path: assets/ur5e_full/ur5e_peg_in_hole_full.xml
+datasets: [datasets/ur5e_full/high_start/hard/image_expert_50k_high_start_hard_wrist_pose_visual_camera_seed564k.npz, datasets/ur5e_full/high_start/hard/image_expert_10k_high_start_hard_wrist_pose_control_state_visual_camera_control_seed590k.npz]
+dataset_weights: [0.60, 0.40]
+output: checkpoints/ur5e_full/high_start/hard/sac_image_bc_60k_high_start_hard_wrist_pose_control_state_mix_stack3_scratch_e6.zip
+metadata_output: results/ur5e_full/high_start/hard/visual_audit/training_metadata_wrist_pose_control_state_mix_stack3_scratch_e6.json
+epochs: 6
+samples_per_epoch: 120000
+batch_size: 512
+learning_rate: 0.00008
+validation_split: 0.05
+validation_batches: 20
+device: cpu
+seed: 596000
+image_width: 100
+image_height: 100
+include_near_hole_crop: true
+near_hole_crop_size: 64
+near_hole_crop_offset: [-18, 0]
+include_control_state: true
+image_frame_stack: 3
+wrist_camera_pos_offset: [-0.04, -0.04, 0.0]
+wrist_camera_rot_offset_deg: [0.0, 0.0, 0.0]
+wrist_camera_fovy: 100.0
+max_steps: 1000
+action_scale: 0.005
+target_low: [0.50, 0.00, 0.65]
+target_high: [0.60, 0.10, 0.65]
+success_xy_tolerance: 0.005
+success_z_tolerance: 0.01
+geometry_hole_half_size_range: [0.017, 0.021]
+approach_xy_tolerance: 0.06
+approach_height: 0.12
+staged_xy_weight: 2.0
+staged_z_weight: 1.0
+success_bonus: 120.0
+collision_penalty: 300.0
+timeout_penalty: 10.0
+progress_reward_scale: 20.0
+distance_reward_scale: 2.0
+action_penalty_scale: 0.002
+action_alignment_scale: 2.0

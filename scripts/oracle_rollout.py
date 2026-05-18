@@ -27,6 +27,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--guarded-max-down-action", type=float, default=0.0035)
     parser.add_argument("--guarded-max-up-action", type=float, default=0.005)
     parser.add_argument("--guarded-prediction-steps", type=float, default=1.0)
+    parser.add_argument("--guarded-hold-z-until-insert", action="store_true")
     parser.add_argument("--success-xy-tolerance", type=float, default=0.005)
     parser.add_argument("--success-z-tolerance", type=float, default=0.01)
     parser.add_argument("--geometry-hole-half-size-range", nargs=2, type=float, default=(0.017, 0.021))
@@ -71,6 +72,7 @@ def main() -> None:
         guarded_max_down_action=args.guarded_max_down_action,
         guarded_max_up_action=args.guarded_max_up_action,
         guarded_prediction_steps=args.guarded_prediction_steps,
+        guarded_hold_z_until_insert=args.guarded_hold_z_until_insert,
     )
 
     successes = 0

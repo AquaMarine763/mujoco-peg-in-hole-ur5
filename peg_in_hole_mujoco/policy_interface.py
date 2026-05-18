@@ -291,6 +291,10 @@ class PolicyInferenceSession:
             "dist_z": float(info.get("dist_z", float("nan"))),
             "shaped_distance": float(info.get("shaped_distance", float("nan"))),
             "desired_z": float(info.get("desired_z", float("nan"))),
+            "action_tracking_error": float(info.get("action_tracking_error", float("nan"))),
+            "ik_target_error": float(info.get("ik_target_error", float("nan"))),
+            "ik_iterations": int(info.get("ik_iterations", -1)),
+            "joint_target_error": float(info.get("joint_target_error", float("nan"))),
             "guard_enabled": bool(action_diagnostics.get("guard_enabled", False)),
             "guard_active": bool(action_diagnostics.get("guard_active", False)),
             "guard_should_activate": bool(action_diagnostics.get("guard_should_activate", False)),
@@ -302,6 +306,22 @@ class PolicyInferenceSession:
             "guard_dist_xy": float(action_diagnostics.get("guard_dist_xy", float("nan"))),
             "guard_z_above_target": float(
                 action_diagnostics.get("guard_z_above_target", float("nan"))
+            ),
+            "guard_hover_active": bool(action_diagnostics.get("guard_hover_active", False)),
+            "guard_hover_stable_steps": int(
+                action_diagnostics.get("guard_hover_stable_steps", 0)
+            ),
+            "guard_hover_descent_allowed": bool(
+                action_diagnostics.get("guard_hover_descent_allowed", False)
+            ),
+            "guard_hover_descent_latched": bool(
+                action_diagnostics.get("guard_hover_descent_latched", False)
+            ),
+            "guard_hover_down_blocked": bool(
+                action_diagnostics.get("guard_hover_down_blocked", False)
+            ),
+            "guard_near_action_limited": bool(
+                action_diagnostics.get("guard_near_action_limited", False)
             ),
             "action_limited": safe_action.action_limited,
             "workspace_limited": safe_action.workspace_limited,
@@ -331,6 +351,15 @@ class PolicyInferenceSession:
         row.update(vector_fields("safe_action", safe_action.safe_action, 3))
         row.update(vector_fields("env_commanded_action", info.get("commanded_action", (float("nan"),) * 3), 3))
         row.update(vector_fields("env_applied_action", info.get("applied_action", (float("nan"),) * 3), 3))
+        row.update(vector_fields("action_tip_pos_before", info.get("action_tip_pos_before"), 3))
+        row.update(vector_fields("action_target_tip_pos", info.get("action_target_tip_pos"), 3))
+        row.update(vector_fields("action_target_tip_delta", info.get("action_target_tip_delta"), 3))
+        row.update(vector_fields("action_actual_tip_delta", info.get("action_actual_tip_delta"), 3))
+        row.update(vector_fields("action_tip_delta_error", info.get("action_tip_delta_error"), 3))
+        row.update(vector_fields("ik_tip_pos", info.get("ik_tip_pos"), 3))
+        row.update(vector_fields("joint_qpos_before_action", info.get("joint_qpos_before_action"), 6))
+        row.update(vector_fields("joint_target_qpos", info.get("joint_target_qpos"), 6))
+        row.update(vector_fields("joint_qpos_after_action", info.get("joint_qpos_after_action"), 6))
         row.update(vector_fields("safe_target_before_clip", safe_action.target_before_workspace_clip, 3))
         row.update(vector_fields("safe_target_after_clip", safe_action.target_after_workspace_clip, 3))
         return row

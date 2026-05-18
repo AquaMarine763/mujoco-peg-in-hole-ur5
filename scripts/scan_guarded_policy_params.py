@@ -162,6 +162,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--height", type=int, default=100)
     parser.add_argument("--include-near-hole-crop", action="store_true")
     parser.add_argument("--near-hole-crop-size", type=int, default=64)
+    parser.add_argument("--near-hole-crop-offset", nargs=2, type=int, default=(0, 0))
+    parser.add_argument("--wrist-camera-pos-offset", nargs=3, type=float, default=(0.0, 0.0, 0.0))
+    parser.add_argument(
+        "--wrist-camera-rot-offset-deg",
+        nargs=3,
+        type=float,
+        default=(0.0, 0.0, 0.0),
+    )
+    parser.add_argument("--wrist-camera-fovy", type=float, default=None)
     parser.add_argument("--max-steps", type=int, default=200)
     parser.add_argument("--action-scale", type=float, default=0.005)
     parser.add_argument(
@@ -237,6 +246,10 @@ def make_env(args: argparse.Namespace, scenario: Scenario) -> PegInHoleMujocoEnv
         image_height=args.height,
         include_near_hole_crop=args.include_near_hole_crop,
         near_hole_crop_size=args.near_hole_crop_size,
+        near_hole_crop_offset=tuple(args.near_hole_crop_offset),
+        wrist_camera_pos_offset=tuple(args.wrist_camera_pos_offset),
+        wrist_camera_rot_offset_deg=tuple(args.wrist_camera_rot_offset_deg),
+        wrist_camera_fovy=args.wrist_camera_fovy,
         max_steps=args.max_steps,
         action_scale=args.action_scale,
         initialization_mode=args.initialization_mode,

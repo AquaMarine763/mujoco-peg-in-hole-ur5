@@ -22,6 +22,7 @@ SCALAR_KEYS = (
     "desired_z",
     "step_id",
     "steps_to_end",
+    "alignment_stable_steps",
     "dist_xy",
     "dist_z",
     "z_above_target",
@@ -30,6 +31,7 @@ SCALAR_KEYS = (
     "correction_norm",
     "correction_xy_norm",
     "action_cosine",
+    "contact_recovery_z_max",
 )
 
 BOOL_KEYS = (
@@ -38,6 +40,20 @@ BOOL_KEYS = (
     "opposed_actions",
     "policy_down_or_oracle_up",
     "policy_down_oracle_less_down",
+    "contact_recovery_window",
+    "timeout_progress_window",
+    "insert_drift_window",
+    "insert_settle_window",
+    "balanced_v4b_window",
+    "approach_window",
+    "fixture_wall_window",
+    "ever_within_insert_xy",
+    "drift_after_alignment",
+    "descent_should_block",
+    "oracle_lift_action",
+    "oracle_down_action",
+    "recovery_branch",
+    "synthetic_recovery_state",
     "episode_success",
     "episode_collision",
     "episode_timeout",
@@ -160,6 +176,7 @@ def write_markdown(
         f"- Tier preset: `{metadata.get('tier_preset', 'unknown')}`",
         f"- Min correction norm: `{metadata.get('min_correction_norm', 'unknown')}`",
         f"- Has near-hole crops: `{'near_hole_crops' in arrays}`",
+        f"- Has control state: `{'control_state' in arrays}`",
         "",
         "## Correction Signals",
         "",
@@ -171,6 +188,20 @@ def write_markdown(
         f"| policy down or oracle up | {format_float(summary['policy_down_or_oracle_up_rate'])} |",
         f"| policy down and oracle less down | {format_float(summary['policy_down_oracle_less_down_rate'])} |",
         f"| opposed actions near hole | {format_float(summary['near_hole_opposed_action_rate'])} |",
+        f"| contact recovery window | {format_float(summary['contact_recovery_window_rate'])} |",
+        f"| timeout progress window | {format_float(summary['timeout_progress_window_rate'])} |",
+        f"| insert drift window | {format_float(summary['insert_drift_window_rate'])} |",
+        f"| insert settle window | {format_float(summary['insert_settle_window_rate'])} |",
+        f"| balanced v4b window | {format_float(summary['balanced_v4b_window_rate'])} |",
+        f"| approach window | {format_float(summary['approach_window_rate'])} |",
+        f"| fixture wall window | {format_float(summary['fixture_wall_window_rate'])} |",
+        f"| ever within insert xy | {format_float(summary['ever_within_insert_xy_rate'])} |",
+        f"| drift after alignment | {format_float(summary['drift_after_alignment_rate'])} |",
+        f"| descent should block | {format_float(summary['descent_should_block_rate'])} |",
+        f"| oracle lift action | {format_float(summary['oracle_lift_action_rate'])} |",
+        f"| oracle down action | {format_float(summary['oracle_down_action_rate'])} |",
+        f"| recovery branch | {format_float(summary['recovery_branch_rate'])} |",
+        f"| synthetic recovery state | {format_float(summary['synthetic_recovery_state_rate'])} |",
         "",
         "## Outcome Counts",
         "",
@@ -203,6 +234,19 @@ def write_markdown(
     )
     for key, count in summary["tier_counts"].items():
         lines.append(f"| {key} | {count} |")
+
+    if summary["recovery_phase_counts"]:
+        lines.extend(
+            [
+                "",
+                "## Recovery Phase Counts",
+                "",
+                "| Phase | Samples |",
+                "| --- | ---: |",
+            ]
+        )
+        for key, count in summary["recovery_phase_counts"].items():
+            lines.append(f"| {key} | {count} |")
 
     lines.extend(
         [
@@ -268,9 +312,84 @@ def build_summary(dataset: np.lib.npyio.NpzFile) -> dict[str, Any]:
             else float("nan")
         ),
         "near_hole_opposed_action_rate": conditional_rate(near_hole, opposed),
+        "contact_recovery_window_rate": (
+            bool_rate(dataset["contact_recovery_window"])
+            if "contact_recovery_window" in dataset.files
+            else float("nan")
+        ),
+        "timeout_progress_window_rate": (
+            bool_rate(dataset["timeout_progress_window"])
+            if "timeout_progress_window" in dataset.files
+            else float("nan")
+        ),
+        "insert_drift_window_rate": (
+            bool_rate(dataset["insert_drift_window"])
+            if "insert_drift_window" in dataset.files
+            else float("nan")
+        ),
+        "insert_settle_window_rate": (
+            bool_rate(dataset["insert_settle_window"])
+            if "insert_settle_window" in dataset.files
+            else float("nan")
+        ),
+        "balanced_v4b_window_rate": (
+            bool_rate(dataset["balanced_v4b_window"])
+            if "balanced_v4b_window" in dataset.files
+            else float("nan")
+        ),
+        "approach_window_rate": (
+            bool_rate(dataset["approach_window"])
+            if "approach_window" in dataset.files
+            else float("nan")
+        ),
+        "fixture_wall_window_rate": (
+            bool_rate(dataset["fixture_wall_window"])
+            if "fixture_wall_window" in dataset.files
+            else float("nan")
+        ),
+        "ever_within_insert_xy_rate": (
+            bool_rate(dataset["ever_within_insert_xy"])
+            if "ever_within_insert_xy" in dataset.files
+            else float("nan")
+        ),
+        "drift_after_alignment_rate": (
+            bool_rate(dataset["drift_after_alignment"])
+            if "drift_after_alignment" in dataset.files
+            else float("nan")
+        ),
+        "descent_should_block_rate": (
+            bool_rate(dataset["descent_should_block"])
+            if "descent_should_block" in dataset.files
+            else float("nan")
+        ),
+        "oracle_lift_action_rate": (
+            bool_rate(dataset["oracle_lift_action"])
+            if "oracle_lift_action" in dataset.files
+            else float("nan")
+        ),
+        "oracle_down_action_rate": (
+            bool_rate(dataset["oracle_down_action"])
+            if "oracle_down_action" in dataset.files
+            else float("nan")
+        ),
+        "recovery_branch_rate": (
+            bool_rate(dataset["recovery_branch"])
+            if "recovery_branch" in dataset.files
+            else float("nan")
+        ),
+        "synthetic_recovery_state_rate": (
+            bool_rate(dataset["synthetic_recovery_state"])
+            if "synthetic_recovery_state" in dataset.files
+            else float("nan")
+        ),
         "outcome_counts": value_counts(dataset["episode_outcome"]) if "episode_outcome" in dataset.files else {},
         "scenario_counts": value_counts(dataset["scenario"]) if "scenario" in dataset.files else {},
         "tier_counts": value_counts(dataset["tier"]) if "tier" in dataset.files else {},
+        "recovery_phase_counts": (
+            value_counts(dataset["recovery_phase"])
+            if "recovery_phase" in dataset.files
+            else {}
+        ),
     }
     return summary
 

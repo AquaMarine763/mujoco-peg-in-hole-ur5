@@ -15,8 +15,10 @@ from peg_in_hole_mujoco.image_preprocess import ImagePreprocessConfig, preproces
 from peg_in_hole_mujoco.oracle_controller import (
     OracleControllerConfig,
     OracleMode,
+    contact_aware_recovery_oracle_action_from_state,
     guarded_two_stage_oracle_action_from_state,
     high_start_two_phase_oracle_action_from_state,
+    timeout_descent_progress_oracle_action_from_state,
     oracle_action_from_state,
     oracle_action,
 )
@@ -76,8 +78,10 @@ __all__ = [
     "SafetyFilter",
     "StepResult",
     "ZeroPolicyAdapter",
+    "contact_aware_recovery_oracle_action_from_state",
     "guarded_two_stage_oracle_action_from_state",
     "high_start_two_phase_oracle_action_from_state",
+    "timeout_descent_progress_oracle_action_from_state",
     "oracle_action_from_state",
     "oracle_action",
     "preprocess_camera_image",

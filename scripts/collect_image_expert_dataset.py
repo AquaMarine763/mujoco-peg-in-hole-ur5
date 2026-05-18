@@ -27,8 +27,19 @@ SCALAR_DIAGNOSTIC_KEYS = (
     "contact_solimp_width_multiplier",
     "joint_damping_multiplier",
     "actuator_kp_multiplier",
+    "action_tracking_error",
+    "ik_target_error",
+    "ik_iterations",
+    "joint_target_error",
 )
-VECTOR_DIAGNOSTIC_KEYS = ("hole_center_offset",)
+VECTOR_DIAGNOSTIC_KEYS = (
+    "hole_center_offset",
+    "action_target_tip_delta",
+    "action_actual_tip_delta",
+    "action_tip_delta_error",
+    "joint_target_qpos",
+    "joint_qpos_after_action",
+)
 DATASET_SCHEMA_VERSION = "image_expert_v2_diagnostics"
 
 
@@ -79,7 +90,31 @@ def read_sample_diagnostics(info: dict) -> dict[str, float | np.ndarray]:
         ),
         "joint_damping_multiplier": float(info.get("joint_damping_multiplier", np.nan)),
         "actuator_kp_multiplier": float(info.get("actuator_kp_multiplier", np.nan)),
+        "action_tracking_error": float(info.get("action_tracking_error", np.nan)),
+        "ik_target_error": float(info.get("ik_target_error", np.nan)),
+        "ik_iterations": float(info.get("ik_iterations", -1)),
+        "joint_target_error": float(info.get("joint_target_error", np.nan)),
         "hole_center_offset": hole_center_offset.astype(np.float32, copy=True),
+        "action_target_tip_delta": np.asarray(
+            info.get("action_target_tip_delta", [np.nan, np.nan, np.nan]),
+            dtype=np.float32,
+        ),
+        "action_actual_tip_delta": np.asarray(
+            info.get("action_actual_tip_delta", [np.nan, np.nan, np.nan]),
+            dtype=np.float32,
+        ),
+        "action_tip_delta_error": np.asarray(
+            info.get("action_tip_delta_error", [np.nan, np.nan, np.nan]),
+            dtype=np.float32,
+        ),
+        "joint_target_qpos": np.asarray(
+            info.get("joint_target_qpos", [np.nan] * 6),
+            dtype=np.float32,
+        ),
+        "joint_qpos_after_action": np.asarray(
+            info.get("joint_qpos_after_action", [np.nan] * 6),
+            dtype=np.float32,
+        ),
     }
 
 
@@ -105,7 +140,7 @@ def add_diagnostic_arrays(
     diagnostics: dict[str, list[float | np.ndarray]],
 ) -> None:
     for key in SCALAR_DIAGNOSTIC_KEYS:
-        dtype = np.int32 if key == "control_action_delay" else np.float32
+        dtype = np.int32 if key in ("control_action_delay", "ik_iterations") else np.float32
         arrays[key] = np.asarray(diagnostics[key], dtype=dtype)
     for key in VECTOR_DIAGNOSTIC_KEYS:
         arrays[key] = np.asarray(diagnostics[key], dtype=np.float32)
@@ -151,6 +186,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--guarded-max-down-action", type=float, default=0.0035)
     parser.add_argument("--guarded-max-up-action", type=float, default=0.005)
     parser.add_argument("--guarded-prediction-steps", type=float, default=1.0)
+    parser.add_argument("--guarded-hold-z-until-insert", action="store_true")
     parser.add_argument("--rollout-noise-std", type=float, default=0.0005)
     parser.add_argument("--seed", type=int, default=30_000)
     parser.add_argument(
@@ -169,6 +205,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--image-height", type=int, default=100)
     parser.add_argument("--include-near-hole-crop", action="store_true")
     parser.add_argument("--near-hole-crop-size", type=int, default=64)
+    parser.add_argument("--near-hole-crop-offset", nargs=2, type=int, default=(0, 0))
+    parser.add_argument("--include-control-state", action="store_true")
+    parser.add_argument("--image-frame-stack", type=int, default=1)
+    parser.add_argument("--wrist-camera-pos-offset", nargs=3, type=float, default=(0.0, 0.0, 0.0))
+    parser.add_argument(
+        "--wrist-camera-rot-offset-deg",
+        nargs=3,
+        type=float,
+        default=(0.0, 0.0, 0.0),
+    )
+    parser.add_argument("--wrist-camera-fovy", type=float, default=None)
     parser.add_argument("--max-steps", type=int, default=200)
     parser.add_argument("--action-scale", type=float, default=0.005)
     parser.add_argument("--control-action-scale-range", nargs=2, type=float, default=(0.8, 1.2))
@@ -207,6 +254,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--initial-tip-xy-offset-range", nargs=2, type=float, default=(0.08, 0.16))
     parser.add_argument("--initial-tip-xy-angle-range-deg", nargs=2, type=float, default=(0.0, 360.0))
     parser.add_argument("--initial-ik-max-attempts", type=int, default=20)
+    parser.add_argument("--ik-control-mode", choices=["position", "pose"], default="position")
+    parser.add_argument("--ik-orientation-weight", type=float, default=0.12)
+    parser.add_argument("--ik-posture-weight", type=float, default=0.01)
+    parser.add_argument("--ik-step-limit", type=float, default=0.06)
+    parser.add_argument("--ik-max-iterations", type=int, default=24)
     parser.add_argument("--success-xy-tolerance", type=float, default=0.005)
     parser.add_argument("--success-z-tolerance", type=float, default=0.01)
     parser.add_argument("--approach-xy-tolerance", type=float, default=0.06)
@@ -231,6 +283,12 @@ def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
         image_height=args.image_height,
         include_near_hole_crop=args.include_near_hole_crop,
         near_hole_crop_size=args.near_hole_crop_size,
+        near_hole_crop_offset=tuple(args.near_hole_crop_offset),
+        include_control_state=args.include_control_state,
+        image_frame_stack=args.image_frame_stack,
+        wrist_camera_pos_offset=tuple(args.wrist_camera_pos_offset),
+        wrist_camera_rot_offset_deg=tuple(args.wrist_camera_rot_offset_deg),
+        wrist_camera_fovy=args.wrist_camera_fovy,
         max_steps=args.max_steps,
         action_scale=args.action_scale,
         target_low=tuple(args.target_low),
@@ -240,6 +298,11 @@ def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
         initial_tip_xy_offset_range=tuple(args.initial_tip_xy_offset_range),
         initial_tip_xy_angle_range_deg=tuple(args.initial_tip_xy_angle_range_deg),
         initial_ik_max_attempts=args.initial_ik_max_attempts,
+        ik_control_mode=args.ik_control_mode,
+        ik_orientation_weight=args.ik_orientation_weight,
+        ik_posture_weight=args.ik_posture_weight,
+        ik_step_limit=args.ik_step_limit,
+        ik_max_iterations=args.ik_max_iterations,
         success_xy_tolerance=args.success_xy_tolerance,
         success_z_tolerance=args.success_z_tolerance,
         approach_xy_tolerance=args.approach_xy_tolerance,
@@ -288,10 +351,12 @@ def main() -> None:
         guarded_max_down_action=args.guarded_max_down_action,
         guarded_max_up_action=args.guarded_max_up_action,
         guarded_prediction_steps=args.guarded_prediction_steps,
+        guarded_hold_z_until_insert=args.guarded_hold_z_until_insert,
     )
 
     images: list[np.ndarray] = []
     near_hole_crops: list[np.ndarray] = []
+    control_states: list[np.ndarray] = []
     actions: list[np.ndarray] = []
     raw_actions: list[np.ndarray] = []
     target_positions: list[np.ndarray] = []
@@ -307,6 +372,7 @@ def main() -> None:
     episodes_kept = 0
     episode_images: list[np.ndarray] = []
     episode_near_hole_crops: list[np.ndarray] = []
+    episode_control_states: list[np.ndarray] = []
     episode_actions: list[np.ndarray] = []
     episode_raw_actions: list[np.ndarray] = []
     episode_target_positions: list[np.ndarray] = []
@@ -330,6 +396,9 @@ def main() -> None:
             sample_near_hole_crop = (
                 obs["near_hole_crop"].copy() if args.include_near_hole_crop else None
             )
+            sample_control_state = (
+                obs["control_state"].copy() if args.include_control_state else None
+            )
             sample_raw_action = action.copy()
             sample_action = (action / env.action_scale).astype(np.float32)
             sample_target_pos = info["target_pos"].copy()
@@ -343,6 +412,8 @@ def main() -> None:
                 episode_images.append(sample_image)
                 if sample_near_hole_crop is not None:
                     episode_near_hole_crops.append(sample_near_hole_crop)
+                if sample_control_state is not None:
+                    episode_control_states.append(sample_control_state)
                 episode_raw_actions.append(sample_raw_action)
                 episode_actions.append(sample_action)
                 episode_target_positions.append(sample_target_pos)
@@ -355,6 +426,8 @@ def main() -> None:
                 images.append(sample_image)
                 if sample_near_hole_crop is not None:
                     near_hole_crops.append(sample_near_hole_crop)
+                if sample_control_state is not None:
+                    control_states.append(sample_control_state)
                 raw_actions.append(sample_raw_action)
                 actions.append(sample_action)
                 target_positions.append(sample_target_pos)
@@ -379,6 +452,8 @@ def main() -> None:
                     images.extend(episode_images[:keep])
                     if args.include_near_hole_crop:
                         near_hole_crops.extend(episode_near_hole_crops[:keep])
+                    if args.include_control_state:
+                        control_states.extend(episode_control_states[:keep])
                     raw_actions.extend(episode_raw_actions[:keep])
                     actions.extend(episode_actions[:keep])
                     target_positions.extend(episode_target_positions[:keep])
@@ -390,6 +465,7 @@ def main() -> None:
                     episodes_kept += 1
                 episode_images = []
                 episode_near_hole_crops = []
+                episode_control_states = []
                 episode_actions = []
                 episode_raw_actions = []
                 episode_target_positions = []
@@ -415,6 +491,8 @@ def main() -> None:
     }
     if args.include_near_hole_crop:
         arrays["near_hole_crops"] = np.asarray(near_hole_crops, dtype=np.uint8)
+    if args.include_control_state:
+        arrays["control_state"] = np.asarray(control_states, dtype=np.float32)
     add_diagnostic_arrays(arrays, diagnostics)
     if args.compressed:
         np.savez_compressed(args.output, **arrays)
@@ -447,6 +525,7 @@ def main() -> None:
         "guarded_max_down_action": args.guarded_max_down_action,
         "guarded_max_up_action": args.guarded_max_up_action,
         "guarded_prediction_steps": args.guarded_prediction_steps,
+        "guarded_hold_z_until_insert": args.guarded_hold_z_until_insert,
         "rollout_noise_std": args.rollout_noise_std,
         "success_only": args.success_only,
         "success_xy_tolerance": args.success_xy_tolerance,
@@ -459,7 +538,13 @@ def main() -> None:
         "image_width": args.image_width,
         "image_height": args.image_height,
         "include_near_hole_crop": args.include_near_hole_crop,
+        "include_control_state": args.include_control_state,
+        "image_frame_stack": args.image_frame_stack,
         "near_hole_crop_size": args.near_hole_crop_size,
+        "near_hole_crop_offset": list(args.near_hole_crop_offset),
+        "wrist_camera_pos_offset": list(args.wrist_camera_pos_offset),
+        "wrist_camera_rot_offset_deg": list(args.wrist_camera_rot_offset_deg),
+        "wrist_camera_fovy": args.wrist_camera_fovy,
         "control_action_scale_range": list(args.control_action_scale_range),
         "control_action_noise_std_range": list(args.control_action_noise_std_range),
         "control_action_delay_range": list(args.control_action_delay_range),

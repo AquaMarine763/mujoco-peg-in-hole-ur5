@@ -28,6 +28,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--height", type=int, default=100)
     parser.add_argument("--include-near-hole-crop", action="store_true")
     parser.add_argument("--near-hole-crop-size", type=int, default=64)
+    parser.add_argument("--near-hole-crop-offset", nargs=2, type=int, default=(0, 0))
+    parser.add_argument("--include-control-state", action="store_true")
+    parser.add_argument("--image-frame-stack", type=int, default=1)
+    parser.add_argument("--wrist-camera-pos-offset", nargs=3, type=float, default=(0.0, 0.0, 0.0))
+    parser.add_argument(
+        "--wrist-camera-rot-offset-deg",
+        nargs=3,
+        type=float,
+        default=(0.0, 0.0, 0.0),
+    )
+    parser.add_argument("--wrist-camera-fovy", type=float, default=None)
     parser.add_argument("--domain-randomization", action="store_true")
     parser.add_argument(
         "--domain-randomization-level",
@@ -87,6 +98,12 @@ def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
         image_height=args.height,
         include_near_hole_crop=args.include_near_hole_crop,
         near_hole_crop_size=args.near_hole_crop_size,
+        near_hole_crop_offset=tuple(args.near_hole_crop_offset),
+        include_control_state=args.include_control_state,
+        image_frame_stack=args.image_frame_stack,
+        wrist_camera_pos_offset=tuple(args.wrist_camera_pos_offset),
+        wrist_camera_rot_offset_deg=tuple(args.wrist_camera_rot_offset_deg),
+        wrist_camera_fovy=args.wrist_camera_fovy,
         max_steps=args.max_steps,
         action_scale=args.action_scale,
         target_low=tuple(args.target_low),

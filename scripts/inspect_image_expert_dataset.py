@@ -126,6 +126,8 @@ def write_markdown(
         f"- Collision rate: `{metadata.get('collision_rate', 'unknown')}`",
         f"- Success-only: `{metadata.get('success_only', 'unknown')}`",
         f"- Has near-hole crops: `{'near_hole_crops' in arrays}`",
+        f"- Image frame stack: `{metadata.get('image_frame_stack', 'unknown')}`",
+        f"- Control state dim: `{arrays.get('control_state', {}).get('shape', ['none', 'none'])[1]}`",
         "",
         "## Arrays",
         "",
@@ -184,6 +186,23 @@ def main() -> None:
             add_stats(rows, "action_norm", np.linalg.norm(dataset["actions"], axis=1))
         if "raw_actions" in dataset.files:
             add_stats(rows, "raw_action_norm", np.linalg.norm(dataset["raw_actions"], axis=1))
+        if "control_state" in dataset.files:
+            control_state = dataset["control_state"]
+            if control_state.ndim == 2:
+                names = (
+                    "prev_cmd_x",
+                    "prev_cmd_y",
+                    "prev_cmd_z",
+                    "actual_delta_x",
+                    "actual_delta_y",
+                    "actual_delta_z",
+                    "tracking_error_x",
+                    "tracking_error_y",
+                    "tracking_error_z",
+                    "step_fraction",
+                )
+                for index in range(min(control_state.shape[1], len(names))):
+                    add_stats(rows, f"control_state_{names[index]}", control_state[:, index])
         if "episode_id" in dataset.files:
             unique_episodes = np.unique(dataset["episode_id"]).size
             rows.append(

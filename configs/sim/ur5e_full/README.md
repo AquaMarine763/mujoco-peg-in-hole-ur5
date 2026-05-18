@@ -260,10 +260,92 @@ policy/oracle actions and `86.7%` policy-down/oracle-up-or-less-down. The
 1-epoch weighted BC checkpoint is not a default because 20-episode same-seed
 evaluation was mixed and the demo still timed out near `8.4 mm` XY error.
 
+Hard high-start correction 2k pass:
+
+```powershell
+python scripts/collect_image_correction_dataset.py --config configs/sim/ur5e_full/collect_high_start_hard_correction_2k.yaml
+python scripts/inspect_image_correction_dataset.py --dataset datasets/ur5e_full/high_start/hard/correction/image_correction_high_start_hard_near_hole_plateau_2k.npz --output-md results/ur5e_full/high_start/hard/correction/image_correction_high_start_hard_2k_inspection.md --output-csv results/ur5e_full/high_start/hard/correction/image_correction_high_start_hard_2k_inspection.csv
+python scripts/pretrain_image_actor_bc_weighted.py --config configs/sim/ur5e_full/pretrain_high_start_hard_correction_2k_w05_e2.yaml
+python scripts/pretrain_image_actor_bc_weighted.py --config configs/sim/ur5e_full/pretrain_high_start_hard_correction_2k_w10_e2.yaml
+python scripts/eval_guarded_policy.py --config configs/sim/ur5e_full/eval_high_start_hard_correction_2k_w05_e2.yaml
+python scripts/eval_guarded_policy.py --config configs/sim/ur5e_full/eval_high_start_hard_correction_2k_w10_e2.yaml
+python scripts/demo_policy.py --config configs/sim/ur5e_full/demo_high_start_hard_correction_2k_w10_e2.yaml
+```
+
+This pass collected `2000` samples: `1000` visual_camera and `1000`
+visual_camera_control. The signal stayed strong: `74.9%` opposed actions and
+`86.8%` policy-down/oracle-up. Same-seed 20-episode evaluation showed the 5%
+replay candidate was effectively baseline, while the 10% replay candidate only
+improved hard bucket from `0.35` to `0.40`. The 10% demo still timed out near
+`8.4 mm` XY error and `30.6 mm` above target.
+
+Hard high-start bounded retry prototype:
+
+```powershell
+python scripts/eval_guarded_policy.py --config configs/sim/ur5e_full/eval_high_start_hard_retry_guarded_50k.yaml
+python scripts/demo_policy.py --config configs/sim/ur5e_full/demo_high_start_hard_retry_guarded_50k.yaml
+```
+
+The prototype adds retry diagnostics and bounds each retry attempt to avoid a
+long-lived controller takeover. The current result is negative, not promoted:
+same-seed 20-episode success was clean `0.300`, visual_camera `0.150`,
+visual_camera_control `0.250`, full_light_geometry `0.250`,
+full_contact_light `0.250`, hard_full_light_bucket `0.300`. The demo still
+timed out near `8.4 mm` XY error and `27.5 mm` above target after two retry
+attempts.
+
+Hard high-start no-prediction guarded controller:
+
+```powershell
+python scripts/eval_guarded_policy.py --config configs/sim/ur5e_full/eval_high_start_hard_pred0_guarded_50k.yaml
+python scripts/demo_policy.py --config configs/sim/ur5e_full/demo_high_start_hard_pred0_guarded_50k.yaml
+```
+
+This is now the strongest controller-only hard high-start result. It sets
+`guarded_prediction_steps: 0.0` while leaving the guarded controller otherwise
+close to the hard-safe baseline. Same-seed 100-episode success improved to:
+clean `0.560`, visual_camera `0.500`, visual_camera_control `0.530`,
+full_light_geometry `0.450`, full_contact_light `0.380`,
+hard_full_light_bucket `0.430`. The demo seed `571001` inserted in `411`
+steps. The neighboring seed `571000` still times out near the old `8 mm`
+plateau and should remain a hard-case diagnostic.
+
+Strict hold-Z diagnostic:
+
+```powershell
+python scripts/eval_guarded_policy.py --config configs/sim/ur5e_full/eval_high_start_hard_strict_align_guarded_50k.yaml
+python scripts/demo_policy.py --config configs/sim/ur5e_full/demo_high_start_hard_strict_align_guarded_50k.yaml
+```
+
+`guarded_hold_z_until_insert: true` with the old prediction setting was mostly
+flat versus baseline: clean `0.400`, visual_camera `0.250`,
+visual_camera_control `0.400`, full_light_geometry `0.250`,
+full_contact_light `0.300`, hard_full_light_bucket `0.350`. With prediction
+disabled, the same failed demo seed can enter the `5 mm` band, but it tends to
+oscillate when XY drifts back out during descent. Do not promote strict hold-Z
+yet.
+
+Hard high-start insert latch / descent hysteresis diagnostic:
+
+```powershell
+python scripts/eval_guarded_policy.py --config configs/sim/ur5e_full/eval_high_start_hard_pred0_latch_guarded_50k.yaml --hard-bucket-only --episodes 10
+python scripts/demo_policy.py --config configs/sim/ur5e_full/demo_high_start_hard_pred0_latch_guarded_50k.yaml
+```
+
+This config adds a stateful insert latch on top of
+`guarded_prediction_steps: 0.0`. It can pause descent after entering the `5 mm`
+insert band and includes a diagnostic two-stage recenter mode: lift first, then
+move laterally. It is not promoted. A 10-episode hard-bucket smoke reached only
+`0.400` success with `0.500` collision, and the hard demo seed `571000` still
+failed. The trace shows the peg can enter the `5 mm` band, but once it drifts
+and wedges inside the hole-wall height range, physical tracking becomes too
+slow for the latch/recenter controller to recover reliably.
+
 Next planned sequence:
 
-1. Expand hard-range correction to `2k - 10k` samples, including visual_camera_control.
-2. Tune correction replay weight/epochs and compare on a shared seed set.
-3. Test a guarded re-align/retry behavior for the final `5 - 15 mm` XY error band.
-4. Add larger randomized initial XY offsets only after hard high-start search works.
-5. Reintroduce control/geometry/contact randomization after the search stage is stable.
+1. Keep no-prediction guarded insertion as the current best controller-only hard high-start setting.
+2. Treat latch/recenter, retry, strict hold-Z, and two-phase guard as diagnostics until they clearly beat no-prediction guarded insertion.
+3. Add persistent action-tracking diagnostics if continuing controller work.
+4. Move the next learning iteration to contact-aware failure correction / DAgger for wedged near-hole states.
+5. Add larger randomized initial XY offsets only after hard high-start search works.
+6. Reintroduce control/geometry/contact randomization after the search stage is stable.

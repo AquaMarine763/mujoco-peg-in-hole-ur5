@@ -28,6 +28,7 @@ from peg_in_hole_mujoco.paths import resolve_model_path
 
 ObservationMode = Literal["image", "state"]
 InitializationMode = Literal["fixed", "target_relative_high_start"]
+IkControlMode = Literal["position", "pose"]
 DomainRandomizationLevel = Literal[
     "none",
     "visual",
@@ -107,6 +108,7 @@ class PegInHoleMujocoEnv(gym.Env):
         "hole_east",
         "hole_west",
     }
+    CONTROL_STATE_DIM = 10
 
     def __init__(
         self,
@@ -117,6 +119,9 @@ class PegInHoleMujocoEnv(gym.Env):
         image_height: int = 100,
         include_near_hole_crop: bool = False,
         near_hole_crop_size: int = 64,
+        near_hole_crop_offset: tuple[int, int] = (0, 0),
+        include_control_state: bool = False,
+        image_frame_stack: int = 1,
         max_steps: int = 200,
         frame_skip: int = 10,
         action_scale: float = 0.005,
@@ -139,6 +144,9 @@ class PegInHoleMujocoEnv(gym.Env):
         action_alignment_scale: float = 0.5,
         randomize_domain: bool = False,
         domain_randomization_level: DomainRandomizationLevel = "none",
+        wrist_camera_pos_offset: tuple[float, float, float] = (0.0, 0.0, 0.0),
+        wrist_camera_rot_offset_deg: tuple[float, float, float] = (0.0, 0.0, 0.0),
+        wrist_camera_fovy: float | None = None,
         camera_position_jitter: tuple[float, float, float] = (0.003, 0.003, 0.003),
         camera_rotation_jitter_deg: float = 2.0,
         image_brightness_range: tuple[float, float] = (0.75, 1.25),
@@ -159,7 +167,14 @@ class PegInHoleMujocoEnv(gym.Env):
         contact_solimp_width_multiplier_range: tuple[float, float] = (0.8, 1.2),
         dynamics_joint_damping_multiplier_range: tuple[float, float] = (0.8, 1.2),
         dynamics_actuator_kp_multiplier_range: tuple[float, float] = (0.8, 1.2),
+        nominal_joint_damping_multiplier: float = 1.0,
+        nominal_actuator_kp_multiplier: float = 1.0,
         ik_joint_count: int | None = None,
+        ik_control_mode: IkControlMode = "position",
+        ik_orientation_weight: float = 0.12,
+        ik_posture_weight: float = 0.01,
+        ik_step_limit: float = 0.06,
+        ik_max_iterations: int = 24,
         initialization_mode: InitializationMode = "fixed",
         initial_tip_z_above_range: tuple[float, float] = (0.15, 0.25),
         initial_tip_xy_offset_range: tuple[float, float] = (0.08, 0.16),
@@ -174,6 +189,8 @@ class PegInHoleMujocoEnv(gym.Env):
                 + ", ".join(INITIALIZATION_MODES)
                 + "."
             )
+        if ik_control_mode not in ("position", "pose"):
+            raise ValueError("ik_control_mode must be 'position' or 'pose'.")
         if domain_randomization_level not in DOMAIN_RANDOMIZATION_LEVELS:
             raise ValueError(
                 "domain_randomization_level must be one of: "
@@ -187,6 +204,9 @@ class PegInHoleMujocoEnv(gym.Env):
         self.image_height = int(image_height)
         self.include_near_hole_crop = bool(include_near_hole_crop)
         self.near_hole_crop_size = int(near_hole_crop_size)
+        self.near_hole_crop_offset = tuple(int(value) for value in near_hole_crop_offset)
+        self.include_control_state = bool(include_control_state)
+        self.image_frame_stack = int(image_frame_stack)
         self.max_steps = int(max_steps)
         self.frame_skip = int(frame_skip)
         self.action_scale = float(action_scale)
@@ -207,10 +227,20 @@ class PegInHoleMujocoEnv(gym.Env):
         self.distance_reward_scale = float(distance_reward_scale)
         self.action_penalty_scale = float(action_penalty_scale)
         self.action_alignment_scale = float(action_alignment_scale)
+        self.ik_control_mode = ik_control_mode
+        self.ik_orientation_weight = float(ik_orientation_weight)
+        self.ik_posture_weight = float(ik_posture_weight)
+        self.ik_step_limit = float(ik_step_limit)
+        self.ik_max_iterations = int(ik_max_iterations)
         if randomize_domain and domain_randomization_level == "none":
             domain_randomization_level = "visual"
         self.domain_randomization_level = domain_randomization_level
         self.randomize_domain = domain_randomization_level != "none"
+        self.wrist_camera_pos_offset = np.asarray(wrist_camera_pos_offset, dtype=np.float64)
+        self.wrist_camera_rot_offset_rad = np.deg2rad(
+            np.asarray(wrist_camera_rot_offset_deg, dtype=np.float64)
+        )
+        self.wrist_camera_fovy = None if wrist_camera_fovy is None else float(wrist_camera_fovy)
         self.camera_position_jitter = np.asarray(camera_position_jitter, dtype=np.float64)
         self.camera_rotation_jitter_rad = float(np.deg2rad(camera_rotation_jitter_deg))
         self.image_brightness_range = tuple(float(v) for v in image_brightness_range)
@@ -252,6 +282,8 @@ class PegInHoleMujocoEnv(gym.Env):
         self.dynamics_actuator_kp_multiplier_range = tuple(
             float(v) for v in dynamics_actuator_kp_multiplier_range
         )
+        self.nominal_joint_damping_multiplier = float(nominal_joint_damping_multiplier)
+        self.nominal_actuator_kp_multiplier = float(nominal_actuator_kp_multiplier)
         self.initialization_mode = initialization_mode
         self.initial_tip_z_above_range = tuple(float(v) for v in initial_tip_z_above_range)
         self.initial_tip_xy_offset_range = tuple(float(v) for v in initial_tip_xy_offset_range)
@@ -281,8 +313,11 @@ class PegInHoleMujocoEnv(gym.Env):
         self.current_contact_solref_time_multiplier = 1.0
         self.current_contact_solref_damping_multiplier = 1.0
         self.current_contact_solimp_width_multiplier = 1.0
-        self.current_joint_damping_multiplier = 1.0
-        self.current_actuator_kp_multiplier = 1.0
+        self.current_joint_damping_multiplier = self.nominal_joint_damping_multiplier
+        self.current_actuator_kp_multiplier = self.nominal_actuator_kp_multiplier
+        self.gray_frame_buffer: list[np.ndarray] = []
+        self.near_hole_crop_buffer: list[np.ndarray] = []
+        self.control_state_buffer: list[np.ndarray] = []
 
         asset_path = resolve_model_path(model_path)
         self.model = mujoco.MjModel.from_xml_path(str(asset_path))
@@ -301,12 +336,30 @@ class PegInHoleMujocoEnv(gym.Env):
             dtype=np.int32,
         )
         self.ik_joint_count = self._resolve_ik_joint_count(ik_joint_count)
+        if self.ik_control_mode == "pose":
+            self.ik_joint_count = len(self.ARM_JOINT_NAMES)
         self.arm_actuator_ids = np.asarray(
             [self._actuator_id(f"{name}_ctrl") for name in self.ARM_JOINT_NAMES],
             dtype=np.int32,
         )
         self.joint_ranges = self.model.jnt_range[self.arm_joint_ids].copy()
         self.rest_qpos = np.asarray([0.08, -1.2, 1.8, -0.6, 0.0, 0.0], dtype=np.float64)
+        self.last_tip_pos_before_action = np.zeros(3, dtype=np.float64)
+        self.last_target_tip_pos = np.zeros(3, dtype=np.float64)
+        self.last_target_tip_delta = np.zeros(3, dtype=np.float64)
+        self.last_ik_tip_pos = np.zeros(3, dtype=np.float64)
+        self.last_ik_target_error = 0.0
+        self.last_ik_orientation_error = 0.0
+        self.last_ik_iterations = 0
+        self.last_joint_qpos_before_action = self.rest_qpos.copy()
+        self.last_joint_target_qpos = self.rest_qpos.copy()
+        self.last_joint_qpos_after_action = self.rest_qpos.copy()
+        self.last_joint_target_error = 0.0
+        self.last_actual_tip_delta = np.zeros(3, dtype=np.float64)
+        self.last_tip_delta_error = np.zeros(3, dtype=np.float64)
+        self.last_action_tracking_error = 0.0
+        self.last_peg_axis_world = np.asarray([0.0, 0.0, -1.0], dtype=np.float64)
+        self.last_peg_tilt_angle_deg = 0.0
 
         self.peg_tip_site_id = self._site_id("peg_tip")
         self.eef_site_id = self._site_id("eef_site")
@@ -331,6 +384,7 @@ class PegInHoleMujocoEnv(gym.Env):
             ],
             dtype=np.int32,
         )
+        self.pose_ik_target_xmat = self._compute_rest_site_xmat(self.peg_tip_site_id)
 
         self.base_geom_rgba = self.model.geom_rgba.copy()
         self.base_geom_pos = self.model.geom_pos.copy()
@@ -340,8 +394,10 @@ class PegInHoleMujocoEnv(gym.Env):
         self.base_geom_solimp = self.model.geom_solimp.copy()
         self.base_site_pos = self.model.site_pos.copy()
         self.base_light_diffuse = self.model.light_diffuse.copy()
+        self._apply_nominal_wrist_camera_pose()
         self.base_cam_pos = self.model.cam_pos.copy()
         self.base_cam_quat = self.model.cam_quat.copy()
+        self.base_cam_fovy = self.model.cam_fovy.copy()
         self.base_dof_damping = self.model.dof_damping.copy()
         self.base_actuator_gainprm = self.model.actuator_gainprm.copy()
         self.base_actuator_biasprm = self.model.actuator_biasprm.copy()
@@ -363,7 +419,7 @@ class PegInHoleMujocoEnv(gym.Env):
                 "cam_image": spaces.Box(
                     low=0,
                     high=255,
-                    shape=(self.image_height, self.image_width, 1),
+                    shape=(self.image_height, self.image_width, self.image_frame_stack),
                     dtype=np.uint8,
                 )
             }
@@ -371,8 +427,19 @@ class PegInHoleMujocoEnv(gym.Env):
                 image_spaces["near_hole_crop"] = spaces.Box(
                     low=0,
                     high=255,
-                    shape=(self.near_hole_crop_size, self.near_hole_crop_size, 1),
+                    shape=(
+                        self.near_hole_crop_size,
+                        self.near_hole_crop_size,
+                        self.image_frame_stack,
+                    ),
                     dtype=np.uint8,
+                )
+            if self.include_control_state:
+                image_spaces["control_state"] = spaces.Box(
+                    low=-np.inf,
+                    high=np.inf,
+                    shape=(self.CONTROL_STATE_DIM * self.image_frame_stack,),
+                    dtype=np.float32,
                 )
             self.observation_space = spaces.Dict(image_spaces)
         else:
@@ -403,6 +470,8 @@ class PegInHoleMujocoEnv(gym.Env):
         mujoco.mj_forward(self.model, self.data)
         for _ in range(80):
             mujoco.mj_step(self.model, self.data)
+        self._reset_action_tracking_diagnostics()
+        self._clear_observation_history()
 
         self.previous_shaped_distance, _ = self._staged_distance()
         obs = self._get_obs()
@@ -422,11 +491,35 @@ class PegInHoleMujocoEnv(gym.Env):
             self.workspace_low,
             self.workspace_high,
         )
-        q_target = self._solve_position_ik(target_tip_pos)
+        joint_qpos_before = self.data.qpos[self.arm_qpos_ids].copy()
+        q_target, ik_tip_pos, ik_error, ik_iterations = self._solve_ik_with_diagnostics(
+            target_tip_pos
+        )
         self._set_arm_control(q_target)
+        joint_target_qpos = self.data.ctrl[self.arm_actuator_ids].copy()
 
         for _ in range(self.frame_skip):
             mujoco.mj_step(self.model, self.data)
+        next_tip_pos = self._site_xpos(self.data, self.peg_tip_site_id)
+        joint_qpos_after = self.data.qpos[self.arm_qpos_ids].copy()
+        actual_tip_delta = next_tip_pos - current_tip_pos
+        target_tip_delta = target_tip_pos - current_tip_pos
+        tip_delta_error = target_tip_delta - actual_tip_delta
+        self.last_tip_pos_before_action = current_tip_pos.copy()
+        self.last_target_tip_pos = target_tip_pos.copy()
+        self.last_target_tip_delta = target_tip_delta.copy()
+        self.last_ik_tip_pos = ik_tip_pos.copy()
+        self.last_ik_target_error = float(ik_error)
+        self.last_ik_orientation_error = self._current_pose_ik_orientation_error(self.data)
+        self.last_ik_iterations = int(ik_iterations)
+        self.last_joint_qpos_before_action = joint_qpos_before.copy()
+        self.last_joint_target_qpos = joint_target_qpos.copy()
+        self.last_joint_qpos_after_action = joint_qpos_after.copy()
+        self.last_joint_target_error = float(np.linalg.norm(joint_target_qpos - joint_qpos_after))
+        self.last_actual_tip_delta = actual_tip_delta.copy()
+        self.last_tip_delta_error = tip_delta_error.copy()
+        self.last_action_tracking_error = float(np.linalg.norm(tip_delta_error))
+        self.last_peg_axis_world, self.last_peg_tilt_angle_deg = self._peg_axis_and_tilt(self.data)
 
         collision = self._check_collision()
         terms = self._compute_reward(collision, applied_action)
@@ -454,6 +547,16 @@ class PegInHoleMujocoEnv(gym.Env):
             raise ValueError("image_width and image_height must be positive.")
         if self.near_hole_crop_size <= 0:
             raise ValueError("near_hole_crop_size must be positive.")
+        if len(self.near_hole_crop_offset) != 2:
+            raise ValueError("near_hole_crop_offset must contain two integer values.")
+        if self.image_frame_stack <= 0:
+            raise ValueError("image_frame_stack must be positive.")
+        if self.wrist_camera_pos_offset.shape != (3,):
+            raise ValueError("wrist_camera_pos_offset must contain three values.")
+        if self.wrist_camera_rot_offset_rad.shape != (3,):
+            raise ValueError("wrist_camera_rot_offset_deg must contain three values.")
+        if self.wrist_camera_fovy is not None and self.wrist_camera_fovy <= 0.0:
+            raise ValueError("wrist_camera_fovy must be positive when set.")
 
         ranges: tuple[tuple[str, tuple[float, float]], ...] = (
             ("image_brightness_range", self.image_brightness_range),
@@ -515,12 +618,24 @@ class PegInHoleMujocoEnv(gym.Env):
         for name, value_range in positive_multiplier_ranges:
             if value_range[0] <= 0.0:
                 raise ValueError(f"{name} must stay positive.")
+        if self.nominal_joint_damping_multiplier <= 0.0:
+            raise ValueError("nominal_joint_damping_multiplier must stay positive.")
+        if self.nominal_actuator_kp_multiplier <= 0.0:
+            raise ValueError("nominal_actuator_kp_multiplier must stay positive.")
         if self.initial_tip_z_above_range[0] < 0.0:
             raise ValueError("initial_tip_z_above_range cannot be negative.")
         if self.initial_tip_xy_offset_range[0] < 0.0:
             raise ValueError("initial_tip_xy_offset_range cannot be negative.")
         if self.initial_ik_max_attempts < 1:
             raise ValueError("initial_ik_max_attempts must be positive.")
+        if self.ik_orientation_weight < 0.0:
+            raise ValueError("ik_orientation_weight cannot be negative.")
+        if self.ik_posture_weight < 0.0:
+            raise ValueError("ik_posture_weight cannot be negative.")
+        if self.ik_step_limit <= 0.0:
+            raise ValueError("ik_step_limit must be positive.")
+        if self.ik_max_iterations < 1:
+            raise ValueError("ik_max_iterations must be positive.")
 
     def _joint_id(self, name: str) -> int:
         return self._named_id(mujoco.mjtObj.mjOBJ_JOINT, name)
@@ -542,6 +657,25 @@ class PegInHoleMujocoEnv(gym.Env):
         if obj_id < 0:
             raise RuntimeError(f"MuJoCo object not found: {name}")
         return int(obj_id)
+
+    def _reset_action_tracking_diagnostics(self) -> None:
+        tip_pos = self._site_xpos(self.data, self.peg_tip_site_id)
+        qpos = self.data.qpos[self.arm_qpos_ids].copy()
+        self.last_tip_pos_before_action = tip_pos.copy()
+        self.last_target_tip_pos = tip_pos.copy()
+        self.last_target_tip_delta = np.zeros(3, dtype=np.float64)
+        self.last_ik_tip_pos = tip_pos.copy()
+        self.last_ik_target_error = 0.0
+        self.last_ik_orientation_error = self._current_pose_ik_orientation_error(self.data)
+        self.last_ik_iterations = 0
+        self.last_joint_qpos_before_action = qpos.copy()
+        self.last_joint_target_qpos = qpos.copy()
+        self.last_joint_qpos_after_action = qpos.copy()
+        self.last_joint_target_error = 0.0
+        self.last_actual_tip_delta = np.zeros(3, dtype=np.float64)
+        self.last_tip_delta_error = np.zeros(3, dtype=np.float64)
+        self.last_action_tracking_error = 0.0
+        self.last_peg_axis_world, self.last_peg_tilt_angle_deg = self._peg_axis_and_tilt(self.data)
 
     def _resolve_ik_joint_count(self, requested_count: int | None) -> int:
         if requested_count is None:
@@ -733,9 +867,14 @@ class PegInHoleMujocoEnv(gym.Env):
         self.model.light_diffuse[:] = self.base_light_diffuse
         self.model.cam_pos[:] = self.base_cam_pos
         self.model.cam_quat[:] = self.base_cam_quat
+        self.model.cam_fovy[:] = self.base_cam_fovy
         self.model.dof_damping[:] = self.base_dof_damping
         self.model.actuator_gainprm[:] = self.base_actuator_gainprm
         self.model.actuator_biasprm[:] = self.base_actuator_biasprm
+        self._apply_arm_dynamics_multipliers(
+            self.nominal_joint_damping_multiplier,
+            self.nominal_actuator_kp_multiplier,
+        )
         self.data.mocap_pos[self.hole_mocap_id] = self.fixture_pos
         self.data.mocap_quat[self.hole_mocap_id] = np.asarray([1.0, 0.0, 0.0, 0.0])
         self.target_pos = self.fixture_pos.copy()
@@ -763,8 +902,26 @@ class PegInHoleMujocoEnv(gym.Env):
         self.current_contact_solref_time_multiplier = 1.0
         self.current_contact_solref_damping_multiplier = 1.0
         self.current_contact_solimp_width_multiplier = 1.0
-        self.current_joint_damping_multiplier = 1.0
-        self.current_actuator_kp_multiplier = 1.0
+        self.current_joint_damping_multiplier = self.nominal_joint_damping_multiplier
+        self.current_actuator_kp_multiplier = self.nominal_actuator_kp_multiplier
+
+    def _apply_arm_dynamics_multipliers(
+        self,
+        joint_damping_multiplier: float,
+        actuator_kp_multiplier: float,
+    ) -> None:
+        self.model.dof_damping[self.arm_dof_ids] = (
+            self.base_dof_damping[self.arm_dof_ids]
+            * joint_damping_multiplier
+        )
+        self.model.actuator_gainprm[self.arm_actuator_ids, 0] = (
+            self.base_actuator_gainprm[self.arm_actuator_ids, 0]
+            * actuator_kp_multiplier
+        )
+        self.model.actuator_biasprm[self.arm_actuator_ids, 1] = (
+            self.base_actuator_biasprm[self.arm_actuator_ids, 1]
+            * actuator_kp_multiplier
+        )
 
     def _randomize_control_channel(self) -> None:
         self.current_action_scale_multiplier = float(
@@ -914,11 +1071,17 @@ class PegInHoleMujocoEnv(gym.Env):
         self.current_contact_solimp_width_multiplier = float(
             self.np_random.uniform(*self.contact_solimp_width_multiplier_range)
         )
-        self.current_joint_damping_multiplier = float(
+        sampled_joint_damping_multiplier = float(
             self.np_random.uniform(*self.dynamics_joint_damping_multiplier_range)
         )
-        self.current_actuator_kp_multiplier = float(
+        sampled_actuator_kp_multiplier = float(
             self.np_random.uniform(*self.dynamics_actuator_kp_multiplier_range)
+        )
+        self.current_joint_damping_multiplier = (
+            self.nominal_joint_damping_multiplier * sampled_joint_damping_multiplier
+        )
+        self.current_actuator_kp_multiplier = (
+            self.nominal_actuator_kp_multiplier * sampled_actuator_kp_multiplier
         )
 
         self.model.geom_friction[self.contact_geom_ids] = (
@@ -943,17 +1106,9 @@ class PegInHoleMujocoEnv(gym.Env):
             1e-5,
             0.02,
         )
-        self.model.dof_damping[self.arm_dof_ids] = (
-            self.base_dof_damping[self.arm_dof_ids]
-            * self.current_joint_damping_multiplier
-        )
-        self.model.actuator_gainprm[self.arm_actuator_ids, 0] = (
-            self.base_actuator_gainprm[self.arm_actuator_ids, 0]
-            * self.current_actuator_kp_multiplier
-        )
-        self.model.actuator_biasprm[self.arm_actuator_ids, 1] = (
-            self.base_actuator_biasprm[self.arm_actuator_ids, 1]
-            * self.current_actuator_kp_multiplier
+        self._apply_arm_dynamics_multipliers(
+            self.current_joint_damping_multiplier,
+            self.current_actuator_kp_multiplier,
         )
 
     def _randomize_wrist_camera(self) -> None:
@@ -973,6 +1128,18 @@ class PegInHoleMujocoEnv(gym.Env):
         delta_quat = self._euler_xyz_to_quat(euler)
         camera_quat = self._quat_multiply(self.base_cam_quat[self.wrist_camera_id], delta_quat)
         self.model.cam_quat[self.wrist_camera_id] = camera_quat / np.linalg.norm(camera_quat)
+
+    def _apply_nominal_wrist_camera_pose(self) -> None:
+        self.model.cam_pos[self.wrist_camera_id] = (
+            self.model.cam_pos[self.wrist_camera_id] + self.wrist_camera_pos_offset
+        )
+        if np.any(np.abs(self.wrist_camera_rot_offset_rad) > 0.0):
+            base_quat = self.model.cam_quat[self.wrist_camera_id].copy()
+            delta_quat = self._euler_xyz_to_quat(self.wrist_camera_rot_offset_rad)
+            camera_quat = self._quat_multiply(base_quat, delta_quat)
+            self.model.cam_quat[self.wrist_camera_id] = camera_quat / np.linalg.norm(camera_quat)
+        if self.wrist_camera_fovy is not None:
+            self.model.cam_fovy[self.wrist_camera_id] = self.wrist_camera_fovy
 
     def _euler_xyz_to_quat(self, euler: np.ndarray) -> np.ndarray:
         roll, pitch, yaw = euler
@@ -1008,7 +1175,65 @@ class PegInHoleMujocoEnv(gym.Env):
     def _site_xpos(self, data: mujoco.MjData, site_id: int) -> np.ndarray:
         return data.site_xpos[site_id].copy()
 
+    def _site_xmat(self, data: mujoco.MjData, site_id: int) -> np.ndarray:
+        return data.site_xmat[site_id].reshape(3, 3).copy()
+
+    def _compute_rest_site_xmat(self, site_id: int) -> np.ndarray:
+        data = self.ik_data
+        data.qpos[:] = self.data.qpos
+        data.qvel[:] = 0.0
+        data.mocap_pos[:] = self.data.mocap_pos
+        data.mocap_quat[:] = self.data.mocap_quat
+        data.qpos[self.arm_qpos_ids] = self.rest_qpos
+        mujoco.mj_forward(self.model, data)
+        return self._site_xmat(data, site_id)
+
+    def _rotation_error(self, current_xmat: np.ndarray, target_xmat: np.ndarray) -> np.ndarray:
+        return 0.5 * (
+            np.cross(current_xmat[:, 0], target_xmat[:, 0])
+            + np.cross(current_xmat[:, 1], target_xmat[:, 1])
+            + np.cross(current_xmat[:, 2], target_xmat[:, 2])
+        )
+
+    def _current_pose_ik_orientation_error(self, data: mujoco.MjData) -> float:
+        current_xmat = self._site_xmat(data, self.peg_tip_site_id)
+        return float(np.linalg.norm(self._rotation_error(current_xmat, self.pose_ik_target_xmat)))
+
+    def _peg_axis_and_tilt(self, data: mujoco.MjData) -> tuple[np.ndarray, float]:
+        xmat = self._site_xmat(data, self.peg_tip_site_id)
+        axis = xmat @ np.asarray([0.0, 0.0, -1.0], dtype=np.float64)
+        axis_norm = float(np.linalg.norm(axis))
+        if axis_norm > 1e-9:
+            axis = axis / axis_norm
+        vertical_down = np.asarray([0.0, 0.0, -1.0], dtype=np.float64)
+        cosine = float(np.clip(np.dot(axis, vertical_down), -1.0, 1.0))
+        tilt_deg = float(np.rad2deg(np.arccos(cosine)))
+        return axis.astype(np.float64), tilt_deg
+
+    def _joint_limit_metrics(self, qpos: np.ndarray) -> tuple[float, float]:
+        lower = self.joint_ranges[:, 0]
+        upper = self.joint_ranges[:, 1]
+        span = np.maximum(upper - lower, 1e-9)
+        margin = np.minimum(qpos - lower, upper - qpos)
+        normalized_margin = margin / span
+        return float(np.min(margin)), float(np.min(normalized_margin))
+
+    def _solve_ik_with_diagnostics(
+        self,
+        target_pos: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray, float, int]:
+        if self.ik_control_mode == "pose":
+            return self._solve_pose_ik_with_diagnostics(target_pos)
+        return self._solve_position_ik_with_diagnostics(target_pos)
+
     def _solve_position_ik(self, target_pos: np.ndarray) -> np.ndarray:
+        q, _, _, _ = self._solve_ik_with_diagnostics(target_pos)
+        return q
+
+    def _solve_position_ik_with_diagnostics(
+        self,
+        target_pos: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray, float, int]:
         data = self.ik_data
         data.qpos[:] = self.data.qpos
         data.qvel[:] = 0.0
@@ -1025,8 +1250,10 @@ class PegInHoleMujocoEnv(gym.Env):
         jacp = np.zeros((3, self.model.nv), dtype=np.float64)
         jacr = np.zeros((3, self.model.nv), dtype=np.float64)
         damping = 1e-3
+        iterations = 0
 
-        for _ in range(18):
+        for iteration in range(18):
+            iterations = iteration + 1
             data.qpos[self.arm_qpos_ids] = q
             mujoco.mj_forward(self.model, data)
 
@@ -1047,7 +1274,79 @@ class PegInHoleMujocoEnv(gym.Env):
             )
 
         q[self.ik_joint_count :] = self.rest_qpos[self.ik_joint_count :]
-        return q
+        data.qpos[self.arm_qpos_ids] = q
+        mujoco.mj_forward(self.model, data)
+        achieved_tip = data.site_xpos[self.peg_tip_site_id].copy()
+        target_pos = np.asarray(target_pos, dtype=np.float64).reshape(3)
+        error = float(np.linalg.norm(target_pos - achieved_tip))
+        return q, achieved_tip, error, iterations
+
+    def _solve_pose_ik_with_diagnostics(
+        self,
+        target_pos: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray, float, int]:
+        data = self.ik_data
+        data.qpos[:] = self.data.qpos
+        data.qvel[:] = 0.0
+        data.mocap_pos[:] = self.data.mocap_pos
+        data.mocap_quat[:] = self.data.mocap_quat
+
+        q = data.qpos[self.arm_qpos_ids].copy()
+        ik_dof_ids = self.arm_dof_ids
+        lower = self.joint_ranges[:, 0]
+        upper = self.joint_ranges[:, 1]
+        target_pos = np.asarray(target_pos, dtype=np.float64).reshape(3)
+
+        jacp = np.zeros((3, self.model.nv), dtype=np.float64)
+        jacr = np.zeros((3, self.model.nv), dtype=np.float64)
+        damping = 1e-4
+        iterations = 0
+
+        for iteration in range(self.ik_max_iterations):
+            iterations = iteration + 1
+            data.qpos[self.arm_qpos_ids] = q
+            mujoco.mj_forward(self.model, data)
+
+            pos_error = target_pos - data.site_xpos[self.peg_tip_site_id]
+            current_xmat = self._site_xmat(data, self.peg_tip_site_id)
+            rot_error = self._rotation_error(current_xmat, self.pose_ik_target_xmat)
+            if np.linalg.norm(pos_error) < 1e-4 and np.linalg.norm(rot_error) < 2e-3:
+                break
+
+            mujoco.mj_jacSite(self.model, data, jacp, jacr, self.peg_tip_site_id)
+            jpos = jacp[:, ik_dof_ids]
+            jrot = jacr[:, ik_dof_ids]
+            jtask = np.vstack(
+                [
+                    jpos,
+                    self.ik_orientation_weight * jrot,
+                ]
+            )
+            task_error = np.concatenate(
+                [
+                    pos_error,
+                    self.ik_orientation_weight * rot_error,
+                ]
+            )
+
+            lhs = jtask.T @ jtask + damping * np.eye(len(ik_dof_ids), dtype=np.float64)
+            rhs = jtask.T @ task_error
+            if self.ik_posture_weight > 0.0:
+                lhs += self.ik_posture_weight * np.eye(len(ik_dof_ids), dtype=np.float64)
+                rhs += self.ik_posture_weight * (self.rest_qpos - q)
+
+            try:
+                dq = np.linalg.solve(lhs, rhs)
+            except np.linalg.LinAlgError:
+                dq = np.linalg.lstsq(lhs, rhs, rcond=None)[0]
+            dq = np.clip(dq, -self.ik_step_limit, self.ik_step_limit)
+            q = np.clip(q + dq, lower, upper)
+
+        data.qpos[self.arm_qpos_ids] = q
+        mujoco.mj_forward(self.model, data)
+        achieved_tip = data.site_xpos[self.peg_tip_site_id].copy()
+        error = float(np.linalg.norm(target_pos - achieved_tip))
+        return q, achieved_tip, error, iterations
 
     def _staged_distance(self) -> tuple[float, float]:
         tip_pos = self._site_xpos(self.data, self.peg_tip_site_id)
@@ -1107,6 +1406,9 @@ class PegInHoleMujocoEnv(gym.Env):
         )
 
     def _check_collision(self) -> bool:
+        return bool(self._collision_contact_pairs())
+
+    def _collision_contact_pairs(self) -> list[str]:
         tip_pos = self._site_xpos(self.data, self.peg_tip_site_id)
         dist_xy = np.linalg.norm(tip_pos[:2] - self.target_pos[:2])
         insertion_clearance_xy = max(
@@ -1118,8 +1420,9 @@ class PegInHoleMujocoEnv(gym.Env):
             and abs(tip_pos[2] - self.target_pos[2]) < 0.15
         )
         if close_to_hole:
-            return False
+            return []
 
+        pairs: list[str] = []
         for contact_index in range(self.data.ncon):
             contact = self.data.contact[contact_index]
             geom1 = self._geom_name(contact.geom1)
@@ -1132,8 +1435,8 @@ class PegInHoleMujocoEnv(gym.Env):
                 and geom1 in self.ENV_COLLISION_GEOMS
             )
             if robot_env_contact:
-                return True
-        return False
+                pairs.append(f"{geom1}:{geom2}")
+        return pairs
 
     def _geom_name(self, geom_id: int) -> str:
         return mujoco.mj_id2name(self.model, mujoco.mjtObj.mjOBJ_GEOM, geom_id) or ""
@@ -1148,18 +1451,66 @@ class PegInHoleMujocoEnv(gym.Env):
             + 0.114 * image[:, :, 2]
         )
         gray = self._augment_gray_image(gray).astype(np.uint8)
-        obs = {"cam_image": gray[:, :, None]}
+        obs = {"cam_image": self._stack_observation_value(self.gray_frame_buffer, gray)}
         if self.include_near_hole_crop:
-            obs["near_hole_crop"] = self._center_crop_gray(gray)[:, :, None]
+            crop = self._center_crop_gray(gray)
+            obs["near_hole_crop"] = self._stack_observation_value(
+                self.near_hole_crop_buffer,
+                crop,
+            )
+        if self.include_control_state:
+            control_state = self._get_control_state_obs()
+            obs["control_state"] = self._stack_control_state(control_state)
         return obs
+
+    def _clear_observation_history(self) -> None:
+        self.gray_frame_buffer = []
+        self.near_hole_crop_buffer = []
+        self.control_state_buffer = []
+
+    def _stack_observation_value(
+        self,
+        buffer: list[np.ndarray],
+        value: np.ndarray,
+    ) -> np.ndarray:
+        value = value.astype(np.uint8, copy=True)
+        if not buffer:
+            buffer.extend(value.copy() for _ in range(self.image_frame_stack))
+        else:
+            buffer.append(value.copy())
+            del buffer[: max(0, len(buffer) - self.image_frame_stack)]
+        return np.stack(buffer, axis=-1).astype(np.uint8, copy=False)
+
+    def _stack_control_state(self, control_state: np.ndarray) -> np.ndarray:
+        value = control_state.astype(np.float32, copy=True)
+        if not self.control_state_buffer:
+            self.control_state_buffer.extend(value.copy() for _ in range(self.image_frame_stack))
+        else:
+            self.control_state_buffer.append(value.copy())
+            del self.control_state_buffer[: max(0, len(self.control_state_buffer) - self.image_frame_stack)]
+        return np.concatenate(self.control_state_buffer, axis=0).astype(np.float32, copy=False)
+
+    def _get_control_state_obs(self) -> np.ndarray:
+        scale = max(self.action_scale, 1e-9)
+        commanded = self.last_commanded_action / scale
+        actual_delta = self.last_actual_tip_delta / scale
+        tracking_error = (self.last_commanded_action - self.last_actual_tip_delta) / scale
+        step_fraction = np.asarray(
+            [self.step_count / max(float(self.max_steps), 1.0)],
+            dtype=np.float64,
+        )
+        return np.concatenate(
+            [commanded, actual_delta, tracking_error, step_fraction],
+        ).astype(np.float32)
 
     def _center_crop_gray(self, gray: np.ndarray) -> np.ndarray:
         if self.near_hole_crop_size <= 0:
             raise ValueError("near_hole_crop_size must be positive.")
         height, width = gray.shape[:2]
         crop_size = min(self.near_hole_crop_size, height, width)
-        y0 = max(0, (height - crop_size) // 2)
-        x0 = max(0, (width - crop_size) // 2)
+        offset_x, offset_y = self.near_hole_crop_offset
+        x0 = int(np.clip((width - crop_size) // 2 + offset_x, 0, width - crop_size))
+        y0 = int(np.clip((height - crop_size) // 2 + offset_y, 0, height - crop_size))
         crop = gray[y0 : y0 + crop_size, x0 : x0 + crop_size]
         if crop.shape == (self.near_hole_crop_size, self.near_hole_crop_size):
             return crop
@@ -1221,6 +1572,10 @@ class PegInHoleMujocoEnv(gym.Env):
         if terms is None:
             terms = self._compute_reward(collision=False, action=None)
         tip_pos = self._site_xpos(self.data, self.peg_tip_site_id)
+        collision_contact_pairs = self._collision_contact_pairs()
+        joint_qpos = self.data.qpos[self.arm_qpos_ids].copy()
+        joint_limit_margin, joint_limit_normalized_margin = self._joint_limit_metrics(joint_qpos)
+        peg_axis_world, peg_tilt_angle_deg = self._peg_axis_and_tilt(self.data)
         return {
             "insertion_success": terms.inserted,
             "dist_xy": terms.dist_xy,
@@ -1228,11 +1583,33 @@ class PegInHoleMujocoEnv(gym.Env):
             "shaped_distance": terms.shaped_distance,
             "desired_z": terms.desired_z,
             "collision": terms.collision,
+            "collision_contact_count": len(collision_contact_pairs),
+            "collision_contact_pairs": ";".join(collision_contact_pairs[:8]),
             "target_pos": self.target_pos.astype(np.float32),
             "peg_tip_pos": tip_pos.astype(np.float32),
             "step_count": self.step_count,
             "commanded_action": self.last_commanded_action.astype(np.float32),
             "applied_action": self.last_applied_action.astype(np.float32),
+            "action_tip_pos_before": self.last_tip_pos_before_action.astype(np.float32),
+            "action_target_tip_pos": self.last_target_tip_pos.astype(np.float32),
+            "action_target_tip_delta": self.last_target_tip_delta.astype(np.float32),
+            "action_actual_tip_delta": self.last_actual_tip_delta.astype(np.float32),
+            "action_tip_delta_error": self.last_tip_delta_error.astype(np.float32),
+            "action_tracking_error": self.last_action_tracking_error,
+            "ik_tip_pos": self.last_ik_tip_pos.astype(np.float32),
+            "ik_target_error": self.last_ik_target_error,
+            "ik_orientation_error": self.last_ik_orientation_error,
+            "ik_iterations": self.last_ik_iterations,
+            "ik_control_mode": self.ik_control_mode,
+            "ik_joint_count": self.ik_joint_count,
+            "peg_axis_world": peg_axis_world.astype(np.float32),
+            "peg_tilt_angle_deg": peg_tilt_angle_deg,
+            "joint_limit_min_margin": joint_limit_margin,
+            "joint_limit_min_normalized_margin": joint_limit_normalized_margin,
+            "joint_qpos_before_action": self.last_joint_qpos_before_action.astype(np.float32),
+            "joint_target_qpos": self.last_joint_target_qpos.astype(np.float32),
+            "joint_qpos_after_action": self.last_joint_qpos_after_action.astype(np.float32),
+            "joint_target_error": self.last_joint_target_error,
             "control_action_scale_multiplier": self.current_action_scale_multiplier,
             "control_action_noise_std": self.current_action_noise_std,
             "control_action_delay": self.current_action_delay,
@@ -1252,4 +1629,10 @@ class PegInHoleMujocoEnv(gym.Env):
             "initial_tip_target": self.current_initial_tip_target.astype(np.float32),
             "initial_ik_error": self.current_initial_ik_error,
             "initial_ik_attempts": self.current_initial_ik_attempts,
+            "near_hole_crop_offset": np.asarray(self.near_hole_crop_offset, dtype=np.int32),
+            "wrist_camera_pos_offset": self.wrist_camera_pos_offset.astype(np.float32),
+            "wrist_camera_rot_offset_deg": np.rad2deg(
+                self.wrist_camera_rot_offset_rad
+            ).astype(np.float32),
+            "wrist_camera_fovy": float(self.model.cam_fovy[self.wrist_camera_id]),
         }
