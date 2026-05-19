@@ -36,11 +36,16 @@ Implemented so far:
   - sampled geometry: `square_square`
   - `1/1` success on the 1-episode guarded smoke
   - this confirms runtime peg shape switching is working on the full UR5e XML
+- Small matrix result:
+  - `mixed_basic`, 8 episodes, seed `612000`: `0.750/0.000/0.250`
+  - `round_square`, 8 episodes, seed `612000`: `0.875/0.000/0.125`
+  - `square_square`, 8 episodes, seed `612000`: `0.875/0.000/0.125`
+  - the separate `round_square` and `square_square` runs both failed only seed `612002`, with nearly identical final XY/Z, so the first bottleneck looks like the existing high-start/control trajectory rather than square-peg runtime geometry switching.
 
 Next step:
 
-- Run a small multi-geometry matrix and check whether `square_square` stays stable across more than one seed.
-- If that stays stable, add a small multi-geometry training/eval matrix before any larger dataset collection.
+- Promote the next experiment from smoke to a modest matrix, e.g. 20 episodes per profile.
+- If profile-specific performance remains stable, add data-collection support for multi-geometry before starting larger BC/RL training.
 
 ## Implemented So Far
 
