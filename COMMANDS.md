@@ -34,6 +34,29 @@ Current strongest randomized environment smoke test:
 python scripts\random_rollout.py --observation-mode state --episodes 1 --domain-randomization-level full_contact_light
 ```
 
+## Multi-Geometry Smoke
+
+The `feature/multi-geometry` branch keeps `geometry_profile=single` as the
+default. Use these checks to verify the experimental geometry scaffold.
+
+Direct environment reset with mixed geometry:
+
+```powershell
+python -c "from peg_in_hole_mujoco import PegInHoleMujocoEnv; env=PegInHoleMujocoEnv(model_path='assets/ur5e_full/ur5e_peg_in_hole_full.xml', geometry_profile='mixed_basic', domain_randomization_level='full_light_geometry'); obs, info = env.reset(seed=1); print(info['geometry_profile'], info['geometry_name'], info['peg_shape'], info['hole_shape'], info['hole_half_size'], info['peg_radius'], info['hole_clearance']); env.close()"
+```
+
+Force the square-peg/square-hole profile:
+
+```powershell
+python -c "from peg_in_hole_mujoco import PegInHoleMujocoEnv; env=PegInHoleMujocoEnv(model_path='assets/ur5e_full/ur5e_peg_in_hole_full.xml', geometry_profile='square_square'); obs, info = env.reset(seed=2); print(info['geometry_name'], info['peg_shape'], info['peg_half_extents']); env.close()"
+```
+
+Guarded policy smoke on the experimental mixed profile:
+
+```powershell
+python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_multi_geometry_smoke.yaml
+```
+
 ## Robot Model Compatibility / UR5e Adapter
 
 On the `feature/ur5e-mainline` branch, the default simulator uses the

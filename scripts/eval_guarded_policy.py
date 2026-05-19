@@ -230,6 +230,10 @@ STEP_TRACE_FIELDNAMES = [
     "control_action_noise_std",
     "control_action_delay",
     "control_action_filter_alpha",
+    "geometry_profile",
+    "geometry_name",
+    "peg_shape",
+    "hole_shape",
     "hole_half_size",
     "peg_radius",
     "hole_clearance",
@@ -315,6 +319,13 @@ def build_parser(
     parser.add_argument("--success-xy-tolerance", type=float, default=0.005)
     parser.add_argument("--success-z-tolerance", type=float, default=0.01)
     parser.add_argument("--geometry-hole-half-size-range", nargs=2, type=float, default=(0.017, 0.021))
+    parser.add_argument(
+        "--geometry-profile",
+        choices=["single", "round_square", "square_square", "mixed_basic"],
+        default="single",
+    )
+    parser.add_argument("--geometry-square-peg-half-size-range", nargs=2, type=float, default=(0.0105, 0.0125))
+    parser.add_argument("--geometry-mixed-square-probability", type=float, default=0.5)
     parser.add_argument("--nominal-joint-damping-multiplier", type=float, default=1.0)
     parser.add_argument("--nominal-actuator-kp-multiplier", type=float, default=1.0)
     parser.add_argument("--guard-near-actuator-kp-enabled", action="store_true")
@@ -573,6 +584,9 @@ def make_env(args: argparse.Namespace, scenario: Scenario) -> PegInHoleMujocoEnv
         geometry_table_height_jitter=scenario.geometry_table_height_jitter,
         geometry_hole_half_size_range=tuple(args.geometry_hole_half_size_range),
         geometry_peg_radius_range=scenario.geometry_peg_radius_range,
+        geometry_profile=args.geometry_profile,
+        geometry_square_peg_half_size_range=tuple(args.geometry_square_peg_half_size_range),
+        geometry_mixed_square_probability=args.geometry_mixed_square_probability,
         contact_friction_multiplier_range=scenario.contact_friction_multiplier_range,
         contact_solref_time_multiplier_range=scenario.contact_solref_time_multiplier_range,
         contact_solref_damping_multiplier_range=scenario.contact_solref_damping_multiplier_range,
@@ -1102,6 +1116,10 @@ def build_step_trace_row(
         "control_action_noise_std": float(post_info.get("control_action_noise_std", 0.0)),
         "control_action_delay": int(post_info.get("control_action_delay", 0)),
         "control_action_filter_alpha": float(post_info.get("control_action_filter_alpha", 1.0)),
+        "geometry_profile": str(post_info.get("geometry_profile", "")),
+        "geometry_name": str(post_info.get("geometry_name", "")),
+        "peg_shape": str(post_info.get("peg_shape", "")),
+        "hole_shape": str(post_info.get("hole_shape", "")),
         "hole_half_size": float(post_info.get("hole_half_size", np.nan)),
         "peg_radius": float(post_info.get("peg_radius", np.nan)),
         "hole_clearance": float(post_info.get("hole_half_size", np.nan) - post_info.get("peg_radius", np.nan)),
@@ -1493,6 +1511,10 @@ def evaluate_scenario(
             filter_alpha = float(info.get("control_action_filter_alpha", 1.0))
             joint_damping_multiplier = float(info.get("joint_damping_multiplier", 1.0))
             actuator_kp_multiplier = float(info.get("actuator_kp_multiplier", 1.0))
+            geometry_profile = str(info.get("geometry_profile", ""))
+            geometry_name = str(info.get("geometry_name", ""))
+            peg_shape = str(info.get("peg_shape", ""))
+            hole_shape = str(info.get("hole_shape", ""))
             hole_half_size = float(info.get("hole_half_size", np.nan))
             peg_radius = float(info.get("peg_radius", np.nan))
             episode_rows.append(
@@ -1554,6 +1576,10 @@ def evaluate_scenario(
                     "control_action_noise_std": noise,
                     "control_action_delay": delay,
                     "control_action_filter_alpha": filter_alpha,
+                    "geometry_profile": geometry_profile,
+                    "geometry_name": geometry_name,
+                    "peg_shape": peg_shape,
+                    "hole_shape": hole_shape,
                     "hole_half_size": hole_half_size,
                     "peg_radius": peg_radius,
                     "hole_clearance": hole_half_size - peg_radius,

@@ -29,6 +29,7 @@ from peg_in_hole_mujoco.paths import resolve_model_path
 ObservationMode = Literal["image", "state"]
 InitializationMode = Literal["fixed", "target_relative_high_start"]
 IkControlMode = Literal["position", "pose"]
+GeometryProfile = Literal["single", "round_square", "square_square", "mixed_basic"]
 DomainRandomizationLevel = Literal[
     "none",
     "visual",
@@ -53,6 +54,27 @@ INITIALIZATION_MODES = (
     "fixed",
     "target_relative_high_start",
 )
+
+GEOMETRY_PROFILES = (
+    "single",
+    "round_square",
+    "square_square",
+    "mixed_basic",
+)
+
+
+@dataclass(frozen=True)
+class GeometrySpec:
+    name: str
+    peg_shape: str
+    hole_shape: str
+    hole_half_size: float
+    peg_radius: float
+    peg_half_extents: tuple[float, float, float] | None = None
+
+    @property
+    def hole_clearance(self) -> float:
+        return self.hole_half_size - self.peg_radius
 
 
 @dataclass(frozen=True)
@@ -161,6 +183,9 @@ class PegInHoleMujocoEnv(gym.Env):
         geometry_table_height_jitter: float = 0.001,
         geometry_hole_half_size_range: tuple[float, float] = (0.017, 0.021),
         geometry_peg_radius_range: tuple[float, float] = (0.0115, 0.0125),
+        geometry_profile: GeometryProfile = "single",
+        geometry_square_peg_half_size_range: tuple[float, float] = (0.0105, 0.0125),
+        geometry_mixed_square_probability: float = 0.5,
         contact_friction_multiplier_range: tuple[float, float] = (0.7, 1.3),
         contact_solref_time_multiplier_range: tuple[float, float] = (0.8, 1.25),
         contact_solref_damping_multiplier_range: tuple[float, float] = (0.8, 1.2),
@@ -195,6 +220,12 @@ class PegInHoleMujocoEnv(gym.Env):
             raise ValueError(
                 "domain_randomization_level must be one of: "
                 + ", ".join(DOMAIN_RANDOMIZATION_LEVELS)
+                + "."
+            )
+        if geometry_profile not in GEOMETRY_PROFILES:
+            raise ValueError(
+                "geometry_profile must be one of: "
+                + ", ".join(GEOMETRY_PROFILES)
                 + "."
             )
 
@@ -264,6 +295,11 @@ class PegInHoleMujocoEnv(gym.Env):
             float(v) for v in geometry_hole_half_size_range
         )
         self.geometry_peg_radius_range = tuple(float(v) for v in geometry_peg_radius_range)
+        self.geometry_profile = geometry_profile
+        self.geometry_square_peg_half_size_range = tuple(
+            float(v) for v in geometry_square_peg_half_size_range
+        )
+        self.geometry_mixed_square_probability = float(geometry_mixed_square_probability)
         self.contact_friction_multiplier_range = tuple(
             float(v) for v in contact_friction_multiplier_range
         )
@@ -309,6 +345,13 @@ class PegInHoleMujocoEnv(gym.Env):
         self.current_initial_ik_attempts = 0
         self.current_hole_half_size = 0.027
         self.current_peg_radius = 0.012
+        self.current_geometry_spec = GeometrySpec(
+            name="single",
+            peg_shape="round",
+            hole_shape="square",
+            hole_half_size=self.current_hole_half_size,
+            peg_radius=self.current_peg_radius,
+        )
         self.current_contact_friction_multiplier = 1.0
         self.current_contact_solref_time_multiplier = 1.0
         self.current_contact_solref_damping_multiplier = 1.0
@@ -391,10 +434,24 @@ class PegInHoleMujocoEnv(gym.Env):
         self.base_geom_rgba = self.model.geom_rgba.copy()
         self.base_geom_pos = self.model.geom_pos.copy()
         self.base_geom_size = self.model.geom_size.copy()
+        self.base_geom_type = self.model.geom_type.copy()
+        self.base_geom_quat = self.model.geom_quat.copy()
         self.base_geom_friction = self.model.geom_friction.copy()
         self.base_geom_solref = self.model.geom_solref.copy()
         self.base_geom_solimp = self.model.geom_solimp.copy()
         self.base_site_pos = self.model.site_pos.copy()
+        self.base_hole_half_size = self._infer_base_hole_half_size()
+        self.base_peg_radius = float(self.base_geom_size[self.peg_geom_id, 0])
+        self.base_peg_half_length = self._infer_base_peg_half_length()
+        self.current_hole_half_size = self.base_hole_half_size
+        self.current_peg_radius = self.base_peg_radius
+        self.current_geometry_spec = self._make_geometry_spec(
+            name="single",
+            peg_shape="round",
+            hole_shape="square",
+            hole_half_size=self.current_hole_half_size,
+            peg_radius=self.current_peg_radius,
+        )
         self.base_light_diffuse = self.model.light_diffuse.copy()
         self._apply_nominal_wrist_camera_pose()
         self.base_cam_pos = self.model.cam_pos.copy()
@@ -569,6 +626,7 @@ class PegInHoleMujocoEnv(gym.Env):
             ("control_action_filter_alpha_range", self.control_action_filter_alpha_range),
             ("geometry_hole_half_size_range", self.geometry_hole_half_size_range),
             ("geometry_peg_radius_range", self.geometry_peg_radius_range),
+            ("geometry_square_peg_half_size_range", self.geometry_square_peg_half_size_range),
             ("contact_friction_multiplier_range", self.contact_friction_multiplier_range),
             ("contact_solref_time_multiplier_range", self.contact_solref_time_multiplier_range),
             ("contact_solref_damping_multiplier_range", self.contact_solref_damping_multiplier_range),
@@ -609,6 +667,10 @@ class PegInHoleMujocoEnv(gym.Env):
             raise ValueError("geometry_hole_half_size_range must stay positive.")
         if self.geometry_peg_radius_range[0] <= 0.0:
             raise ValueError("geometry_peg_radius_range must stay positive.")
+        if self.geometry_square_peg_half_size_range[0] <= 0.0:
+            raise ValueError("geometry_square_peg_half_size_range must stay positive.")
+        if not 0.0 <= self.geometry_mixed_square_probability <= 1.0:
+            raise ValueError("geometry_mixed_square_probability must be in [0, 1].")
         positive_multiplier_ranges = (
             ("contact_friction_multiplier_range", self.contact_friction_multiplier_range),
             ("contact_solref_time_multiplier_range", self.contact_solref_time_multiplier_range),
@@ -659,6 +721,159 @@ class PegInHoleMujocoEnv(gym.Env):
         if obj_id < 0:
             raise RuntimeError(f"MuJoCo object not found: {name}")
         return int(obj_id)
+
+    def _infer_base_hole_half_size(self) -> float:
+        north_id = self.hole_wall_geom_ids["hole_north"]
+        east_id = self.hole_wall_geom_ids["hole_east"]
+        site_pos = self.base_site_pos[self.hole_site_id]
+        y_half_size = (
+            self.base_geom_pos[north_id, 1]
+            - self.base_geom_size[north_id, 1]
+            - site_pos[1]
+        )
+        x_half_size = (
+            self.base_geom_pos[east_id, 0]
+            - self.base_geom_size[east_id, 0]
+            - site_pos[0]
+        )
+        return float(0.5 * (abs(x_half_size) + abs(y_half_size)))
+
+    def _infer_base_peg_half_length(self) -> float:
+        half_length = float(abs(self.base_geom_size[self.peg_geom_id, 1]))
+        if half_length > 0.0:
+            return half_length
+        tip_offset = self.base_site_pos[self.peg_tip_site_id] - self.base_site_pos[self.eef_site_id]
+        return float(max(np.linalg.norm(tip_offset) * 0.5, self.base_peg_radius))
+
+    def _make_geometry_spec(
+        self,
+        *,
+        name: str,
+        peg_shape: str,
+        hole_shape: str,
+        hole_half_size: float,
+        peg_radius: float,
+        peg_half_extents: tuple[float, float, float] | None = None,
+    ) -> GeometrySpec:
+        if peg_shape == "square" and peg_half_extents is None:
+            peg_half_extents = (
+                float(peg_radius),
+                float(peg_radius),
+                float(self.base_peg_half_length),
+            )
+        return GeometrySpec(
+            name=name,
+            peg_shape=peg_shape,
+            hole_shape=hole_shape,
+            hole_half_size=float(hole_half_size),
+            peg_radius=float(peg_radius),
+            peg_half_extents=peg_half_extents,
+        )
+
+    def _sample_geometry_spec(self, *, randomize_sizes: bool) -> GeometrySpec:
+        profile = self.geometry_profile
+        if profile == "mixed_basic":
+            profile = (
+                "square_square"
+                if self.np_random.random() < self.geometry_mixed_square_probability
+                else "round_square"
+            )
+
+        hole_half_size = (
+            float(self.np_random.uniform(*self.geometry_hole_half_size_range))
+            if randomize_sizes
+            else self.base_hole_half_size
+        )
+        round_peg_radius = (
+            float(self.np_random.uniform(*self.geometry_peg_radius_range))
+            if randomize_sizes
+            else self.base_peg_radius
+        )
+        square_peg_half_size = (
+            float(self.np_random.uniform(*self.geometry_square_peg_half_size_range))
+            if randomize_sizes
+            else min(self.base_peg_radius, self.base_hole_half_size * 0.8)
+        )
+
+        if profile in ("single", "round_square"):
+            return self._make_geometry_spec(
+                name=profile,
+                peg_shape="round",
+                hole_shape="square",
+                hole_half_size=hole_half_size,
+                peg_radius=round_peg_radius,
+            )
+        if profile == "square_square":
+            return self._make_geometry_spec(
+                name="square_square",
+                peg_shape="square",
+                hole_shape="square",
+                hole_half_size=hole_half_size,
+                peg_radius=square_peg_half_size,
+            )
+        raise ValueError(f"unsupported geometry profile: {profile}")
+
+    def _apply_peg_geometry(self, spec: GeometrySpec) -> None:
+        self.model.geom_pos[self.peg_geom_id] = self.base_geom_pos[self.peg_geom_id]
+        self.model.geom_quat[self.peg_geom_id] = self.base_geom_quat[self.peg_geom_id]
+
+        if spec.peg_shape == "round":
+            self.model.geom_type[self.peg_geom_id] = self.base_geom_type[self.peg_geom_id]
+            self.model.geom_size[self.peg_geom_id] = self.base_geom_size[self.peg_geom_id]
+            self.model.geom_size[self.peg_geom_id, 0] = spec.peg_radius
+            return
+
+        if spec.peg_shape == "square":
+            if spec.peg_half_extents is None:
+                raise ValueError("square peg geometry requires peg_half_extents.")
+            self.model.geom_type[self.peg_geom_id] = int(mujoco.mjtGeom.mjGEOM_BOX)
+            self.model.geom_size[self.peg_geom_id] = np.asarray(
+                spec.peg_half_extents,
+                dtype=np.float64,
+            )
+            return
+
+        raise ValueError(f"unsupported peg shape: {spec.peg_shape}")
+
+    def _apply_geometry_spec(
+        self,
+        spec: GeometrySpec,
+        *,
+        center_xy: np.ndarray,
+        fixture_height_offset: float,
+        table_height_offset: float,
+    ) -> None:
+        if spec.hole_shape != "square":
+            raise ValueError(f"unsupported hole shape: {spec.hole_shape}")
+
+        self.current_geometry_spec = spec
+        self.current_hole_half_size = spec.hole_half_size
+        self.current_peg_radius = spec.peg_radius
+        self.current_hole_center_offset = np.asarray(center_xy, dtype=np.float64)
+        self.current_fixture_height_offset = float(fixture_height_offset)
+        self.current_table_height_offset = float(table_height_offset)
+
+        fixture_pos = self.fixture_pos.copy()
+        fixture_pos[2] += self.current_fixture_height_offset
+        self.data.mocap_pos[self.hole_mocap_id] = fixture_pos
+        self.data.mocap_quat[self.hole_mocap_id] = np.asarray([1.0, 0.0, 0.0, 0.0])
+
+        table_pos = self.base_geom_pos[self.table_geom_id].copy()
+        table_pos[2] += self.current_table_height_offset
+        self.model.geom_pos[self.table_geom_id] = table_pos
+
+        self._apply_peg_geometry(spec)
+        self._set_hole_opening_geometry(self.current_hole_center_offset, spec.hole_half_size)
+
+        target_offset = np.asarray(
+            [
+                self.current_hole_center_offset[0],
+                self.current_hole_center_offset[1],
+                0.0,
+            ],
+            dtype=np.float64,
+        )
+        self.target_pos = fixture_pos + target_offset
 
     def _reset_action_tracking_diagnostics(self) -> None:
         tip_pos = self._site_xpos(self.data, self.peg_tip_site_id)
@@ -825,6 +1040,14 @@ class PegInHoleMujocoEnv(gym.Env):
 
     def _maybe_randomize_domain(self) -> None:
         self._restore_domain()
+        if self.geometry_profile != "single" and not self._uses_light_geometry_randomization():
+            spec = self._sample_geometry_spec(randomize_sizes=False)
+            self._apply_geometry_spec(
+                spec,
+                center_xy=np.zeros(2, dtype=np.float64),
+                fixture_height_offset=0.0,
+                table_height_offset=0.0,
+            )
         if not self.randomize_domain:
             return
 
@@ -862,6 +1085,8 @@ class PegInHoleMujocoEnv(gym.Env):
         self.model.geom_rgba[:] = self.base_geom_rgba
         self.model.geom_pos[:] = self.base_geom_pos
         self.model.geom_size[:] = self.base_geom_size
+        self.model.geom_type[:] = self.base_geom_type
+        self.model.geom_quat[:] = self.base_geom_quat
         self.model.geom_friction[:] = self.base_geom_friction
         self.model.geom_solref[:] = self.base_geom_solref
         self.model.geom_solimp[:] = self.base_geom_solimp
@@ -894,12 +1119,15 @@ class PegInHoleMujocoEnv(gym.Env):
         self.current_hole_center_offset = np.zeros(2, dtype=np.float64)
         self.current_fixture_height_offset = 0.0
         self.current_table_height_offset = 0.0
-        self.current_hole_half_size = float(
-            self.base_site_pos[self.hole_site_id, 0]
-            + self.base_geom_pos[self.hole_wall_geom_ids["hole_north"], 1]
-            - self.base_geom_size[self.hole_wall_geom_ids["hole_north"], 1]
+        self.current_hole_half_size = self.base_hole_half_size
+        self.current_peg_radius = self.base_peg_radius
+        self.current_geometry_spec = self._make_geometry_spec(
+            name="single",
+            peg_shape="round",
+            hole_shape="square",
+            hole_half_size=self.current_hole_half_size,
+            peg_radius=self.current_peg_radius,
         )
-        self.current_peg_radius = float(self.base_geom_size[self.peg_geom_id, 0])
         self.current_contact_friction_multiplier = 1.0
         self.current_contact_solref_time_multiplier = 1.0
         self.current_contact_solref_damping_multiplier = 1.0
@@ -993,50 +1221,29 @@ class PegInHoleMujocoEnv(gym.Env):
         return applied_action
 
     def _randomize_light_geometry(self) -> None:
-        self.current_hole_center_offset = self.np_random.uniform(
+        hole_center_offset = self.np_random.uniform(
             -self.geometry_hole_center_xy_jitter,
             self.geometry_hole_center_xy_jitter,
         )
-        self.current_fixture_height_offset = float(
+        fixture_height_offset = float(
             self.np_random.uniform(
                 -self.geometry_fixture_height_jitter,
                 self.geometry_fixture_height_jitter,
             )
         )
-        self.current_table_height_offset = float(
+        table_height_offset = float(
             self.np_random.uniform(
                 -self.geometry_table_height_jitter,
                 self.geometry_table_height_jitter,
             )
         )
-        self.current_hole_half_size = float(
-            self.np_random.uniform(*self.geometry_hole_half_size_range)
+        spec = self._sample_geometry_spec(randomize_sizes=True)
+        self._apply_geometry_spec(
+            spec,
+            center_xy=hole_center_offset,
+            fixture_height_offset=fixture_height_offset,
+            table_height_offset=table_height_offset,
         )
-        self.current_peg_radius = float(
-            self.np_random.uniform(*self.geometry_peg_radius_range)
-        )
-
-        fixture_pos = self.fixture_pos.copy()
-        fixture_pos[2] += self.current_fixture_height_offset
-        self.data.mocap_pos[self.hole_mocap_id] = fixture_pos
-        self.data.mocap_quat[self.hole_mocap_id] = np.asarray([1.0, 0.0, 0.0, 0.0])
-
-        table_pos = self.base_geom_pos[self.table_geom_id].copy()
-        table_pos[2] += self.current_table_height_offset
-        self.model.geom_pos[self.table_geom_id] = table_pos
-
-        self.model.geom_size[self.peg_geom_id, 0] = self.current_peg_radius
-        self._set_hole_opening_geometry(self.current_hole_center_offset, self.current_hole_half_size)
-
-        target_offset = np.asarray(
-            [
-                self.current_hole_center_offset[0],
-                self.current_hole_center_offset[1],
-                0.0,
-            ],
-            dtype=np.float64,
-        )
-        self.target_pos = fixture_pos + target_offset
 
     def _set_hole_opening_geometry(
         self,
@@ -1642,8 +1849,18 @@ class PegInHoleMujocoEnv(gym.Env):
             "hole_center_offset": self.current_hole_center_offset.astype(np.float32),
             "fixture_height_offset": self.current_fixture_height_offset,
             "table_height_offset": self.current_table_height_offset,
+            "geometry_profile": self.geometry_profile,
+            "geometry_name": self.current_geometry_spec.name,
+            "peg_shape": self.current_geometry_spec.peg_shape,
+            "hole_shape": self.current_geometry_spec.hole_shape,
             "hole_half_size": self.current_hole_half_size,
             "peg_radius": self.current_peg_radius,
+            "hole_clearance": self.current_geometry_spec.hole_clearance,
+            "peg_half_extents": (
+                np.asarray(self.current_geometry_spec.peg_half_extents, dtype=np.float32)
+                if self.current_geometry_spec.peg_half_extents is not None
+                else np.zeros(3, dtype=np.float32)
+            ),
             "contact_friction_multiplier": self.current_contact_friction_multiplier,
             "contact_solref_time_multiplier": self.current_contact_solref_time_multiplier,
             "contact_solref_damping_multiplier": self.current_contact_solref_damping_multiplier,

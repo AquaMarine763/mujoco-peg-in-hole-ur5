@@ -90,6 +90,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--geometry-table-height-jitter", type=float, default=0.001)
     parser.add_argument("--geometry-hole-half-size-range", nargs=2, type=float, default=(0.017, 0.021))
     parser.add_argument("--geometry-peg-radius-range", nargs=2, type=float, default=(0.0115, 0.0125))
+    parser.add_argument(
+        "--geometry-profile",
+        choices=["single", "round_square", "square_square", "mixed_basic"],
+        default="single",
+    )
+    parser.add_argument("--geometry-square-peg-half-size-range", nargs=2, type=float, default=(0.0105, 0.0125))
+    parser.add_argument("--geometry-mixed-square-probability", type=float, default=0.5)
     parser.add_argument("--contact-friction-multiplier-range", nargs=2, type=float, default=(0.7, 1.3))
     parser.add_argument("--contact-solref-time-multiplier-range", nargs=2, type=float, default=(0.8, 1.25))
     parser.add_argument("--contact-solref-damping-multiplier-range", nargs=2, type=float, default=(0.8, 1.2))
@@ -376,6 +383,9 @@ def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
         geometry_table_height_jitter=args.geometry_table_height_jitter,
         geometry_hole_half_size_range=tuple(args.geometry_hole_half_size_range),
         geometry_peg_radius_range=tuple(args.geometry_peg_radius_range),
+        geometry_profile=args.geometry_profile,
+        geometry_square_peg_half_size_range=tuple(args.geometry_square_peg_half_size_range),
+        geometry_mixed_square_probability=args.geometry_mixed_square_probability,
         contact_friction_multiplier_range=tuple(args.contact_friction_multiplier_range),
         contact_solref_time_multiplier_range=tuple(args.contact_solref_time_multiplier_range),
         contact_solref_damping_multiplier_range=tuple(args.contact_solref_damping_multiplier_range),

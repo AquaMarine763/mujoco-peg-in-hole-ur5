@@ -8,13 +8,39 @@ This file records the current project status, known metrics, and next planned st
 
 The project is moving from a lightweight MuJoCo UR5e-like peg-in-hole environment toward a more faithful UR5e simulation and a cautious sim-to-real pipeline.
 
-The immediate objective is to resolve the hard high-start near-hole insertion plateau on the full UR5e task. Recent guard/final-servo/preinsert tuning improved rewards and trajectory shape but did not convert timeouts into successes, so the current focus has moved down one layer to UR5e Cartesian control and IK diagnostics. Pose IK is now the preferred controller mode. Pose-aware tail replay and the follow-up recovery-sequence replay both ran end-to-end, but hard-gate performance stayed flat. The key lesson is that guarded eval with `guard_blend=1.0` masks most near-hole policy changes after guard activation, so the next useful work is controller/guard behavior and low-level Cartesian tracking near contact, not more near-hole BC replay.
+The current branch is now split into two tracks:
+
+- `feature/control-state-observation`: the stabilized single-geometry high-start controller baseline.
+- `feature/multi-geometry`: the new experimental branch for geometry generalization.
+
+The immediate objective on `feature/multi-geometry` is to keep the single-geometry baseline intact while adding a conservative multi-geometry scaffold. The first stage is runtime geometry selection (`single`, `round_square`, `square_square`, `mixed_basic`) with no change to the default `single` path. The next stage is to evaluate whether the new geometry profile actually trains and evaluates cleanly before collecting any larger multi-geometry dataset.
 
 ## Current Branch And Remote
 
-- Branch: `feature/control-state-observation`
+- Branch: `feature/multi-geometry`
 - Remote: `https://github.com/AquaMarine763/mujoco-peg-in-hole-ur5.git`
-- Latest known pushed milestone: `v0.6.49` / `0c62f5b Promote full UR5e high-start controller milestone`
+- Latest local single-geometry milestone: `v0.6.50-single-geometry` / `4a0f65f Promote strict single-geometry high-start baseline`
+
+## Multi-Geometry Branch Status
+
+Implemented so far:
+
+- `PegInHoleMujocoEnv` now accepts `geometry_profile`.
+- The env can sample/apply `single`, `round_square`, `square_square`, and `mixed_basic`.
+- Runtime peg geometry switching is working on the full UR5e XML.
+- `scripts\train_sac.py`, `scripts\demo_policy.py`, `scripts\eval_guarded_policy.py`, and `scripts\run_policy_inference.py` accept the new geometry args.
+- Smoke config:
+  - `configs\sim\ur5e_full\eval_multi_geometry_smoke.yaml`
+- Smoke result:
+  - `mixed_basic` reset/eval smoke passed on seed `612000`
+  - sampled geometry: `square_square`
+  - `1/1` success on the 1-episode guarded smoke
+  - this confirms runtime peg shape switching is working on the full UR5e XML
+
+Next step:
+
+- Run a small multi-geometry matrix and check whether `square_square` stays stable across more than one seed.
+- If that stays stable, add a small multi-geometry training/eval matrix before any larger dataset collection.
 
 ## Implemented So Far
 

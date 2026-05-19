@@ -22,6 +22,7 @@ The current focus is:
 - Prefer concrete commands, current metrics, and next-step plans over abstract discussion.
 - Keep useful project milestones documented.
 - Push useful stable milestones to GitHub when requested, but do not push every small local change automatically.
+- Keep `PLAN.md`, `COMMANDS.md`, and `AGENTS.md` aligned with the active branch and the current experimental focus.
 - Do not ask unnecessary questions; make conservative assumptions when the repo context is enough.
 - The user permits opening Codex sub-agents / parallel tool work when useful for bounded subtasks or parallel experiments. Use this only when it materially speeds the task; keep write scopes separated and do not duplicate work.
 
@@ -41,7 +42,8 @@ The current focus is:
 ## Repo Conventions
 
 - Repo root: `D:\peg-in-hole-6yh\mujoco_peg_in_hole`
-- Current UR5e branch: `feature/control-state-observation`
+- Current experimental branch: `feature/multi-geometry`
+- Stabilized single-geometry baseline branch: `feature/control-state-observation`
 - Remote: `https://github.com/AquaMarine763/mujoco-peg-in-hole-ur5.git`
 - Default task model remains the lightweight UR5e adapter unless explicitly switched:
   - `assets/ur5e_adapter/ur5e_peg_in_hole.xml`
@@ -53,6 +55,11 @@ The current focus is:
   - randomized geometry opening about `34 - 42 mm`
   - current full UR5e guarded alignment threshold: `0.020 m`
   - current full UR5e guarded blend: `1.0`
+- Multi-geometry status:
+  - `PegInHoleMujocoEnv` now supports `geometry_profile`.
+  - Supported profiles are `single`, `round_square`, `square_square`, and `mixed_basic`.
+  - Keep `single` as the default path unless an experiment explicitly overrides it.
+  - The new branch is for geometry generalization experiments, not a replacement for the stabilized single-geometry controller work.
 - UR5e controller status:
   - Default remains position-only peg-tip IK for checkpoint compatibility.
   - Experimental `ik_control_mode=pose` is implemented in `PegInHoleMujocoEnv` and exposed in guarded eval, demo, inference, and `scripts\diagnose_ur5e_controller.py`.
