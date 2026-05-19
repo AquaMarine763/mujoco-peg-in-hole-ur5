@@ -21,15 +21,18 @@ class GuardedDeploymentState:
     peg_tip_pos: np.ndarray
     target_pos: np.ndarray
     applied_action: np.ndarray = field(default_factory=lambda: np.zeros(3, dtype=np.float64))
+    actual_tip_delta: np.ndarray = field(default_factory=lambda: np.zeros(3, dtype=np.float64))
     approach_height: float = 0.08
     action_low: np.ndarray = field(default_factory=lambda: np.full(3, -0.005, dtype=np.float64))
     action_high: np.ndarray = field(default_factory=lambda: np.full(3, 0.005, dtype=np.float64))
     dist_xy: float | None = None
+    hole_clearance: float | None = None
 
     def __post_init__(self) -> None:
         _as_vector3(self.peg_tip_pos, "peg_tip_pos")
         _as_vector3(self.target_pos, "target_pos")
         _as_vector3(self.applied_action, "applied_action")
+        _as_vector3(self.actual_tip_delta, "actual_tip_delta")
         low = _as_vector3(self.action_low, "action_low")
         high = _as_vector3(self.action_high, "action_high")
         if self.approach_height < 0.0:
@@ -38,6 +41,8 @@ class GuardedDeploymentState:
             raise ValueError("action_low must be lower than action_high.")
         if self.dist_xy is not None and self.dist_xy < 0.0:
             raise ValueError("dist_xy cannot be negative.")
+        if self.hole_clearance is not None and self.hole_clearance < 0.0:
+            raise ValueError("hole_clearance cannot be negative.")
 
     @classmethod
     def from_info(
@@ -48,14 +53,20 @@ class GuardedDeploymentState:
         action_low: np.ndarray | tuple[float, float, float] = (-0.005, -0.005, -0.005),
         action_high: np.ndarray | tuple[float, float, float] = (0.005, 0.005, 0.005),
     ) -> "GuardedDeploymentState":
+        hole_clearance = _hole_clearance_from_info(info)
         return cls(
             peg_tip_pos=np.asarray(info["peg_tip_pos"], dtype=np.float64),
             target_pos=np.asarray(info["target_pos"], dtype=np.float64),
             applied_action=np.asarray(info.get("applied_action", np.zeros(3)), dtype=np.float64),
+            actual_tip_delta=np.asarray(
+                info.get("action_actual_tip_delta", np.zeros(3)),
+                dtype=np.float64,
+            ),
             approach_height=float(approach_height),
             action_low=np.asarray(action_low, dtype=np.float64),
             action_high=np.asarray(action_high, dtype=np.float64),
             dist_xy=float(info["dist_xy"]) if "dist_xy" in info else None,
+            hole_clearance=hole_clearance,
         )
 
 
@@ -134,6 +145,7 @@ class GuardedPolicyConfig:
     guard_insert_latch_release_xy: float = 0.009
     guard_insert_latch_resume_xy: float = 0.005
     guard_insert_latch_recenter_height: float = 0.0
+    guard_insert_latch_recenter_z_tolerance: float = 0.0
     guard_insert_latch_max_down_action: float = 0.0
     guard_hover_enabled: bool = False
     guard_hover_xy_tolerance: float = 0.004
@@ -170,6 +182,40 @@ class GuardedPolicyConfig:
     guard_preinsert_recenter_max_steps: int = 80
     guard_preinsert_recenter_max_xy_action: float = 0.005
     guard_preinsert_recenter_max_up_action: float = 0.005
+    guard_preinsert_recenter_lift_before_lateral: bool = False
+    guard_approach_recenter_enabled: bool = False
+    guard_approach_recenter_requires_stateful_recovery: bool = True
+    guard_approach_recenter_start_z: float = 0.075
+    guard_approach_recenter_min_z: float = 0.045
+    guard_approach_recenter_trigger_xy: float = 0.010
+    guard_approach_recenter_max_xy: float = 0.030
+    guard_approach_recenter_stable_xy: float = 0.005
+    guard_approach_recenter_height: float = 0.060
+    guard_approach_recenter_z_tolerance: float = 0.012
+    guard_approach_recenter_stable_steps: int = 2
+    guard_approach_recenter_max_steps: int = 220
+    guard_approach_recenter_max_xy_action: float = 0.005
+    guard_approach_recenter_max_up_action: float = 0.005
+    guard_approach_recenter_xy_bias: tuple[float, float] = (0.0, 0.0)
+    guard_stateful_recovery_enabled: bool = False
+    guard_stateful_recovery_trigger_xy_min: float = 0.006
+    guard_stateful_recovery_trigger_xy_max: float = 0.030
+    guard_stateful_recovery_trigger_z_max: float = 0.130
+    guard_stateful_recovery_lift_height: float = 0.060
+    guard_stateful_recovery_lift_z_tolerance: float = 0.006
+    guard_stateful_recovery_release_xy: float = 0.0048
+    guard_stateful_recovery_resume_xy: float = 0.0065
+    guard_stateful_recovery_resume_z: float = 0.012
+    guard_stateful_recovery_stable_steps: int = 4
+    guard_stateful_recovery_stall_steps: int = 100
+    guard_stateful_recovery_min_xy_progress: float = 0.00035
+    guard_stateful_recovery_min_actual_xy_motion: float = 0.00012
+    guard_stateful_recovery_min_command_xy: float = 0.0025
+    guard_stateful_recovery_max_attempts: int = 1
+    guard_stateful_recovery_max_steps: int = 220
+    guard_stateful_recovery_max_xy_action: float = 0.005
+    guard_stateful_recovery_max_down_action: float = 0.0015
+    guard_stateful_recovery_max_up_action: float = 0.005
     guard_final_servo_enabled: bool = False
     guard_final_servo_start_xy: float = 0.012
     guard_final_servo_start_z: float = 0.070
@@ -177,11 +223,24 @@ class GuardedPolicyConfig:
     guard_final_servo_hover_height: float = 0.040
     guard_final_servo_hover_z_tolerance: float = 0.010
     guard_final_servo_stable_xy: float = 0.0045
+    guard_final_servo_descent_start_xy: float = 0.0
     guard_final_servo_stable_steps: int = 6
     guard_final_servo_release_xy: float = 0.008
     guard_final_servo_max_xy_action: float = 0.0025
     guard_final_servo_max_down_action: float = 0.0015
+    guard_final_servo_low_recenter_enabled: bool = False
+    guard_final_servo_low_recenter_z_max: float = 0.012
+    guard_final_servo_low_recenter_trigger_xy: float = 0.0065
+    guard_final_servo_low_recenter_release_xy: float = 0.0055
+    guard_final_servo_low_recenter_height: float = 0.010
+    guard_final_servo_low_recenter_stable_steps: int = 2
+    guard_final_servo_low_recenter_max_steps: int = 120
+    guard_final_servo_low_recenter_max_up_action: float = 0.003
+    guard_final_servo_low_recenter_stall_steps: int = 0
+    guard_final_servo_low_recenter_min_xy_progress: float = 0.0001
     guard_final_servo_descend_xy_bias: tuple[float, float] = (0.0, 0.0)
+    guard_final_servo_descend_xy_bias_max_clearance: float = float("inf")
+    guard_final_servo_descend_xy_bias_requires_stateful_recovery: bool = False
     guard_final_servo_lift_height: float = 0.060
     guard_final_servo_stall_steps: int = 80
     guard_final_servo_min_z_progress: float = 0.002
@@ -244,6 +303,8 @@ class GuardedPolicyConfig:
             )
         if self.guard_insert_latch_recenter_height < 0.0:
             raise ValueError("guard_insert_latch_recenter_height cannot be negative.")
+        if self.guard_insert_latch_recenter_z_tolerance < 0.0:
+            raise ValueError("guard_insert_latch_recenter_z_tolerance cannot be negative.")
         if self.guard_insert_latch_max_down_action < 0.0:
             raise ValueError("guard_insert_latch_max_down_action cannot be negative.")
         if self.guard_hover_xy_tolerance <= 0.0:
@@ -321,6 +382,86 @@ class GuardedPolicyConfig:
             raise ValueError("guard_preinsert_recenter_max_xy_action must be positive.")
         if self.guard_preinsert_recenter_max_up_action <= 0.0:
             raise ValueError("guard_preinsert_recenter_max_up_action must be positive.")
+        if self.guard_approach_recenter_start_z <= 0.0:
+            raise ValueError("guard_approach_recenter_start_z must be positive.")
+        if self.guard_approach_recenter_min_z < 0.0:
+            raise ValueError("guard_approach_recenter_min_z cannot be negative.")
+        if self.guard_approach_recenter_min_z > self.guard_approach_recenter_start_z:
+            raise ValueError(
+                "guard_approach_recenter_min_z must be <= guard_approach_recenter_start_z."
+            )
+        if self.guard_approach_recenter_trigger_xy <= 0.0:
+            raise ValueError("guard_approach_recenter_trigger_xy must be positive.")
+        if self.guard_approach_recenter_max_xy <= self.guard_approach_recenter_trigger_xy:
+            raise ValueError(
+                "guard_approach_recenter_max_xy must be greater than "
+                "guard_approach_recenter_trigger_xy."
+            )
+        if self.guard_approach_recenter_stable_xy <= 0.0:
+            raise ValueError("guard_approach_recenter_stable_xy must be positive.")
+        if self.guard_approach_recenter_stable_xy > self.guard_approach_recenter_trigger_xy:
+            raise ValueError(
+                "guard_approach_recenter_stable_xy must be <= "
+                "guard_approach_recenter_trigger_xy."
+            )
+        if self.guard_approach_recenter_height <= 0.0:
+            raise ValueError("guard_approach_recenter_height must be positive.")
+        if self.guard_approach_recenter_z_tolerance <= 0.0:
+            raise ValueError("guard_approach_recenter_z_tolerance must be positive.")
+        if self.guard_approach_recenter_stable_steps <= 0:
+            raise ValueError("guard_approach_recenter_stable_steps must be positive.")
+        if self.guard_approach_recenter_max_steps <= 0:
+            raise ValueError("guard_approach_recenter_max_steps must be positive.")
+        if self.guard_approach_recenter_max_xy_action <= 0.0:
+            raise ValueError("guard_approach_recenter_max_xy_action must be positive.")
+        if self.guard_approach_recenter_max_up_action <= 0.0:
+            raise ValueError("guard_approach_recenter_max_up_action must be positive.")
+        if len(self.guard_approach_recenter_xy_bias) != 2:
+            raise ValueError("guard_approach_recenter_xy_bias must contain two values.")
+        if self.guard_stateful_recovery_trigger_xy_min < 0.0:
+            raise ValueError("guard_stateful_recovery_trigger_xy_min cannot be negative.")
+        if self.guard_stateful_recovery_trigger_xy_max <= self.guard_stateful_recovery_trigger_xy_min:
+            raise ValueError(
+                "guard_stateful_recovery_trigger_xy_max must be greater than "
+                "guard_stateful_recovery_trigger_xy_min."
+            )
+        if self.guard_stateful_recovery_trigger_z_max <= 0.0:
+            raise ValueError("guard_stateful_recovery_trigger_z_max must be positive.")
+        if self.guard_stateful_recovery_lift_height <= 0.0:
+            raise ValueError("guard_stateful_recovery_lift_height must be positive.")
+        if self.guard_stateful_recovery_lift_z_tolerance <= 0.0:
+            raise ValueError("guard_stateful_recovery_lift_z_tolerance must be positive.")
+        if self.guard_stateful_recovery_release_xy <= 0.0:
+            raise ValueError("guard_stateful_recovery_release_xy must be positive.")
+        if self.guard_stateful_recovery_resume_xy < self.guard_stateful_recovery_release_xy:
+            raise ValueError(
+                "guard_stateful_recovery_resume_xy must be >= "
+                "guard_stateful_recovery_release_xy."
+            )
+        if self.guard_stateful_recovery_resume_z <= 0.0:
+            raise ValueError("guard_stateful_recovery_resume_z must be positive.")
+        if self.guard_stateful_recovery_stable_steps <= 0:
+            raise ValueError("guard_stateful_recovery_stable_steps must be positive.")
+        if self.guard_stateful_recovery_stall_steps <= 0:
+            raise ValueError("guard_stateful_recovery_stall_steps must be positive.")
+        if self.guard_stateful_recovery_min_xy_progress < 0.0:
+            raise ValueError("guard_stateful_recovery_min_xy_progress cannot be negative.")
+        if self.guard_stateful_recovery_min_actual_xy_motion < 0.0:
+            raise ValueError(
+                "guard_stateful_recovery_min_actual_xy_motion cannot be negative."
+            )
+        if self.guard_stateful_recovery_min_command_xy < 0.0:
+            raise ValueError("guard_stateful_recovery_min_command_xy cannot be negative.")
+        if self.guard_stateful_recovery_max_attempts < 0:
+            raise ValueError("guard_stateful_recovery_max_attempts cannot be negative.")
+        if self.guard_stateful_recovery_max_steps <= 0:
+            raise ValueError("guard_stateful_recovery_max_steps must be positive.")
+        if self.guard_stateful_recovery_max_xy_action <= 0.0:
+            raise ValueError("guard_stateful_recovery_max_xy_action must be positive.")
+        if self.guard_stateful_recovery_max_down_action < 0.0:
+            raise ValueError("guard_stateful_recovery_max_down_action cannot be negative.")
+        if self.guard_stateful_recovery_max_up_action <= 0.0:
+            raise ValueError("guard_stateful_recovery_max_up_action must be positive.")
         if self.guard_final_servo_start_xy <= 0.0:
             raise ValueError("guard_final_servo_start_xy must be positive.")
         if self.guard_final_servo_start_z <= 0.0:
@@ -337,6 +478,15 @@ class GuardedPolicyConfig:
             raise ValueError("guard_final_servo_hover_z_tolerance must be positive.")
         if self.guard_final_servo_stable_xy <= 0.0:
             raise ValueError("guard_final_servo_stable_xy must be positive.")
+        if self.guard_final_servo_descent_start_xy < 0.0:
+            raise ValueError("guard_final_servo_descent_start_xy cannot be negative.")
+        if (
+            self.guard_final_servo_descent_start_xy > 0.0
+            and self.guard_final_servo_descent_start_xy < self.guard_final_servo_stable_xy
+        ):
+            raise ValueError(
+                "guard_final_servo_descent_start_xy must be >= guard_final_servo_stable_xy."
+            )
         if self.guard_final_servo_stable_steps <= 0:
             raise ValueError("guard_final_servo_stable_steps must be positive.")
         if self.guard_final_servo_release_xy < self.guard_final_servo_stable_xy:
@@ -347,8 +497,60 @@ class GuardedPolicyConfig:
             raise ValueError("guard_final_servo_max_xy_action must be positive.")
         if self.guard_final_servo_max_down_action < 0.0:
             raise ValueError("guard_final_servo_max_down_action cannot be negative.")
+        if self.guard_final_servo_low_recenter_z_max <= 0.0:
+            raise ValueError("guard_final_servo_low_recenter_z_max must be positive.")
+        if self.guard_final_servo_low_recenter_trigger_xy <= 0.0:
+            raise ValueError(
+                "guard_final_servo_low_recenter_trigger_xy must be positive."
+            )
+        if self.guard_final_servo_low_recenter_release_xy <= 0.0:
+            raise ValueError(
+                "guard_final_servo_low_recenter_release_xy must be positive."
+            )
+        if (
+            self.guard_final_servo_low_recenter_trigger_xy
+            < self.guard_final_servo_low_recenter_release_xy
+        ):
+            raise ValueError(
+                "guard_final_servo_low_recenter_trigger_xy must be >= "
+                "guard_final_servo_low_recenter_release_xy."
+            )
+        if self.guard_final_servo_low_recenter_trigger_xy > self.guard_final_servo_release_xy:
+            raise ValueError(
+                "guard_final_servo_low_recenter_trigger_xy must be <= "
+                "guard_final_servo_release_xy."
+            )
+        if self.guard_final_servo_low_recenter_release_xy > self.guard_final_servo_release_xy:
+            raise ValueError(
+                "guard_final_servo_low_recenter_release_xy must be <= "
+                "guard_final_servo_release_xy."
+            )
+        if self.guard_final_servo_low_recenter_height <= 0.0:
+            raise ValueError("guard_final_servo_low_recenter_height must be positive.")
+        if self.guard_final_servo_low_recenter_stable_steps <= 0:
+            raise ValueError(
+                "guard_final_servo_low_recenter_stable_steps must be positive."
+            )
+        if self.guard_final_servo_low_recenter_max_steps <= 0:
+            raise ValueError("guard_final_servo_low_recenter_max_steps must be positive.")
+        if self.guard_final_servo_low_recenter_max_up_action <= 0.0:
+            raise ValueError(
+                "guard_final_servo_low_recenter_max_up_action must be positive."
+            )
+        if self.guard_final_servo_low_recenter_stall_steps < 0:
+            raise ValueError(
+                "guard_final_servo_low_recenter_stall_steps cannot be negative."
+            )
+        if self.guard_final_servo_low_recenter_min_xy_progress < 0.0:
+            raise ValueError(
+                "guard_final_servo_low_recenter_min_xy_progress cannot be negative."
+            )
         if len(self.guard_final_servo_descend_xy_bias) != 2:
             raise ValueError("guard_final_servo_descend_xy_bias must contain two values.")
+        if self.guard_final_servo_descend_xy_bias_max_clearance < 0.0:
+            raise ValueError(
+                "guard_final_servo_descend_xy_bias_max_clearance cannot be negative."
+            )
         if self.guard_final_servo_lift_height <= self.guard_final_servo_hover_height:
             raise ValueError(
                 "guard_final_servo_lift_height must be greater than "
@@ -436,6 +638,22 @@ class GuardedPolicyStep:
     guard_preinsert_recenter_steps: int = 0
     guard_preinsert_recenter_stable_steps: int = 0
     guard_preinsert_recenter_down_blocked: bool = False
+    guard_approach_recenter_active: bool = False
+    guard_approach_recenter_triggered: bool = False
+    guard_approach_recenter_released: bool = False
+    guard_approach_recenter_steps: int = 0
+    guard_approach_recenter_stable_steps: int = 0
+    guard_approach_recenter_down_blocked: bool = False
+    guard_stateful_recovery_active: bool = False
+    guard_stateful_recovery_triggered: bool = False
+    guard_stateful_recovery_released: bool = False
+    guard_stateful_recovery_exhausted: bool = False
+    guard_stateful_recovery_phase: str = "inactive"
+    guard_stateful_recovery_phase_steps: int = 0
+    guard_stateful_recovery_stall_steps: int = 0
+    guard_stateful_recovery_stable_steps: int = 0
+    guard_stateful_recovery_attempts: int = 0
+    guard_stateful_recovery_down_blocked: bool = False
     guard_final_servo_active: bool = False
     guard_final_servo_triggered: bool = False
     guard_final_servo_recovery_triggered: bool = False
@@ -444,6 +662,8 @@ class GuardedPolicyStep:
     guard_final_servo_phase_steps: int = 0
     guard_final_servo_stable_steps: int = 0
     guard_final_servo_stall_steps: int = 0
+    guard_final_servo_low_recenter_stall_steps: int = 0
+    guard_final_servo_low_recenter_best_dist_xy: float = float("inf")
     guard_final_servo_retry_count: int = 0
     guard_final_servo_descent_allowed: bool = False
     guard_final_servo_down_blocked: bool = False
@@ -470,10 +690,22 @@ class GuardedPolicyController:
         self.guard_preinsert_recenter_active = False
         self.guard_preinsert_recenter_steps = 0
         self.guard_preinsert_recenter_stable_steps = 0
+        self.guard_approach_recenter_active = False
+        self.guard_approach_recenter_steps = 0
+        self.guard_approach_recenter_stable_steps = 0
+        self.guard_stateful_recovery_phase = "inactive"
+        self.guard_stateful_recovery_phase_steps = 0
+        self.guard_stateful_recovery_stall_steps = 0
+        self.guard_stateful_recovery_stable_steps = 0
+        self.guard_stateful_recovery_attempts = 0
+        self.guard_stateful_recovery_best_dist_xy = float("inf")
+        self.guard_stateful_recovery_exhausted = False
         self.guard_final_servo_phase = "inactive"
         self.guard_final_servo_phase_steps = 0
         self.guard_final_servo_stable_steps = 0
         self.guard_final_servo_stall_steps = 0
+        self.guard_final_servo_low_recenter_stall_steps = 0
+        self.guard_final_servo_low_recenter_best_dist_xy = float("inf")
         self.guard_final_servo_retry_count = 0
         self.guard_final_servo_best_z_above = float("inf")
         self.guard_final_servo_recovery_start_z_above = 0.0
@@ -499,10 +731,22 @@ class GuardedPolicyController:
         self.guard_preinsert_recenter_active = False
         self.guard_preinsert_recenter_steps = 0
         self.guard_preinsert_recenter_stable_steps = 0
+        self.guard_approach_recenter_active = False
+        self.guard_approach_recenter_steps = 0
+        self.guard_approach_recenter_stable_steps = 0
+        self.guard_stateful_recovery_phase = "inactive"
+        self.guard_stateful_recovery_phase_steps = 0
+        self.guard_stateful_recovery_stall_steps = 0
+        self.guard_stateful_recovery_stable_steps = 0
+        self.guard_stateful_recovery_attempts = 0
+        self.guard_stateful_recovery_best_dist_xy = float("inf")
+        self.guard_stateful_recovery_exhausted = False
         self.guard_final_servo_phase = "inactive"
         self.guard_final_servo_phase_steps = 0
         self.guard_final_servo_stable_steps = 0
         self.guard_final_servo_stall_steps = 0
+        self.guard_final_servo_low_recenter_stall_steps = 0
+        self.guard_final_servo_low_recenter_best_dist_xy = float("inf")
         self.guard_final_servo_retry_count = 0
         self.guard_final_servo_best_z_above = float("inf")
         self.guard_final_servo_recovery_start_z_above = 0.0
@@ -556,6 +800,8 @@ class GuardedPolicyController:
             self._reset_hover()
             self._reset_fixture_clearance()
             self._reset_preinsert_recenter()
+            self._reset_approach_recenter()
+            self._reset_stateful_recovery()
             self._reset_final_servo()
             result = GuardedPolicyStep(
                 action=policy_action,
@@ -594,6 +840,8 @@ class GuardedPolicyController:
             self._reset_insert_latch()
             self._reset_hover()
             self._reset_preinsert_recenter()
+            self._reset_approach_recenter()
+            self._reset_stateful_recovery()
             self._reset_final_servo()
             guarded_action = self._fixture_clearance_action_from_state(state)
             self.guard_fixture_clearance_steps += 1
@@ -643,6 +891,8 @@ class GuardedPolicyController:
                 self._reset_insert_latch()
                 self._reset_hover()
                 self._reset_preinsert_recenter()
+                self._reset_approach_recenter()
+                self._reset_stateful_recovery()
                 self._reset_final_servo()
 
         if not self.guard_active:
@@ -650,6 +900,8 @@ class GuardedPolicyController:
             self._reset_insert_latch()
             self._reset_hover()
             self._reset_preinsert_recenter()
+            self._reset_approach_recenter()
+            self._reset_stateful_recovery()
             self._reset_final_servo()
             action = policy_action.copy()
             down_blocked = self._block_down_if_unaligned(action, dist_xy)
@@ -685,6 +937,128 @@ class GuardedPolicyController:
             self.steps_since_reset += 1
             return result
 
+        recovery_active, recovery_triggered, recovery_released = (
+            self._update_stateful_recovery_state(state, dist_xy, z_above_target)
+        )
+        if recovery_active:
+            self._reset_retry()
+            self._reset_insert_latch()
+            self._reset_hover()
+            self._reset_preinsert_recenter()
+            self._reset_approach_recenter()
+            self._reset_final_servo()
+            guarded_action, recovery_down_blocked = (
+                self._stateful_recovery_action_from_state(state)
+            )
+            self.guard_stateful_recovery_phase_steps += 1
+            blend = float(np.clip(self.config.guard_blend, 0.0, 1.0))
+            action = (1.0 - blend) * policy_action + blend * guarded_action
+            down_blocked = self._block_down_if_unaligned(action, dist_xy)
+            action = np.clip(action, state.action_low, state.action_high).astype(np.float32)
+            self.guard_steps += 1
+            result = GuardedPolicyStep(
+                action=action,
+                guarded=True,
+                guard_active=True,
+                guard_enabled=True,
+                guard_should_activate=should_activate,
+                guard_can_activate=can_activate,
+                guard_activated=activated_this_step,
+                guard_down_blocked=down_blocked or recovery_down_blocked,
+                guard_steps_since_reset=step_index,
+                guard_dist_xy=dist_xy,
+                guard_z_above_target=z_above_target,
+                policy_action=policy_action,
+                guarded_action=guarded_action,
+                guard_retry_count=self.guard_retry_count,
+                guard_retry_stall_steps=self.guard_retry_stall_steps,
+                guard_retry_active_steps=self.guard_retry_active_steps,
+                guard_insert_latch_steps=self.guard_insert_latch_steps,
+                guard_hover_descent_latched=self.guard_hover_descent_latched,
+                guard_fixture_clearance_released=fixture_released,
+                guard_fixture_clearance_steps=self.guard_fixture_clearance_steps,
+                guard_fixture_clearance_realign_steps=self.guard_fixture_clearance_realign_steps,
+                guard_stateful_recovery_active=True,
+                guard_stateful_recovery_triggered=recovery_triggered,
+                guard_stateful_recovery_released=recovery_released,
+                guard_stateful_recovery_exhausted=self.guard_stateful_recovery_exhausted,
+                guard_stateful_recovery_phase=self.guard_stateful_recovery_phase,
+                guard_stateful_recovery_phase_steps=(
+                    self.guard_stateful_recovery_phase_steps
+                ),
+                guard_stateful_recovery_stall_steps=(
+                    self.guard_stateful_recovery_stall_steps
+                ),
+                guard_stateful_recovery_stable_steps=(
+                    self.guard_stateful_recovery_stable_steps
+                ),
+                guard_stateful_recovery_attempts=(
+                    self.guard_stateful_recovery_attempts
+                ),
+                guard_stateful_recovery_down_blocked=recovery_down_blocked,
+            )
+            self.steps_since_reset += 1
+            return result
+
+        approach_active, approach_triggered, approach_released = (
+            self._update_approach_recenter_state(dist_xy, z_above_target)
+        )
+        if approach_active:
+            self._reset_retry()
+            self._reset_insert_latch()
+            self._reset_hover()
+            self._reset_preinsert_recenter()
+            self._reset_final_servo()
+            guarded_action = self._approach_recenter_action_from_state(state)
+            self.guard_approach_recenter_steps += 1
+            blend = float(np.clip(self.config.guard_blend, 0.0, 1.0))
+            action = (1.0 - blend) * policy_action + blend * guarded_action
+            down_blocked = self._block_down_if_unaligned(action, dist_xy)
+            action = np.clip(action, state.action_low, state.action_high).astype(np.float32)
+            self.guard_steps += 1
+            result = GuardedPolicyStep(
+                action=action,
+                guarded=True,
+                guard_active=True,
+                guard_enabled=True,
+                guard_should_activate=should_activate,
+                guard_can_activate=can_activate,
+                guard_activated=activated_this_step,
+                guard_down_blocked=down_blocked,
+                guard_steps_since_reset=step_index,
+                guard_dist_xy=dist_xy,
+                guard_z_above_target=z_above_target,
+                policy_action=policy_action,
+                guarded_action=guarded_action,
+                guard_retry_count=self.guard_retry_count,
+                guard_retry_stall_steps=self.guard_retry_stall_steps,
+                guard_retry_active_steps=self.guard_retry_active_steps,
+                guard_insert_latch_steps=self.guard_insert_latch_steps,
+                guard_hover_descent_latched=self.guard_hover_descent_latched,
+                guard_fixture_clearance_released=fixture_released,
+                guard_fixture_clearance_steps=self.guard_fixture_clearance_steps,
+                guard_fixture_clearance_realign_steps=self.guard_fixture_clearance_realign_steps,
+                guard_approach_recenter_active=True,
+                guard_approach_recenter_triggered=approach_triggered,
+                guard_approach_recenter_released=approach_released,
+                guard_approach_recenter_steps=self.guard_approach_recenter_steps,
+                guard_approach_recenter_stable_steps=(
+                    self.guard_approach_recenter_stable_steps
+                ),
+                guard_approach_recenter_down_blocked=down_blocked,
+                guard_stateful_recovery_released=recovery_released,
+                guard_stateful_recovery_exhausted=self.guard_stateful_recovery_exhausted,
+                guard_stateful_recovery_phase=self.guard_stateful_recovery_phase,
+                guard_stateful_recovery_stall_steps=(
+                    self.guard_stateful_recovery_stall_steps
+                ),
+                guard_stateful_recovery_attempts=(
+                    self.guard_stateful_recovery_attempts
+                ),
+            )
+            self.steps_since_reset += 1
+            return result
+
         preinsert_active, preinsert_triggered, preinsert_released = (
             self._update_preinsert_recenter_state(dist_xy, z_above_target)
         )
@@ -708,7 +1082,7 @@ class GuardedPolicyController:
                 guard_should_activate=should_activate,
                 guard_can_activate=can_activate,
                 guard_activated=activated_this_step,
-                guard_down_blocked=True,
+                guard_down_blocked=down_blocked,
                 guard_steps_since_reset=step_index,
                 guard_dist_xy=dist_xy,
                 guard_z_above_target=z_above_target,
@@ -730,6 +1104,20 @@ class GuardedPolicyController:
                     self.guard_preinsert_recenter_stable_steps
                 ),
                 guard_preinsert_recenter_down_blocked=True,
+                guard_approach_recenter_released=approach_released,
+                guard_approach_recenter_steps=self.guard_approach_recenter_steps,
+                guard_approach_recenter_stable_steps=(
+                    self.guard_approach_recenter_stable_steps
+                ),
+                guard_stateful_recovery_released=recovery_released,
+                guard_stateful_recovery_exhausted=self.guard_stateful_recovery_exhausted,
+                guard_stateful_recovery_phase=self.guard_stateful_recovery_phase,
+                guard_stateful_recovery_stall_steps=(
+                    self.guard_stateful_recovery_stall_steps
+                ),
+                guard_stateful_recovery_attempts=(
+                    self.guard_stateful_recovery_attempts
+                ),
             )
             self.steps_since_reset += 1
             return result
@@ -777,6 +1165,20 @@ class GuardedPolicyController:
                 guard_preinsert_recenter_stable_steps=(
                     self.guard_preinsert_recenter_stable_steps
                 ),
+                guard_approach_recenter_released=approach_released,
+                guard_approach_recenter_steps=self.guard_approach_recenter_steps,
+                guard_approach_recenter_stable_steps=(
+                    self.guard_approach_recenter_stable_steps
+                ),
+                guard_stateful_recovery_released=recovery_released,
+                guard_stateful_recovery_exhausted=self.guard_stateful_recovery_exhausted,
+                guard_stateful_recovery_phase=self.guard_stateful_recovery_phase,
+                guard_stateful_recovery_stall_steps=(
+                    self.guard_stateful_recovery_stall_steps
+                ),
+                guard_stateful_recovery_attempts=(
+                    self.guard_stateful_recovery_attempts
+                ),
                 guard_final_servo_active=True,
                 guard_final_servo_triggered=final_triggered,
                 guard_final_servo_recovery_triggered=final_recovery_triggered,
@@ -785,6 +1187,12 @@ class GuardedPolicyController:
                 guard_final_servo_phase_steps=self.guard_final_servo_phase_steps,
                 guard_final_servo_stable_steps=self.guard_final_servo_stable_steps,
                 guard_final_servo_stall_steps=self.guard_final_servo_stall_steps,
+                guard_final_servo_low_recenter_stall_steps=(
+                    self.guard_final_servo_low_recenter_stall_steps
+                ),
+                guard_final_servo_low_recenter_best_dist_xy=(
+                    self.guard_final_servo_low_recenter_best_dist_xy
+                ),
                 guard_final_servo_retry_count=self.guard_final_servo_retry_count,
                 guard_final_servo_descent_allowed=final_descent_allowed,
                 guard_final_servo_down_blocked=final_down_blocked,
@@ -880,6 +1288,14 @@ class GuardedPolicyController:
             guard_preinsert_recenter_released=preinsert_released,
             guard_preinsert_recenter_steps=self.guard_preinsert_recenter_steps,
             guard_preinsert_recenter_stable_steps=self.guard_preinsert_recenter_stable_steps,
+            guard_approach_recenter_released=approach_released,
+            guard_approach_recenter_steps=self.guard_approach_recenter_steps,
+            guard_approach_recenter_stable_steps=self.guard_approach_recenter_stable_steps,
+            guard_stateful_recovery_released=recovery_released,
+            guard_stateful_recovery_exhausted=self.guard_stateful_recovery_exhausted,
+            guard_stateful_recovery_phase=self.guard_stateful_recovery_phase,
+            guard_stateful_recovery_stall_steps=self.guard_stateful_recovery_stall_steps,
+            guard_stateful_recovery_attempts=self.guard_stateful_recovery_attempts,
         )
         self.steps_since_reset += 1
         return result
@@ -942,11 +1358,28 @@ class GuardedPolicyController:
         self.guard_preinsert_recenter_steps = 0
         self.guard_preinsert_recenter_stable_steps = 0
 
+    def _reset_approach_recenter(self) -> None:
+        self.guard_approach_recenter_active = False
+        self.guard_approach_recenter_steps = 0
+        self.guard_approach_recenter_stable_steps = 0
+
+    def _reset_stateful_recovery(self, *, keep_attempts: bool = False) -> None:
+        self.guard_stateful_recovery_phase = "inactive"
+        self.guard_stateful_recovery_phase_steps = 0
+        self.guard_stateful_recovery_stall_steps = 0
+        self.guard_stateful_recovery_stable_steps = 0
+        self.guard_stateful_recovery_best_dist_xy = float("inf")
+        if not keep_attempts:
+            self.guard_stateful_recovery_attempts = 0
+            self.guard_stateful_recovery_exhausted = False
+
     def _reset_final_servo(self, *, keep_exhausted: bool = False) -> None:
         self.guard_final_servo_phase = "inactive"
         self.guard_final_servo_phase_steps = 0
         self.guard_final_servo_stable_steps = 0
         self.guard_final_servo_stall_steps = 0
+        self.guard_final_servo_low_recenter_stall_steps = 0
+        self.guard_final_servo_low_recenter_best_dist_xy = float("inf")
         self.guard_final_servo_best_z_above = float("inf")
         self.guard_final_servo_recovery_start_z_above = 0.0
         self.guard_final_servo_recovery_target_z_above = 0.0
@@ -966,6 +1399,294 @@ class GuardedPolicyController:
     def _set_final_servo_phase(self, phase: str) -> None:
         self.guard_final_servo_phase = phase
         self.guard_final_servo_phase_steps = 0
+        if phase != "low_recenter":
+            self.guard_final_servo_low_recenter_stall_steps = 0
+            self.guard_final_servo_low_recenter_best_dist_xy = float("inf")
+
+    def _set_stateful_recovery_phase(self, phase: str) -> None:
+        self.guard_stateful_recovery_phase = phase
+        self.guard_stateful_recovery_phase_steps = 0
+
+    def _update_stateful_recovery_state(
+        self,
+        state: GuardedDeploymentState,
+        dist_xy: float,
+        z_above_target: float,
+    ) -> tuple[bool, bool, bool]:
+        if not self.config.guard_stateful_recovery_enabled:
+            self._reset_stateful_recovery()
+            return False, False, False
+
+        if self.guard_stateful_recovery_phase != "inactive":
+            timed_out = (
+                self.guard_stateful_recovery_phase_steps
+                >= self.config.guard_stateful_recovery_max_steps
+            )
+            if timed_out:
+                self.guard_stateful_recovery_exhausted = True
+                self._reset_stateful_recovery(keep_attempts=True)
+                return False, False, True
+
+            if self.guard_stateful_recovery_phase == "lift":
+                lifted_enough = z_above_target >= (
+                    self.config.guard_stateful_recovery_lift_height
+                    - self.config.guard_stateful_recovery_lift_z_tolerance
+                )
+                if lifted_enough:
+                    self._set_stateful_recovery_phase("recenter")
+
+            elif self.guard_stateful_recovery_phase == "recenter":
+                if dist_xy <= self.config.guard_stateful_recovery_release_xy:
+                    self.guard_stateful_recovery_stable_steps = 1
+                    self._set_stateful_recovery_phase("settle")
+
+            elif self.guard_stateful_recovery_phase == "settle":
+                if dist_xy <= self.config.guard_stateful_recovery_release_xy:
+                    self.guard_stateful_recovery_stable_steps += 1
+                    if (
+                        self.guard_stateful_recovery_stable_steps
+                        >= self.config.guard_stateful_recovery_stable_steps
+                    ):
+                        self._set_stateful_recovery_phase("resume")
+                elif dist_xy > self.config.guard_stateful_recovery_resume_xy:
+                    self.guard_stateful_recovery_stable_steps = 0
+                    self._set_stateful_recovery_phase("recenter")
+
+            elif self.guard_stateful_recovery_phase == "resume":
+                if dist_xy > self.config.guard_stateful_recovery_resume_xy:
+                    self.guard_stateful_recovery_stable_steps = 0
+                    lifted_enough = z_above_target >= (
+                        self.config.guard_stateful_recovery_lift_height
+                        - self.config.guard_stateful_recovery_lift_z_tolerance
+                    )
+                    self._set_stateful_recovery_phase("recenter" if lifted_enough else "lift")
+                    return True, False, False
+                if (
+                    z_above_target <= self.config.guard_stateful_recovery_resume_z
+                    and dist_xy <= self.config.guard_stateful_recovery_release_xy
+                ):
+                    self._reset_stateful_recovery(keep_attempts=True)
+                    return False, False, True
+
+            else:
+                raise ValueError(
+                    f"Unknown stateful recovery phase: {self.guard_stateful_recovery_phase}"
+                )
+            return True, False, False
+
+        if self.guard_stateful_recovery_exhausted:
+            outside_window = (
+                dist_xy > self.config.guard_stateful_recovery_trigger_xy_max
+                or z_above_target > self.config.guard_stateful_recovery_trigger_z_max
+            )
+            if outside_window:
+                self._reset_stateful_recovery()
+            else:
+                return False, False, False
+
+        in_trigger_window = (
+            self.config.guard_stateful_recovery_trigger_xy_min
+            <= dist_xy
+            <= self.config.guard_stateful_recovery_trigger_xy_max
+            and z_above_target <= self.config.guard_stateful_recovery_trigger_z_max
+        )
+        if not in_trigger_window:
+            self.guard_stateful_recovery_stall_steps = 0
+            self.guard_stateful_recovery_best_dist_xy = float("inf")
+            return False, False, False
+
+        if self.guard_stateful_recovery_attempts >= self.config.guard_stateful_recovery_max_attempts:
+            return False, False, False
+
+        applied_action = _as_vector3(state.applied_action, "applied_action")
+        actual_tip_delta = _as_vector3(state.actual_tip_delta, "actual_tip_delta")
+        commanded_xy = float(np.linalg.norm(applied_action[:2]))
+        actual_xy = float(np.linalg.norm(actual_tip_delta[:2]))
+        command_is_meaningful = commanded_xy >= self.config.guard_stateful_recovery_min_command_xy
+        actual_motion_is_small = actual_xy <= self.config.guard_stateful_recovery_min_actual_xy_motion
+        improved = dist_xy < (
+            self.guard_stateful_recovery_best_dist_xy
+            - self.config.guard_stateful_recovery_min_xy_progress
+        )
+        if improved:
+            self.guard_stateful_recovery_best_dist_xy = dist_xy
+            self.guard_stateful_recovery_stall_steps = 0
+            return False, False, False
+        self.guard_stateful_recovery_best_dist_xy = min(
+            self.guard_stateful_recovery_best_dist_xy,
+            dist_xy,
+        )
+
+        if command_is_meaningful and actual_motion_is_small:
+            self.guard_stateful_recovery_stall_steps += 1
+        else:
+            self.guard_stateful_recovery_stall_steps = max(
+                0,
+                self.guard_stateful_recovery_stall_steps - 1,
+            )
+
+        if self.guard_stateful_recovery_stall_steps < self.config.guard_stateful_recovery_stall_steps:
+            return False, False, False
+
+        self.guard_stateful_recovery_attempts += 1
+        self.guard_stateful_recovery_stall_steps = 0
+        self.guard_stateful_recovery_stable_steps = 0
+        self.guard_stateful_recovery_best_dist_xy = dist_xy
+        lift_ready = z_above_target >= (
+            self.config.guard_stateful_recovery_lift_height
+            - self.config.guard_stateful_recovery_lift_z_tolerance
+        )
+        self._set_stateful_recovery_phase("recenter" if lift_ready else "lift")
+        return True, True, False
+
+    def _stateful_recovery_action_from_state(
+        self,
+        state: GuardedDeploymentState,
+    ) -> tuple[np.ndarray, bool]:
+        tip = _as_vector3(state.peg_tip_pos, "peg_tip_pos")
+        target = _as_vector3(state.target_pos, "target_pos")
+        applied_action = _as_vector3(state.applied_action, "applied_action")
+        control_tip = tip + float(self.config.oracle.guarded_prediction_steps) * applied_action
+        lift_z = float(target[2] + self.config.guard_stateful_recovery_lift_height)
+        phase = self.guard_stateful_recovery_phase
+        if phase == "lift":
+            desired = np.asarray([target[0], target[1], lift_z], dtype=np.float64)
+            max_xy_action = self.config.guard_stateful_recovery_max_xy_action
+            max_down_action = 0.0
+        elif phase in ("recenter", "settle"):
+            desired = np.asarray(
+                [
+                    target[0],
+                    target[1],
+                    max(float(control_tip[2]), lift_z),
+                ],
+                dtype=np.float64,
+            )
+            max_xy_action = self.config.guard_stateful_recovery_max_xy_action
+            max_down_action = 0.0
+        elif phase == "resume":
+            dist_xy = (
+                float(state.dist_xy)
+                if state.dist_xy is not None
+                else float(np.linalg.norm(tip[:2] - target[:2]))
+            )
+            desired = np.asarray(
+                [
+                    target[0],
+                    target[1],
+                    target[2] + self.config.guard_stateful_recovery_resume_z,
+                ],
+                dtype=np.float64,
+            )
+            max_xy_action = self.config.guard_stateful_recovery_max_xy_action
+            max_down_action = (
+                self.config.guard_stateful_recovery_max_down_action
+                if dist_xy <= self.config.guard_stateful_recovery_resume_xy
+                else 0.0
+            )
+        else:
+            desired = control_tip
+            max_xy_action = 0.0
+            max_down_action = 0.0
+
+        action = self.config.oracle.action_gain * (desired - control_tip)
+        action = self._limit_xy_action(action, max_xy_action)
+        action = self._limit_z_action(
+            action,
+            max_down_action=max_down_action,
+            max_up_action=self.config.guard_stateful_recovery_max_up_action,
+        )
+        return np.clip(action, state.action_low, state.action_high).astype(np.float32), True
+
+    def _update_approach_recenter_state(
+        self,
+        dist_xy: float,
+        z_above_target: float,
+    ) -> tuple[bool, bool, bool]:
+        if not self.config.guard_approach_recenter_enabled:
+            self._reset_approach_recenter()
+            return False, False, False
+
+        if self.guard_final_servo_phase != "inactive":
+            self._reset_approach_recenter()
+            return False, False, False
+
+        if (
+            self.config.guard_approach_recenter_requires_stateful_recovery
+            and not self.guard_stateful_recovery_exhausted
+        ):
+            self._reset_approach_recenter()
+            return False, False, False
+
+        if self.guard_approach_recenter_active:
+            height_ready = abs(
+                z_above_target - self.config.guard_approach_recenter_height
+            ) <= self.config.guard_approach_recenter_z_tolerance
+            xy_ready = dist_xy <= self.config.guard_approach_recenter_stable_xy
+            if height_ready and xy_ready:
+                self.guard_approach_recenter_stable_steps += 1
+            else:
+                self.guard_approach_recenter_stable_steps = 0
+
+            stable = (
+                self.guard_approach_recenter_stable_steps
+                >= self.config.guard_approach_recenter_stable_steps
+            )
+            timed_out = (
+                self.guard_approach_recenter_steps
+                >= self.config.guard_approach_recenter_max_steps
+            )
+            left_window = (
+                dist_xy > self.config.guard_approach_recenter_max_xy
+                or z_above_target > self.config.guard_approach_recenter_start_z
+                or z_above_target < self.config.guard_approach_recenter_min_z
+            )
+            if stable or timed_out or left_window:
+                self._reset_approach_recenter()
+                return False, False, True
+            return True, False, False
+
+        in_approach_zone = (
+            z_above_target <= self.config.guard_approach_recenter_start_z
+            and z_above_target >= self.config.guard_approach_recenter_min_z
+            and dist_xy > self.config.guard_approach_recenter_trigger_xy
+            and dist_xy <= self.config.guard_approach_recenter_max_xy
+        )
+        if not in_approach_zone:
+            return False, False, False
+
+        self.guard_approach_recenter_active = True
+        self.guard_approach_recenter_steps = 0
+        self.guard_approach_recenter_stable_steps = 0
+        return True, True, False
+
+    def _approach_recenter_action_from_state(self, state: GuardedDeploymentState) -> np.ndarray:
+        tip = _as_vector3(state.peg_tip_pos, "peg_tip_pos")
+        target = _as_vector3(state.target_pos, "target_pos")
+        applied_action = _as_vector3(state.applied_action, "applied_action")
+        control_tip = tip + float(self.config.oracle.guarded_prediction_steps) * applied_action
+        bias = np.asarray(self.config.guard_approach_recenter_xy_bias, dtype=np.float64)
+        recenter_z = float(target[2] + self.config.guard_approach_recenter_height)
+        desired_z = max(float(control_tip[2]), recenter_z)
+        desired = np.asarray(
+            [
+                target[0] + bias[0],
+                target[1] + bias[1],
+                desired_z,
+            ],
+            dtype=np.float64,
+        )
+        action = self.config.oracle.action_gain * (desired - control_tip)
+        action = self._limit_xy_action(
+            action,
+            self.config.guard_approach_recenter_max_xy_action,
+        )
+        action = self._limit_z_action(
+            action,
+            max_down_action=0.0,
+            max_up_action=self.config.guard_approach_recenter_max_up_action,
+        )
+        return np.clip(action, state.action_low, state.action_high).astype(np.float32)
 
     def _update_preinsert_recenter_state(
         self,
@@ -1018,11 +1739,21 @@ class GuardedPolicyController:
         target = _as_vector3(state.target_pos, "target_pos")
         applied_action = _as_vector3(state.applied_action, "applied_action")
         control_tip = tip + float(self.config.oracle.guarded_prediction_steps) * applied_action
+        recenter_z = float(target[2] + self.config.guard_preinsert_recenter_height)
+        height_ready = control_tip[2] >= (
+            recenter_z - self.config.guard_preinsert_recenter_z_tolerance
+        )
+        desired_xy = (
+            control_tip[:2]
+            if self.config.guard_preinsert_recenter_lift_before_lateral
+            and not height_ready
+            else target[:2]
+        )
         desired_z = max(
             float(control_tip[2]),
-            float(target[2] + self.config.guard_preinsert_recenter_height),
+            recenter_z,
         )
-        desired = np.asarray([target[0], target[1], desired_z], dtype=np.float64)
+        desired = np.asarray([desired_xy[0], desired_xy[1], desired_z], dtype=np.float64)
         action = self.config.oracle.action_gain * (desired - control_tip)
         action = self._limit_xy_action(
             action,
@@ -1036,11 +1767,20 @@ class GuardedPolicyController:
         return np.clip(action, state.action_low, state.action_high).astype(np.float32)
 
     def _final_servo_in_hover_band(self, dist_xy: float, z_above_target: float) -> bool:
+        descent_start_xy = self._final_servo_descent_start_xy()
         return (
-            dist_xy <= self.config.guard_final_servo_stable_xy
+            dist_xy <= descent_start_xy
             and abs(z_above_target - self.config.guard_final_servo_hover_height)
             <= self.config.guard_final_servo_hover_z_tolerance
         )
+
+    def _final_servo_descent_start_xy(self) -> float:
+        if self.config.guard_final_servo_descent_start_xy > 0.0:
+            return max(
+                self.config.guard_final_servo_stable_xy,
+                self.config.guard_final_servo_descent_start_xy,
+            )
+        return self.config.guard_final_servo_stable_xy
 
     def _start_final_servo_recovery(self, z_above_target: float) -> bool:
         if self.guard_final_servo_retry_count >= self.config.guard_final_servo_max_retries:
@@ -1126,6 +1866,16 @@ class GuardedPolicyController:
         elif self.guard_final_servo_phase == "descend":
             if dist_xy > self.config.guard_final_servo_release_xy:
                 recovery_triggered = self._start_final_servo_recovery(z_above_target)
+            elif (
+                self.config.guard_final_servo_low_recenter_enabled
+                and z_above_target <= self.config.guard_final_servo_low_recenter_z_max
+                and dist_xy > self.config.guard_final_servo_low_recenter_trigger_xy
+            ):
+                self.guard_final_servo_stable_steps = 0
+                self.guard_final_servo_stall_steps = 0
+                self.guard_final_servo_low_recenter_stall_steps = 0
+                self.guard_final_servo_low_recenter_best_dist_xy = dist_xy
+                self._set_final_servo_phase("low_recenter")
             elif z_above_target < (
                 self.guard_final_servo_best_z_above
                 - self.config.guard_final_servo_min_z_progress
@@ -1142,6 +1892,44 @@ class GuardedPolicyController:
                         or dist_xy > self.config.guard_final_servo_stable_xy
                     )
                 ):
+                    recovery_triggered = self._start_final_servo_recovery(z_above_target)
+
+        elif self.guard_final_servo_phase == "low_recenter":
+            if dist_xy <= self.config.guard_final_servo_low_recenter_release_xy:
+                self.guard_final_servo_stable_steps += 1
+                if (
+                    self.guard_final_servo_stable_steps
+                    >= self.config.guard_final_servo_low_recenter_stable_steps
+                ):
+                    self.guard_final_servo_best_z_above = z_above_target
+                    self.guard_final_servo_stall_steps = 0
+                    self._set_final_servo_phase("descend")
+            else:
+                self.guard_final_servo_stable_steps = 0
+                improved = dist_xy < (
+                    self.guard_final_servo_low_recenter_best_dist_xy
+                    - self.config.guard_final_servo_low_recenter_min_xy_progress
+                )
+                if improved:
+                    self.guard_final_servo_low_recenter_best_dist_xy = dist_xy
+                    self.guard_final_servo_low_recenter_stall_steps = 0
+                else:
+                    self.guard_final_servo_low_recenter_best_dist_xy = min(
+                        self.guard_final_servo_low_recenter_best_dist_xy,
+                        dist_xy,
+                    )
+                    if self.config.guard_final_servo_low_recenter_stall_steps > 0:
+                        self.guard_final_servo_low_recenter_stall_steps += 1
+                timed_out = (
+                    self.guard_final_servo_phase_steps
+                    >= self.config.guard_final_servo_low_recenter_max_steps
+                )
+                stalled = (
+                    self.config.guard_final_servo_low_recenter_stall_steps > 0
+                    and self.guard_final_servo_low_recenter_stall_steps
+                    >= self.config.guard_final_servo_low_recenter_stall_steps
+                )
+                if timed_out or stalled:
                     recovery_triggered = self._start_final_servo_recovery(z_above_target)
 
         elif self.guard_final_servo_phase == "recover_lift":
@@ -1220,26 +2008,28 @@ class GuardedPolicyController:
         target = _as_vector3(state.target_pos, "target_pos")
         applied_action = _as_vector3(state.applied_action, "applied_action")
         control_tip = tip + float(self.config.oracle.guarded_prediction_steps) * applied_action
-        descend_xy_bias = np.asarray(
-            self.config.guard_final_servo_descend_xy_bias,
-            dtype=np.float64,
-        )
+        descend_xy_bias = self._effective_final_servo_descend_xy_bias(state)
         phase = self.guard_final_servo_phase
         descent_allowed = phase == "descend" and dist_xy <= self.config.guard_final_servo_release_xy
         down_blocked = False
         max_up_action = self.config.oracle.guarded_max_up_action
 
         if phase in ("align_hover", "stable_confirm"):
+            xy_ready = dist_xy <= self._final_servo_descent_start_xy()
+            hover_z = float(target[2] + self.config.guard_final_servo_hover_height)
+            align_z = float(target[2] + self.config.guard_final_servo_start_z)
+            desired_z = hover_z if xy_ready else max(float(control_tip[2]), align_z)
             desired = np.asarray(
                 [
                     target[0],
                     target[1],
-                    target[2] + self.config.guard_final_servo_hover_height,
+                    desired_z,
                 ],
                 dtype=np.float64,
             )
             max_xy_action = self.config.guard_final_servo_max_xy_action
-            max_down_action = self.config.guard_final_servo_max_down_action
+            max_down_action = self.config.guard_final_servo_max_down_action if xy_ready else 0.0
+            down_blocked = not xy_ready
         elif phase == "descend":
             desired = np.asarray(
                 [
@@ -1254,6 +2044,19 @@ class GuardedPolicyController:
                 self.config.guard_final_servo_max_down_action if descent_allowed else 0.0
             )
             down_blocked = not descent_allowed
+        elif phase == "low_recenter":
+            desired = np.asarray(
+                [
+                    target[0] + descend_xy_bias[0],
+                    target[1] + descend_xy_bias[1],
+                    target[2] + self.config.guard_final_servo_low_recenter_height,
+                ],
+                dtype=np.float64,
+            )
+            max_xy_action = self.config.guard_final_servo_max_xy_action
+            max_down_action = 0.0
+            max_up_action = self.config.guard_final_servo_low_recenter_max_up_action
+            down_blocked = True
         elif phase == "recover_lift":
             desired = np.asarray(
                 [
@@ -1322,6 +2125,30 @@ class GuardedPolicyController:
             descent_allowed,
             down_blocked,
         )
+
+    def _effective_final_servo_descend_xy_bias(
+        self,
+        state: GuardedDeploymentState,
+    ) -> np.ndarray:
+        bias = np.asarray(
+            self.config.guard_final_servo_descend_xy_bias,
+            dtype=np.float64,
+        )
+        max_clearance = self.config.guard_final_servo_descend_xy_bias_max_clearance
+        if bias.shape != (2,):
+            raise ValueError("guard_final_servo_descend_xy_bias must contain two values.")
+        if not np.any(bias):
+            return bias
+        if np.isfinite(max_clearance):
+            clearance = state.hole_clearance
+            if clearance is None or not np.isfinite(clearance) or clearance > max_clearance:
+                return np.zeros(2, dtype=np.float64)
+        if (
+            self.config.guard_final_servo_descend_xy_bias_requires_stateful_recovery
+            and self.guard_stateful_recovery_attempts <= 0
+        ):
+            return np.zeros(2, dtype=np.float64)
+        return bias
 
     def _update_insert_latch(self, dist_xy: float) -> tuple[bool, bool, bool]:
         if not self.config.guard_insert_latch_enabled:
@@ -1613,7 +2440,10 @@ class GuardedPolicyController:
             desired_z = float(control_tip[2])
             if self.config.guard_insert_latch_recenter_height > 0.0:
                 lift_z = float(target[2] + self.config.guard_insert_latch_recenter_height)
-                if control_tip[2] < lift_z:
+                lift_ready = control_tip[2] >= (
+                    lift_z - self.config.guard_insert_latch_recenter_z_tolerance
+                )
+                if not lift_ready:
                     desired_xy = control_tip[:2]
                     desired_z = lift_z
             max_down_action = 0.0
@@ -1658,3 +2488,13 @@ def _as_vector3(value: Any, name: str) -> np.ndarray:
     if array.size != 3:
         raise ValueError(f"{name} must contain exactly 3 values.")
     return array
+
+
+def _hole_clearance_from_info(info: dict[str, Any]) -> float | None:
+    if "hole_clearance" in info:
+        clearance = float(info["hole_clearance"])
+        return clearance if np.isfinite(clearance) else None
+    if "hole_half_size" not in info or "peg_radius" not in info:
+        return None
+    clearance = float(info["hole_half_size"]) - float(info["peg_radius"])
+    return clearance if np.isfinite(clearance) else None

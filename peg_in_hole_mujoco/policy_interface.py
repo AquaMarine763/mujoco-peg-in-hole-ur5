@@ -292,7 +292,9 @@ class PolicyInferenceSession:
             "shaped_distance": float(info.get("shaped_distance", float("nan"))),
             "desired_z": float(info.get("desired_z", float("nan"))),
             "action_tracking_error": float(info.get("action_tracking_error", float("nan"))),
+            "ik_orientation_weight": float(info.get("ik_orientation_weight", float("nan"))),
             "ik_target_error": float(info.get("ik_target_error", float("nan"))),
+            "ik_orientation_error": float(info.get("ik_orientation_error", float("nan"))),
             "ik_iterations": int(info.get("ik_iterations", -1)),
             "joint_target_error": float(info.get("joint_target_error", float("nan"))),
             "guard_enabled": bool(action_diagnostics.get("guard_enabled", False)),
@@ -322,6 +324,12 @@ class PolicyInferenceSession:
             ),
             "guard_near_action_limited": bool(
                 action_diagnostics.get("guard_near_action_limited", False)
+            ),
+            "guard_near_ik_orientation_weight_active": bool(
+                action_diagnostics.get("guard_near_ik_orientation_weight_active", False)
+            ),
+            "guard_near_ik_orientation_weight": float(
+                action_diagnostics.get("guard_near_ik_orientation_weight", float("nan"))
             ),
             "action_limited": safe_action.action_limited,
             "workspace_limited": safe_action.workspace_limited,

@@ -89,6 +89,12 @@ python scripts\oracle_rollout.py `
   --episodes 3 `
   --max-steps 120
 
+python scripts\audit_ur5e_full_model.py `
+  --model-path assets\ur5e_full\ur5e_peg_in_hole_full.xml `
+  --reference-model-path ..\_menagerie_ur5e.xml `
+  --output-md results\ur5e_full\model_audit\ur5e_full_menagerie_audit.md `
+  --output-json results\ur5e_full\model_audit\ur5e_full_menagerie_audit.json
+
 python scripts\demo_policy.py `
   --model checkpoints_image_bc_ur5e_adapter_fixedcam_full_light_geometry_staged_crop_full_light_replay_750k_oracle_e4\sac_image_bc.zip `
   --model-path assets\ur5e_full\ur5e_peg_in_hole_full.xml `
@@ -114,6 +120,115 @@ Full UR5e low-level controller diagnostics:
 
 ```powershell
 python scripts\diagnose_ur5e_controller.py --episodes 3
+
+python scripts\diagnose_near_contact_tracking.py `
+  --ik-control-modes pose `
+  --ik-orientation-weight 0.03 `
+  --ik-max-iterations 64 `
+  --actuator-kp-multipliers 2.0 `
+  --joint-damping-multipliers 1.0 `
+  --output-csv results\ur5e_full\controller_diagnostics\near_contact_recenter_pose_003_064_kp2_rows.csv `
+  --output-md results\ur5e_full\controller_diagnostics\near_contact_recenter_pose_003_064_kp2_summary.md
+```
+
+Focused static controller-response scan. This is diagnostic only; the first
+scan showed global Kp3 improves low-Z probe response but regresses closed-loop
+hard-bucket success, so do not promote it without a new gate result:
+
+```powershell
+python scripts\scan_near_contact_controller_response.py `
+  --ik-control-modes pose `
+  --ik-orientation-weights 0.0 0.01 0.02 0.03 `
+  --ik-max-iterations-list 64 96 `
+  --ik-step-limits 0.06 `
+  --frame-skips 10 `
+  --actuator-kp-multipliers 2.0 3.0 `
+  --joint-damping-multipliers 1.0 `
+  --xy-offsets-mm 6 10 20 `
+  --z-above-mm 8 15 30 `
+  --angles-deg 0 90 180 270 `
+  --recenter-steps 12 `
+  --output-csv results\ur5e_full\controller_diagnostics\near_contact_controller_response_scan_wori_kp.csv `
+  --output-md results\ur5e_full\controller_diagnostics\near_contact_controller_response_scan_wori_kp.md
+```
+
+Closed-loop Kp comparison for the current hard-bucket controller:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_insert_drift_2k_w10_e1_final_servo_pose_ik_wori003_it64_kp2_hard_60ep.yaml `
+  --episodes 20 `
+  --nominal-actuator-kp-multiplier 2.0 `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_insert_drift_pose_ik_wori003_it64_kp2_hard_20ep_retest_seed602000.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_insert_drift_pose_ik_wori003_it64_kp2_hard_20ep_retest_seed602000.md
+```
+
+Local near-hole Kp recovery candidate. This keeps global nominal Kp at `2.0`
+and boosts to Kp3 only while stateful recovery/final-servo/near-hole guarded
+control is active. The current preset also applies a small final-servo descend
+bias only after stateful recovery in tight-clearance cases:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_localkp3_recovery_20ep.yaml
+
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_localkp3_recovery_20ep.yaml `
+  --episodes 60 `
+  --output-csv results\ur5e_full\high_start\hard\recovery\eval_doublegate_bias_hard_60ep_seed602000.csv `
+  --output-md results\ur5e_full\high_start\hard\recovery\eval_doublegate_bias_hard_60ep_seed602000.md `
+  --episode-output-csv results\ur5e_full\high_start\hard\recovery\eval_doublegate_bias_hard_episodes_60ep_seed602000.csv `
+  --step-output-csv results\ur5e_full\high_start\hard\recovery\eval_doublegate_bias_hard_failure_step_trace_60ep_seed602000.csv `
+  --step-trace-outcome-filter failure
+```
+
+Current result: hard bucket seed `602000` reached `1.000/0.000/0.000` over
+20 episodes and `0.950/0.000/0.050` over 60 episodes. The remaining 60ep
+failures are high approach plateaus (`602024/602033/602048`) with no final-servo
+entry, so the next work is approach-to-hole recovery rather than near-hole
+insertion recovery.
+
+Experimental approach + low-recenter diagnostic for one hard seed. This is not
+promoted; use it to inspect the current 6 mm residual failure mode:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_localkp3_recovery_20ep.yaml `
+  --episodes 1 `
+  --seed 602024 `
+  --guard-stateful-recovery-max-steps 80 `
+  --guard-approach-recenter-trigger-xy 0.015 `
+  --guard-approach-recenter-stable-xy 0.014 `
+  --guard-approach-recenter-height 0.070 `
+  --guard-approach-recenter-max-xy-action 0.008 `
+  --guard-approach-recenter-xy-bias 0.0 0.0 `
+  --guard-final-servo-start-xy 0.014 `
+  --guard-final-servo-start-z 0.070 `
+  --guard-final-servo-stable-xy 0.00625 `
+  --guard-final-servo-descent-start-xy 0.014 `
+  --guard-final-servo-release-xy 0.014 `
+  --guard-final-servo-max-xy-action 0.008 `
+  --guard-final-servo-max-down-action 0.0015 `
+  --guard-final-servo-low-recenter-enabled `
+  --guard-final-servo-low-recenter-z-max 0.025 `
+  --guard-final-servo-low-recenter-trigger-xy 0.0068 `
+  --guard-final-servo-low-recenter-release-xy 0.0061 `
+  --guard-final-servo-low-recenter-height 0.018 `
+  --guard-final-servo-low-recenter-stable-steps 1 `
+  --guard-final-servo-low-recenter-max-steps 500 `
+  --guard-final-servo-low-recenter-max-up-action 0.005 `
+  --guard-final-servo-descend-xy-bias 0.0 -0.005 `
+  --guard-final-servo-descend-xy-bias-max-clearance 0.010 `
+  --guard-final-servo-stall-steps 25 `
+  --guard-final-servo-max-retries 2 `
+  --guard-final-servo-max-recovery-steps 320 `
+  --guard-final-servo-recovery-mode lift_recenter `
+  --guard-final-servo-lift-height 0.020 `
+  --output-csv results\tmp_lowrec_hyst_state80_seed602024.csv `
+  --output-md results\tmp_lowrec_hyst_state80_seed602024.md `
+  --episode-output-csv results\tmp_lowrec_hyst_state80_seed602024_episodes.csv `
+  --step-output-csv results\tmp_lowrec_hyst_state80_seed602024_steps.csv `
+  --step-trace-outcome-filter any
 ```
 
 The diagnostic compares the default position-only IK against the experimental
@@ -125,14 +240,89 @@ results\ur5e_full\controller_diagnostics\ur5e_controller_direction_rows.csv
 results\ur5e_full\controller_diagnostics\ur5e_controller_summary.md
 ```
 
+Phase-local IK orientation relaxation candidate. This keeps nominal pose IK
+orientation weight at `0.03` during the high-start approach, but switches to
+`0.0` only inside stateful recovery / approach recenter / final-servo / near-hole
+guarded control. Latest 40ep hard-bucket gate on seed `602020` reached
+`0.950/0.000/0.050`; remaining failures were `602038` and `602048` timeouts:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_localkp3_recovery_20ep.yaml `
+  --episodes 40 `
+  --seed 602020 `
+  --ik-orientation-weight 0.03 `
+  --guard-near-ik-orientation-weight 0.0 `
+  --guard-stateful-recovery-max-steps 80 `
+  --guard-approach-recenter-trigger-xy 0.015 `
+  --guard-approach-recenter-stable-xy 0.014 `
+  --guard-approach-recenter-height 0.070 `
+  --guard-approach-recenter-max-xy-action 0.008 `
+  --guard-approach-recenter-xy-bias 0.0 0.0 `
+  --guard-final-servo-start-xy 0.014 `
+  --guard-final-servo-start-z 0.070 `
+  --guard-final-servo-stable-xy 0.00625 `
+  --guard-final-servo-descent-start-xy 0.014 `
+  --guard-final-servo-release-xy 0.014 `
+  --guard-final-servo-max-xy-action 0.008 `
+  --guard-final-servo-max-down-action 0.0015 `
+  --guard-final-servo-low-recenter-enabled `
+  --guard-final-servo-low-recenter-z-max 0.025 `
+  --guard-final-servo-low-recenter-trigger-xy 0.0065 `
+  --guard-final-servo-low-recenter-release-xy 0.0049 `
+  --guard-final-servo-low-recenter-height 0.018 `
+  --guard-final-servo-low-recenter-stable-steps 1 `
+  --guard-final-servo-low-recenter-max-steps 500 `
+  --guard-final-servo-low-recenter-max-up-action 0.005 `
+  --guard-final-servo-low-recenter-stall-steps 0 `
+  --guard-final-servo-descend-xy-bias 0.0 -0.005 `
+  --guard-final-servo-descend-xy-bias-max-clearance 0.010 `
+  --guard-final-servo-stall-steps 25 `
+  --guard-final-servo-max-retries 2 `
+  --guard-final-servo-max-recovery-steps 320 `
+  --guard-final-servo-recovery-mode lift_recenter `
+  --guard-final-servo-lift-height 0.020 `
+  --output-csv results\ur5e_full\high_start\hard\recovery\eval_lowrec_near_wori000_40ep_seed602020.csv `
+  --output-md results\ur5e_full\high_start\hard\recovery\eval_lowrec_near_wori000_40ep_seed602020.md `
+  --episode-output-csv results\ur5e_full\high_start\hard\recovery\eval_lowrec_near_wori000_episodes_40ep_seed602020.csv `
+  --step-output-csv results\ur5e_full\high_start\hard\recovery\eval_lowrec_near_wori000_failure_step_trace_40ep_seed602020.csv `
+  --step-trace-outcome-filter failure
+```
+
+Current strict stable-XY 60ep gate. This is the best reproducible
+single-geometry high-start hard recovery candidate as of 2026-05-19:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_localkp3_recovery_strictstable49_60ep.yaml
+```
+
+Checked result:
+
+```text
+results\ur5e_full\high_start\hard\recovery\eval_lowrec_near_wori000_strictstable49_60ep_seed602000.md
+success/collision/timeout = 0.983/0.000/0.017
+only remaining timeout = seed 602048
+```
+
+Notes:
+
+- Tightening `guard_final_servo_stable_xy` to `0.0049` fixed the previous
+  `602019/602038` near-miss timeout window.
+- `602048` is a true final-insertion stability residual: low-recenter is active
+  but stalls near `5.7 mm` XY and `16.5 mm` Z. Plateau-triggered lift-recenter,
+  `guard_action_gain=2.0`, no descent bias, and near-hole orientation weight
+  `0.01` were tested as one-seed probes but are not promoted.
+
 Use pose IK in guarded evaluation or demos with:
 
 ```powershell
 --ik-control-mode pose `
---ik-orientation-weight 0.12 `
+--ik-orientation-weight 0.03 `
 --ik-posture-weight 0.01 `
 --ik-step-limit 0.06 `
---ik-max-iterations 24
+--ik-max-iterations 64 `
+--nominal-actuator-kp-multiplier 2.0
 ```
 
 Current pose-IK hard-bucket check:
@@ -4985,6 +5175,99 @@ The hard-bucket 100ep row is in
 `eval_insert_drift_pose_ik_wori003_it64_kp2_hard_100ep_seed602000.*`.
 The matrix config has been fixed to include `include_hard_bucket: true` for
 future reruns.
+
+Run the latest low-Z preinsert lift-first smoke:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_insert_drift_2k_w10_e1_final_servo_pose_ik_wori003_it64_kp2_preinsert_lift_first_20ep.yaml
+```
+
+Fair same-seed baseline for the promoted controller:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_insert_drift_2k_w10_e1_final_servo_pose_ik_wori003_it64_kp2_hard_60ep.yaml `
+  --episodes 20 `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_insert_drift_pose_ik_wori003_it64_kp2_baseline_20ep_seed602000.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_insert_drift_pose_ik_wori003_it64_kp2_baseline_20ep_seed602000.md `
+  --episode-output-csv results\ur5e_full\high_start\hard\correction\eval_insert_drift_pose_ik_wori003_it64_kp2_baseline_episodes_20ep_seed602000.csv `
+  --step-output-csv results\ur5e_full\high_start\hard\correction\eval_insert_drift_pose_ik_wori003_it64_kp2_baseline_failure_step_trace_20ep_seed602000.csv
+```
+
+Narrow diagnostic override that avoids the broad-regression band:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_wrist_pose_control_state_insert_drift_2k_w10_e1_final_servo_pose_ik_wori003_it64_kp2_preinsert_lift_first_20ep.yaml `
+  --guard-preinsert-recenter-trigger-xy 0.008 `
+  --guard-preinsert-recenter-stable-xy 0.0065 `
+  --guard-preinsert-recenter-max-steps 40 `
+  --output-csv results\ur5e_full\high_start\hard\correction\eval_insert_drift_pose_ik_wori003_it64_kp2_preinsert_lift_first_narrow_20ep_seed602000.csv `
+  --output-md results\ur5e_full\high_start\hard\correction\eval_insert_drift_pose_ik_wori003_it64_kp2_preinsert_lift_first_narrow_20ep_seed602000.md `
+  --episode-output-csv results\ur5e_full\high_start\hard\correction\eval_insert_drift_pose_ik_wori003_it64_kp2_preinsert_lift_first_narrow_episodes_20ep_seed602000.csv `
+  --step-output-csv results\ur5e_full\high_start\hard\correction\eval_insert_drift_pose_ik_wori003_it64_kp2_preinsert_lift_first_narrow_failure_step_trace_20ep_seed602000.csv
+```
+
+Low-Z lift-first result:
+
+```text
+promoted baseline 20ep:                  0.950 / 0.000 / 0.050
+broad preinsert lift-first 20ep:         0.850 / 0.000 / 0.150
+narrow preinsert lift-first 20ep:        0.950 / 0.000 / 0.050
+narrow higher lift height 45mm 20ep:     0.950 / 0.000 / 0.050
+early high lift height 80mm 20ep:        0.900 / 0.000 / 0.100
+```
+
+Conclusion: keep `guard_preinsert_recenter_lift_before_lateral` as an opt-in
+diagnostic only. Broad preinsert recenter is too disruptive, and narrow
+preinsert recenter does not improve the remaining timeout. Next work should
+inspect TCP tracking/IK response in the remaining timeout or implement a true
+retreat-and-retry sequence instead of more threshold-only preinsert scans.
+
+Analyze command-to-motion transfer for the hard timeout:
+
+```powershell
+python scripts\analyze_tcp_response_trace.py `
+  --trace baseline=results\ur5e_full\high_start\hard\correction\eval_insert_drift_pose_ik_wori003_it64_kp2_baseline_failure_step_trace_20ep_seed602000.csv `
+  --trace holdz=results\ur5e_full\high_start\hard\correction\eval_wori003_it64_kp2_holdz_failure_trace_seed602019.csv `
+  --trace retry40=results\ur5e_full\high_start\hard\correction\eval_wori003_it64_kp2_retry40_failure_trace_seed602019.csv `
+  --trace holdz_latch_wide=results\ur5e_full\high_start\hard\correction\eval_wori003_it64_kp2_holdz_latch_wide_failure_trace_seed602019.csv `
+  --trace holdz_finalservo120=results\ur5e_full\high_start\hard\correction\eval_wori003_it64_kp2_holdz_finalservo120_retry2_failure_trace_seed602019.csv `
+  --output-md results\ur5e_full\controller_diagnostics\tcp_response_holdz_retry_seed602019.md `
+  --output-csv results\ur5e_full\controller_diagnostics\tcp_response_holdz_retry_seed602019.csv
+```
+
+Hard-case seed `602019` diagnostic results:
+
+```text
+baseline last 100 steps:
+  final XY command ~= 5.0 mm
+  applied XY command ~= 4.5 mm
+  actual peg-tip XY delta ~= 0.009 mm
+  actual / applied XY ~= 0.002
+
+hold-Z:
+  reached XY ~= 4.92 mm but stayed high at Z ~= 48.9 mm
+  failure mode is insert-band lift/descent oscillation under delay/filter
+
+retry40:
+  retry was active for 480 steps but still timed out
+
+wide latch:
+  reached Z ~= 8.2 mm, but XY drifted to ~= 10.4 mm and lateral response stayed weak
+
+early final-servo with retries:
+  final-servo was active for 636 steps but still timed out around XY ~= 8.2 mm, Z ~= 47.3 mm
+
+near-action limiting:
+  reduced IK/tracking error but stalled around 9 - 12 mm XY and did not enter the insert band
+```
+
+Conclusion: the remaining hard timeout is not just a missing guard trigger.
+The next change should either add a true stateful retreat/recenter phase with
+height hysteresis, or tune the low-level IK/controller tracking under
+delay/filter before moving to multi-geometry.
 
 Summarize Kp=2 failure modes:
 

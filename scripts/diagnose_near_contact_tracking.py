@@ -202,9 +202,13 @@ def run_probe(
 
     start_info = env._get_info()
     start_tip = np.asarray(start_info["peg_tip_pos"], dtype=np.float64)
+    start_eef = np.asarray(start_info.get("eef_pos", start_tip), dtype=np.float64)
+    start_tool0 = np.asarray(start_info.get("tool0_pos", start_tip), dtype=np.float64)
     start_dist_xy = float(np.linalg.norm(start_tip[:2] - target[:2]))
     start_z_above = float(start_tip[2] - target[2])
     start_tilt = float(start_info.get("peg_tilt_angle_deg", np.nan))
+    start_tip_to_eef_mm = float(np.linalg.norm((start_tip - start_eef)) * 1000.0)
+    start_tip_to_tool0_mm = float(np.linalg.norm((start_tip - start_tool0)) * 1000.0)
 
     tracking_errors: list[float] = []
     ik_errors: list[float] = []
@@ -251,8 +255,12 @@ def run_probe(
             break
 
     end_tip = np.asarray(final_info["peg_tip_pos"], dtype=np.float64)
+    end_eef = np.asarray(final_info.get("eef_pos", end_tip), dtype=np.float64)
+    end_tool0 = np.asarray(final_info.get("tool0_pos", end_tip), dtype=np.float64)
     end_dist_xy = float(np.linalg.norm(end_tip[:2] - target[:2]))
     end_z_above = float(end_tip[2] - target[2])
+    end_tip_to_eef_mm = float(np.linalg.norm((end_tip - end_eef)) * 1000.0)
+    end_tip_to_tool0_mm = float(np.linalg.norm((end_tip - end_tool0)) * 1000.0)
     total_actual_delta = end_tip - start_tip
     desired_total = np.asarray([target[0] - start_tip[0], target[1] - start_tip[1]], dtype=np.float64)
     desired_norm = float(np.linalg.norm(desired_total))
@@ -293,6 +301,10 @@ def run_probe(
         "end_z_above_mm": end_z_above * 1000.0,
         "z_drift_mm": (end_z_above - start_z_above) * 1000.0,
         "start_tilt_deg": start_tilt,
+        "start_tip_to_eef_mm": start_tip_to_eef_mm,
+        "start_tip_to_tool0_mm": start_tip_to_tool0_mm,
+        "end_tip_to_eef_mm": end_tip_to_eef_mm,
+        "end_tip_to_tool0_mm": end_tip_to_tool0_mm,
         "max_tilt_deg": finite_max(tilt_angles),
         "mean_tracking_error_mm": finite_mean(tracking_errors) * 1000.0,
         "mean_ik_target_error_mm": finite_mean(ik_errors) * 1000.0,
@@ -342,6 +354,18 @@ def summarize_group(rows: list[dict[str, Any]], keys: tuple[str, ...]) -> list[d
                 "mean_ik_target_error_mm": finite_mean(
                     [float(row["mean_ik_target_error_mm"]) for row in group_rows]
                 ),
+                "mean_start_tip_to_eef_mm": finite_mean(
+                    [float(row["start_tip_to_eef_mm"]) for row in group_rows]
+                ),
+                "mean_start_tip_to_tool0_mm": finite_mean(
+                    [float(row["start_tip_to_tool0_mm"]) for row in group_rows]
+                ),
+                "mean_end_tip_to_eef_mm": finite_mean(
+                    [float(row["end_tip_to_eef_mm"]) for row in group_rows]
+                ),
+                "mean_end_tip_to_tool0_mm": finite_mean(
+                    [float(row["end_tip_to_tool0_mm"]) for row in group_rows]
+                ),
             }
         )
         summaries.append(summary)
@@ -370,8 +394,8 @@ def write_summary(path: Path, rows: list[dict[str, Any]], args: argparse.Namespa
         "",
         "## By IK Mode",
         "",
-        "| mode | probes | setup ok | setup coll | coll | success | xy reduction mm | reduction/cmd | alignment | step gain | z drift mm | max tilt | track err mm | ik err mm |",
-        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| mode | probes | setup ok | setup coll | coll | success | xy reduction mm | reduction/cmd | alignment | step gain | z drift mm | max tilt | track err mm | ik err mm | start tip->eef mm | start tip->tool0 mm | end tip->eef mm | end tip->tool0 mm |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for row in by_mode:
         lines.append(
@@ -379,7 +403,9 @@ def write_summary(path: Path, rows: list[dict[str, Any]], args: argparse.Namespa
             "{collision_rate:.3f} | {success_rate:.3f} | {mean_xy_reduction_mm:.3f} | "
             "{mean_xy_reduction_per_command:.3f} | {mean_total_xy_alignment:.3f} | "
             "{mean_step_xy_gain:.3f} | {mean_z_drift_mm:.3f} | {max_tilt_deg:.3f} | "
-            "{mean_tracking_error_mm:.3f} | {mean_ik_target_error_mm:.3f} |".format(**row)
+            "{mean_tracking_error_mm:.3f} | {mean_ik_target_error_mm:.3f} | "
+            "{mean_start_tip_to_eef_mm:.3f} | {mean_start_tip_to_tool0_mm:.3f} | "
+            "{mean_end_tip_to_eef_mm:.3f} | {mean_end_tip_to_tool0_mm:.3f} |".format(**row)
         )
     lines.extend(
         [

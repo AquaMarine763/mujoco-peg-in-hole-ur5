@@ -169,6 +169,22 @@ STEP_TRACE_FIELDNAMES = [
     "guard_preinsert_recenter_steps",
     "guard_preinsert_recenter_stable_steps",
     "guard_preinsert_recenter_down_blocked",
+    "guard_approach_recenter_active",
+    "guard_approach_recenter_triggered",
+    "guard_approach_recenter_released",
+    "guard_approach_recenter_steps",
+    "guard_approach_recenter_stable_steps",
+    "guard_approach_recenter_down_blocked",
+    "guard_stateful_recovery_active",
+    "guard_stateful_recovery_triggered",
+    "guard_stateful_recovery_released",
+    "guard_stateful_recovery_exhausted",
+    "guard_stateful_recovery_phase",
+    "guard_stateful_recovery_phase_steps",
+    "guard_stateful_recovery_stall_steps",
+    "guard_stateful_recovery_stable_steps",
+    "guard_stateful_recovery_attempts",
+    "guard_stateful_recovery_down_blocked",
     "guard_final_servo_active",
     "guard_final_servo_triggered",
     "guard_final_servo_recovery_triggered",
@@ -177,6 +193,8 @@ STEP_TRACE_FIELDNAMES = [
     "guard_final_servo_phase_steps",
     "guard_final_servo_stable_steps",
     "guard_final_servo_stall_steps",
+    "guard_final_servo_low_recenter_stall_steps",
+    "guard_final_servo_low_recenter_best_dist_xy",
     "guard_final_servo_retry_count",
     "guard_final_servo_descent_allowed",
     "guard_final_servo_down_blocked",
@@ -200,6 +218,7 @@ STEP_TRACE_FIELDNAMES = [
     "action_tip_delta_error_y",
     "action_tip_delta_error_z",
     "ik_control_mode",
+    "ik_orientation_weight",
     "ik_target_error",
     "ik_orientation_error",
     "ik_iterations",
@@ -289,6 +308,7 @@ def build_parser(
     parser.add_argument("--initial-ik-max-attempts", type=int, default=20)
     parser.add_argument("--ik-control-mode", choices=["position", "pose"], default="position")
     parser.add_argument("--ik-orientation-weight", type=float, default=0.12)
+    parser.add_argument("--guard-near-ik-orientation-weight", type=float, default=None)
     parser.add_argument("--ik-posture-weight", type=float, default=0.01)
     parser.add_argument("--ik-step-limit", type=float, default=0.06)
     parser.add_argument("--ik-max-iterations", type=int, default=24)
@@ -297,6 +317,8 @@ def build_parser(
     parser.add_argument("--geometry-hole-half-size-range", nargs=2, type=float, default=(0.017, 0.021))
     parser.add_argument("--nominal-joint-damping-multiplier", type=float, default=1.0)
     parser.add_argument("--nominal-actuator-kp-multiplier", type=float, default=1.0)
+    parser.add_argument("--guard-near-actuator-kp-enabled", action="store_true")
+    parser.add_argument("--guard-near-actuator-kp-multiplier", type=float, default=3.0)
     parser.add_argument("--approach-xy-tolerance", type=float, default=0.02)
     parser.add_argument("--approach-height", type=float, default=0.08)
     parser.add_argument("--staged-xy-weight", type=float, default=2.0)
@@ -328,6 +350,7 @@ def build_parser(
     parser.add_argument("--guard-insert-latch-release-xy", type=float, default=0.009)
     parser.add_argument("--guard-insert-latch-resume-xy", type=float, default=0.005)
     parser.add_argument("--guard-insert-latch-recenter-height", type=float, default=0.0)
+    parser.add_argument("--guard-insert-latch-recenter-z-tolerance", type=float, default=0.0)
     parser.add_argument("--guard-insert-latch-max-down-action", type=float, default=0.0)
     parser.add_argument("--guard-hover-enabled", action="store_true")
     parser.add_argument("--guard-hover-xy-tolerance", type=float, default=0.004)
@@ -364,6 +387,44 @@ def build_parser(
     parser.add_argument("--guard-preinsert-recenter-max-steps", type=int, default=80)
     parser.add_argument("--guard-preinsert-recenter-max-xy-action", type=float, default=0.005)
     parser.add_argument("--guard-preinsert-recenter-max-up-action", type=float, default=0.005)
+    parser.add_argument("--guard-preinsert-recenter-lift-before-lateral", action="store_true")
+    parser.add_argument("--guard-approach-recenter-enabled", action="store_true")
+    parser.add_argument(
+        "--guard-approach-recenter-requires-stateful-recovery",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    parser.add_argument("--guard-approach-recenter-start-z", type=float, default=0.075)
+    parser.add_argument("--guard-approach-recenter-min-z", type=float, default=0.045)
+    parser.add_argument("--guard-approach-recenter-trigger-xy", type=float, default=0.010)
+    parser.add_argument("--guard-approach-recenter-max-xy", type=float, default=0.030)
+    parser.add_argument("--guard-approach-recenter-stable-xy", type=float, default=0.005)
+    parser.add_argument("--guard-approach-recenter-height", type=float, default=0.060)
+    parser.add_argument("--guard-approach-recenter-z-tolerance", type=float, default=0.012)
+    parser.add_argument("--guard-approach-recenter-stable-steps", type=int, default=2)
+    parser.add_argument("--guard-approach-recenter-max-steps", type=int, default=220)
+    parser.add_argument("--guard-approach-recenter-max-xy-action", type=float, default=0.005)
+    parser.add_argument("--guard-approach-recenter-max-up-action", type=float, default=0.005)
+    parser.add_argument("--guard-approach-recenter-xy-bias", nargs=2, type=float, default=(0.0, 0.0))
+    parser.add_argument("--guard-stateful-recovery-enabled", action="store_true")
+    parser.add_argument("--guard-stateful-recovery-trigger-xy-min", type=float, default=0.006)
+    parser.add_argument("--guard-stateful-recovery-trigger-xy-max", type=float, default=0.030)
+    parser.add_argument("--guard-stateful-recovery-trigger-z-max", type=float, default=0.130)
+    parser.add_argument("--guard-stateful-recovery-lift-height", type=float, default=0.060)
+    parser.add_argument("--guard-stateful-recovery-lift-z-tolerance", type=float, default=0.006)
+    parser.add_argument("--guard-stateful-recovery-release-xy", type=float, default=0.0048)
+    parser.add_argument("--guard-stateful-recovery-resume-xy", type=float, default=0.0065)
+    parser.add_argument("--guard-stateful-recovery-resume-z", type=float, default=0.012)
+    parser.add_argument("--guard-stateful-recovery-stable-steps", type=int, default=4)
+    parser.add_argument("--guard-stateful-recovery-stall-steps", type=int, default=100)
+    parser.add_argument("--guard-stateful-recovery-min-xy-progress", type=float, default=0.00035)
+    parser.add_argument("--guard-stateful-recovery-min-actual-xy-motion", type=float, default=0.00012)
+    parser.add_argument("--guard-stateful-recovery-min-command-xy", type=float, default=0.0025)
+    parser.add_argument("--guard-stateful-recovery-max-attempts", type=int, default=1)
+    parser.add_argument("--guard-stateful-recovery-max-steps", type=int, default=220)
+    parser.add_argument("--guard-stateful-recovery-max-xy-action", type=float, default=0.005)
+    parser.add_argument("--guard-stateful-recovery-max-down-action", type=float, default=0.0015)
+    parser.add_argument("--guard-stateful-recovery-max-up-action", type=float, default=0.005)
     parser.add_argument("--guard-final-servo-enabled", action="store_true")
     parser.add_argument("--guard-final-servo-start-xy", type=float, default=0.012)
     parser.add_argument("--guard-final-servo-start-z", type=float, default=0.070)
@@ -371,11 +432,44 @@ def build_parser(
     parser.add_argument("--guard-final-servo-hover-height", type=float, default=0.040)
     parser.add_argument("--guard-final-servo-hover-z-tolerance", type=float, default=0.010)
     parser.add_argument("--guard-final-servo-stable-xy", type=float, default=0.0045)
+    parser.add_argument("--guard-final-servo-descent-start-xy", type=float, default=0.0)
     parser.add_argument("--guard-final-servo-stable-steps", type=int, default=6)
     parser.add_argument("--guard-final-servo-release-xy", type=float, default=0.008)
     parser.add_argument("--guard-final-servo-max-xy-action", type=float, default=0.0025)
     parser.add_argument("--guard-final-servo-max-down-action", type=float, default=0.0015)
+    parser.add_argument("--guard-final-servo-low-recenter-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-low-recenter-z-max", type=float, default=0.012)
+    parser.add_argument(
+        "--guard-final-servo-low-recenter-trigger-xy",
+        type=float,
+        default=0.0065,
+    )
+    parser.add_argument(
+        "--guard-final-servo-low-recenter-release-xy",
+        type=float,
+        default=0.0055,
+    )
+    parser.add_argument("--guard-final-servo-low-recenter-height", type=float, default=0.010)
+    parser.add_argument("--guard-final-servo-low-recenter-stable-steps", type=int, default=2)
+    parser.add_argument("--guard-final-servo-low-recenter-max-steps", type=int, default=120)
+    parser.add_argument(
+        "--guard-final-servo-low-recenter-max-up-action",
+        type=float,
+        default=0.003,
+    )
+    parser.add_argument("--guard-final-servo-low-recenter-stall-steps", type=int, default=0)
+    parser.add_argument(
+        "--guard-final-servo-low-recenter-min-xy-progress",
+        type=float,
+        default=0.0001,
+    )
     parser.add_argument("--guard-final-servo-descend-xy-bias", nargs=2, type=float, default=(0.0, 0.0))
+    parser.add_argument(
+        "--guard-final-servo-descend-xy-bias-max-clearance",
+        type=float,
+        default=float("inf"),
+    )
+    parser.add_argument("--guard-final-servo-descend-xy-bias-requires-stateful-recovery", action="store_true")
     parser.add_argument("--guard-final-servo-lift-height", type=float, default=0.060)
     parser.add_argument("--guard-final-servo-stall-steps", type=int, default=80)
     parser.add_argument("--guard-final-servo-min-z-progress", type=float, default=0.002)
@@ -513,6 +607,7 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         guard_insert_latch_release_xy=args.guard_insert_latch_release_xy,
         guard_insert_latch_resume_xy=args.guard_insert_latch_resume_xy,
         guard_insert_latch_recenter_height=args.guard_insert_latch_recenter_height,
+        guard_insert_latch_recenter_z_tolerance=args.guard_insert_latch_recenter_z_tolerance,
         guard_insert_latch_max_down_action=args.guard_insert_latch_max_down_action,
         guard_hover_enabled=args.guard_hover_enabled,
         guard_hover_xy_tolerance=args.guard_hover_xy_tolerance,
@@ -549,6 +644,46 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         guard_preinsert_recenter_max_steps=args.guard_preinsert_recenter_max_steps,
         guard_preinsert_recenter_max_xy_action=args.guard_preinsert_recenter_max_xy_action,
         guard_preinsert_recenter_max_up_action=args.guard_preinsert_recenter_max_up_action,
+        guard_preinsert_recenter_lift_before_lateral=(
+            args.guard_preinsert_recenter_lift_before_lateral
+        ),
+        guard_approach_recenter_enabled=args.guard_approach_recenter_enabled,
+        guard_approach_recenter_requires_stateful_recovery=(
+            args.guard_approach_recenter_requires_stateful_recovery
+        ),
+        guard_approach_recenter_start_z=args.guard_approach_recenter_start_z,
+        guard_approach_recenter_min_z=args.guard_approach_recenter_min_z,
+        guard_approach_recenter_trigger_xy=args.guard_approach_recenter_trigger_xy,
+        guard_approach_recenter_max_xy=args.guard_approach_recenter_max_xy,
+        guard_approach_recenter_stable_xy=args.guard_approach_recenter_stable_xy,
+        guard_approach_recenter_height=args.guard_approach_recenter_height,
+        guard_approach_recenter_z_tolerance=args.guard_approach_recenter_z_tolerance,
+        guard_approach_recenter_stable_steps=args.guard_approach_recenter_stable_steps,
+        guard_approach_recenter_max_steps=args.guard_approach_recenter_max_steps,
+        guard_approach_recenter_max_xy_action=args.guard_approach_recenter_max_xy_action,
+        guard_approach_recenter_max_up_action=args.guard_approach_recenter_max_up_action,
+        guard_approach_recenter_xy_bias=tuple(args.guard_approach_recenter_xy_bias),
+        guard_stateful_recovery_enabled=args.guard_stateful_recovery_enabled,
+        guard_stateful_recovery_trigger_xy_min=args.guard_stateful_recovery_trigger_xy_min,
+        guard_stateful_recovery_trigger_xy_max=args.guard_stateful_recovery_trigger_xy_max,
+        guard_stateful_recovery_trigger_z_max=args.guard_stateful_recovery_trigger_z_max,
+        guard_stateful_recovery_lift_height=args.guard_stateful_recovery_lift_height,
+        guard_stateful_recovery_lift_z_tolerance=args.guard_stateful_recovery_lift_z_tolerance,
+        guard_stateful_recovery_release_xy=args.guard_stateful_recovery_release_xy,
+        guard_stateful_recovery_resume_xy=args.guard_stateful_recovery_resume_xy,
+        guard_stateful_recovery_resume_z=args.guard_stateful_recovery_resume_z,
+        guard_stateful_recovery_stable_steps=args.guard_stateful_recovery_stable_steps,
+        guard_stateful_recovery_stall_steps=args.guard_stateful_recovery_stall_steps,
+        guard_stateful_recovery_min_xy_progress=args.guard_stateful_recovery_min_xy_progress,
+        guard_stateful_recovery_min_actual_xy_motion=(
+            args.guard_stateful_recovery_min_actual_xy_motion
+        ),
+        guard_stateful_recovery_min_command_xy=args.guard_stateful_recovery_min_command_xy,
+        guard_stateful_recovery_max_attempts=args.guard_stateful_recovery_max_attempts,
+        guard_stateful_recovery_max_steps=args.guard_stateful_recovery_max_steps,
+        guard_stateful_recovery_max_xy_action=args.guard_stateful_recovery_max_xy_action,
+        guard_stateful_recovery_max_down_action=args.guard_stateful_recovery_max_down_action,
+        guard_stateful_recovery_max_up_action=args.guard_stateful_recovery_max_up_action,
         guard_final_servo_enabled=args.guard_final_servo_enabled,
         guard_final_servo_start_xy=args.guard_final_servo_start_xy,
         guard_final_servo_start_z=args.guard_final_servo_start_z,
@@ -556,11 +691,42 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         guard_final_servo_hover_height=args.guard_final_servo_hover_height,
         guard_final_servo_hover_z_tolerance=args.guard_final_servo_hover_z_tolerance,
         guard_final_servo_stable_xy=args.guard_final_servo_stable_xy,
+        guard_final_servo_descent_start_xy=args.guard_final_servo_descent_start_xy,
         guard_final_servo_stable_steps=args.guard_final_servo_stable_steps,
         guard_final_servo_release_xy=args.guard_final_servo_release_xy,
         guard_final_servo_max_xy_action=args.guard_final_servo_max_xy_action,
         guard_final_servo_max_down_action=args.guard_final_servo_max_down_action,
+        guard_final_servo_low_recenter_enabled=args.guard_final_servo_low_recenter_enabled,
+        guard_final_servo_low_recenter_z_max=args.guard_final_servo_low_recenter_z_max,
+        guard_final_servo_low_recenter_trigger_xy=(
+            args.guard_final_servo_low_recenter_trigger_xy
+        ),
+        guard_final_servo_low_recenter_release_xy=(
+            args.guard_final_servo_low_recenter_release_xy
+        ),
+        guard_final_servo_low_recenter_height=args.guard_final_servo_low_recenter_height,
+        guard_final_servo_low_recenter_stable_steps=(
+            args.guard_final_servo_low_recenter_stable_steps
+        ),
+        guard_final_servo_low_recenter_max_steps=(
+            args.guard_final_servo_low_recenter_max_steps
+        ),
+        guard_final_servo_low_recenter_max_up_action=(
+            args.guard_final_servo_low_recenter_max_up_action
+        ),
+        guard_final_servo_low_recenter_stall_steps=(
+            args.guard_final_servo_low_recenter_stall_steps
+        ),
+        guard_final_servo_low_recenter_min_xy_progress=(
+            args.guard_final_servo_low_recenter_min_xy_progress
+        ),
         guard_final_servo_descend_xy_bias=tuple(args.guard_final_servo_descend_xy_bias),
+        guard_final_servo_descend_xy_bias_max_clearance=(
+            args.guard_final_servo_descend_xy_bias_max_clearance
+        ),
+        guard_final_servo_descend_xy_bias_requires_stateful_recovery=(
+            args.guard_final_servo_descend_xy_bias_requires_stateful_recovery
+        ),
         guard_final_servo_lift_height=args.guard_final_servo_lift_height,
         guard_final_servo_stall_steps=args.guard_final_servo_stall_steps,
         guard_final_servo_min_z_progress=args.guard_final_servo_min_z_progress,
@@ -826,6 +992,54 @@ def build_step_trace_row(
         "guard_preinsert_recenter_down_blocked": (
             bool(step.guard_preinsert_recenter_down_blocked) if step_guard else False
         ),
+        "guard_approach_recenter_active": (
+            bool(step.guard_approach_recenter_active) if step_guard else False
+        ),
+        "guard_approach_recenter_triggered": (
+            bool(step.guard_approach_recenter_triggered) if step_guard else False
+        ),
+        "guard_approach_recenter_released": (
+            bool(step.guard_approach_recenter_released) if step_guard else False
+        ),
+        "guard_approach_recenter_steps": (
+            int(step.guard_approach_recenter_steps) if step_guard else 0
+        ),
+        "guard_approach_recenter_stable_steps": (
+            int(step.guard_approach_recenter_stable_steps) if step_guard else 0
+        ),
+        "guard_approach_recenter_down_blocked": (
+            bool(step.guard_approach_recenter_down_blocked) if step_guard else False
+        ),
+        "guard_stateful_recovery_active": (
+            bool(step.guard_stateful_recovery_active) if step_guard else False
+        ),
+        "guard_stateful_recovery_triggered": (
+            bool(step.guard_stateful_recovery_triggered) if step_guard else False
+        ),
+        "guard_stateful_recovery_released": (
+            bool(step.guard_stateful_recovery_released) if step_guard else False
+        ),
+        "guard_stateful_recovery_exhausted": (
+            bool(step.guard_stateful_recovery_exhausted) if step_guard else False
+        ),
+        "guard_stateful_recovery_phase": (
+            str(step.guard_stateful_recovery_phase) if step_guard else "inactive"
+        ),
+        "guard_stateful_recovery_phase_steps": (
+            int(step.guard_stateful_recovery_phase_steps) if step_guard else 0
+        ),
+        "guard_stateful_recovery_stall_steps": (
+            int(step.guard_stateful_recovery_stall_steps) if step_guard else 0
+        ),
+        "guard_stateful_recovery_stable_steps": (
+            int(step.guard_stateful_recovery_stable_steps) if step_guard else 0
+        ),
+        "guard_stateful_recovery_attempts": (
+            int(step.guard_stateful_recovery_attempts) if step_guard else 0
+        ),
+        "guard_stateful_recovery_down_blocked": (
+            bool(step.guard_stateful_recovery_down_blocked) if step_guard else False
+        ),
         "guard_final_servo_active": bool(step.guard_final_servo_active) if step_guard else False,
         "guard_final_servo_triggered": (
             bool(step.guard_final_servo_triggered) if step_guard else False
@@ -848,6 +1062,15 @@ def build_step_trace_row(
         "guard_final_servo_stall_steps": (
             int(step.guard_final_servo_stall_steps) if step_guard else 0
         ),
+        "guard_final_servo_low_recenter_stall_steps": (
+            int(step.guard_final_servo_low_recenter_stall_steps) if step_guard else 0
+        ),
+        "guard_final_servo_low_recenter_best_dist_xy": (
+            float(step.guard_final_servo_low_recenter_best_dist_xy)
+            if step_guard
+            and np.isfinite(step.guard_final_servo_low_recenter_best_dist_xy)
+            else np.nan
+        ),
         "guard_final_servo_retry_count": (
             int(step.guard_final_servo_retry_count) if step_guard else 0
         ),
@@ -865,6 +1088,7 @@ def build_step_trace_row(
         "action_tracking_error": float(post_info["action_tracking_error"]),
         **vector3_columns("action_tip_delta_error", post_info["action_tip_delta_error"]),
         "ik_control_mode": str(post_info.get("ik_control_mode", "")),
+        "ik_orientation_weight": float(post_info.get("ik_orientation_weight", np.nan)),
         "ik_target_error": float(post_info.get("ik_target_error", np.nan)),
         "ik_orientation_error": float(post_info.get("ik_orientation_error", np.nan)),
         "ik_iterations": int(post_info.get("ik_iterations", 0)),
@@ -883,6 +1107,39 @@ def build_step_trace_row(
         "hole_clearance": float(post_info.get("hole_half_size", np.nan) - post_info.get("peg_radius", np.nan)),
     }
     return row
+
+
+def guard_near_control_active(
+    step: GuardedPolicyStep | None,
+    args: argparse.Namespace,
+) -> bool:
+    if step is None:
+        return False
+    return (
+        bool(step.guard_stateful_recovery_active)
+        or bool(step.guard_approach_recenter_active)
+        or bool(step.guard_final_servo_active)
+        or (
+            bool(step.guard_active)
+            and step.guard_dist_xy <= args.guard_final_servo_release_xy
+            and step.guard_z_above_target <= args.guard_start_z
+        )
+    )
+
+
+def apply_guard_near_ik_orientation_weight(
+    env: PegInHoleMujocoEnv,
+    step: GuardedPolicyStep | None,
+    args: argparse.Namespace,
+) -> bool:
+    active = (
+        args.guard_near_ik_orientation_weight is not None
+        and guard_near_control_active(step, args)
+    )
+    env.set_ik_orientation_weight(
+        args.guard_near_ik_orientation_weight if active else args.ik_orientation_weight
+    )
+    return active
 
 
 def evaluate_scenario(
@@ -934,6 +1191,16 @@ def evaluate_scenario(
     preinsert_recenter_triggers: list[float] = []
     preinsert_recenter_releases: list[float] = []
     preinsert_recenter_blocked_steps: list[float] = []
+    approach_recenter_episodes = 0
+    approach_recenter_steps: list[float] = []
+    approach_recenter_triggers: list[float] = []
+    approach_recenter_releases: list[float] = []
+    approach_recenter_blocked_steps: list[float] = []
+    stateful_recovery_episodes = 0
+    stateful_recovery_steps: list[float] = []
+    stateful_recovery_triggers: list[float] = []
+    stateful_recovery_releases: list[float] = []
+    stateful_recovery_exhausted_steps: list[float] = []
     final_servo_episodes = 0
     final_servo_steps: list[float] = []
     final_servo_triggers: list[float] = []
@@ -949,8 +1216,12 @@ def evaluate_scenario(
     try:
         for episode in range(args.episodes):
             episode_seed = args.seed + episode
+            env.set_ik_orientation_weight(args.ik_orientation_weight)
             obs, info = env.reset(seed=episode_seed)
             guarded_controller.reset()
+            episode_base_actuator_kp_multiplier = float(
+                info.get("actuator_kp_multiplier", args.nominal_actuator_kp_multiplier)
+            )
             episode_return = 0.0
             episode_guard_steps = 0
             episode_retry_steps = 0
@@ -969,6 +1240,14 @@ def evaluate_scenario(
             episode_preinsert_recenter_triggers = 0
             episode_preinsert_recenter_releases = 0
             episode_preinsert_recenter_blocked_steps = 0
+            episode_approach_recenter_steps = 0
+            episode_approach_recenter_triggers = 0
+            episode_approach_recenter_releases = 0
+            episode_approach_recenter_blocked_steps = 0
+            episode_stateful_recovery_steps = 0
+            episode_stateful_recovery_triggers = 0
+            episode_stateful_recovery_releases = 0
+            episode_stateful_recovery_exhausted_steps = 0
             episode_final_servo_steps = 0
             episode_final_servo_triggers = 0
             episode_final_servo_recovery_triggers = 0
@@ -1053,6 +1332,30 @@ def evaluate_scenario(
                     episode_preinsert_recenter_blocked_steps += int(
                         step.guard_preinsert_recenter_down_blocked
                     )
+                    episode_approach_recenter_steps += int(
+                        step.guard_approach_recenter_active
+                    )
+                    episode_approach_recenter_triggers += int(
+                        step.guard_approach_recenter_triggered
+                    )
+                    episode_approach_recenter_releases += int(
+                        step.guard_approach_recenter_released
+                    )
+                    episode_approach_recenter_blocked_steps += int(
+                        step.guard_approach_recenter_down_blocked
+                    )
+                    episode_stateful_recovery_steps += int(
+                        step.guard_stateful_recovery_active
+                    )
+                    episode_stateful_recovery_triggers += int(
+                        step.guard_stateful_recovery_triggered
+                    )
+                    episode_stateful_recovery_releases += int(
+                        step.guard_stateful_recovery_released
+                    )
+                    episode_stateful_recovery_exhausted_steps += int(
+                        step.guard_stateful_recovery_exhausted
+                    )
                     episode_final_servo_steps += int(step.guard_final_servo_active)
                     episode_final_servo_triggers += int(step.guard_final_servo_triggered)
                     episode_final_servo_recovery_triggers += int(
@@ -1064,6 +1367,14 @@ def evaluate_scenario(
                     episode_final_servo_exhausted_steps += int(
                         step.guard_final_servo_exhausted
                     )
+                near_control_active = guard_near_control_active(step, args)
+                if args.guard_near_actuator_kp_enabled:
+                    env.set_arm_actuator_kp_multiplier(
+                        args.guard_near_actuator_kp_multiplier
+                        if near_control_active
+                        else episode_base_actuator_kp_multiplier
+                    )
+                apply_guard_near_ik_orientation_weight(env, step, args)
                 obs, reward, terminated, truncated, info = env.step(action)
                 episode_return += float(reward)
                 dist_xy = float(info["dist_xy"])
@@ -1123,6 +1434,14 @@ def evaluate_scenario(
                 episode_preinsert_recenter_steps > 0
                 or episode_preinsert_recenter_triggers > 0
             )
+            approach_recenter_episodes += int(
+                episode_approach_recenter_steps > 0
+                or episode_approach_recenter_triggers > 0
+            )
+            stateful_recovery_episodes += int(
+                episode_stateful_recovery_steps > 0
+                or episode_stateful_recovery_triggers > 0
+            )
             final_servo_episodes += int(
                 episode_final_servo_steps > 0
                 or episode_final_servo_triggers > 0
@@ -1148,6 +1467,16 @@ def evaluate_scenario(
             preinsert_recenter_releases.append(float(episode_preinsert_recenter_releases))
             preinsert_recenter_blocked_steps.append(
                 float(episode_preinsert_recenter_blocked_steps)
+            )
+            approach_recenter_steps.append(float(episode_approach_recenter_steps))
+            approach_recenter_triggers.append(float(episode_approach_recenter_triggers))
+            approach_recenter_releases.append(float(episode_approach_recenter_releases))
+            approach_recenter_blocked_steps.append(float(episode_approach_recenter_blocked_steps))
+            stateful_recovery_steps.append(float(episode_stateful_recovery_steps))
+            stateful_recovery_triggers.append(float(episode_stateful_recovery_triggers))
+            stateful_recovery_releases.append(float(episode_stateful_recovery_releases))
+            stateful_recovery_exhausted_steps.append(
+                float(episode_stateful_recovery_exhausted_steps)
             )
             final_servo_steps.append(float(episode_final_servo_steps))
             final_servo_triggers.append(float(episode_final_servo_triggers))
@@ -1193,6 +1522,18 @@ def evaluate_scenario(
                     "preinsert_recenter_blocked_steps": (
                         episode_preinsert_recenter_blocked_steps
                     ),
+                    "approach_recenter_steps": episode_approach_recenter_steps,
+                    "approach_recenter_triggers": episode_approach_recenter_triggers,
+                    "approach_recenter_releases": episode_approach_recenter_releases,
+                    "approach_recenter_blocked_steps": (
+                        episode_approach_recenter_blocked_steps
+                    ),
+                    "stateful_recovery_steps": episode_stateful_recovery_steps,
+                    "stateful_recovery_triggers": episode_stateful_recovery_triggers,
+                    "stateful_recovery_releases": episode_stateful_recovery_releases,
+                    "stateful_recovery_exhausted_steps": (
+                        episode_stateful_recovery_exhausted_steps
+                    ),
                     "final_servo_steps": episode_final_servo_steps,
                     "final_servo_triggers": episode_final_servo_triggers,
                     "final_servo_recovery_triggers": episode_final_servo_recovery_triggers,
@@ -1237,6 +1578,7 @@ def evaluate_scenario(
     mean_fixture_clearance_steps = mean(fixture_clearance_steps)
     mean_fixture_clearance_realign_steps = mean(fixture_clearance_realign_steps)
     mean_preinsert_recenter_steps = mean(preinsert_recenter_steps)
+    mean_stateful_recovery_steps = mean(stateful_recovery_steps)
     mean_final_servo_steps = mean(final_servo_steps)
     mean_final_servo_descent_steps = mean(final_servo_descent_steps)
     summary = {
@@ -1286,6 +1628,24 @@ def evaluate_scenario(
         "mean_preinsert_recenter_releases": mean(preinsert_recenter_releases),
         "mean_preinsert_recenter_blocked_steps": mean(preinsert_recenter_blocked_steps),
         "preinsert_recenter_episode_rate": preinsert_recenter_episodes / args.episodes,
+        "mean_approach_recenter_steps": mean(approach_recenter_steps),
+        "mean_approach_recenter_fraction": (
+            mean(approach_recenter_steps) / max(mean_steps, 1e-9)
+        ),
+        "mean_approach_recenter_triggers": mean(approach_recenter_triggers),
+        "mean_approach_recenter_releases": mean(approach_recenter_releases),
+        "mean_approach_recenter_blocked_steps": mean(approach_recenter_blocked_steps),
+        "approach_recenter_episode_rate": approach_recenter_episodes / args.episodes,
+        "mean_stateful_recovery_steps": mean_stateful_recovery_steps,
+        "mean_stateful_recovery_fraction": (
+            mean_stateful_recovery_steps / max(mean_steps, 1e-9)
+        ),
+        "mean_stateful_recovery_triggers": mean(stateful_recovery_triggers),
+        "mean_stateful_recovery_releases": mean(stateful_recovery_releases),
+        "mean_stateful_recovery_exhausted_steps": mean(
+            stateful_recovery_exhausted_steps
+        ),
+        "stateful_recovery_episode_rate": stateful_recovery_episodes / args.episodes,
         "mean_final_servo_steps": mean_final_servo_steps,
         "mean_final_servo_step_fraction": mean_final_servo_steps / max(mean_steps, 1e-9),
         "mean_final_servo_triggers": mean(final_servo_triggers),
@@ -1351,8 +1711,10 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Wrist camera FOV override: `{args.wrist_camera_fovy}`",
         f"- IK control mode: `{args.ik_control_mode}`",
         f"- IK orientation/posture weight: `{args.ik_orientation_weight}/{args.ik_posture_weight}`",
+        f"- Guard near IK orientation weight: `{args.guard_near_ik_orientation_weight}`",
         f"- IK step limit/max iterations: `{args.ik_step_limit}/{args.ik_max_iterations}`",
         f"- Nominal joint damping / actuator Kp multiplier: `{args.nominal_joint_damping_multiplier}/{args.nominal_actuator_kp_multiplier}`",
+        f"- Guard near actuator Kp enabled/multiplier: `{args.guard_near_actuator_kp_enabled}/{args.guard_near_actuator_kp_multiplier}`",
         f"- Guard start XY: `{args.guard_start_xy}`",
         f"- Guard start Z above target: `{args.guard_start_z}`",
         f"- Guard risk XY: `{args.guard_risk_xy}`",
@@ -1366,7 +1728,7 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Guard retry lift/release/max attempts/max steps: `{args.guard_retry_lift_height}/{args.guard_retry_release_xy}/{args.guard_retry_max_attempts}/{args.guard_retry_max_steps}`",
         f"- Guard insert latch enabled: `{args.guard_insert_latch_enabled}`",
         f"- Guard insert latch XY/release XY: `{args.guard_insert_latch_xy_tolerance}/{args.guard_insert_latch_release_xy}`",
-        f"- Guard insert latch resume/recenter/max down: `{args.guard_insert_latch_resume_xy}/{args.guard_insert_latch_recenter_height}/{args.guard_insert_latch_max_down_action}`",
+        f"- Guard insert latch resume/recenter/z tol/max down: `{args.guard_insert_latch_resume_xy}/{args.guard_insert_latch_recenter_height}/{args.guard_insert_latch_recenter_z_tolerance}/{args.guard_insert_latch_max_down_action}`",
         f"- Guard hover enabled: `{args.guard_hover_enabled}`",
         f"- Guard hover XY/release/height/Z tol/steps/max down: `{args.guard_hover_xy_tolerance}/{args.guard_hover_release_xy}/{args.guard_hover_height}/{args.guard_hover_z_tolerance}/{args.guard_hover_required_steps}/{args.guard_hover_max_down_action}`",
         f"- Guard near action scale enabled: `{args.guard_near_action_scale_enabled}`",
@@ -1378,12 +1740,22 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Guard preinsert recenter enabled: `{args.guard_preinsert_recenter_enabled}`",
         f"- Guard preinsert recenter start/min Z, trigger/stable XY: `{args.guard_preinsert_recenter_start_z}/{args.guard_preinsert_recenter_min_z}/{args.guard_preinsert_recenter_trigger_xy}/{args.guard_preinsert_recenter_stable_xy}`",
         f"- Guard preinsert recenter height/Z tol/stable/max steps/max XY/max up: `{args.guard_preinsert_recenter_height}/{args.guard_preinsert_recenter_z_tolerance}/{args.guard_preinsert_recenter_stable_steps}/{args.guard_preinsert_recenter_max_steps}/{args.guard_preinsert_recenter_max_xy_action}/{args.guard_preinsert_recenter_max_up_action}`",
+        f"- Guard preinsert recenter lift before lateral: `{args.guard_preinsert_recenter_lift_before_lateral}`",
+        f"- Guard stateful recovery enabled: `{args.guard_stateful_recovery_enabled}`",
+        f"- Guard stateful recovery trigger XY/Z/stall: `{args.guard_stateful_recovery_trigger_xy_min}-{args.guard_stateful_recovery_trigger_xy_max}/{args.guard_stateful_recovery_trigger_z_max}/{args.guard_stateful_recovery_stall_steps}`",
+        f"- Guard stateful recovery lift/release/resume/stable/max attempts: `{args.guard_stateful_recovery_lift_height}/{args.guard_stateful_recovery_release_xy}/{args.guard_stateful_recovery_resume_xy}/{args.guard_stateful_recovery_stable_steps}/{args.guard_stateful_recovery_max_attempts}`",
         f"- Guard final servo enabled: `{args.guard_final_servo_enabled}`",
         f"- Guard final servo start XY/Z/min Z: `{args.guard_final_servo_start_xy}/{args.guard_final_servo_start_z}/{args.guard_final_servo_min_start_z}`",
-        f"- Guard final servo hover/stable/release: `{args.guard_final_servo_hover_height}/{args.guard_final_servo_stable_xy}/{args.guard_final_servo_release_xy}`",
+        f"- Guard final servo hover/stable/descent-start/release: `{args.guard_final_servo_hover_height}/{args.guard_final_servo_stable_xy}/{args.guard_final_servo_descent_start_xy}/{args.guard_final_servo_release_xy}`",
         f"- Guard final servo stable/stall/retries: `{args.guard_final_servo_stable_steps}/{args.guard_final_servo_stall_steps}/{args.guard_final_servo_max_retries}`",
+        f"- Guard final servo low recenter enabled/Z/trigger/release/height/steps/max steps/stall: `{args.guard_final_servo_low_recenter_enabled}/{args.guard_final_servo_low_recenter_z_max}/{args.guard_final_servo_low_recenter_trigger_xy}/{args.guard_final_servo_low_recenter_release_xy}/{args.guard_final_servo_low_recenter_height}/{args.guard_final_servo_low_recenter_stable_steps}/{args.guard_final_servo_low_recenter_max_steps}/{args.guard_final_servo_low_recenter_stall_steps}`",
         f"- Guard final servo max XY/down/descend bias/lift/recovery steps: `{args.guard_final_servo_max_xy_action}/{args.guard_final_servo_max_down_action}/{tuple(args.guard_final_servo_descend_xy_bias)}/{args.guard_final_servo_lift_height}/{args.guard_final_servo_max_recovery_steps}`",
+        f"- Guard final servo descend bias max clearance: `{args.guard_final_servo_descend_xy_bias_max_clearance}`",
+        f"- Guard final servo descend bias requires stateful recovery: `{args.guard_final_servo_descend_xy_bias_requires_stateful_recovery}`",
         f"- Guard final servo recovery mode/soft lift/min height/z tol/hold/max up: `{args.guard_final_servo_recovery_mode}/{args.guard_final_servo_soft_unjam_lift}/{args.guard_final_servo_soft_unjam_min_height}/{args.guard_final_servo_soft_unjam_z_tolerance}/{args.guard_final_servo_soft_unjam_hold_steps}/{args.guard_final_servo_soft_unjam_max_up_action}`",
+        f"- Guard approach recenter enabled/requires stateful recovery: `{args.guard_approach_recenter_enabled}/{args.guard_approach_recenter_requires_stateful_recovery}`",
+        f"- Guard approach recenter XY window/stable/bias: `{args.guard_approach_recenter_trigger_xy}-{args.guard_approach_recenter_max_xy}/{args.guard_approach_recenter_stable_xy}/{tuple(args.guard_approach_recenter_xy_bias)}`",
+        f"- Guard approach recenter Z window/height/tolerance/max steps: `{args.guard_approach_recenter_min_z}-{args.guard_approach_recenter_start_z}/{args.guard_approach_recenter_height}/{args.guard_approach_recenter_z_tolerance}/{args.guard_approach_recenter_max_steps}`",
         f"- Guarded oracle mode: `{args.guarded_oracle_mode}`",
         f"- Guarded align/insert XY: `{args.guarded_align_xy_tolerance}/{args.guarded_insert_xy_tolerance}`",
         f"- Guarded max XY/down/up action: `{args.guarded_max_xy_action}/{args.guarded_max_down_action}/{args.guarded_max_up_action}`",
@@ -1394,8 +1766,8 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Contact recovery XY/Z/lift/Z tol/max down: `{args.contact_recovery_xy_tolerance}/{args.contact_recovery_z_max}/{args.contact_recovery_lift_height}/{args.contact_recovery_lift_z_tolerance}/{args.contact_recovery_max_down_action}`",
         f"- Timeout progress XY/Z/max down: `{args.timeout_progress_xy_tolerance}/{args.timeout_progress_z_max}/{args.timeout_progress_max_down_action}`",
         "",
-        "| Scenario | Level | Mode | Image | Guard | Success | Collision | Timeout | Mean return | Mean steps | Guard steps | Retry steps | Latch steps | Hover steps | Near limited | Fixture steps | Fixture realign | Preinsert | Final servo | Final servo descend | Final XY | Final Z |",
-        "| --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Scenario | Level | Mode | Image | Guard | Success | Collision | Timeout | Mean return | Mean steps | Guard steps | Retry steps | Latch steps | Hover steps | Near limited | Fixture steps | Fixture realign | Preinsert | Approach rec | Stateful rec | Final servo | Final servo descend | Final XY | Final Z |",
+        "| --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for row in rows:
         lines.append(
@@ -1409,6 +1781,8 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
             "{mean_fixture_clearance_steps:.1f} ({mean_fixture_clearance_fraction:.2f}) | "
             "{mean_fixture_clearance_realign_steps:.1f} ({mean_fixture_clearance_realign_fraction:.2f}) | "
             "{mean_preinsert_recenter_steps:.1f} ({mean_preinsert_recenter_fraction:.2f}, trig {mean_preinsert_recenter_triggers:.2f}, rel {mean_preinsert_recenter_releases:.2f}) | "
+            "{mean_approach_recenter_steps:.1f} ({mean_approach_recenter_fraction:.2f}, trig {mean_approach_recenter_triggers:.2f}, rel {mean_approach_recenter_releases:.2f}) | "
+            "{mean_stateful_recovery_steps:.1f} ({mean_stateful_recovery_fraction:.2f}, trig {mean_stateful_recovery_triggers:.2f}, rel {mean_stateful_recovery_releases:.2f}) | "
             "{mean_final_servo_steps:.1f} ({mean_final_servo_step_fraction:.2f}, trig {mean_final_servo_triggers:.2f}, rec {mean_final_servo_recovery_triggers:.2f}) | "
             "{mean_final_servo_descent_steps:.1f} ({mean_final_servo_descent_fraction:.2f}) | {mean_final_dist_xy:.5f} | "
             "{mean_final_dist_z:.5f} |".format(**row)
@@ -1423,10 +1797,19 @@ def main() -> None:
         raise ValueError("--episodes must be positive.")
     if args.image_ablation != "normal" and args.observation_mode != "image":
         raise ValueError("--image-ablation requires --observation-mode image.")
+    if args.ik_orientation_weight < 0.0:
+        raise ValueError("--ik-orientation-weight cannot be negative.")
+    if (
+        args.guard_near_ik_orientation_weight is not None
+        and args.guard_near_ik_orientation_weight < 0.0
+    ):
+        raise ValueError("--guard-near-ik-orientation-weight cannot be negative.")
     if args.guard_start_xy <= 0.0 or args.guard_start_z <= 0.0:
         raise ValueError("--guard-start-xy and --guard-start-z must be positive.")
     if args.guard_risk_xy < 0.0 or args.guard_risk_xy > args.guard_start_xy:
         raise ValueError("--guard-risk-xy must be between 0 and --guard-start-xy.")
+    if args.guard_near_actuator_kp_multiplier <= 0.0:
+        raise ValueError("--guard-near-actuator-kp-multiplier must be positive.")
     if args.guard_retry_stall_steps <= 0:
         raise ValueError("--guard-retry-stall-steps must be positive.")
     if args.guard_retry_max_steps <= 0:
@@ -1497,6 +1880,70 @@ def main() -> None:
         raise ValueError("--guard-preinsert-recenter-max-xy-action must be positive.")
     if args.guard_preinsert_recenter_max_up_action <= 0.0:
         raise ValueError("--guard-preinsert-recenter-max-up-action must be positive.")
+    if args.guard_approach_recenter_start_z <= 0.0:
+        raise ValueError("--guard-approach-recenter-start-z must be positive.")
+    if args.guard_approach_recenter_min_z < 0.0:
+        raise ValueError("--guard-approach-recenter-min-z cannot be negative.")
+    if args.guard_approach_recenter_min_z > args.guard_approach_recenter_start_z:
+        raise ValueError("--guard-approach-recenter-min-z must be <= start-z.")
+    if args.guard_approach_recenter_trigger_xy <= 0.0:
+        raise ValueError("--guard-approach-recenter-trigger-xy must be positive.")
+    if args.guard_approach_recenter_max_xy <= args.guard_approach_recenter_trigger_xy:
+        raise ValueError("--guard-approach-recenter-max-xy must be greater than trigger-xy.")
+    if args.guard_approach_recenter_stable_xy <= 0.0:
+        raise ValueError("--guard-approach-recenter-stable-xy must be positive.")
+    if args.guard_approach_recenter_stable_xy > args.guard_approach_recenter_trigger_xy:
+        raise ValueError("--guard-approach-recenter-stable-xy must be <= trigger-xy.")
+    if args.guard_approach_recenter_height <= 0.0:
+        raise ValueError("--guard-approach-recenter-height must be positive.")
+    if args.guard_approach_recenter_z_tolerance <= 0.0:
+        raise ValueError("--guard-approach-recenter-z-tolerance must be positive.")
+    if args.guard_approach_recenter_stable_steps <= 0:
+        raise ValueError("--guard-approach-recenter-stable-steps must be positive.")
+    if args.guard_approach_recenter_max_steps <= 0:
+        raise ValueError("--guard-approach-recenter-max-steps must be positive.")
+    if args.guard_approach_recenter_max_xy_action <= 0.0:
+        raise ValueError("--guard-approach-recenter-max-xy-action must be positive.")
+    if args.guard_approach_recenter_max_up_action <= 0.0:
+        raise ValueError("--guard-approach-recenter-max-up-action must be positive.")
+    if len(args.guard_approach_recenter_xy_bias) != 2:
+        raise ValueError("--guard-approach-recenter-xy-bias must contain two values.")
+    if args.guard_stateful_recovery_trigger_xy_min < 0.0:
+        raise ValueError("--guard-stateful-recovery-trigger-xy-min cannot be negative.")
+    if args.guard_stateful_recovery_trigger_xy_max <= args.guard_stateful_recovery_trigger_xy_min:
+        raise ValueError("--guard-stateful-recovery-trigger-xy-max must be greater than trigger-xy-min.")
+    if args.guard_stateful_recovery_trigger_z_max <= 0.0:
+        raise ValueError("--guard-stateful-recovery-trigger-z-max must be positive.")
+    if args.guard_stateful_recovery_lift_height <= 0.0:
+        raise ValueError("--guard-stateful-recovery-lift-height must be positive.")
+    if args.guard_stateful_recovery_lift_z_tolerance <= 0.0:
+        raise ValueError("--guard-stateful-recovery-lift-z-tolerance must be positive.")
+    if args.guard_stateful_recovery_release_xy <= 0.0:
+        raise ValueError("--guard-stateful-recovery-release-xy must be positive.")
+    if args.guard_stateful_recovery_resume_xy < args.guard_stateful_recovery_release_xy:
+        raise ValueError("--guard-stateful-recovery-resume-xy must be >= release-xy.")
+    if args.guard_stateful_recovery_resume_z <= 0.0:
+        raise ValueError("--guard-stateful-recovery-resume-z must be positive.")
+    if args.guard_stateful_recovery_stable_steps <= 0:
+        raise ValueError("--guard-stateful-recovery-stable-steps must be positive.")
+    if args.guard_stateful_recovery_stall_steps <= 0:
+        raise ValueError("--guard-stateful-recovery-stall-steps must be positive.")
+    if args.guard_stateful_recovery_min_xy_progress < 0.0:
+        raise ValueError("--guard-stateful-recovery-min-xy-progress cannot be negative.")
+    if args.guard_stateful_recovery_min_actual_xy_motion < 0.0:
+        raise ValueError("--guard-stateful-recovery-min-actual-xy-motion cannot be negative.")
+    if args.guard_stateful_recovery_min_command_xy < 0.0:
+        raise ValueError("--guard-stateful-recovery-min-command-xy cannot be negative.")
+    if args.guard_stateful_recovery_max_attempts < 0:
+        raise ValueError("--guard-stateful-recovery-max-attempts cannot be negative.")
+    if args.guard_stateful_recovery_max_steps <= 0:
+        raise ValueError("--guard-stateful-recovery-max-steps must be positive.")
+    if args.guard_stateful_recovery_max_xy_action <= 0.0:
+        raise ValueError("--guard-stateful-recovery-max-xy-action must be positive.")
+    if args.guard_stateful_recovery_max_down_action < 0.0:
+        raise ValueError("--guard-stateful-recovery-max-down-action cannot be negative.")
+    if args.guard_stateful_recovery_max_up_action <= 0.0:
+        raise ValueError("--guard-stateful-recovery-max-up-action must be positive.")
     if args.guard_final_servo_start_xy <= 0.0 or args.guard_final_servo_start_z <= 0.0:
         raise ValueError("--guard-final-servo-start-xy/z must be positive.")
     if args.guard_final_servo_min_start_z < 0.0:
@@ -1507,6 +1954,15 @@ def main() -> None:
         raise ValueError("--guard-final-servo-hover-height/z-tolerance must be positive.")
     if args.guard_final_servo_stable_xy <= 0.0:
         raise ValueError("--guard-final-servo-stable-xy must be positive.")
+    if args.guard_final_servo_descent_start_xy < 0.0:
+        raise ValueError("--guard-final-servo-descent-start-xy cannot be negative.")
+    if (
+        args.guard_final_servo_descent_start_xy > 0.0
+        and args.guard_final_servo_descent_start_xy < args.guard_final_servo_stable_xy
+    ):
+        raise ValueError(
+            "--guard-final-servo-descent-start-xy must be >= --guard-final-servo-stable-xy."
+        )
     if args.guard_final_servo_stable_steps <= 0:
         raise ValueError("--guard-final-servo-stable-steps must be positive.")
     if args.guard_final_servo_release_xy < args.guard_final_servo_stable_xy:
@@ -1515,8 +1971,14 @@ def main() -> None:
         raise ValueError("--guard-final-servo-max-xy-action must be positive.")
     if args.guard_final_servo_max_down_action < 0.0:
         raise ValueError("--guard-final-servo-max-down-action cannot be negative.")
+    if args.guard_final_servo_low_recenter_stall_steps < 0:
+        raise ValueError("--guard-final-servo-low-recenter-stall-steps cannot be negative.")
+    if args.guard_final_servo_low_recenter_min_xy_progress < 0.0:
+        raise ValueError("--guard-final-servo-low-recenter-min-xy-progress cannot be negative.")
     if len(args.guard_final_servo_descend_xy_bias) != 2:
         raise ValueError("--guard-final-servo-descend-xy-bias requires two values.")
+    if args.guard_final_servo_descend_xy_bias_max_clearance < 0.0:
+        raise ValueError("--guard-final-servo-descend-xy-bias-max-clearance cannot be negative.")
     if args.guard_final_servo_lift_height <= args.guard_final_servo_hover_height:
         raise ValueError("--guard-final-servo-lift-height must be greater than hover-height.")
     if args.guard_final_servo_stall_steps <= 0:
@@ -1578,6 +2040,8 @@ def main() -> None:
             "near_limited={mean_near_limited_steps:.1f} fixture_steps={mean_fixture_clearance_steps:.1f} "
             "fixture_realign={mean_fixture_clearance_realign_steps:.1f} "
             "preinsert={mean_preinsert_recenter_steps:.1f} "
+            "approach={mean_approach_recenter_steps:.1f} "
+            "stateful_recovery={mean_stateful_recovery_steps:.1f} "
             "final_servo={mean_final_servo_steps:.1f} "
             "return={mean_return:.3f}".format(**row)
         )

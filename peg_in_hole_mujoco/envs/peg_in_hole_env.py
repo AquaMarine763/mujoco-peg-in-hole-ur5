@@ -365,6 +365,8 @@ class PegInHoleMujocoEnv(gym.Env):
         self.eef_site_id = self._site_id("eef_site")
         self.hole_site_id = self._site_id("hole_site")
         self.wrist_camera_id = self._camera_id("wrist_cam")
+        self.base_body_id = self._body_id("base")
+        self.tool0_body_id = self._body_id("tool0")
         self.hole_body_id = self._body_id("hole_body")
         self.hole_mocap_id = int(self.model.body_mocapid[self.hole_body_id])
         if self.hole_mocap_id < 0:
@@ -922,6 +924,20 @@ class PegInHoleMujocoEnv(gym.Env):
             self.base_actuator_biasprm[self.arm_actuator_ids, 1]
             * actuator_kp_multiplier
         )
+
+    def set_arm_actuator_kp_multiplier(self, actuator_kp_multiplier: float) -> None:
+        if actuator_kp_multiplier <= 0.0:
+            raise ValueError("actuator_kp_multiplier must be positive.")
+        self.current_actuator_kp_multiplier = float(actuator_kp_multiplier)
+        self._apply_arm_dynamics_multipliers(
+            self.current_joint_damping_multiplier,
+            self.current_actuator_kp_multiplier,
+        )
+
+    def set_ik_orientation_weight(self, ik_orientation_weight: float) -> None:
+        if ik_orientation_weight < 0.0:
+            raise ValueError("ik_orientation_weight cannot be negative.")
+        self.ik_orientation_weight = float(ik_orientation_weight)
 
     def _randomize_control_channel(self) -> None:
         self.current_action_scale_multiplier = float(
@@ -1572,6 +1588,9 @@ class PegInHoleMujocoEnv(gym.Env):
         if terms is None:
             terms = self._compute_reward(collision=False, action=None)
         tip_pos = self._site_xpos(self.data, self.peg_tip_site_id)
+        eef_pos = self._site_xpos(self.data, self.eef_site_id)
+        tool0_pos = self.data.xpos[self.tool0_body_id].copy()
+        base_pos = self.data.xpos[self.base_body_id].copy()
         collision_contact_pairs = self._collision_contact_pairs()
         joint_qpos = self.data.qpos[self.arm_qpos_ids].copy()
         joint_limit_margin, joint_limit_normalized_margin = self._joint_limit_metrics(joint_qpos)
@@ -1587,6 +1606,11 @@ class PegInHoleMujocoEnv(gym.Env):
             "collision_contact_pairs": ";".join(collision_contact_pairs[:8]),
             "target_pos": self.target_pos.astype(np.float32),
             "peg_tip_pos": tip_pos.astype(np.float32),
+            "eef_pos": eef_pos.astype(np.float32),
+            "tool0_pos": tool0_pos.astype(np.float32),
+            "base_pos": base_pos.astype(np.float32),
+            "peg_tip_to_eef": (tip_pos - eef_pos).astype(np.float32),
+            "peg_tip_to_tool0": (tip_pos - tool0_pos).astype(np.float32),
             "step_count": self.step_count,
             "commanded_action": self.last_commanded_action.astype(np.float32),
             "applied_action": self.last_applied_action.astype(np.float32),
@@ -1601,6 +1625,7 @@ class PegInHoleMujocoEnv(gym.Env):
             "ik_orientation_error": self.last_ik_orientation_error,
             "ik_iterations": self.last_ik_iterations,
             "ik_control_mode": self.ik_control_mode,
+            "ik_orientation_weight": self.ik_orientation_weight,
             "ik_joint_count": self.ik_joint_count,
             "peg_axis_world": peg_axis_world.astype(np.float32),
             "peg_tilt_angle_deg": peg_tilt_angle_deg,

@@ -1,0 +1,79 @@
+# Guarded Policy Evaluation
+
+- Generated: `2026-05-19T22:15:13`
+- Model: `checkpoints\ur5e_full\high_start\hard\correction\sac_image_bc_wrist_pose_control_state_insert_drift_2k_w10_e1.zip`
+- MuJoCo model path: `assets\ur5e_full\ur5e_peg_in_hole_full.xml`
+- Observation mode: `image`
+- Control mode: `guarded`
+- Image ablation: `normal`
+- Episodes per scenario: `60`
+- Seed: `602000`
+- Frame skip: `10`
+- Step trace CSV: `results\ur5e_full\high_start\hard\recovery\eval_lowrec_near_wori000_strictstable49_failure_step_trace_60ep_seed602000.csv`
+- Step trace outcome filter: `failure`
+- Near-hole crop offset: `(-18, 0)`
+- Include control state: `True`
+- Image frame stack: `1`
+- Wrist camera pos offset: `(-0.04, -0.04, 0.0)`
+- Wrist camera rot offset deg: `(0.0, 0.0, 0.0)`
+- Wrist camera FOV override: `100.0`
+- IK control mode: `pose`
+- IK orientation/posture weight: `0.03/0.01`
+- Guard near IK orientation weight: `0.0`
+- IK step limit/max iterations: `0.06/64`
+- Nominal joint damping / actuator Kp multiplier: `1.0/2.0`
+- Guard near actuator Kp enabled/multiplier: `True/3.0`
+- Guard start XY: `0.06`
+- Guard start Z above target: `0.12`
+- Guard risk XY: `0.0`
+- Guard scenario filter: `all`
+- Guard blend: `1.0`
+- Guard min policy steps: `0`
+- Guard block down when unaligned: `False`
+- Guard retry enabled: `False`
+- Guard retry stall steps: `80`
+- Guard retry XY/Z band: `0.015/0.06`
+- Guard retry lift/release/max attempts/max steps: `0.08/0.005/2/120`
+- Guard insert latch enabled: `False`
+- Guard insert latch XY/release XY: `0.005/0.009`
+- Guard insert latch resume/recenter/z tol/max down: `0.005/0.0/0.0/0.0`
+- Guard hover enabled: `False`
+- Guard hover XY/release/height/Z tol/steps/max down: `0.004/0.006/0.05/0.01/6/0.002`
+- Guard near action scale enabled: `False`
+- Guard near XY/Z/max XY/max down: `0.02/0.07/0.002/0.0015`
+- Guard fixture clearance enabled: `False`
+- Guard fixture clearance XY/Z/lift/max up: `0.02-0.09/0.06/0.1/0.005`
+- Guard fixture clearance realign enabled: `False`
+- Guard fixture clearance realign start Z/XY/max XY/max down/max steps: `0.0/0.02/0.005/0.0/240`
+- Guard preinsert recenter enabled: `False`
+- Guard preinsert recenter start/min Z, trigger/stable XY: `0.025/0.0/0.004/0.0035`
+- Guard preinsert recenter height/Z tol/stable/max steps/max XY/max up: `0.025/0.006/3/80/0.005/0.005`
+- Guard preinsert recenter lift before lateral: `False`
+- Guard stateful recovery enabled: `True`
+- Guard stateful recovery trigger XY/Z/stall: `0.006-0.03/0.13/100`
+- Guard stateful recovery lift/release/resume/stable/max attempts: `0.06/0.0049/0.0058/6/1`
+- Guard final servo enabled: `True`
+- Guard final servo start XY/Z/min Z: `0.014/0.07/0.01`
+- Guard final servo hover/stable/descent-start/release: `0.008/0.0049/0.014/0.014`
+- Guard final servo stable/stall/retries: `1/25/2`
+- Guard final servo low recenter enabled/Z/trigger/release/height/steps/max steps/stall: `True/0.025/0.0065/0.0049/0.018/1/500/0`
+- Guard final servo max XY/down/descend bias/lift/recovery steps: `0.008/0.0015/(0.0, -0.005)/0.02/320`
+- Guard final servo descend bias max clearance: `0.01`
+- Guard final servo descend bias requires stateful recovery: `True`
+- Guard final servo recovery mode/soft lift/min height/z tol/hold/max up: `lift_recenter/0.006/0.012/0.001/4/0.002`
+- Guard approach recenter enabled/requires stateful recovery: `True/True`
+- Guard approach recenter XY window/stable/bias: `0.015-0.03/0.014/(0.0, 0.0)`
+- Guard approach recenter Z window/height/tolerance/max steps: `0.045-0.075/0.07/0.012/220`
+- Guarded oracle mode: `guarded_two_stage`
+- Guarded align/insert XY: `0.02/0.005`
+- Guarded max XY/down/up action: `0.005/0.0035/0.005`
+- Guarded prediction steps: `0.0`
+- Guarded hold Z until insert: `False`
+- Guarded lift before lateral: `False`
+- Guarded lift-before-lateral XY/Z margin: `0.02/0.01`
+- Contact recovery XY/Z/lift/Z tol/max down: `0.005/0.05/0.06/0.01/0.001`
+- Timeout progress XY/Z/max down: `0.01/0.06/0.0015`
+
+| Scenario | Level | Mode | Image | Guard | Success | Collision | Timeout | Mean return | Mean steps | Guard steps | Retry steps | Latch steps | Hover steps | Near limited | Fixture steps | Fixture realign | Preinsert | Approach rec | Stateful rec | Final servo | Final servo descend | Final XY | Final Z |
+| --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| hard_full_light_bucket | full_light_geometry | guarded | normal | True | 0.983 | 0.000 | 0.017 | 308.509 | 329.2 | 183.7 (0.56) | 0.0 (0.00) | 0.0 (0.00, down 0.00) | 0.0 (0.00, latched 0.00, block 0.00) | 0.0 (0.00) | 0.0 (0.00) | 0.0 (0.00) | 0.0 (0.00, trig 0.00, rel 0.00) | 0.8 (0.00, trig 0.05, rel 0.05) | 9.4 (0.03, trig 0.12, rel 0.12) | 104.7 (0.32, trig 1.00, rec 0.07) | 30.9 (0.30) | 0.00272 | 0.00989 |

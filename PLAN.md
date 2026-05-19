@@ -1,6 +1,6 @@
 # Project Plan And Status
 
-Last updated: 2026-05-18
+Last updated: 2026-05-19
 
 This file records the current project status, known metrics, and next planned steps. Keep it current when a milestone changes.
 
@@ -14,7 +14,7 @@ The immediate objective is to resolve the hard high-start near-hole insertion pl
 
 - Branch: `feature/control-state-observation`
 - Remote: `https://github.com/AquaMarine763/mujoco-peg-in-hole-ur5.git`
-- Latest known pushed milestone: `e602f34 Add full UR5e MuJoCo task model`
+- Latest known pushed milestone: `v0.6.49` / `0c62f5b Promote full UR5e high-start controller milestone`
 
 ## Implemented So Far
 
@@ -73,6 +73,124 @@ Important caveat:
 - The default IK controller still solves peg-tip position only for checkpoint compatibility. An opt-in `ik_control_mode=pose` now constrains peg-tip orientation against the nominal rest orientation and regularizes posture, but it is diagnostic/experimental until evaluated on the existing high-start checkpoints.
 - The current full UR5e fixture uses a peg radius of `0.012 m` and a base hole opening of about `40 mm`. Full-light geometry randomization now uses `geometry_hole_half_size_range=[0.017, 0.021]`, i.e. about `34 - 42 mm` opening.
 - Metrics below were collected before the marker-hiding and hole-narrowing change unless explicitly refreshed.
+
+Latest model audit:
+
+- Added `scripts\audit_ur5e_full_model.py` to compare the full task XML against a raw DeepMind MuJoCo Menagerie `universal_robots_ur5e\ur5e.xml` reference.
+- Generated `results\ur5e_full\model_audit\ur5e_full_menagerie_audit.md`.
+- Audit result: the current full model preserves the shared UR5e body inertials and the full Menagerie mesh file set, but it is not an untouched official XML. It deliberately renames the six joints/actuators to the project interface, places the base in the task frame, adds the peg/tool/camera/table/hole wrapper, sets timestep/gravity, makes joint limits explicit, and adds contact defaults.
+- Implication: before multi-geometry training, controller work should focus on task-specific control details: base pose, `tool0`/peg attachment pose, peg verticality, contact defaults, and IK/posture tracking near contact.
+
+Latest near-contact controller diagnostic:
+
+- Ran `scripts\diagnose_near_contact_tracking.py` with the promoted `pose IK + 0.03/64 + Kp2` setting.
+- Outcome for the low-Z recenter probe: `xy reduction = 4.921 mm`, `reduction/cmd = 0.164`, `alignment = 0.986`, `step gain = 0.176`, `z drift = -2.897 mm`, `max tilt = 11.894 deg`.
+- Attachment sanity check: `peg_tip -> eef` and `peg_tip -> tool0` stayed at `110 mm`, so the tool-chain geometry is consistent; the current limitation is not an obvious peg-to-tool attachment length error.
+- Interpretation: the control direction is consistent, but low-Z Cartesian authority is still weak. The next useful change is a focused controller tweak for near-contact authority or low-Z stability, not multi-geometry data collection yet.
+
+Latest low-Z preinsert lift-first guard experiment:
+
+- Added an opt-in `guard_preinsert_recenter_lift_before_lateral` switch to the guarded deployment controller. Defaults stay unchanged.
+- Same-seed 20ep baseline for the promoted `0.03/64 + Kp2` hard bucket was `0.950/0.000/0.050`.
+- Broad lift-first preinsert recenter with `trigger_xy=0.004`, `stable_xy=0.0035`, `height=0.025` regressed to `0.850/0.000/0.150`. It turned seed `602000` and `602011` from successes into timeouts because preinsert recenter repeatedly held control around the 4 mm band.
+- Narrow lift-first with `trigger_xy=0.008`, `stable_xy=0.0065`, `height=0.025`, `max_steps=40` recovered baseline at `0.950/0.000/0.050`, but did not improve the remaining timeout.
+- Higher-lift variants also did not solve the same timeout: `height=0.045` stayed `0.950/0.000/0.050`, while early `height=0.080` regressed to `0.900/0.000/0.100`.
+- Current conclusion: do not promote low-Z preinsert recenter as a new default. The hard remaining timeout shows low-Z lateral recentering can be ineffective even when command direction is correct; the next useful work is a controller/TCP tracking fix or a more explicit retreat-and-retry sequence, not broader preinsert threshold scans.
+
+Latest hard-case TCP response diagnosis:
+
+- Added `scripts\analyze_tcp_response_trace.py` to measure commanded/applied XY against actual peg-tip motion in step traces.
+- On the baseline hard failure seed `602019`, the last 100 steps had mean final XY command about `5.0 mm`, mean applied XY about `4.5 mm`, but mean actual XY delta only about `0.009 mm`. The action-to-target alignment stayed high while actual-motion alignment was near zero.
+- `guarded_hold_z_until_insert` moved the failure from a low-Z misaligned timeout into a long oscillation around the insert band. It reached XY `4.92 mm` and Z `48.9 mm`, but kept toggling because the descent/lift logic had no phase memory.
+- A wide insert latch plus hold-Z held Z near `8.2 mm` with XY about `10.4 mm`, but still failed to converge.
+- A widened `guard_final_servo` start range did enter final-servo, but still failed because XY drifted out of the release band and the current logic exhausted or reset without recovering the low-level tracking issue.
+- `guard_near_action_scale` reduced command magnitude and improved tracking error, but it also stalled near `9 - 12 mm` XY and still did not insert.
+- Current conclusion: the next bottleneck is not simple guard activation. It is the combination of low-level tracking authority, delay/filter response, and the need for a true stateful retreat/recenter phase if we want to keep working near the hole.
+
+Latest static low-level controller response scan:
+
+- Added `scripts\scan_near_contact_controller_response.py`, which reuses the low-Z near-contact probe and scans IK/control candidates across `ik_orientation_weight`, `ik_max_iterations`, `frame_skip`, actuator Kp, and damping.
+- First scan output:
+  - `results\ur5e_full\controller_diagnostics\near_contact_controller_response_scan_wori_kp.md`
+  - `results\ur5e_full\controller_diagnostics\near_contact_controller_response_scan_wori_kp.csv`
+  - conclusion note: `results\ur5e_full\controller_diagnostics\near_contact_controller_response_scan_summary.md`
+- Probe result: global `Kp=3.0` improves low-Z command-to-motion response over the promoted `Kp=2.0` setting. The best probe candidate was `pose IK + w_ori=0.03 + 64 iterations + Kp3`, with `reduction/cmd=0.253`, `step_gain=0.262`, `0` probe collisions, and max tilt about `10.3 deg`.
+- Closed-loop hard-bucket result did not promote Kp3:
+  - Kp2 current retest, seed `602000`, 20ep hard bucket: `0.950/0.000/0.050`.
+  - Kp3, same window: `0.850/0.000/0.150`.
+  - Kp3 fixed the old seed `602019` timeout but introduced new timeouts at `602011`, `602013`, and `602017`.
+- Intermediate Kp window scan over key seeds `602011-602019`:
+  - Kp2.25: `8/9` success, still failed `602019`.
+  - Kp2.5: `7/9` success, failed `602011` and `602019`.
+  - Kp2.75: `8/9` success, fixed `602019` but failed `602011`.
+- Current conclusion: the remaining failures are not solved by a single global actuator Kp. Higher Kp helps one low-Z timeout but changes approach/settling enough to create other timeouts. Keep `Kp=2.0` as the promoted static default. The next useful change should be stateful near-hole recovery, or a guarded/local gain schedule that only activates inside a tightly defined recovery phase.
+
+Latest local near-hole recovery result:
+
+- Implemented opt-in stateful near-hole recovery refinements:
+  - recovery `resume` now returns to lift/recenter if XY drifts outside the resume band instead of exhausting at low Z.
+  - final-servo align/confirm now holds or lifts to the start height while XY is outside its stable band, instead of continuing down to the low hover height.
+  - eval/demo/inference can now switch arm actuator Kp locally with `--guard-near-actuator-kp-enabled`; the Kp boost applies during stateful recovery, final-servo, and the near-hole guarded zone, while global nominal Kp stays `2.0`.
+- Added preset:
+  - `configs\sim\ur5e_full\eval_high_start_hard_localkp3_recovery_20ep.yaml`
+- Validated result for `pose IK + w_ori=0.03 + iters=64 + nominal Kp2 + local near-hole Kp3`:
+  - hard bucket seed `602019`, 1ep: fixed the known timeout, success with `stateful_recovery=51` and `final_servo=109`.
+  - hard bucket seed `602000`, 20ep: `1.000/0.000/0.000`.
+  - hard bucket seed `602000`, 60ep: `0.917/0.000/0.083`, improving over the promoted Kp2 60ep result `0.883/0.000/0.117`, but not enough to promote as a stable 60ep/100ep milestone.
+- Remaining 60ep failures:
+  - early/approach plateau: `602024`, `602033`, `602048`, ending around `16 - 21 mm` XY and `55 - 65 mm` Z above target.
+  - deep low-Z insertion drift: `602040`, `602047`, ending around `6.3 mm` XY and `8.7 mm` Z above target.
+- Latest update: added a double-gated final-servo descend bias for tight-clearance cases after stateful recovery. The bias uses `guard_final_servo_descend_xy_bias: [0.0, -0.005]`, `guard_final_servo_descend_xy_bias_max_clearance: 0.006`, and `guard_final_servo_descend_xy_bias_requires_stateful_recovery: true`.
+- Targeted checks now pass:
+  - previously fixed seed `602019`: success preserved.
+  - direct-insert tight-clearance seeds `602025`, `602028`, `602039`: success preserved.
+  - low-Z drift seeds `602040`, `602047`: now succeed.
+- Double-gated result for the same hard bucket:
+  - seed `602000`, 20ep: `1.000/0.000/0.000`.
+  - seed `602000`, 60ep: `0.950/0.000/0.050`.
+- Remaining 60ep failures are only the high/approach plateau seeds `602024`, `602033`, and `602048`; all have `final_servo=0`, ending around `16 - 21 mm` XY and `55 - 65 mm` Z above target.
+- Current conclusion: the near-hole low-Z recovery line is now stable enough for this stage. Do not call the whole high-start task solved yet; the next bottleneck is approach-to-hole plateau, not final insertion recovery.
+
+Latest approach-plateau / low-recenter experiment:
+
+- Added opt-in `guard_approach_recenter_*` and `guard_final_servo_low_recenter_*` phases to `GuardedPolicyController`, exposed through eval/demo/inference.
+- `guard_approach_recenter` addresses the old high plateau seeds by taking over after a failed/short stateful recovery at about `45 - 75 mm` above target and re-centering around a high approach height.
+- `guard_final_servo_low_recenter` adds a hysteretic low-Z hold/recenter phase: it can stop descent around `10 - 25 mm` above target, hold a configured height, re-center XY, then resume descent. It also reuses the final-servo XY bias when enabled.
+- Best single-seed diagnostic candidate so far:
+  - `guard_stateful_recovery_max_steps=80`
+  - approach recenter `trigger/stable/height = 15 mm / 14 mm / 70 mm`
+  - final-servo `start_xy=14 mm`, `stable_xy=6.25 mm`, `descent_start_xy=14 mm`
+  - low-recenter `z_max=25 mm`, `trigger_xy=6.8 mm`, `release_xy=6.1 mm`, `height=18 mm`, `max_steps=500`
+  - lift recovery `height=20 mm`, final-servo descend bias `[0, -5 mm]` with clearance gate `10 mm`
+- Targeted result with that candidate:
+  - regression seed `602025`: success preserved.
+  - previous plateau seeds `602024/602033/602048`: still timeout, but the failure moved from high plateau/no final-servo into near-hole residuals.
+  - `602024`: final XY/Z about `6.29 mm / 8.94 mm`, min XY about `6.04 mm`.
+  - `602033`: final XY/Z about `6.40 mm / 10.34 mm`, min XY about `5.75 mm`.
+  - `602048`: still high/late, final XY/Z about `6.95 mm / 16.78 mm`.
+- Current conclusion: low-recenter is a useful diagnostic hook but is not promoted. The remaining gap is no longer gross approach failure on two seeds; it is low-level Cartesian authority around the last `1 - 2 mm` of XY correction under action-scale/delay/filter randomization. Next work should focus on a real control-chain compensation strategy or a validated bounded retry that starts earlier, not wider threshold scans.
+
+Latest phase-local IK orientation relaxation:
+
+- Added opt-in `--guard-near-ik-orientation-weight` to eval/demo/inference. It preserves the nominal `ik_orientation_weight` during high-start visual approach and switches only during stateful recovery, approach recenter, final-servo, or the near-hole guarded zone.
+- Motivation: global `ik_orientation_weight=0.0` helped key seed `602024`, but can tilt the peg around `17 - 19 deg`; the safer hypothesis is to relax orientation only when near-hole Cartesian authority matters.
+- Same 40-episode hard-bucket window, seed `602020`, with the current low-recenter candidate:
+  - fixed `ik_orientation_weight=0.03`: `0.925/0.000/0.075`, failures `602024/602038/602048`.
+  - global `ik_orientation_weight=0.0`: `0.900/0.000/0.100`, failures `602038/602040/602047/602048`.
+  - nominal `0.03` plus `--guard-near-ik-orientation-weight 0.0`: `0.950/0.000/0.050`, failures `602038/602048`.
+- Interpretation: phase-local relaxation is the best current controller-side candidate in this small gate. It fixes `602024` without the extra timeouts caused by global orientation relaxation, but `602038` still slowly descends around `5.4 mm` XY and `602048` still plateaus in low-recenter around `5.8 mm` XY / `16.5 mm` Z.
+
+Latest strict final-servo stable-XY gate:
+
+- Added reusable config `configs/sim/ur5e_full/eval_high_start_hard_localkp3_recovery_strictstable49_60ep.yaml`.
+- Change from the phase-local candidate: keep near-hole `w_ori=0.0`, but tighten `guard_final_servo_stable_xy` from `6.25 mm` to `4.9 mm` so low-Z stalls just outside the `5 mm` success tolerance trigger the existing low-recenter/recovery path instead of timing out.
+- Focused 20ep window, seed `602019`, reached `1.000/0.000/0.000`; this fixed the previous `602019/602038` near-miss window.
+- Full hard-bucket 60ep gate, seed `602000`, reached `0.983/0.000/0.017`.
+  - Only remaining failure: `602048`.
+  - `602048` final XY/Z: `5.77 mm / 16.51 mm`; min XY/Z: `5.68 mm / 12.40 mm`.
+  - Trace diagnosis: low-recenter is active, not missing. It spends about `462` steps trying to re-center near `16 - 18 mm` above target under action delay/filter/scale randomization and cannot remove the last `0.7 - 0.8 mm` XY error before timeout.
+- Targeted `602048` probes tried plateau-triggered lift-recenter, `guard_action_gain=2.0`, descent-bias removal, and near-hole orientation weight `0.01`. None solved the seed within `1000` steps. The best probe reached `min_xy ~= 3.7 mm` and `min_z ~= 8.35 mm`, but not simultaneously; during descent XY drifted out again. Do not promote these one-seed parameters.
+- Current conclusion: the strict stable-XY config is the best reproducible controller candidate for single-geometry high-start hard recovery. Treat the remaining gap as final insertion stability under tilt/contact/control-delay, not as another threshold scan. Next serious fix should either reduce near-hole tilt/contact drift or add a more principled insertion-time guarded controller; otherwise run a larger 100ep gate before moving toward multi-geometry.
 
 ## Latest UR5e Controller Diagnostic
 
@@ -179,9 +297,12 @@ Do not scale these correction recipes further without changing the controller/gu
 
 ## Next Step
 
-1. Promote `0.03/64 + Kp2` as the controller milestone and consider pushing/tagging.
-2. Then split the remaining failures into two fixes: higher pre-final-servo alignment timeouts and near-success final-servo descent timeouts.
-3. For the next improvement pass, start with a small final-servo release/stability scan for the near-success cases and a separate pre-final alignment-progress diagnostic for the higher timeouts.
+1. The `0.03/64 + Kp2` controller milestone has been promoted and pushed as `v0.6.49`.
+2. The first controller-realism step is now model audit and task-wrapper accountability; the Menagerie audit is implemented and generated.
+3. The focused near-contact diagnostic has now run on the promoted config, and the first preinsert lift-first guard experiment is implemented and evaluated. It is diagnostic only, not promoted.
+4. The TCP response diagnosis has now shown that command-to-motion transfer is the limiting factor in the remaining hard timeout. The first static low-level Kp/IK scan is complete: stronger global Kp improves probe response but is not a safe promoted default in closed-loop policy evaluation.
+5. Next implementation step: add a real stateful retreat/recenter phase with height hysteresis, or test a strictly local near-hole gain schedule inside that phase. Do not keep scanning global Kp or simple guard thresholds.
+6. Start multi-geometry only after the low-Z recenter and near-hole timeout cases stop looking like control-layer issues.
 
 ## Recommended Policy Checkpoint
 
