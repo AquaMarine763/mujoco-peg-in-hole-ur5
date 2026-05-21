@@ -57,6 +57,37 @@ Guarded policy smoke on the experimental mixed profile:
 python scripts\eval_guarded_policy.py --config configs\sim\ur5e_full\eval_multi_geometry_smoke.yaml
 ```
 
+Strict high-start 20ep profile check using the promoted single-geometry guard
+settings:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_localkp3_recovery_strictstable49_60ep.yaml `
+  --geometry-profile square_square `
+  --episodes 20 `
+  --seed 612000 `
+  --output-csv results\ur5e_full\multi_geometry\eval_strictstable49_square_square_20ep_seed612000.csv `
+  --output-md results\ur5e_full\multi_geometry\eval_strictstable49_square_square_20ep_seed612000.md `
+  --episode-output-csv results\ur5e_full\multi_geometry\eval_strictstable49_square_square_20ep_seed612000_episodes.csv
+```
+
+Expert dataset plumbing smoke:
+
+```powershell
+python scripts\collect_image_expert_dataset.py `
+  --config configs\sim\ur5e_full\collect_multi_geometry_expert_smoke.yaml
+```
+
+Production-sized multi-geometry expert collection should start from the smoke
+config, then increase `samples` and use an explicit output path such as:
+
+```powershell
+python scripts\collect_image_expert_dataset.py `
+  --config configs\sim\ur5e_full\collect_multi_geometry_expert_smoke.yaml `
+  --samples 50000 `
+  --output datasets\ur5e_full\multi_geometry\image_expert_50k_mixed_basic.npz
+```
+
 ## Robot Model Compatibility / UR5e Adapter
 
 On the `feature/ur5e-mainline` branch, the default simulator uses the

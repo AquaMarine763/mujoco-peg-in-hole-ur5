@@ -115,6 +115,12 @@ SCALAR_DIAGNOSTIC_KEYS = (
     "joint_limit_min_normalized_margin",
     "joint_target_error",
 )
+TEXT_DIAGNOSTIC_KEYS = (
+    "geometry_profile",
+    "geometry_name",
+    "peg_shape",
+    "hole_shape",
+)
 VECTOR_DIAGNOSTIC_KEYS = (
     "hole_center_offset",
     "action_target_tip_delta",
@@ -158,6 +164,13 @@ def parse_args() -> argparse.Namespace:
         choices=["wide", "medium", "narrow", "tight", "wide_medium", "medium_narrow", "all"],
         default="medium",
     )
+    parser.add_argument(
+        "--geometry-profile",
+        choices=["single", "round_square", "square_square", "mixed_basic"],
+        default="single",
+    )
+    parser.add_argument("--geometry-square-peg-half-size-range", nargs=2, type=float, default=(0.0105, 0.0125))
+    parser.add_argument("--geometry-mixed-square-probability", type=float, default=0.5)
     parser.add_argument(
         "--selection",
         choices=[
@@ -437,6 +450,9 @@ def make_env(args: argparse.Namespace, scenario: Scenario, tier: ClearanceTier) 
         geometry_table_height_jitter=0.001,
         geometry_hole_half_size_range=tier.hole_half_size_range,
         geometry_peg_radius_range=tier.peg_radius_range,
+        geometry_profile=args.geometry_profile,
+        geometry_square_peg_half_size_range=tuple(args.geometry_square_peg_half_size_range),
+        geometry_mixed_square_probability=args.geometry_mixed_square_probability,
         contact_friction_multiplier_range=scenario.contact_friction_multiplier_range,
         contact_solref_time_multiplier_range=scenario.contact_solref_time_multiplier_range,
         contact_solref_damping_multiplier_range=scenario.contact_solref_damping_multiplier_range,
@@ -1109,6 +1125,10 @@ def read_diagnostics(info: dict[str, Any]) -> dict[str, float | np.ndarray]:
         "ik_target_error": float(info.get("ik_target_error", np.nan)),
         "ik_iterations": float(info.get("ik_iterations", -1)),
         "joint_target_error": float(info.get("joint_target_error", np.nan)),
+        "geometry_profile": str(info.get("geometry_profile", "")),
+        "geometry_name": str(info.get("geometry_name", "")),
+        "peg_shape": str(info.get("peg_shape", "")),
+        "hole_shape": str(info.get("hole_shape", "")),
         "hole_center_offset": hole_center_offset.astype(np.float32, copy=True),
         "action_target_tip_delta": np.asarray(
             info.get("action_target_tip_delta", [np.nan, np.nan, np.nan]),
@@ -2130,6 +2150,7 @@ def empty_buffers() -> dict[str, list[Any]]:
         "episode_outcome",
         "recovery_phase",
         *SCALAR_DIAGNOSTIC_KEYS,
+        *TEXT_DIAGNOSTIC_KEYS,
         *VECTOR_DIAGNOSTIC_KEYS,
     ]
     return {key: [] for key in keys}
@@ -2146,6 +2167,11 @@ def summarize_float_array(values: np.ndarray) -> dict[str, float]:
         "min": float(np.min(finite)),
         "max": float(np.max(finite)),
     }
+
+
+def summarize_text_array(values: np.ndarray) -> dict[str, int]:
+    unique, counts = np.unique(values.astype(str), return_counts=True)
+    return {str(key): int(value) for key, value in zip(unique, counts)}
 
 
 def build_arrays(
@@ -2253,6 +2279,8 @@ def build_arrays(
     for key in SCALAR_DIAGNOSTIC_KEYS:
         dtype = np.int32 if key in ("control_action_delay", "ik_iterations") else np.float32
         arrays[key] = np.asarray(buffers[key], dtype=dtype)
+    for key in TEXT_DIAGNOSTIC_KEYS:
+        arrays[key] = np.asarray(buffers[key])
     for key in VECTOR_DIAGNOSTIC_KEYS:
         arrays[key] = np.asarray(buffers[key], dtype=np.float32)
     return arrays
@@ -2482,6 +2510,9 @@ def main() -> None:
         "model_path": str(args.model_path) if args.model_path is not None else "default",
         "scenario_preset": args.scenario_preset,
         "tier_preset": args.tier_preset,
+        "geometry_profile": args.geometry_profile,
+        "geometry_square_peg_half_size_range": list(args.geometry_square_peg_half_size_range),
+        "geometry_mixed_square_probability": args.geometry_mixed_square_probability,
         "initialization_mode": args.initialization_mode,
         "initial_tip_z_above_range": list(args.initial_tip_z_above_range),
         "initial_tip_xy_offset_range": list(args.initial_tip_xy_offset_range),
@@ -2595,6 +2626,8 @@ def main() -> None:
             "correction_norm": summarize_float_array(arrays["correction_norm"]),
             "action_cosine": summarize_float_array(arrays["action_cosine"]),
             "hole_clearance": summarize_float_array(arrays["hole_clearance"]),
+            "geometry_name": summarize_text_array(arrays["geometry_name"]),
+            "peg_shape": summarize_text_array(arrays["peg_shape"]),
             "control_action_delay": summarize_float_array(
                 arrays["control_action_delay"].astype(np.float32)
             ),

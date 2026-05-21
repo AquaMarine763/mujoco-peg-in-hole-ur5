@@ -1,6 +1,6 @@
 # Project Plan And Status
 
-Last updated: 2026-05-19
+Last updated: 2026-05-21
 
 This file records the current project status, known metrics, and next planned steps. Keep it current when a milestone changes.
 
@@ -29,8 +29,11 @@ Implemented so far:
 - The env can sample/apply `single`, `round_square`, `square_square`, and `mixed_basic`.
 - Runtime peg geometry switching is working on the full UR5e XML.
 - `scripts\train_sac.py`, `scripts\demo_policy.py`, `scripts\eval_guarded_policy.py`, and `scripts\run_policy_inference.py` accept the new geometry args.
+- `scripts\collect_image_expert_dataset.py`, `scripts\collect_image_correction_dataset.py`, `scripts\pretrain_image_actor_bc.py`, and `scripts\pretrain_image_actor_bc_weighted.py` now accept the new geometry args.
+- Expert/correction datasets now record `geometry_profile`, `geometry_name`, `peg_shape`, and `hole_shape` arrays for later filtering and diagnostics.
 - Smoke config:
   - `configs\sim\ur5e_full\eval_multi_geometry_smoke.yaml`
+  - `configs\sim\ur5e_full\collect_multi_geometry_expert_smoke.yaml`
 - Smoke result:
   - `mixed_basic` reset/eval smoke passed on seed `612000`
   - sampled geometry: `square_square`
@@ -41,11 +44,22 @@ Implemented so far:
   - `round_square`, 8 episodes, seed `612000`: `0.875/0.000/0.125`
   - `square_square`, 8 episodes, seed `612000`: `0.875/0.000/0.125`
   - the separate `round_square` and `square_square` runs both failed only seed `612002`, with nearly identical final XY/Z, so the first bottleneck looks like the existing high-start/control trajectory rather than square-peg runtime geometry switching.
+- Strictstable49 20ep matrix result:
+  - `single`, 20 episodes, seed `612000`: `0.950/0.000/0.050`
+  - `round_square`, 20 episodes, seed `612000`: `0.950/0.000/0.050`
+  - `square_square`, 20 episodes, seed `612000`: `0.850/0.000/0.150`
+  - `mixed_basic`, 20 episodes, seed `612000`: `0.950/0.000/0.050`
+  - all failures were timeouts, not collisions
+  - `square_square` failures reached low Z and often had `min_dist_xy < 5 mm`, so the first square-peg gap is final insertion retention/stability, not gross visual approach.
+- Expert dataset smoke:
+  - `mixed_basic` 32-sample smoke writes `geometry_name` and `peg_shape` arrays.
+  - forced `square_square` 16-sample smoke writes `square_square` / `square` samples as expected.
 
 Next step:
 
-- Promote the next experiment from smoke to a modest matrix, e.g. 20 episodes per profile.
-- If profile-specific performance remains stable, add data-collection support for multi-geometry before starting larger BC/RL training.
+- Add a production-sized multi-geometry expert collection run, starting with `mixed_basic` 50k.
+- Before scaling further, run a small BC smoke on that dataset and evaluate `single`, `round_square`, `square_square`, and `mixed_basic` under strictstable49.
+- If `square_square` remains weaker, add square-specific near-hole/final insertion correction data instead of only increasing generic mixed data.
 
 ## Implemented So Far
 

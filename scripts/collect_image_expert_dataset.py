@@ -32,6 +32,12 @@ SCALAR_DIAGNOSTIC_KEYS = (
     "ik_iterations",
     "joint_target_error",
 )
+TEXT_DIAGNOSTIC_KEYS = (
+    "geometry_profile",
+    "geometry_name",
+    "peg_shape",
+    "hole_shape",
+)
 VECTOR_DIAGNOSTIC_KEYS = (
     "hole_center_offset",
     "action_target_tip_delta",
@@ -44,7 +50,10 @@ DATASET_SCHEMA_VERSION = "image_expert_v2_diagnostics"
 
 
 def new_diagnostic_buffers() -> dict[str, list[float | np.ndarray]]:
-    return {key: [] for key in (*SCALAR_DIAGNOSTIC_KEYS, *VECTOR_DIAGNOSTIC_KEYS)}
+    return {
+        key: []
+        for key in (*SCALAR_DIAGNOSTIC_KEYS, *TEXT_DIAGNOSTIC_KEYS, *VECTOR_DIAGNOSTIC_KEYS)
+    }
 
 
 def read_sample_diagnostics(info: dict) -> dict[str, float | np.ndarray]:
@@ -94,6 +103,10 @@ def read_sample_diagnostics(info: dict) -> dict[str, float | np.ndarray]:
         "ik_target_error": float(info.get("ik_target_error", np.nan)),
         "ik_iterations": float(info.get("ik_iterations", -1)),
         "joint_target_error": float(info.get("joint_target_error", np.nan)),
+        "geometry_profile": str(info.get("geometry_profile", "")),
+        "geometry_name": str(info.get("geometry_name", "")),
+        "peg_shape": str(info.get("peg_shape", "")),
+        "hole_shape": str(info.get("hole_shape", "")),
         "hole_center_offset": hole_center_offset.astype(np.float32, copy=True),
         "action_target_tip_delta": np.asarray(
             info.get("action_target_tip_delta", [np.nan, np.nan, np.nan]),
@@ -142,6 +155,8 @@ def add_diagnostic_arrays(
     for key in SCALAR_DIAGNOSTIC_KEYS:
         dtype = np.int32 if key in ("control_action_delay", "ik_iterations") else np.float32
         arrays[key] = np.asarray(diagnostics[key], dtype=dtype)
+    for key in TEXT_DIAGNOSTIC_KEYS:
+        arrays[key] = np.asarray(diagnostics[key])
     for key in VECTOR_DIAGNOSTIC_KEYS:
         arrays[key] = np.asarray(diagnostics[key], dtype=np.float32)
 
@@ -157,6 +172,11 @@ def summarize_float_array(values: np.ndarray) -> dict[str, float]:
         "min": float(np.min(finite)),
         "max": float(np.max(finite)),
     }
+
+
+def summarize_text_array(values: np.ndarray) -> dict[str, int]:
+    unique, counts = np.unique(values.astype(str), return_counts=True)
+    return {str(key): int(value) for key, value in zip(unique, counts)}
 
 
 def array_metadata(arrays: dict[str, np.ndarray]) -> dict[str, dict[str, object]]:
@@ -237,6 +257,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--geometry-table-height-jitter", type=float, default=0.001)
     parser.add_argument("--geometry-hole-half-size-range", nargs=2, type=float, default=(0.017, 0.021))
     parser.add_argument("--geometry-peg-radius-range", nargs=2, type=float, default=(0.0115, 0.0125))
+    parser.add_argument(
+        "--geometry-profile",
+        choices=["single", "round_square", "square_square", "mixed_basic"],
+        default="single",
+    )
+    parser.add_argument("--geometry-square-peg-half-size-range", nargs=2, type=float, default=(0.0105, 0.0125))
+    parser.add_argument("--geometry-mixed-square-probability", type=float, default=0.5)
     parser.add_argument("--contact-friction-multiplier-range", nargs=2, type=float, default=(0.7, 1.3))
     parser.add_argument("--contact-solref-time-multiplier-range", nargs=2, type=float, default=(0.8, 1.25))
     parser.add_argument("--contact-solref-damping-multiplier-range", nargs=2, type=float, default=(0.8, 1.2))
@@ -327,6 +354,9 @@ def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
         geometry_table_height_jitter=args.geometry_table_height_jitter,
         geometry_hole_half_size_range=tuple(args.geometry_hole_half_size_range),
         geometry_peg_radius_range=tuple(args.geometry_peg_radius_range),
+        geometry_profile=args.geometry_profile,
+        geometry_square_peg_half_size_range=tuple(args.geometry_square_peg_half_size_range),
+        geometry_mixed_square_probability=args.geometry_mixed_square_probability,
         contact_friction_multiplier_range=tuple(args.contact_friction_multiplier_range),
         contact_solref_time_multiplier_range=tuple(args.contact_solref_time_multiplier_range),
         contact_solref_damping_multiplier_range=tuple(args.contact_solref_damping_multiplier_range),
@@ -554,6 +584,9 @@ def main() -> None:
         "geometry_table_height_jitter": args.geometry_table_height_jitter,
         "geometry_hole_half_size_range": list(args.geometry_hole_half_size_range),
         "geometry_peg_radius_range": list(args.geometry_peg_radius_range),
+        "geometry_profile": args.geometry_profile,
+        "geometry_square_peg_half_size_range": list(args.geometry_square_peg_half_size_range),
+        "geometry_mixed_square_probability": args.geometry_mixed_square_probability,
         "contact_friction_multiplier_range": list(args.contact_friction_multiplier_range),
         "contact_solref_time_multiplier_range": list(args.contact_solref_time_multiplier_range),
         "contact_solref_damping_multiplier_range": list(args.contact_solref_damping_multiplier_range),
@@ -572,6 +605,8 @@ def main() -> None:
             "hole_clearance": summarize_float_array(arrays["hole_clearance"]),
             "hole_half_size": summarize_float_array(arrays["hole_half_size"]),
             "peg_radius": summarize_float_array(arrays["peg_radius"]),
+            "geometry_name": summarize_text_array(arrays["geometry_name"]),
+            "peg_shape": summarize_text_array(arrays["peg_shape"]),
             "control_action_scale_multiplier": summarize_float_array(
                 arrays["control_action_scale_multiplier"]
             ),

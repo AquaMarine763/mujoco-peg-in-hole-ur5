@@ -65,6 +65,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--success-xy-tolerance", type=float, default=0.005)
     parser.add_argument("--success-z-tolerance", type=float, default=0.01)
     parser.add_argument("--geometry-hole-half-size-range", nargs=2, type=float, default=(0.017, 0.021))
+    parser.add_argument("--geometry-peg-radius-range", nargs=2, type=float, default=(0.0115, 0.0125))
+    parser.add_argument(
+        "--geometry-profile",
+        choices=["single", "round_square", "square_square", "mixed_basic"],
+        default="single",
+    )
+    parser.add_argument("--geometry-square-peg-half-size-range", nargs=2, type=float, default=(0.0105, 0.0125))
+    parser.add_argument("--geometry-mixed-square-probability", type=float, default=0.5)
     parser.add_argument("--approach-xy-tolerance", type=float, default=0.06)
     parser.add_argument("--approach-height", type=float, default=0.08)
     parser.add_argument("--staged-xy-weight", type=float, default=2.0)
@@ -113,6 +121,10 @@ def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
         success_xy_tolerance=args.success_xy_tolerance,
         success_z_tolerance=args.success_z_tolerance,
         geometry_hole_half_size_range=tuple(args.geometry_hole_half_size_range),
+        geometry_peg_radius_range=tuple(args.geometry_peg_radius_range),
+        geometry_profile=args.geometry_profile,
+        geometry_square_peg_half_size_range=tuple(args.geometry_square_peg_half_size_range),
+        geometry_mixed_square_probability=args.geometry_mixed_square_probability,
         approach_xy_tolerance=args.approach_xy_tolerance,
         approach_height=args.approach_height,
         staged_xy_weight=args.staged_xy_weight,
