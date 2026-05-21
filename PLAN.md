@@ -59,12 +59,26 @@ Implemented so far:
   - guarded-two-stage oracle pilot improved but is not production-ready: 512 samples, 2 completed episodes, `0.500/0.500/0.000`.
   - `high_start_two_phase` pilot was worse on the same seed, with collision in the first completed episode.
   - conclusion: do not launch 50k direct-oracle multi-geometry collection yet. The data path works, but the high-start teacher path needs either a guarded-deployment teacher or policy-visited correction collection.
+- Policy-visited correction data:
+  - Added configs for `square_square` and `mixed_basic` insert-settle correction smoke collection.
+  - `square_square` smoke: 512 clean timeout samples, all in the insert-settle window; rollout outcome was `0.121/0.462/0.418`, which confirms the current policy/teacher is weak at square-square rollouts but the filtered correction samples are usable.
+  - `mixed_basic` smoke: 512 clean timeout samples with a balanced split (`round_square=253`, `square_square=259`).
+  - Scaled `square_square` to 2048 samples: all timeout samples, no sample-level collision, `insert_settle_window_rate=1.000`, phases `slow_insert=516`, `settle=844`, `lift_recenter=314`, `recenter=374`.
+  - Trained conservative 5% replay checkpoint:
+    - `checkpoints\ur5e_full\multi_geometry\correction\sac_image_bc_wrist_pose_control_state_square_square_insert_settle_2k_w05_e1.zip`
+    - training/validation loss: `0.109244/0.101964`.
+  - Strictstable49 20ep evaluation with the w05 checkpoint, seed `612000`:
+    - `single`: `0.950/0.000/0.050`
+    - `round_square`: `0.950/0.000/0.050`
+    - `square_square`: `0.850/0.000/0.150`
+    - `mixed_basic`: `0.950/0.000/0.050`
+  - Conclusion: the w05 replay does not damage the existing guarded baseline, but it also does not improve the square-square timeout bucket. The likely reason is that strict evaluation uses `guard_blend=1.0`, so near-hole final insertion is dominated by the guarded/final-servo controller rather than the learned actor.
 
 Next step:
 
-- Implement or configure a stronger multi-geometry teacher before scaling data.
-- Preferred next route: collect policy-visited `square_square` / `mixed_basic` correction data, because strictstable49 policy+guard already reaches 85-95% with zero collision while direct oracle collection is weaker.
-- Alternative route: extend expert collection to use the same guarded deployment controller phases as `eval_guarded_policy.py`, then rerun a 1k pilot before any 50k collection.
+- Do not scale square-square insert-settle BC replay by default; w05 was behaviorally flat under the current guarded deployment.
+- Next useful multi-geometry step is controller-side: make final-servo/low-recenter shape-aware enough for square-square or test a lower `guard_blend` diagnostic to see whether learned near-hole actions can affect the final timeout bucket.
+- Keep the data plumbing and 2k correction dataset as a reusable diagnostic asset, but do not promote the w05 checkpoint as a new default.
 
 ## Implemented So Far
 

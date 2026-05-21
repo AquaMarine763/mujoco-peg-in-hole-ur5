@@ -88,6 +88,40 @@ python scripts\collect_image_expert_dataset.py `
   --output datasets\ur5e_full\multi_geometry\image_expert_50k_mixed_basic.npz
 ```
 
+Policy-visited multi-geometry correction smoke and 2k collection:
+
+```powershell
+python scripts\collect_image_correction_dataset.py `
+  --config configs\sim\ur5e_full\collect_multi_geometry_square_square_insert_settle_smoke.yaml
+
+python scripts\collect_image_correction_dataset.py `
+  --config configs\sim\ur5e_full\collect_multi_geometry_mixed_basic_insert_settle_smoke.yaml
+
+python scripts\collect_image_correction_dataset.py `
+  --config configs\sim\ur5e_full\collect_multi_geometry_square_square_insert_settle_2k.yaml
+```
+
+Conservative square-square correction replay:
+
+```powershell
+python scripts\pretrain_image_actor_bc_weighted.py `
+  --config configs\sim\ur5e_full\pretrain_multi_geometry_square_square_insert_settle_2k_w05_e1.yaml
+```
+
+Evaluate the current multi-geometry candidate with the strict high-start guard:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_localkp3_recovery_strictstable49_60ep.yaml `
+  --model checkpoints\ur5e_full\multi_geometry\correction\sac_image_bc_wrist_pose_control_state_square_square_insert_settle_2k_w05_e1.zip `
+  --geometry-profile square_square `
+  --episodes 20 `
+  --seed 612000 `
+  --output-csv results\ur5e_full\multi_geometry\eval_square_square_insert_settle_w05_square_square_20ep_seed612000.csv `
+  --output-md results\ur5e_full\multi_geometry\eval_square_square_insert_settle_w05_square_square_20ep_seed612000.md `
+  --episode-output-csv results\ur5e_full\multi_geometry\eval_square_square_insert_settle_w05_square_square_20ep_seed612000_episodes.csv
+```
+
 ## Robot Model Compatibility / UR5e Adapter
 
 On the `feature/ur5e-mainline` branch, the default simulator uses the
