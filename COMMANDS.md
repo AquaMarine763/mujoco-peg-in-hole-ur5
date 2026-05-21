@@ -193,6 +193,53 @@ python scripts\analyze_square_peg_trace.py `
   --output-csv results\ur5e_full\multi_geometry\shape_aware_servo_diag\shape_orientation_summary.csv
 ```
 
+Final insertion contact diagnostic for square-square timeout seeds:
+
+```powershell
+$out = "results\ur5e_full\multi_geometry\contact_insert_diag"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+foreach ($seed in 612008,612010,612013,612000,612001,612002) {
+  python scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_high_start_hard_localkp3_recovery_strictstable49_60ep.yaml `
+    --geometry-profile square_square `
+    --episodes 1 `
+    --seed $seed `
+    --output-csv "$out\eval_contact_seed$seed.csv" `
+    --output-md "$out\eval_contact_seed$seed.md" `
+    --episode-output-csv "$out\eval_contact_seed$seed`_episodes.csv" `
+    --step-output-csv "$out\eval_contact_seed$seed`_steps.csv" `
+    --step-trace-outcome-filter any
+}
+```
+
+Summarize final insertion contact traces. Use the default `5 mm` insert band for
+strict success, and `14 mm` to match final-servo release-band analysis.
+
+```powershell
+python scripts\analyze_insert_contact_trace.py `
+  --input `
+    results\ur5e_full\multi_geometry\contact_insert_diag\eval_contact_seed612008_steps.csv `
+    results\ur5e_full\multi_geometry\contact_insert_diag\eval_contact_seed612010_steps.csv `
+    results\ur5e_full\multi_geometry\contact_insert_diag\eval_contact_seed612013_steps.csv `
+    results\ur5e_full\multi_geometry\contact_insert_diag\eval_contact_seed612000_steps.csv `
+    results\ur5e_full\multi_geometry\contact_insert_diag\eval_contact_seed612001_steps.csv `
+    results\ur5e_full\multi_geometry\contact_insert_diag\eval_contact_seed612002_steps.csv `
+  --output-md results\ur5e_full\multi_geometry\contact_insert_diag\summary.md `
+  --output-csv results\ur5e_full\multi_geometry\contact_insert_diag\summary.csv
+
+python scripts\analyze_insert_contact_trace.py `
+  --input `
+    results\ur5e_full\multi_geometry\contact_insert_diag\eval_contact_seed612008_steps.csv `
+    results\ur5e_full\multi_geometry\contact_insert_diag\eval_contact_seed612010_steps.csv `
+    results\ur5e_full\multi_geometry\contact_insert_diag\eval_contact_seed612013_steps.csv `
+    results\ur5e_full\multi_geometry\contact_insert_diag\eval_contact_seed612000_steps.csv `
+    results\ur5e_full\multi_geometry\contact_insert_diag\eval_contact_seed612001_steps.csv `
+    results\ur5e_full\multi_geometry\contact_insert_diag\eval_contact_seed612002_steps.csv `
+  --insert-xy-m 0.014 `
+  --output-md results\ur5e_full\multi_geometry\contact_insert_diag\summary_release_band.md `
+  --output-csv results\ur5e_full\multi_geometry\contact_insert_diag\summary_release_band.csv
+```
+
 Experimental square-aware final-servo recovery check:
 
 ```powershell

@@ -1756,6 +1756,55 @@ class PegInHoleMujocoEnv(gym.Env):
                 pairs.append(f"{geom1}:{geom2}")
         return pairs
 
+    def _peg_hole_contact_metrics(self) -> dict[str, Any]:
+        contact_names = (
+            "hole_plate",
+            "hole_north",
+            "hole_south",
+            "hole_east",
+            "hole_west",
+        )
+        wall_names = ("hole_north", "hole_south", "hole_east", "hole_west")
+        counts = {name: 0 for name in contact_names}
+        pairs: list[str] = []
+        dists: list[float] = []
+
+        for contact_index in range(self.data.ncon):
+            contact = self.data.contact[contact_index]
+            geom1 = self._geom_name(contact.geom1)
+            geom2 = self._geom_name(contact.geom2)
+            if geom1 == "peg_geom":
+                other = geom2
+            elif geom2 == "peg_geom":
+                other = geom1
+            else:
+                continue
+
+            if other not in counts:
+                continue
+            counts[other] += 1
+            pairs.append(f"peg_geom:{other}")
+            dists.append(float(contact.dist))
+
+        wall_count = sum(counts[name] for name in wall_names)
+        plate_count = counts["hole_plate"]
+        contact_count = wall_count + plate_count
+        return {
+            "peg_hole_contact_count": contact_count,
+            "peg_hole_contact_pairs": ";".join(pairs[:8]),
+            "peg_hole_contact_wall_count": wall_count,
+            "peg_hole_contact_plate_count": plate_count,
+            "peg_hole_contact_has_wall": wall_count > 0,
+            "peg_hole_contact_has_plate": plate_count > 0,
+            "peg_hole_contact_hole_plate": plate_count,
+            "peg_hole_contact_hole_north": counts["hole_north"],
+            "peg_hole_contact_hole_south": counts["hole_south"],
+            "peg_hole_contact_hole_east": counts["hole_east"],
+            "peg_hole_contact_hole_west": counts["hole_west"],
+            "peg_hole_contact_min_dist": min(dists) if dists else np.nan,
+            "peg_hole_contact_max_dist": max(dists) if dists else np.nan,
+        }
+
     def _geom_name(self, geom_id: int) -> str:
         return mujoco.mj_id2name(self.model, mujoco.mjtObj.mjOBJ_GEOM, geom_id) or ""
 
@@ -1894,6 +1943,7 @@ class PegInHoleMujocoEnv(gym.Env):
         tool0_pos = self.data.xpos[self.tool0_body_id].copy()
         base_pos = self.data.xpos[self.base_body_id].copy()
         collision_contact_pairs = self._collision_contact_pairs()
+        peg_hole_contact_metrics = self._peg_hole_contact_metrics()
         joint_qpos = self.data.qpos[self.arm_qpos_ids].copy()
         joint_limit_margin, joint_limit_normalized_margin = self._joint_limit_metrics(joint_qpos)
         peg_axis_world, peg_tilt_angle_deg = self._peg_axis_and_tilt(self.data)
@@ -1907,6 +1957,7 @@ class PegInHoleMujocoEnv(gym.Env):
             "collision": terms.collision,
             "collision_contact_count": len(collision_contact_pairs),
             "collision_contact_pairs": ";".join(collision_contact_pairs[:8]),
+            **peg_hole_contact_metrics,
             "target_pos": self.target_pos.astype(np.float32),
             "peg_tip_pos": tip_pos.astype(np.float32),
             "eef_pos": eef_pos.astype(np.float32),

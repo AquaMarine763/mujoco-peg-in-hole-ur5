@@ -110,11 +110,23 @@ Implemented so far:
   - Result: this is not promoted. On the targeted `612000-612013` 14ep window, the best tested candidate stayed flat at `11/14 = 0.786` success with zero collisions.
   - High-tilt seed `612010` still timed out even with square recovery, `guard_near_ik_orientation_weight=0.03/0.06`, higher lift, and a 1500-step episode.
   - Low-tilt near-miss seeds `612008` and `612013` remain sensitive to low-recenter settings; narrower low-recenter can improve XY or Z separately, but still does not make the episodes successful.
+- Final insertion contact diagnostic:
+  - Added independent peg-hole contact metrics to env `info` and guarded eval step traces. These metrics do not affect reward, collision termination, or success criteria.
+  - Added `scripts\analyze_insert_contact_trace.py` to summarize wall/plate contact, first contact step, low-Z stall rate, insert-band contact rate, and final-servo phases.
+  - Summary: `results\ur5e_full\multi_geometry\contact_insert_diag\summary.md`
+  - Strictstable49 `square_square` known timeout seeds `612008/612010/612013` were compared against success references `612000/612001/612002`.
+  - Finding: success references reached success with no peg-hole wall/plate contact in the trace, ending around `0.9 - 2.8 mm` XY and `9.7 - 10.0 mm` Z.
+  - Finding: `612010` is a real contact-limited failure: wall contact in about `48.5%` of steps, `91.9%` of the 14 mm release-band steps in contact, final east-wall contact, final tilt about `20.65 deg`, and negative tilted square clearance.
+  - Finding: `612008` and `612013` are not the same failure class. They have much lower contact rates, no plate contact, low final tilt, and mostly final-servo/recovery phase timeout behavior. `612008` ends high after recovery, while `612013` ends slightly outside the strict 5 mm band with south-wall contact.
+  - Conclusion: do not add one broad square-recovery threshold. The next controller change should split the failure modes: a contact-aware unjam/retreat path for persistent wall-contact/high-tilt cases, and a low-contact final-servo phase-completion/acceptance fix for low-tilt near-misses.
 
 Next step:
 
 - Do not scale square-square insert-settle BC replay by default; w05 was behaviorally flat under the current guarded deployment.
-- Keep square recovery as a diagnostic hook, not a default. The next useful multi-geometry step should move beyond threshold scanning: inspect final insertion contact/tracking and decide whether to add a contact-state insert controller or revise the success/control criterion to be geometry-aware.
+- Keep square recovery as a diagnostic hook, not a default.
+- Next implement an opt-in split controller diagnostic instead of threshold scanning:
+  - persistent wall-contact/high-tilt branch: lift enough to clear contact, hold orientation, recenter, then descend slowly.
+  - low-contact near-miss branch: revise final-servo phase completion around the strict 5 mm / 10 mm success boundary and avoid repeated recovery loops when there is no active contact.
 - Keep the data plumbing and 2k correction dataset as a reusable diagnostic asset, but do not promote the w05 checkpoint as a new default.
 
 ## Implemented So Far
