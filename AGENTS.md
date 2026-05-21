@@ -70,6 +70,9 @@ The current focus is:
   - Do not scale square-square one-step BC replay by default. Under strict guarded eval, near-hole behavior is dominated by `guard_blend=1.0` final-servo logic, so learned near-hole correction labels do not materially affect the remaining square-square timeout.
   - Guard-blend and actor-vs-guard diagnostics are complete. Summary: `results\ur5e_full\multi_geometry\guard_blend_diag\summary.md`.
   - Diagnostic conclusion: lowering `guard_blend` did not reveal a useful w05 actor benefit. `guard_blend=0.5` regressed base to `0.70` and w05 to `0.65`. `policy` mode was `0.00` success for both base and w05, while `guard_only` matched the guarded `0.85` success. Treat the square-square gap as a controller/final-servo problem, not a data-scaling problem.
+  - Shape-aware square-peg diagnostics are now available in env info and guarded step traces. Use `scripts\analyze_square_peg_trace.py` to summarize yaw error, top-down square clearance, tilt-aware clearance, and final-servo phase counts.
+  - Current shape diagnostic summary: `results\ur5e_full\multi_geometry\shape_aware_servo_diag\shape_aware_servo_summary.md`.
+  - Diagnostic conclusion: `square_square` timeouts are mixed. Seed `612010` is a persistent high-tilt/wedged case, while `612008` and `612013` have low final tilt and positive projected clearance but still fail in final-servo/low-recenter. Do not use a naive max-tilt threshold; if implementing the next controller change, make it opt-in, phase-aware, and square-only.
 - UR5e controller status:
   - Default remains position-only peg-tip IK for checkpoint compatibility.
   - Experimental `ik_control_mode=pose` is implemented in `PegInHoleMujocoEnv` and exposed in guarded eval, demo, inference, and `scripts\diagnose_ur5e_controller.py`.

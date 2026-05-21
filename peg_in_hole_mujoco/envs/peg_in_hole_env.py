@@ -1401,6 +1401,9 @@ class PegInHoleMujocoEnv(gym.Env):
     def _site_xmat(self, data: mujoco.MjData, site_id: int) -> np.ndarray:
         return data.site_xmat[site_id].reshape(3, 3).copy()
 
+    def _body_xmat(self, data: mujoco.MjData, body_id: int) -> np.ndarray:
+        return data.xmat[body_id].reshape(3, 3).copy()
+
     def _compute_rest_site_xmat(self, site_id: int) -> np.ndarray:
         data = self.ik_data
         data.qpos[:] = self.data.qpos
@@ -1432,6 +1435,98 @@ class PegInHoleMujocoEnv(gym.Env):
         cosine = float(np.clip(np.dot(axis, vertical_down), -1.0, 1.0))
         tilt_deg = float(np.rad2deg(np.arccos(cosine)))
         return axis.astype(np.float64), tilt_deg
+
+    @staticmethod
+    def _project_unit_xy(vector: np.ndarray) -> np.ndarray | None:
+        projected = np.asarray([vector[0], vector[1], 0.0], dtype=np.float64)
+        norm = float(np.linalg.norm(projected))
+        if norm <= 1e-9:
+            return None
+        return projected / norm
+
+    @staticmethod
+    def _signed_planar_angle_deg(reference: np.ndarray, vector: np.ndarray) -> float:
+        cross_z = float(reference[0] * vector[1] - reference[1] * vector[0])
+        dot = float(np.clip(np.dot(reference, vector), -1.0, 1.0))
+        return float(np.rad2deg(np.arctan2(cross_z, dot)))
+
+    @staticmethod
+    def _square_symmetry_yaw_error_deg(raw_yaw_deg: float) -> float:
+        return float(abs(((raw_yaw_deg + 45.0) % 90.0) - 45.0))
+
+    def _square_peg_orientation_metrics(self, data: mujoco.MjData) -> dict[str, float]:
+        spec = self.current_geometry_spec
+        if spec.peg_shape != "square" or spec.peg_half_extents is None:
+            return {
+                "square_peg_raw_yaw_deg": np.nan,
+                "square_peg_yaw_error_deg": np.nan,
+                "square_peg_topdown_half_width_x": np.nan,
+                "square_peg_topdown_half_width_y": np.nan,
+                "square_peg_topdown_max_half_width": np.nan,
+                "square_peg_topdown_clearance_margin": np.nan,
+                "square_peg_tilt_lateral_extent_x": np.nan,
+                "square_peg_tilt_lateral_extent_y": np.nan,
+                "square_peg_tilt_lateral_extent_max": np.nan,
+                "square_peg_tilted_half_width_x": np.nan,
+                "square_peg_tilted_half_width_y": np.nan,
+                "square_peg_tilted_max_half_width": np.nan,
+                "square_peg_tilted_clearance_margin": np.nan,
+            }
+
+        peg_xmat = self._site_xmat(data, self.peg_tip_site_id)
+        hole_xmat = self._body_xmat(data, self.hole_body_id)
+
+        peg_x_axis = peg_xmat @ np.asarray([1.0, 0.0, 0.0], dtype=np.float64)
+        peg_y_axis = peg_xmat @ np.asarray([0.0, 1.0, 0.0], dtype=np.float64)
+        peg_down_axis = peg_xmat @ np.asarray([0.0, 0.0, -1.0], dtype=np.float64)
+        hole_x_axis = hole_xmat @ np.asarray([1.0, 0.0, 0.0], dtype=np.float64)
+        hole_y_axis = hole_xmat @ np.asarray([0.0, 1.0, 0.0], dtype=np.float64)
+
+        peg_x_xy = self._project_unit_xy(peg_x_axis)
+        hole_x_xy = self._project_unit_xy(hole_x_axis)
+        if peg_x_xy is None or hole_x_xy is None:
+            raw_yaw_deg = np.nan
+            yaw_error_deg = np.nan
+        else:
+            raw_yaw_deg = self._signed_planar_angle_deg(hole_x_xy, peg_x_xy)
+            yaw_error_deg = self._square_symmetry_yaw_error_deg(raw_yaw_deg)
+
+        hx, hy, hz = (float(v) for v in spec.peg_half_extents)
+        topdown_half_width_x = hx * abs(float(np.dot(peg_x_axis, hole_x_axis))) + hy * abs(
+            float(np.dot(peg_y_axis, hole_x_axis))
+        )
+        topdown_half_width_y = hx * abs(float(np.dot(peg_x_axis, hole_y_axis))) + hy * abs(
+            float(np.dot(peg_y_axis, hole_y_axis))
+        )
+        topdown_max_half_width = max(topdown_half_width_x, topdown_half_width_y)
+
+        tilt_lateral_extent_x = hz * abs(float(np.dot(peg_down_axis, hole_x_axis)))
+        tilt_lateral_extent_y = hz * abs(float(np.dot(peg_down_axis, hole_y_axis)))
+        tilt_lateral_extent_max = max(tilt_lateral_extent_x, tilt_lateral_extent_y)
+
+        tilted_half_width_x = topdown_half_width_x + tilt_lateral_extent_x
+        tilted_half_width_y = topdown_half_width_y + tilt_lateral_extent_y
+        tilted_max_half_width = max(tilted_half_width_x, tilted_half_width_y)
+
+        return {
+            "square_peg_raw_yaw_deg": float(raw_yaw_deg),
+            "square_peg_yaw_error_deg": float(yaw_error_deg),
+            "square_peg_topdown_half_width_x": float(topdown_half_width_x),
+            "square_peg_topdown_half_width_y": float(topdown_half_width_y),
+            "square_peg_topdown_max_half_width": float(topdown_max_half_width),
+            "square_peg_topdown_clearance_margin": float(
+                spec.hole_half_size - topdown_max_half_width
+            ),
+            "square_peg_tilt_lateral_extent_x": float(tilt_lateral_extent_x),
+            "square_peg_tilt_lateral_extent_y": float(tilt_lateral_extent_y),
+            "square_peg_tilt_lateral_extent_max": float(tilt_lateral_extent_max),
+            "square_peg_tilted_half_width_x": float(tilted_half_width_x),
+            "square_peg_tilted_half_width_y": float(tilted_half_width_y),
+            "square_peg_tilted_max_half_width": float(tilted_max_half_width),
+            "square_peg_tilted_clearance_margin": float(
+                spec.hole_half_size - tilted_max_half_width
+            ),
+        }
 
     def _joint_limit_metrics(self, qpos: np.ndarray) -> tuple[float, float]:
         lower = self.joint_ranges[:, 0]
@@ -1802,6 +1897,7 @@ class PegInHoleMujocoEnv(gym.Env):
         joint_qpos = self.data.qpos[self.arm_qpos_ids].copy()
         joint_limit_margin, joint_limit_normalized_margin = self._joint_limit_metrics(joint_qpos)
         peg_axis_world, peg_tilt_angle_deg = self._peg_axis_and_tilt(self.data)
+        square_peg_metrics = self._square_peg_orientation_metrics(self.data)
         return {
             "insertion_success": terms.inserted,
             "dist_xy": terms.dist_xy,
@@ -1861,6 +1957,7 @@ class PegInHoleMujocoEnv(gym.Env):
                 if self.current_geometry_spec.peg_half_extents is not None
                 else np.zeros(3, dtype=np.float32)
             ),
+            **square_peg_metrics,
             "contact_friction_multiplier": self.current_contact_friction_multiplier,
             "contact_solref_time_multiplier": self.current_contact_solref_time_multiplier,
             "contact_solref_damping_multiplier": self.current_contact_solref_damping_multiplier,

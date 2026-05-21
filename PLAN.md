@@ -90,11 +90,23 @@ Implemented so far:
     - w05 `policy`: `0.000/0.100/0.900`
     - w05 `guard_only`: `0.850/0.000/0.150`
   - Conclusion: current square-square performance is controller/guard dominated. W05 does not provide a useful learned near-hole insertion policy. Lowering guard blend does not reveal a hidden actor benefit and starts to regress at `0.5`.
+- Shape-aware square-peg final-servo diagnostic:
+  - Added square-peg orientation/geometry fields to environment info and guarded step traces:
+    - square symmetry yaw error relative to the hole axes
+    - top-down projected square half-width and clearance margin
+    - tilt-induced lateral extent
+    - tilt-aware projected half-width and clearance margin
+  - Added `scripts\analyze_square_peg_trace.py` for trace summaries.
+  - Summary: `results\ur5e_full\multi_geometry\shape_aware_servo_diag\shape_aware_servo_summary.md`
+  - Compared success reference seeds `612000/612001/612002` against known timeout seeds `612008/612010/612013`.
+  - Finding: `612010` is a persistent high-tilt/wedged case, ending near `6.70 mm` XY / `7.62 mm` Z with final tilt about `20.65 deg`.
+  - Finding: `612008` and `612013` finish with low final tilt and positive projected margins, but still timeout after hundreds of final-servo steps. These are final-servo/low-recenter phase-completion failures, not pure yaw/tilt failures.
+  - Conclusion: a simple yaw/tilt threshold is not enough, because successful runs can have temporary tilt spikes. The next controller change should be opt-in and phase-aware: trigger on persistent late-stage square-peg tilt or low-Z final-servo stall, then lift/recenter/hold orientation before descending again.
 
 Next step:
 
 - Do not scale square-square insert-settle BC replay by default; w05 was behaviorally flat under the current guarded deployment.
-- Next useful multi-geometry step is controller-side: make final-servo/low-recenter shape-aware enough for square-square. The lower `guard_blend` diagnostic has now been run and was negative.
+- Next useful multi-geometry step is controller-side: implement an opt-in square-aware final-servo recovery gate for `square_square`, using the new trace diagnostics. Keep strictstable49 defaults unchanged until a square-square 20ep/60ep gate improves without hurting `single` or `round_square`.
 - Keep the data plumbing and 2k correction dataset as a reusable diagnostic asset, but do not promote the w05 checkpoint as a new default.
 
 ## Implemented So Far

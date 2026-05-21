@@ -163,6 +163,36 @@ python scripts\eval_guarded_policy.py `
   --episode-output-csv results\ur5e_full\multi_geometry\actor_vs_guard\eval_w05_guard_only_square_square_20ep_seed612000_episodes.csv
 ```
 
+Square-peg orientation / shape-aware final-servo diagnostic:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_localkp3_recovery_strictstable49_60ep.yaml `
+  --geometry-profile square_square `
+  --episodes 1 `
+  --seed 612010 `
+  --output-csv results\ur5e_full\multi_geometry\shape_aware_servo_diag\eval_shape_diag_seed612010.csv `
+  --output-md results\ur5e_full\multi_geometry\shape_aware_servo_diag\eval_shape_diag_seed612010.md `
+  --episode-output-csv results\ur5e_full\multi_geometry\shape_aware_servo_diag\eval_shape_diag_seed612010_episodes.csv `
+  --step-output-csv results\ur5e_full\multi_geometry\shape_aware_servo_diag\eval_shape_diag_seed612010_steps.csv `
+  --step-trace-outcome-filter any
+```
+
+Summarize square-peg traces:
+
+```powershell
+python scripts\analyze_square_peg_trace.py `
+  --input `
+    results\ur5e_full\multi_geometry\shape_aware_servo_diag\eval_shape_diag_success_ref_seed612000_steps.csv `
+    results\ur5e_full\multi_geometry\shape_aware_servo_diag\eval_shape_diag_success_ref_seed612001_steps.csv `
+    results\ur5e_full\multi_geometry\shape_aware_servo_diag\eval_shape_diag_success_ref_seed612002_steps.csv `
+    results\ur5e_full\multi_geometry\shape_aware_servo_diag\eval_shape_diag_seed612008_steps.csv `
+    results\ur5e_full\multi_geometry\shape_aware_servo_diag\eval_shape_diag_seed612010_steps.csv `
+    results\ur5e_full\multi_geometry\shape_aware_servo_diag\eval_shape_diag_seed612013_steps.csv `
+  --output-md results\ur5e_full\multi_geometry\shape_aware_servo_diag\shape_orientation_summary.md `
+  --output-csv results\ur5e_full\multi_geometry\shape_aware_servo_diag\shape_orientation_summary.csv
+```
+
 ## Robot Model Compatibility / UR5e Adapter
 
 On the `feature/ur5e-mainline` branch, the default simulator uses the

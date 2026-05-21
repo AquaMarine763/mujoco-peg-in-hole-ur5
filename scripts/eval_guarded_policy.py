@@ -237,6 +237,19 @@ STEP_TRACE_FIELDNAMES = [
     "hole_half_size",
     "peg_radius",
     "hole_clearance",
+    "square_peg_raw_yaw_deg",
+    "square_peg_yaw_error_deg",
+    "square_peg_topdown_half_width_x",
+    "square_peg_topdown_half_width_y",
+    "square_peg_topdown_max_half_width",
+    "square_peg_topdown_clearance_margin",
+    "square_peg_tilt_lateral_extent_x",
+    "square_peg_tilt_lateral_extent_y",
+    "square_peg_tilt_lateral_extent_max",
+    "square_peg_tilted_half_width_x",
+    "square_peg_tilted_half_width_y",
+    "square_peg_tilted_max_half_width",
+    "square_peg_tilted_clearance_margin",
 ]
 
 
@@ -1123,6 +1136,41 @@ def build_step_trace_row(
         "hole_half_size": float(post_info.get("hole_half_size", np.nan)),
         "peg_radius": float(post_info.get("peg_radius", np.nan)),
         "hole_clearance": float(post_info.get("hole_half_size", np.nan) - post_info.get("peg_radius", np.nan)),
+        "square_peg_raw_yaw_deg": float(post_info.get("square_peg_raw_yaw_deg", np.nan)),
+        "square_peg_yaw_error_deg": float(post_info.get("square_peg_yaw_error_deg", np.nan)),
+        "square_peg_topdown_half_width_x": float(
+            post_info.get("square_peg_topdown_half_width_x", np.nan)
+        ),
+        "square_peg_topdown_half_width_y": float(
+            post_info.get("square_peg_topdown_half_width_y", np.nan)
+        ),
+        "square_peg_topdown_max_half_width": float(
+            post_info.get("square_peg_topdown_max_half_width", np.nan)
+        ),
+        "square_peg_topdown_clearance_margin": float(
+            post_info.get("square_peg_topdown_clearance_margin", np.nan)
+        ),
+        "square_peg_tilt_lateral_extent_x": float(
+            post_info.get("square_peg_tilt_lateral_extent_x", np.nan)
+        ),
+        "square_peg_tilt_lateral_extent_y": float(
+            post_info.get("square_peg_tilt_lateral_extent_y", np.nan)
+        ),
+        "square_peg_tilt_lateral_extent_max": float(
+            post_info.get("square_peg_tilt_lateral_extent_max", np.nan)
+        ),
+        "square_peg_tilted_half_width_x": float(
+            post_info.get("square_peg_tilted_half_width_x", np.nan)
+        ),
+        "square_peg_tilted_half_width_y": float(
+            post_info.get("square_peg_tilted_half_width_y", np.nan)
+        ),
+        "square_peg_tilted_max_half_width": float(
+            post_info.get("square_peg_tilted_max_half_width", np.nan)
+        ),
+        "square_peg_tilted_clearance_margin": float(
+            post_info.get("square_peg_tilted_clearance_margin", np.nan)
+        ),
     }
     return row
 
@@ -1517,6 +1565,16 @@ def evaluate_scenario(
             hole_shape = str(info.get("hole_shape", ""))
             hole_half_size = float(info.get("hole_half_size", np.nan))
             peg_radius = float(info.get("peg_radius", np.nan))
+            final_peg_tilt_angle_deg = float(info.get("peg_tilt_angle_deg", np.nan))
+            final_square_peg_yaw_error_deg = float(
+                info.get("square_peg_yaw_error_deg", np.nan)
+            )
+            final_square_peg_topdown_clearance_margin = float(
+                info.get("square_peg_topdown_clearance_margin", np.nan)
+            )
+            final_square_peg_tilted_clearance_margin = float(
+                info.get("square_peg_tilted_clearance_margin", np.nan)
+            )
             episode_rows.append(
                 {
                     "scenario": scenario.name,
@@ -1583,6 +1641,14 @@ def evaluate_scenario(
                     "hole_half_size": hole_half_size,
                     "peg_radius": peg_radius,
                     "hole_clearance": hole_half_size - peg_radius,
+                    "final_peg_tilt_angle_deg": final_peg_tilt_angle_deg,
+                    "final_square_peg_yaw_error_deg": final_square_peg_yaw_error_deg,
+                    "final_square_peg_topdown_clearance_margin": (
+                        final_square_peg_topdown_clearance_margin
+                    ),
+                    "final_square_peg_tilted_clearance_margin": (
+                        final_square_peg_tilted_clearance_margin
+                    ),
                 }
             )
             if trace_steps and episode_matches_step_trace_filter(outcome, args.step_trace_outcome_filter):
