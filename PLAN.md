@@ -54,12 +54,17 @@ Implemented so far:
 - Expert dataset smoke:
   - `mixed_basic` 32-sample smoke writes `geometry_name` and `peg_shape` arrays.
   - forced `square_square` 16-sample smoke writes `square_square` / `square` samples as expected.
+- Expert dataset pilot:
+  - `mixed_basic` 1024-sample pilot had a healthy geometry split (`round_square=421`, `square_square=603`) but the direct staged oracle had `0.000` episode success under high-start settings.
+  - guarded-two-stage oracle pilot improved but is not production-ready: 512 samples, 2 completed episodes, `0.500/0.500/0.000`.
+  - `high_start_two_phase` pilot was worse on the same seed, with collision in the first completed episode.
+  - conclusion: do not launch 50k direct-oracle multi-geometry collection yet. The data path works, but the high-start teacher path needs either a guarded-deployment teacher or policy-visited correction collection.
 
 Next step:
 
-- Add a production-sized multi-geometry expert collection run, starting with `mixed_basic` 50k.
-- Before scaling further, run a small BC smoke on that dataset and evaluate `single`, `round_square`, `square_square`, and `mixed_basic` under strictstable49.
-- If `square_square` remains weaker, add square-specific near-hole/final insertion correction data instead of only increasing generic mixed data.
+- Implement or configure a stronger multi-geometry teacher before scaling data.
+- Preferred next route: collect policy-visited `square_square` / `mixed_basic` correction data, because strictstable49 policy+guard already reaches 85-95% with zero collision while direct oracle collection is weaker.
+- Alternative route: extend expert collection to use the same guarded deployment controller phases as `eval_guarded_policy.py`, then rerun a 1k pilot before any 50k collection.
 
 ## Implemented So Far
 

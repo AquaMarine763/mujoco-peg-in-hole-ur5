@@ -63,6 +63,7 @@ The current focus is:
   - Expert/correction dataset collection and BC pretraining scripts accept the same geometry args.
   - Dataset files now record `geometry_profile`, `geometry_name`, `peg_shape`, and `hole_shape`; use those arrays to debug multi-geometry balance.
   - Current strictstable49 20ep profile check: `single=0.95`, `round_square=0.95`, `square_square=0.85`, `mixed_basic=0.95`, all with zero collisions. Treat `square_square` final insertion stability as the first multi-geometry bottleneck.
+  - Direct multi-geometry expert collection is not ready for 50k scaling: staged oracle had 0 success in a 1k pilot, guarded-two-stage oracle reached only 1 success / 1 collision in a 512-sample pilot. Prefer policy-visited correction data or a guarded-deployment teacher before large collection.
 - UR5e controller status:
   - Default remains position-only peg-tip IK for checkpoint compatibility.
   - Experimental `ik_control_mode=pose` is implemented in `PegInHoleMujocoEnv` and exposed in guarded eval, demo, inference, and `scripts\diagnose_ur5e_controller.py`.
