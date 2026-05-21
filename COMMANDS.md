@@ -122,6 +122,47 @@ python scripts\eval_guarded_policy.py `
   --episode-output-csv results\ur5e_full\multi_geometry\eval_square_square_insert_settle_w05_square_square_20ep_seed612000_episodes.csv
 ```
 
+Guard-blend actor-contribution diagnostic:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_localkp3_recovery_strictstable49_60ep.yaml `
+  --model checkpoints\ur5e_full\multi_geometry\correction\sac_image_bc_wrist_pose_control_state_square_square_insert_settle_2k_w05_e1.zip `
+  --geometry-profile square_square `
+  --guard-blend 0.75 `
+  --episodes 20 `
+  --seed 612000 `
+  --output-csv results\ur5e_full\multi_geometry\guard_blend_diag\eval_w05_blend0p75_square_square_20ep_seed612000.csv `
+  --output-md results\ur5e_full\multi_geometry\guard_blend_diag\eval_w05_blend0p75_square_square_20ep_seed612000.md `
+  --episode-output-csv results\ur5e_full\multi_geometry\guard_blend_diag\eval_w05_blend0p75_square_square_20ep_seed612000_episodes.csv
+```
+
+Actor-only / guard-only split:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_localkp3_recovery_strictstable49_60ep.yaml `
+  --model checkpoints\ur5e_full\multi_geometry\correction\sac_image_bc_wrist_pose_control_state_square_square_insert_settle_2k_w05_e1.zip `
+  --geometry-profile square_square `
+  --control-mode policy `
+  --episodes 20 `
+  --seed 612000 `
+  --output-csv results\ur5e_full\multi_geometry\actor_vs_guard\eval_w05_policy_square_square_20ep_seed612000.csv `
+  --output-md results\ur5e_full\multi_geometry\actor_vs_guard\eval_w05_policy_square_square_20ep_seed612000.md `
+  --episode-output-csv results\ur5e_full\multi_geometry\actor_vs_guard\eval_w05_policy_square_square_20ep_seed612000_episodes.csv
+
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_localkp3_recovery_strictstable49_60ep.yaml `
+  --model checkpoints\ur5e_full\multi_geometry\correction\sac_image_bc_wrist_pose_control_state_square_square_insert_settle_2k_w05_e1.zip `
+  --geometry-profile square_square `
+  --control-mode guard_only `
+  --episodes 20 `
+  --seed 612000 `
+  --output-csv results\ur5e_full\multi_geometry\actor_vs_guard\eval_w05_guard_only_square_square_20ep_seed612000.csv `
+  --output-md results\ur5e_full\multi_geometry\actor_vs_guard\eval_w05_guard_only_square_square_20ep_seed612000.md `
+  --episode-output-csv results\ur5e_full\multi_geometry\actor_vs_guard\eval_w05_guard_only_square_square_20ep_seed612000_episodes.csv
+```
+
 ## Robot Model Compatibility / UR5e Adapter
 
 On the `feature/ur5e-mainline` branch, the default simulator uses the

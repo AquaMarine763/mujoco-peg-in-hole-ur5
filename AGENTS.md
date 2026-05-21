@@ -68,6 +68,8 @@ The current focus is:
   - `square_square` insert-settle 2k dataset is available at `datasets\ur5e_full\multi_geometry\correction\image_correction_2k_square_square_insert_settle.npz`; it has 2048 timeout samples, all in the insert-settle window, with no sample-level collision.
   - Conservative 5% replay checkpoint `checkpoints\ur5e_full\multi_geometry\correction\sac_image_bc_wrist_pose_control_state_square_square_insert_settle_2k_w05_e1.zip` is not promoted. Strictstable49 20ep matrix stayed flat: `single=0.95`, `round_square=0.95`, `square_square=0.85`, `mixed_basic=0.95`, all zero collision.
   - Do not scale square-square one-step BC replay by default. Under strict guarded eval, near-hole behavior is dominated by `guard_blend=1.0` final-servo logic, so learned near-hole correction labels do not materially affect the remaining square-square timeout.
+  - Guard-blend and actor-vs-guard diagnostics are complete. Summary: `results\ur5e_full\multi_geometry\guard_blend_diag\summary.md`.
+  - Diagnostic conclusion: lowering `guard_blend` did not reveal a useful w05 actor benefit. `guard_blend=0.5` regressed base to `0.70` and w05 to `0.65`. `policy` mode was `0.00` success for both base and w05, while `guard_only` matched the guarded `0.85` success. Treat the square-square gap as a controller/final-servo problem, not a data-scaling problem.
 - UR5e controller status:
   - Default remains position-only peg-tip IK for checkpoint compatibility.
   - Experimental `ik_control_mode=pose` is implemented in `PegInHoleMujocoEnv` and exposed in guarded eval, demo, inference, and `scripts\diagnose_ur5e_controller.py`.

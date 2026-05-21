@@ -73,11 +73,28 @@ Implemented so far:
     - `square_square`: `0.850/0.000/0.150`
     - `mixed_basic`: `0.950/0.000/0.050`
   - Conclusion: the w05 replay does not damage the existing guarded baseline, but it also does not improve the square-square timeout bucket. The likely reason is that strict evaluation uses `guard_blend=1.0`, so near-hole final insertion is dominated by the guarded/final-servo controller rather than the learned actor.
+- Guard-blend / actor-contribution diagnostic:
+  - Summary: `results\ur5e_full\multi_geometry\guard_blend_diag\summary.md`
+  - `square_square`, 20 episodes, seed `612000`, strict high-start config.
+  - Base checkpoint:
+    - `guard_blend=1.0`: `0.850/0.000/0.150`
+    - `guard_blend=0.75`: `0.850/0.000/0.150`
+    - `guard_blend=0.5`: `0.700/0.000/0.300`
+  - W05 checkpoint:
+    - `guard_blend=1.0`: `0.850/0.000/0.150`
+    - `guard_blend=0.75`: `0.850/0.000/0.150`
+    - `guard_blend=0.5`: `0.650/0.000/0.350`
+  - Actor-vs-guard split:
+    - base `policy`: `0.000/0.000/1.000`
+    - base `guard_only`: `0.850/0.000/0.150`
+    - w05 `policy`: `0.000/0.100/0.900`
+    - w05 `guard_only`: `0.850/0.000/0.150`
+  - Conclusion: current square-square performance is controller/guard dominated. W05 does not provide a useful learned near-hole insertion policy. Lowering guard blend does not reveal a hidden actor benefit and starts to regress at `0.5`.
 
 Next step:
 
 - Do not scale square-square insert-settle BC replay by default; w05 was behaviorally flat under the current guarded deployment.
-- Next useful multi-geometry step is controller-side: make final-servo/low-recenter shape-aware enough for square-square or test a lower `guard_blend` diagnostic to see whether learned near-hole actions can affect the final timeout bucket.
+- Next useful multi-geometry step is controller-side: make final-servo/low-recenter shape-aware enough for square-square. The lower `guard_blend` diagnostic has now been run and was negative.
 - Keep the data plumbing and 2k correction dataset as a reusable diagnostic asset, but do not promote the w05 checkpoint as a new default.
 
 ## Implemented So Far
