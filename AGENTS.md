@@ -73,6 +73,7 @@ The current focus is:
   - Shape-aware square-peg diagnostics are now available in env info and guarded step traces. Use `scripts\analyze_square_peg_trace.py` to summarize yaw error, top-down square clearance, tilt-aware clearance, and final-servo phase counts.
   - Current shape diagnostic summary: `results\ur5e_full\multi_geometry\shape_aware_servo_diag\shape_aware_servo_summary.md`.
   - Diagnostic conclusion: `square_square` timeouts are mixed. Seed `612010` is a persistent high-tilt/wedged case, while `612008` and `612013` have low final tilt and positive projected clearance but still fail in final-servo/low-recenter. Do not use a naive max-tilt threshold; if implementing the next controller change, make it opt-in, phase-aware, and square-only.
+  - Opt-in square-aware final-servo recovery is implemented but not promoted. It adds `guard_final_servo_square_recovery_*` knobs plus `square_recover_lift` / `square_recover_recenter` phases. Targeted 14ep seed `612000-612013` stayed flat at `11/14` success, and high-tilt seed `612010` still timed out even with near IK orientation weight `0.03/0.06`, higher lift, and 1500 max steps. Keep it as a diagnostic hook; do not spend more time scanning simple square-recovery thresholds.
 - UR5e controller status:
   - Default remains position-only peg-tip IK for checkpoint compatibility.
   - Experimental `ik_control_mode=pose` is implemented in `PegInHoleMujocoEnv` and exposed in guarded eval, demo, inference, and `scripts\diagnose_ur5e_controller.py`.

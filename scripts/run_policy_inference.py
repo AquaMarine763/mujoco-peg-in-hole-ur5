@@ -275,6 +275,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--guard-final-servo-soft-unjam-z-tolerance", type=float, default=0.001)
     parser.add_argument("--guard-final-servo-soft-unjam-hold-steps", type=int, default=4)
     parser.add_argument("--guard-final-servo-soft-unjam-max-up-action", type=float, default=0.002)
+    parser.add_argument("--guard-final-servo-square-recovery-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-recovery-tilt-deg", type=float, default=12.0)
+    parser.add_argument("--guard-final-servo-square-recovery-tilt-steps", type=int, default=12)
+    parser.add_argument("--guard-final-servo-square-recovery-z-max", type=float, default=0.025)
+    parser.add_argument("--guard-final-servo-square-recovery-xy-max", type=float, default=0.014)
+    parser.add_argument("--guard-final-servo-square-recovery-lift-height", type=float, default=0.035)
     parser.add_argument(
         "--guarded-oracle-mode",
         choices=[
@@ -513,6 +519,24 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         guard_final_servo_soft_unjam_z_tolerance=args.guard_final_servo_soft_unjam_z_tolerance,
         guard_final_servo_soft_unjam_hold_steps=args.guard_final_servo_soft_unjam_hold_steps,
         guard_final_servo_soft_unjam_max_up_action=args.guard_final_servo_soft_unjam_max_up_action,
+        guard_final_servo_square_recovery_enabled=(
+            args.guard_final_servo_square_recovery_enabled
+        ),
+        guard_final_servo_square_recovery_tilt_deg=(
+            args.guard_final_servo_square_recovery_tilt_deg
+        ),
+        guard_final_servo_square_recovery_tilt_steps=(
+            args.guard_final_servo_square_recovery_tilt_steps
+        ),
+        guard_final_servo_square_recovery_z_max=(
+            args.guard_final_servo_square_recovery_z_max
+        ),
+        guard_final_servo_square_recovery_xy_max=(
+            args.guard_final_servo_square_recovery_xy_max
+        ),
+        guard_final_servo_square_recovery_lift_height=(
+            args.guard_final_servo_square_recovery_lift_height
+        ),
         oracle=OracleControllerConfig(
             mode=args.guarded_oracle_mode,
             action_gain=args.guard_action_gain,
@@ -775,6 +799,19 @@ def main() -> None:
         raise ValueError("--guard-near-ik-orientation-weight cannot be negative.")
     if args.guard_final_servo_descend_xy_bias_max_clearance < 0.0:
         raise ValueError("--guard-final-servo-descend-xy-bias-max-clearance cannot be negative.")
+    if args.guard_final_servo_square_recovery_tilt_deg <= 0.0:
+        raise ValueError("--guard-final-servo-square-recovery-tilt-deg must be positive.")
+    if args.guard_final_servo_square_recovery_tilt_steps <= 0:
+        raise ValueError("--guard-final-servo-square-recovery-tilt-steps must be positive.")
+    if args.guard_final_servo_square_recovery_z_max <= 0.0:
+        raise ValueError("--guard-final-servo-square-recovery-z-max must be positive.")
+    if args.guard_final_servo_square_recovery_xy_max <= 0.0:
+        raise ValueError("--guard-final-servo-square-recovery-xy-max must be positive.")
+    if args.guard_final_servo_square_recovery_lift_height <= args.guard_final_servo_hover_height:
+        raise ValueError(
+            "--guard-final-servo-square-recovery-lift-height must be greater than "
+            "--guard-final-servo-hover-height."
+        )
     env = make_env(args)
     model = AGENTS[args.agent].load(args.model, env=env, device=args.device)
     policy = SB3PolicyAdapter(model, deterministic=not args.stochastic)

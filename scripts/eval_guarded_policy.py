@@ -198,6 +198,9 @@ STEP_TRACE_FIELDNAMES = [
     "guard_final_servo_retry_count",
     "guard_final_servo_descent_allowed",
     "guard_final_servo_down_blocked",
+    "guard_final_servo_square_recovery_active",
+    "guard_final_servo_square_recovery_triggered",
+    "guard_final_servo_square_recovery_tilt_steps",
     "policy_action_x",
     "policy_action_y",
     "policy_action_z",
@@ -509,6 +512,12 @@ def build_parser(
     parser.add_argument("--guard-final-servo-soft-unjam-z-tolerance", type=float, default=0.001)
     parser.add_argument("--guard-final-servo-soft-unjam-hold-steps", type=int, default=4)
     parser.add_argument("--guard-final-servo-soft-unjam-max-up-action", type=float, default=0.002)
+    parser.add_argument("--guard-final-servo-square-recovery-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-recovery-tilt-deg", type=float, default=12.0)
+    parser.add_argument("--guard-final-servo-square-recovery-tilt-steps", type=int, default=12)
+    parser.add_argument("--guard-final-servo-square-recovery-z-max", type=float, default=0.025)
+    parser.add_argument("--guard-final-servo-square-recovery-xy-max", type=float, default=0.014)
+    parser.add_argument("--guard-final-servo-square-recovery-lift-height", type=float, default=0.035)
     parser.add_argument(
         "--guarded-oracle-mode",
         choices=[
@@ -765,6 +774,24 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         guard_final_servo_soft_unjam_z_tolerance=args.guard_final_servo_soft_unjam_z_tolerance,
         guard_final_servo_soft_unjam_hold_steps=args.guard_final_servo_soft_unjam_hold_steps,
         guard_final_servo_soft_unjam_max_up_action=args.guard_final_servo_soft_unjam_max_up_action,
+        guard_final_servo_square_recovery_enabled=(
+            args.guard_final_servo_square_recovery_enabled
+        ),
+        guard_final_servo_square_recovery_tilt_deg=(
+            args.guard_final_servo_square_recovery_tilt_deg
+        ),
+        guard_final_servo_square_recovery_tilt_steps=(
+            args.guard_final_servo_square_recovery_tilt_steps
+        ),
+        guard_final_servo_square_recovery_z_max=(
+            args.guard_final_servo_square_recovery_z_max
+        ),
+        guard_final_servo_square_recovery_xy_max=(
+            args.guard_final_servo_square_recovery_xy_max
+        ),
+        guard_final_servo_square_recovery_lift_height=(
+            args.guard_final_servo_square_recovery_lift_height
+        ),
         oracle=OracleControllerConfig(
             mode=args.guarded_oracle_mode,
             action_gain=args.guard_action_gain,
@@ -1106,6 +1133,15 @@ def build_step_trace_row(
         ),
         "guard_final_servo_down_blocked": (
             bool(step.guard_final_servo_down_blocked) if step_guard else False
+        ),
+        "guard_final_servo_square_recovery_active": (
+            bool(step.guard_final_servo_square_recovery_active) if step_guard else False
+        ),
+        "guard_final_servo_square_recovery_triggered": (
+            bool(step.guard_final_servo_square_recovery_triggered) if step_guard else False
+        ),
+        "guard_final_servo_square_recovery_tilt_steps": (
+            int(step.guard_final_servo_square_recovery_tilt_steps) if step_guard else 0
         ),
         **vector3_columns("policy_action", policy_action),
         **maybe_vector3_columns("guarded_action", None if step is None or step.guarded_action is None else step.guarded_action),
@@ -1845,6 +1881,7 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Guard final servo descend bias max clearance: `{args.guard_final_servo_descend_xy_bias_max_clearance}`",
         f"- Guard final servo descend bias requires stateful recovery: `{args.guard_final_servo_descend_xy_bias_requires_stateful_recovery}`",
         f"- Guard final servo recovery mode/soft lift/min height/z tol/hold/max up: `{args.guard_final_servo_recovery_mode}/{args.guard_final_servo_soft_unjam_lift}/{args.guard_final_servo_soft_unjam_min_height}/{args.guard_final_servo_soft_unjam_z_tolerance}/{args.guard_final_servo_soft_unjam_hold_steps}/{args.guard_final_servo_soft_unjam_max_up_action}`",
+        f"- Guard final servo square recovery enabled/tilt/steps/XY/Z/lift: `{args.guard_final_servo_square_recovery_enabled}/{args.guard_final_servo_square_recovery_tilt_deg}/{args.guard_final_servo_square_recovery_tilt_steps}/{args.guard_final_servo_square_recovery_xy_max}/{args.guard_final_servo_square_recovery_z_max}/{args.guard_final_servo_square_recovery_lift_height}`",
         f"- Guard approach recenter enabled/requires stateful recovery: `{args.guard_approach_recenter_enabled}/{args.guard_approach_recenter_requires_stateful_recovery}`",
         f"- Guard approach recenter XY window/stable/bias: `{args.guard_approach_recenter_trigger_xy}-{args.guard_approach_recenter_max_xy}/{args.guard_approach_recenter_stable_xy}/{tuple(args.guard_approach_recenter_xy_bias)}`",
         f"- Guard approach recenter Z window/height/tolerance/max steps: `{args.guard_approach_recenter_min_z}-{args.guard_approach_recenter_start_z}/{args.guard_approach_recenter_height}/{args.guard_approach_recenter_z_tolerance}/{args.guard_approach_recenter_max_steps}`",
@@ -2091,6 +2128,19 @@ def main() -> None:
         raise ValueError("--guard-final-servo-soft-unjam-hold-steps cannot be negative.")
     if args.guard_final_servo_soft_unjam_max_up_action <= 0.0:
         raise ValueError("--guard-final-servo-soft-unjam-max-up-action must be positive.")
+    if args.guard_final_servo_square_recovery_tilt_deg <= 0.0:
+        raise ValueError("--guard-final-servo-square-recovery-tilt-deg must be positive.")
+    if args.guard_final_servo_square_recovery_tilt_steps <= 0:
+        raise ValueError("--guard-final-servo-square-recovery-tilt-steps must be positive.")
+    if args.guard_final_servo_square_recovery_z_max <= 0.0:
+        raise ValueError("--guard-final-servo-square-recovery-z-max must be positive.")
+    if args.guard_final_servo_square_recovery_xy_max <= 0.0:
+        raise ValueError("--guard-final-servo-square-recovery-xy-max must be positive.")
+    if args.guard_final_servo_square_recovery_lift_height <= args.guard_final_servo_hover_height:
+        raise ValueError(
+            "--guard-final-servo-square-recovery-lift-height must be greater than "
+            "--guard-final-servo-hover-height."
+        )
     if args.guarded_lift_before_lateral_xy_tolerance <= 0.0:
         raise ValueError("--guarded-lift-before-lateral-xy-tolerance must be positive.")
     if args.guarded_lift_before_lateral_z_margin < 0.0:

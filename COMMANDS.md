@@ -193,6 +193,32 @@ python scripts\analyze_square_peg_trace.py `
   --output-csv results\ur5e_full\multi_geometry\shape_aware_servo_diag\shape_orientation_summary.csv
 ```
 
+Experimental square-aware final-servo recovery check:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_localkp3_recovery_strictstable49_60ep.yaml `
+  --geometry-profile square_square `
+  --episodes 14 `
+  --seed 612000 `
+  --guard-near-ik-orientation-weight 0.03 `
+  --guard-final-servo-square-recovery-enabled `
+  --guard-final-servo-square-recovery-tilt-deg 18 `
+  --guard-final-servo-square-recovery-tilt-steps 12 `
+  --guard-final-servo-square-recovery-z-max 0.025 `
+  --guard-final-servo-square-recovery-xy-max 0.014 `
+  --guard-final-servo-square-recovery-lift-height 0.035 `
+  --guard-final-servo-max-retries 4 `
+  --output-csv results\ur5e_full\multi_geometry\square_recovery_diag\eval_square_recovery_tilt18_wori003_lift35_retry4_14ep_seed612000.csv `
+  --output-md results\ur5e_full\multi_geometry\square_recovery_diag\eval_square_recovery_tilt18_wori003_lift35_retry4_14ep_seed612000.md `
+  --episode-output-csv results\ur5e_full\multi_geometry\square_recovery_diag\eval_square_recovery_tilt18_wori003_lift35_retry4_14ep_seed612000_episodes.csv `
+  --step-output-csv results\ur5e_full\multi_geometry\square_recovery_diag\eval_square_recovery_tilt18_wori003_lift35_retry4_14ep_seed612000_steps.csv `
+  --step-trace-outcome-filter failure
+```
+
+This square recovery path is not promoted. It stayed flat at `11/14` on the
+targeted `612000-612013` square-square window.
+
 ## Robot Model Compatibility / UR5e Adapter
 
 On the `feature/ur5e-mainline` branch, the default simulator uses the

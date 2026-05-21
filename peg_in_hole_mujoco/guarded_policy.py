@@ -27,6 +27,9 @@ class GuardedDeploymentState:
     action_high: np.ndarray = field(default_factory=lambda: np.full(3, 0.005, dtype=np.float64))
     dist_xy: float | None = None
     hole_clearance: float | None = None
+    peg_shape: str = ""
+    peg_tilt_angle_deg: float | None = None
+    square_peg_tilted_clearance_margin: float | None = None
 
     def __post_init__(self) -> None:
         _as_vector3(self.peg_tip_pos, "peg_tip_pos")
@@ -43,6 +46,8 @@ class GuardedDeploymentState:
             raise ValueError("dist_xy cannot be negative.")
         if self.hole_clearance is not None and self.hole_clearance < 0.0:
             raise ValueError("hole_clearance cannot be negative.")
+        if self.peg_tilt_angle_deg is not None and self.peg_tilt_angle_deg < 0.0:
+            raise ValueError("peg_tilt_angle_deg cannot be negative.")
 
     @classmethod
     def from_info(
@@ -67,6 +72,12 @@ class GuardedDeploymentState:
             action_high=np.asarray(action_high, dtype=np.float64),
             dist_xy=float(info["dist_xy"]) if "dist_xy" in info else None,
             hole_clearance=hole_clearance,
+            peg_shape=str(info.get("peg_shape", "")),
+            peg_tilt_angle_deg=_optional_float_from_info(info, "peg_tilt_angle_deg"),
+            square_peg_tilted_clearance_margin=_optional_float_from_info(
+                info,
+                "square_peg_tilted_clearance_margin",
+            ),
         )
 
 
@@ -252,6 +263,12 @@ class GuardedPolicyConfig:
     guard_final_servo_soft_unjam_z_tolerance: float = 0.001
     guard_final_servo_soft_unjam_hold_steps: int = 4
     guard_final_servo_soft_unjam_max_up_action: float = 0.002
+    guard_final_servo_square_recovery_enabled: bool = False
+    guard_final_servo_square_recovery_tilt_deg: float = 12.0
+    guard_final_servo_square_recovery_tilt_steps: int = 12
+    guard_final_servo_square_recovery_z_max: float = 0.025
+    guard_final_servo_square_recovery_xy_max: float = 0.014
+    guard_final_servo_square_recovery_lift_height: float = 0.035
     oracle: OracleControllerConfig = field(
         default_factory=lambda: OracleControllerConfig(mode="guarded_two_stage")
     )
@@ -578,6 +595,22 @@ class GuardedPolicyConfig:
             raise ValueError("guard_final_servo_soft_unjam_hold_steps cannot be negative.")
         if self.guard_final_servo_soft_unjam_max_up_action <= 0.0:
             raise ValueError("guard_final_servo_soft_unjam_max_up_action must be positive.")
+        if self.guard_final_servo_square_recovery_tilt_deg <= 0.0:
+            raise ValueError("guard_final_servo_square_recovery_tilt_deg must be positive.")
+        if self.guard_final_servo_square_recovery_tilt_steps <= 0:
+            raise ValueError("guard_final_servo_square_recovery_tilt_steps must be positive.")
+        if self.guard_final_servo_square_recovery_z_max <= 0.0:
+            raise ValueError("guard_final_servo_square_recovery_z_max must be positive.")
+        if self.guard_final_servo_square_recovery_xy_max <= 0.0:
+            raise ValueError("guard_final_servo_square_recovery_xy_max must be positive.")
+        if (
+            self.guard_final_servo_square_recovery_lift_height
+            <= self.guard_final_servo_hover_height
+        ):
+            raise ValueError(
+                "guard_final_servo_square_recovery_lift_height must be greater than "
+                "guard_final_servo_hover_height."
+            )
         if self.oracle.mode not in (
             "guarded_two_stage",
             "high_start_two_phase",
@@ -667,6 +700,9 @@ class GuardedPolicyStep:
     guard_final_servo_retry_count: int = 0
     guard_final_servo_descent_allowed: bool = False
     guard_final_servo_down_blocked: bool = False
+    guard_final_servo_square_recovery_active: bool = False
+    guard_final_servo_square_recovery_triggered: bool = False
+    guard_final_servo_square_recovery_tilt_steps: int = 0
 
 
 class GuardedPolicyController:
@@ -711,6 +747,7 @@ class GuardedPolicyController:
         self.guard_final_servo_recovery_start_z_above = 0.0
         self.guard_final_servo_recovery_target_z_above = 0.0
         self.guard_final_servo_exhausted = False
+        self.guard_final_servo_square_recovery_tilt_steps = 0
 
     def reset(self) -> None:
         self.guard_active = False
@@ -752,6 +789,7 @@ class GuardedPolicyController:
         self.guard_final_servo_recovery_start_z_above = 0.0
         self.guard_final_servo_recovery_target_z_above = 0.0
         self.guard_final_servo_exhausted = False
+        self.guard_final_servo_square_recovery_tilt_steps = 0
 
     def scenario_uses_guard(self, scenario_name: str, scenario_level: str) -> bool:
         if self.config.scenario_filter == "none":
@@ -1122,8 +1160,8 @@ class GuardedPolicyController:
             self.steps_since_reset += 1
             return result
 
-        final_active, final_triggered, final_recovery_triggered = (
-            self._update_final_servo_state(dist_xy, z_above_target)
+        final_active, final_triggered, final_recovery_triggered, final_square_triggered = (
+            self._update_final_servo_state(state, dist_xy, z_above_target)
         )
         if final_active:
             self._reset_retry()
@@ -1181,7 +1219,9 @@ class GuardedPolicyController:
                 ),
                 guard_final_servo_active=True,
                 guard_final_servo_triggered=final_triggered,
-                guard_final_servo_recovery_triggered=final_recovery_triggered,
+                guard_final_servo_recovery_triggered=(
+                    final_recovery_triggered or final_square_triggered
+                ),
                 guard_final_servo_exhausted=self.guard_final_servo_exhausted,
                 guard_final_servo_phase=self.guard_final_servo_phase,
                 guard_final_servo_phase_steps=self.guard_final_servo_phase_steps,
@@ -1196,6 +1236,13 @@ class GuardedPolicyController:
                 guard_final_servo_retry_count=self.guard_final_servo_retry_count,
                 guard_final_servo_descent_allowed=final_descent_allowed,
                 guard_final_servo_down_blocked=final_down_blocked,
+                guard_final_servo_square_recovery_active=(
+                    self._final_servo_square_recovery_phase_active()
+                ),
+                guard_final_servo_square_recovery_triggered=final_square_triggered,
+                guard_final_servo_square_recovery_tilt_steps=(
+                    self.guard_final_servo_square_recovery_tilt_steps
+                ),
             )
             self.steps_since_reset += 1
             return result
@@ -1383,6 +1430,7 @@ class GuardedPolicyController:
         self.guard_final_servo_best_z_above = float("inf")
         self.guard_final_servo_recovery_start_z_above = 0.0
         self.guard_final_servo_recovery_target_z_above = 0.0
+        self.guard_final_servo_square_recovery_tilt_steps = 0
         if not keep_exhausted:
             self.guard_final_servo_retry_count = 0
             self.guard_final_servo_exhausted = False
@@ -1402,6 +1450,8 @@ class GuardedPolicyController:
         if phase != "low_recenter":
             self.guard_final_servo_low_recenter_stall_steps = 0
             self.guard_final_servo_low_recenter_best_dist_xy = float("inf")
+        if not phase.startswith("square_recover"):
+            self.guard_final_servo_square_recovery_tilt_steps = 0
 
     def _set_stateful_recovery_phase(self, phase: str) -> None:
         self.guard_stateful_recovery_phase = phase
@@ -1782,6 +1832,17 @@ class GuardedPolicyController:
             )
         return self.config.guard_final_servo_stable_xy
 
+    def _final_servo_square_recovery_release_xy(self) -> float:
+        if self.config.guard_final_servo_low_recenter_enabled:
+            return max(
+                self.config.guard_final_servo_stable_xy,
+                min(
+                    self.config.guard_final_servo_low_recenter_trigger_xy,
+                    self.config.guard_final_servo_release_xy,
+                ),
+            )
+        return self.config.guard_final_servo_stable_xy
+
     def _start_final_servo_recovery(self, z_above_target: float) -> bool:
         if self.guard_final_servo_retry_count >= self.config.guard_final_servo_max_retries:
             self.guard_final_servo_exhausted = True
@@ -1806,14 +1867,69 @@ class GuardedPolicyController:
             self._set_final_servo_phase("recover_lift")
         return True
 
-    def _update_final_servo_state(
+    def _start_final_servo_square_recovery(self, z_above_target: float) -> bool:
+        if self.guard_final_servo_retry_count >= self.config.guard_final_servo_max_retries:
+            self.guard_final_servo_exhausted = True
+            self._reset_final_servo(keep_exhausted=True)
+            return True
+        self.guard_final_servo_retry_count += 1
+        self.guard_final_servo_stable_steps = 0
+        self.guard_final_servo_stall_steps = 0
+        self.guard_final_servo_best_z_above = float("inf")
+        self.guard_final_servo_recovery_start_z_above = z_above_target
+        self.guard_final_servo_recovery_target_z_above = max(
+            z_above_target + self.config.guard_final_servo_soft_unjam_lift,
+            self.config.guard_final_servo_square_recovery_lift_height,
+        )
+        self._set_final_servo_phase("square_recover_lift")
+        return True
+
+    def _final_servo_square_recovery_phase_active(self) -> bool:
+        return self.guard_final_servo_phase.startswith("square_recover")
+
+    def _square_recovery_condition(
         self,
+        state: GuardedDeploymentState,
         dist_xy: float,
         z_above_target: float,
-    ) -> tuple[bool, bool, bool]:
+    ) -> bool:
+        if not self.config.guard_final_servo_square_recovery_enabled:
+            self.guard_final_servo_square_recovery_tilt_steps = 0
+            return False
+        if state.peg_shape != "square":
+            self.guard_final_servo_square_recovery_tilt_steps = 0
+            return False
+        if self.guard_final_servo_phase not in ("descend", "low_recenter"):
+            self.guard_final_servo_square_recovery_tilt_steps = 0
+            return False
+        if (
+            dist_xy > self.config.guard_final_servo_square_recovery_xy_max
+            or z_above_target > self.config.guard_final_servo_square_recovery_z_max
+        ):
+            self.guard_final_servo_square_recovery_tilt_steps = 0
+            return False
+        tilt = state.peg_tilt_angle_deg
+        if tilt is None or not np.isfinite(tilt):
+            self.guard_final_servo_square_recovery_tilt_steps = 0
+            return False
+        if tilt >= self.config.guard_final_servo_square_recovery_tilt_deg:
+            self.guard_final_servo_square_recovery_tilt_steps += 1
+        else:
+            self.guard_final_servo_square_recovery_tilt_steps = 0
+        return (
+            self.guard_final_servo_square_recovery_tilt_steps
+            >= self.config.guard_final_servo_square_recovery_tilt_steps
+        )
+
+    def _update_final_servo_state(
+        self,
+        state: GuardedDeploymentState,
+        dist_xy: float,
+        z_above_target: float,
+    ) -> tuple[bool, bool, bool, bool]:
         if not self.config.guard_final_servo_enabled:
             self._reset_final_servo()
-            return False, False, False
+            return False, False, False, False
 
         if self.guard_final_servo_exhausted:
             outside_start = (
@@ -1823,10 +1939,11 @@ class GuardedPolicyController:
             if outside_start:
                 self._reset_final_servo()
             else:
-                return False, False, False
+                return False, False, False, False
 
         triggered = False
         recovery_triggered = False
+        square_recovery_triggered = False
         if self.guard_final_servo_phase == "inactive":
             if (
                 dist_xy <= self.config.guard_final_servo_start_xy
@@ -1840,7 +1957,7 @@ class GuardedPolicyController:
                 self._set_final_servo_phase("align_hover")
                 triggered = True
             else:
-                return False, False, False
+                return False, False, False, False
 
         if self.guard_final_servo_phase == "align_hover":
             if self._final_servo_in_hover_band(dist_xy, z_above_target):
@@ -1864,7 +1981,11 @@ class GuardedPolicyController:
                 self._set_final_servo_phase("align_hover")
 
         elif self.guard_final_servo_phase == "descend":
-            if dist_xy > self.config.guard_final_servo_release_xy:
+            if self._square_recovery_condition(state, dist_xy, z_above_target):
+                square_recovery_triggered = self._start_final_servo_square_recovery(
+                    z_above_target
+                )
+            elif dist_xy > self.config.guard_final_servo_release_xy:
                 recovery_triggered = self._start_final_servo_recovery(z_above_target)
             elif (
                 self.config.guard_final_servo_low_recenter_enabled
@@ -1895,7 +2016,11 @@ class GuardedPolicyController:
                     recovery_triggered = self._start_final_servo_recovery(z_above_target)
 
         elif self.guard_final_servo_phase == "low_recenter":
-            if dist_xy <= self.config.guard_final_servo_low_recenter_release_xy:
+            if self._square_recovery_condition(state, dist_xy, z_above_target):
+                square_recovery_triggered = self._start_final_servo_square_recovery(
+                    z_above_target
+                )
+            elif dist_xy <= self.config.guard_final_servo_low_recenter_release_xy:
                 self.guard_final_servo_stable_steps += 1
                 if (
                     self.guard_final_servo_stable_steps
@@ -1931,6 +2056,36 @@ class GuardedPolicyController:
                 )
                 if timed_out or stalled:
                     recovery_triggered = self._start_final_servo_recovery(z_above_target)
+
+        elif self.guard_final_servo_phase == "square_recover_lift":
+            target_z = self.guard_final_servo_recovery_target_z_above
+            lifted_enough = z_above_target >= (
+                target_z - 2.0 * self.config.oracle.guarded_max_up_action
+            )
+            timed_out = (
+                self.guard_final_servo_phase_steps
+                >= self.config.guard_final_servo_max_recovery_steps
+            )
+            if lifted_enough:
+                self._set_final_servo_phase("square_recover_recenter")
+            elif timed_out:
+                self.guard_final_servo_exhausted = True
+                self._reset_final_servo(keep_exhausted=True)
+                recovery_triggered = True
+
+        elif self.guard_final_servo_phase == "square_recover_recenter":
+            if dist_xy <= self._final_servo_square_recovery_release_xy():
+                self.guard_final_servo_best_z_above = z_above_target
+                self.guard_final_servo_stall_steps = 0
+                self.guard_final_servo_stable_steps = 0
+                self._set_final_servo_phase("align_hover")
+            elif (
+                self.guard_final_servo_phase_steps
+                >= self.config.guard_final_servo_max_recovery_steps
+            ):
+                self.guard_final_servo_exhausted = True
+                self._reset_final_servo(keep_exhausted=True)
+                recovery_triggered = True
 
         elif self.guard_final_servo_phase == "recover_lift":
             lifted_enough = z_above_target >= (
@@ -1997,7 +2152,12 @@ class GuardedPolicyController:
         else:
             raise ValueError(f"Unknown final servo phase: {self.guard_final_servo_phase}")
 
-        return self.guard_final_servo_phase != "inactive", triggered, recovery_triggered
+        return (
+            self.guard_final_servo_phase != "inactive",
+            triggered,
+            recovery_triggered,
+            square_recovery_triggered,
+        )
 
     def _final_servo_action_from_state(
         self,
@@ -2106,6 +2266,31 @@ class GuardedPolicyController:
             )
             max_xy_action = self.config.guard_final_servo_max_xy_action
             max_down_action = 0.0
+            down_blocked = True
+        elif phase == "square_recover_lift":
+            desired = np.asarray(
+                [
+                    control_tip[0],
+                    control_tip[1],
+                    target[2] + self.guard_final_servo_recovery_target_z_above,
+                ],
+                dtype=np.float64,
+            )
+            max_xy_action = 0.0
+            max_down_action = 0.0
+            down_blocked = True
+        elif phase == "square_recover_recenter":
+            desired = np.asarray(
+                [
+                    target[0],
+                    target[1],
+                    target[2] + self.guard_final_servo_recovery_target_z_above,
+                ],
+                dtype=np.float64,
+            )
+            max_xy_action = self.config.guard_final_servo_max_xy_action
+            max_down_action = 0.0
+            max_up_action = self.config.oracle.guarded_max_up_action
             down_blocked = True
         else:
             desired = control_tip
@@ -2488,6 +2673,13 @@ def _as_vector3(value: Any, name: str) -> np.ndarray:
     if array.size != 3:
         raise ValueError(f"{name} must contain exactly 3 values.")
     return array
+
+
+def _optional_float_from_info(info: dict[str, Any], key: str) -> float | None:
+    if key not in info:
+        return None
+    value = float(info[key])
+    return value if np.isfinite(value) else None
 
 
 def _hole_clearance_from_info(info: dict[str, Any]) -> float | None:

@@ -102,11 +102,19 @@ Implemented so far:
   - Finding: `612010` is a persistent high-tilt/wedged case, ending near `6.70 mm` XY / `7.62 mm` Z with final tilt about `20.65 deg`.
   - Finding: `612008` and `612013` finish with low final tilt and positive projected margins, but still timeout after hundreds of final-servo steps. These are final-servo/low-recenter phase-completion failures, not pure yaw/tilt failures.
   - Conclusion: a simple yaw/tilt threshold is not enough, because successful runs can have temporary tilt spikes. The next controller change should be opt-in and phase-aware: trigger on persistent late-stage square-peg tilt or low-Z final-servo stall, then lift/recenter/hold orientation before descending again.
+- Square-aware recovery implementation/diagnostic:
+  - Added an opt-in `guard_final_servo_square_recovery_*` path to `GuardedPolicyController`.
+  - The new phases are `square_recover_lift` and `square_recover_recenter`.
+  - Eval/demo/inference scripts expose the new switches, and eval step traces record square-recovery active/triggered/tilt-step fields.
+  - Summary: `results\ur5e_full\multi_geometry\square_recovery_diag\summary.md`
+  - Result: this is not promoted. On the targeted `612000-612013` 14ep window, the best tested candidate stayed flat at `11/14 = 0.786` success with zero collisions.
+  - High-tilt seed `612010` still timed out even with square recovery, `guard_near_ik_orientation_weight=0.03/0.06`, higher lift, and a 1500-step episode.
+  - Low-tilt near-miss seeds `612008` and `612013` remain sensitive to low-recenter settings; narrower low-recenter can improve XY or Z separately, but still does not make the episodes successful.
 
 Next step:
 
 - Do not scale square-square insert-settle BC replay by default; w05 was behaviorally flat under the current guarded deployment.
-- Next useful multi-geometry step is controller-side: implement an opt-in square-aware final-servo recovery gate for `square_square`, using the new trace diagnostics. Keep strictstable49 defaults unchanged until a square-square 20ep/60ep gate improves without hurting `single` or `round_square`.
+- Keep square recovery as a diagnostic hook, not a default. The next useful multi-geometry step should move beyond threshold scanning: inspect final insertion contact/tracking and decide whether to add a contact-state insert controller or revise the success/control criterion to be geometry-aware.
 - Keep the data plumbing and 2k correction dataset as a reusable diagnostic asset, but do not promote the w05 checkpoint as a new default.
 
 ## Implemented So Far
