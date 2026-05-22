@@ -305,6 +305,22 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--guard-final-servo-square-recovery-z-max", type=float, default=0.025)
     parser.add_argument("--guard-final-servo-square-recovery-xy-max", type=float, default=0.014)
     parser.add_argument("--guard-final-servo-square-recovery-lift-height", type=float, default=0.035)
+    parser.add_argument("--guard-final-servo-split-recovery-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-contact-unjam-wall-steps", type=int, default=8)
+    parser.add_argument("--guard-final-servo-contact-unjam-tilt-deg", type=float, default=12.0)
+    parser.add_argument("--guard-final-servo-contact-unjam-z-max", type=float, default=0.025)
+    parser.add_argument("--guard-final-servo-contact-unjam-xy-max", type=float, default=0.014)
+    parser.add_argument("--guard-final-servo-contact-unjam-lift-height", type=float, default=0.055)
+    parser.add_argument("--guard-final-servo-contact-unjam-release-xy", type=float, default=0.0055)
+    parser.add_argument("--guard-final-servo-contact-unjam-max-up-action", type=float, default=0.005)
+    parser.add_argument("--guard-final-servo-near-miss-steps", type=int, default=40)
+    parser.add_argument("--guard-final-servo-near-miss-xy-max", type=float, default=0.0065)
+    parser.add_argument("--guard-final-servo-near-miss-z-max", type=float, default=0.055)
+    parser.add_argument("--guard-final-servo-near-miss-contact-max", type=int, default=1)
+    parser.add_argument("--guard-final-servo-near-miss-tilt-max-deg", type=float, default=8.0)
+    parser.add_argument("--guard-final-servo-near-miss-max-steps", type=int, default=180)
+    parser.add_argument("--guard-final-servo-near-miss-max-down-action", type=float, default=0.0015)
+    parser.add_argument("--guard-final-servo-near-miss-xy-bias", nargs=2, type=float, default=(0.0, 0.0))
     parser.add_argument(
         "--guarded-oracle-mode",
         choices=[
@@ -588,6 +604,46 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         ),
         guard_final_servo_square_recovery_lift_height=(
             args.guard_final_servo_square_recovery_lift_height
+        ),
+        guard_final_servo_split_recovery_enabled=(
+            args.guard_final_servo_split_recovery_enabled
+        ),
+        guard_final_servo_contact_unjam_wall_steps=(
+            args.guard_final_servo_contact_unjam_wall_steps
+        ),
+        guard_final_servo_contact_unjam_tilt_deg=(
+            args.guard_final_servo_contact_unjam_tilt_deg
+        ),
+        guard_final_servo_contact_unjam_z_max=(
+            args.guard_final_servo_contact_unjam_z_max
+        ),
+        guard_final_servo_contact_unjam_xy_max=(
+            args.guard_final_servo_contact_unjam_xy_max
+        ),
+        guard_final_servo_contact_unjam_lift_height=(
+            args.guard_final_servo_contact_unjam_lift_height
+        ),
+        guard_final_servo_contact_unjam_release_xy=(
+            args.guard_final_servo_contact_unjam_release_xy
+        ),
+        guard_final_servo_contact_unjam_max_up_action=(
+            args.guard_final_servo_contact_unjam_max_up_action
+        ),
+        guard_final_servo_near_miss_steps=args.guard_final_servo_near_miss_steps,
+        guard_final_servo_near_miss_xy_max=args.guard_final_servo_near_miss_xy_max,
+        guard_final_servo_near_miss_z_max=args.guard_final_servo_near_miss_z_max,
+        guard_final_servo_near_miss_contact_max=(
+            args.guard_final_servo_near_miss_contact_max
+        ),
+        guard_final_servo_near_miss_tilt_max_deg=(
+            args.guard_final_servo_near_miss_tilt_max_deg
+        ),
+        guard_final_servo_near_miss_max_steps=args.guard_final_servo_near_miss_max_steps,
+        guard_final_servo_near_miss_max_down_action=(
+            args.guard_final_servo_near_miss_max_down_action
+        ),
+        guard_final_servo_near_miss_xy_bias=(
+            tuple(args.guard_final_servo_near_miss_xy_bias)
         ),
         oracle=OracleControllerConfig(
             mode=args.guarded_oracle_mode,
@@ -907,6 +963,41 @@ def main() -> None:
             "--guard-final-servo-square-recovery-lift-height must be greater than "
             "--guard-final-servo-hover-height."
         )
+    if args.guard_final_servo_contact_unjam_wall_steps <= 0:
+        raise ValueError("--guard-final-servo-contact-unjam-wall-steps must be positive.")
+    if args.guard_final_servo_contact_unjam_tilt_deg <= 0.0:
+        raise ValueError("--guard-final-servo-contact-unjam-tilt-deg must be positive.")
+    if args.guard_final_servo_contact_unjam_z_max <= 0.0:
+        raise ValueError("--guard-final-servo-contact-unjam-z-max must be positive.")
+    if args.guard_final_servo_contact_unjam_xy_max <= 0.0:
+        raise ValueError("--guard-final-servo-contact-unjam-xy-max must be positive.")
+    if args.guard_final_servo_contact_unjam_lift_height <= args.guard_final_servo_hover_height:
+        raise ValueError(
+            "--guard-final-servo-contact-unjam-lift-height must be greater than "
+            "--guard-final-servo-hover-height."
+        )
+    if args.guard_final_servo_contact_unjam_release_xy <= 0.0:
+        raise ValueError("--guard-final-servo-contact-unjam-release-xy must be positive.")
+    if args.guard_final_servo_contact_unjam_release_xy > args.guard_final_servo_release_xy:
+        raise ValueError("--guard-final-servo-contact-unjam-release-xy must be <= release-xy.")
+    if args.guard_final_servo_contact_unjam_max_up_action <= 0.0:
+        raise ValueError("--guard-final-servo-contact-unjam-max-up-action must be positive.")
+    if args.guard_final_servo_near_miss_steps <= 0:
+        raise ValueError("--guard-final-servo-near-miss-steps must be positive.")
+    if args.guard_final_servo_near_miss_xy_max <= 0.0:
+        raise ValueError("--guard-final-servo-near-miss-xy-max must be positive.")
+    if args.guard_final_servo_near_miss_z_max <= 0.0:
+        raise ValueError("--guard-final-servo-near-miss-z-max must be positive.")
+    if args.guard_final_servo_near_miss_contact_max < 0:
+        raise ValueError("--guard-final-servo-near-miss-contact-max cannot be negative.")
+    if args.guard_final_servo_near_miss_tilt_max_deg <= 0.0:
+        raise ValueError("--guard-final-servo-near-miss-tilt-max-deg must be positive.")
+    if args.guard_final_servo_near_miss_max_steps <= 0:
+        raise ValueError("--guard-final-servo-near-miss-max-steps must be positive.")
+    if args.guard_final_servo_near_miss_max_down_action < 0.0:
+        raise ValueError("--guard-final-servo-near-miss-max-down-action cannot be negative.")
+    if len(args.guard_final_servo_near_miss_xy_bias) != 2:
+        raise ValueError("--guard-final-servo-near-miss-xy-bias requires two values.")
     env = make_env(args)
     model = AGENTS[args.agent].load(args.model, env=env, device=args.device)
     guarded_controller = (

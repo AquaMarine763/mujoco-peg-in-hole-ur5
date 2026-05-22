@@ -1,6 +1,6 @@
 # Agent Working Notes
 
-Last updated: 2026-05-21
+Last updated: 2026-05-22
 
 This file records the standing workflow, user preferences, safety rules, and project constraints for future Codex work in this repository. Read this file before making non-trivial changes.
 
@@ -62,7 +62,7 @@ The current focus is:
   - The new branch is for geometry generalization experiments, not a replacement for the stabilized single-geometry controller work.
   - Expert/correction dataset collection and BC pretraining scripts accept the same geometry args.
   - Dataset files now record `geometry_profile`, `geometry_name`, `peg_shape`, and `hole_shape`; use those arrays to debug multi-geometry balance.
-  - Current strictstable49 20ep profile check: `single=0.95`, `round_square=0.95`, `square_square=0.85`, `mixed_basic=0.95`, all with zero collisions. Treat `square_square` final insertion stability as the first multi-geometry bottleneck.
+  - Baseline strictstable49 20ep profile check before split-servo recovery: `single=0.95`, `round_square=0.95`, `square_square=0.85`, `mixed_basic=0.95`, all with zero collisions. Treat `square_square` final insertion stability as the first multi-geometry bottleneck.
   - Direct multi-geometry expert collection is not ready for 50k scaling: staged oracle had 0 success in a 1k pilot, guarded-two-stage oracle reached only 1 success / 1 collision in a 512-sample pilot. Prefer policy-visited correction data or a guarded-deployment teacher before large collection.
   - Policy-visited correction data path is now validated for multi-geometry. `square_square` and `mixed_basic` insert-settle smoke configs collect clean timeout-window samples and record geometry labels correctly.
   - `square_square` insert-settle 2k dataset is available at `datasets\ur5e_full\multi_geometry\correction\image_correction_2k_square_square_insert_settle.npz`; it has 2048 timeout samples, all in the insert-settle window, with no sample-level collision.
@@ -76,6 +76,12 @@ The current focus is:
   - Opt-in square-aware final-servo recovery is implemented but not promoted. It adds `guard_final_servo_square_recovery_*` knobs plus `square_recover_lift` / `square_recover_recenter` phases. Targeted 14ep seed `612000-612013` stayed flat at `11/14` success, and high-tilt seed `612010` still timed out even with near IK orientation weight `0.03/0.06`, higher lift, and 1500 max steps. Keep it as a diagnostic hook; do not spend more time scanning simple square-recovery thresholds.
   - Final insertion contact diagnostics are now available in env `info` and guarded step traces. Use `scripts\analyze_insert_contact_trace.py` on traces under `results\ur5e_full\multi_geometry\contact_insert_diag`.
   - Current contact diagnostic conclusion: successful square-square references `612000/612001/612002` had no peg-hole contact and ended near the success Z tolerance. Timeout `612010` is a persistent wall-contact/high-tilt failure, while `612008` and `612013` are lower-contact final-servo/recovery phase failures. Do not use one broad contact threshold for all square-square timeouts; split the next controller diagnostic into a contact/high-tilt unjam branch and a low-contact near-miss phase-completion branch.
+  - Split final-servo diagnostic is implemented and is the current best opt-in multi-geometry guarded setting, not a global default. It adds square-only `contact_unjam_lift/contact_unjam_recenter` and `near_miss_descend/near_miss_recenter` phases behind `guard_final_servo_split_recovery_enabled`.
+  - Best tested split setting uses near-miss XY bias `[0.0035, 0.0035]`, near-miss low recenter height `0.008`, near-miss max down `0.0025`, contact unjam lift `0.045`, contact wall steps `6`, near-miss steps `30`, near-miss XY/Z `0.0068/0.060`.
+  - Result: `square_square` strictstable49 20ep seed `612000` improved to `0.950/0.000/0.050`; the `612000-612013` 14ep window improved to `13/14`, with only high-tilt contact seed `612010` still timing out.
+  - Profile matrix with the same split setting, 20 episodes, seed `612000`, passed without non-square regression: `single=0.95`, `round_square=0.95`, `square_square=0.95`, `mixed_basic=0.95`, all zero collision. Every profile's only failure was seed `612010`.
+  - Reusable config: `configs\sim\ur5e_full\eval_multi_geometry_square_square_split_servo_strictstable49_20ep.yaml`. Matrix results: `results\ur5e_full\multi_geometry\split_servo_diag_v6_bias35_matrix`.
+  - Next gate before tagging/pushing should be a larger 60ep profile check. After that, focus on the remaining high-tilt wall-contact seed `612010`, not more broad threshold scans.
 - UR5e controller status:
   - Default remains position-only peg-tip IK for checkpoint compatibility.
   - Experimental `ik_control_mode=pose` is implemented in `PegInHoleMujocoEnv` and exposed in guarded eval, demo, inference, and `scripts\diagnose_ur5e_controller.py`.

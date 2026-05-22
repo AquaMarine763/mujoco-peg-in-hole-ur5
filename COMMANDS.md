@@ -266,6 +266,80 @@ python scripts\eval_guarded_policy.py `
 This square recovery path is not promoted. It stayed flat at `11/14` on the
 targeted `612000-612013` square-square window.
 
+Current best split final-servo diagnostic for square-square:
+
+```powershell
+$out = "results\ur5e_full\multi_geometry\split_servo_diag_v6_bias35"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_localkp3_recovery_strictstable49_60ep.yaml `
+  --geometry-profile square_square `
+  --episodes 20 `
+  --seed 612000 `
+  --guard-final-servo-split-recovery-enabled `
+  --guard-final-servo-contact-unjam-lift-height 0.045 `
+  --guard-final-servo-contact-unjam-wall-steps 6 `
+  --guard-final-servo-near-miss-steps 30 `
+  --guard-final-servo-near-miss-xy-max 0.0068 `
+  --guard-final-servo-near-miss-z-max 0.060 `
+  --guard-final-servo-near-miss-max-steps 500 `
+  --guard-final-servo-near-miss-max-down-action 0.0025 `
+  --guard-final-servo-low-recenter-height 0.008 `
+  --guard-final-servo-near-miss-xy-bias 0.0035 0.0035 `
+  --output-csv "$out\eval_split_square_square_20ep_seed612000.csv" `
+  --output-md "$out\eval_split_square_square_20ep_seed612000.md" `
+  --episode-output-csv "$out\eval_split_square_square_20ep_seed612000_episodes.csv" `
+  --step-output-csv "$out\eval_split_square_square_20ep_seed612000_failure_steps.csv" `
+  --step-trace-outcome-filter failure
+```
+
+Known result: `square_square`, strictstable49, 20ep seed `612000` reached
+`0.950/0.000/0.050`. The previous baseline was `0.850/0.000/0.150`.
+The only failure in the `612000-612013` targeted window is still seed `612010`,
+the persistent high-tilt wall-contact case.
+
+The reusable square-square split-servo config is:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_multi_geometry_square_square_split_servo_strictstable49_20ep.yaml
+```
+
+20ep profile matrix for the same split-servo setting:
+
+```powershell
+$out = "results\ur5e_full\multi_geometry\split_servo_diag_v6_bias35_matrix"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($profile in "single","round_square","square_square","mixed_basic") {
+  python scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_high_start_hard_localkp3_recovery_strictstable49_60ep.yaml `
+    --geometry-profile $profile `
+    --episodes 20 `
+    --seed 612000 `
+    --guard-final-servo-split-recovery-enabled `
+    --guard-final-servo-contact-unjam-lift-height 0.045 `
+    --guard-final-servo-contact-unjam-wall-steps 6 `
+    --guard-final-servo-near-miss-steps 30 `
+    --guard-final-servo-near-miss-xy-max 0.0068 `
+    --guard-final-servo-near-miss-z-max 0.060 `
+    --guard-final-servo-near-miss-max-steps 500 `
+    --guard-final-servo-near-miss-max-down-action 0.0025 `
+    --guard-final-servo-low-recenter-height 0.008 `
+    --guard-final-servo-near-miss-xy-bias 0.0035 0.0035 `
+    --output-csv "$out\eval_split_$profile`_20ep_seed612000.csv" `
+    --output-md "$out\eval_split_$profile`_20ep_seed612000.md" `
+    --episode-output-csv "$out\eval_split_$profile`_20ep_seed612000_episodes.csv" `
+    --step-output-csv "$out\eval_split_$profile`_20ep_seed612000_failure_steps.csv" `
+    --step-trace-outcome-filter failure
+}
+```
+
+Known profile-matrix result on seed `612000`: `single=0.950`,
+`round_square=0.950`, `square_square=0.950`, `mixed_basic=0.950`, all with
+zero collisions. The only failure in each profile was seed `612010`.
+
 ## Robot Model Compatibility / UR5e Adapter
 
 On the `feature/ur5e-mainline` branch, the default simulator uses the

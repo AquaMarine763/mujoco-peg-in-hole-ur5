@@ -1,6 +1,6 @@
 # Project Plan And Status
 
-Last updated: 2026-05-21
+Last updated: 2026-05-22
 
 This file records the current project status, known metrics, and next planned steps. Keep it current when a milestone changes.
 
@@ -13,7 +13,7 @@ The current branch is now split into two tracks:
 - `feature/control-state-observation`: the stabilized single-geometry high-start controller baseline.
 - `feature/multi-geometry`: the new experimental branch for geometry generalization.
 
-The immediate objective on `feature/multi-geometry` is to keep the single-geometry baseline intact while adding a conservative multi-geometry scaffold. The first stage is runtime geometry selection (`single`, `round_square`, `square_square`, `mixed_basic`) with no change to the default `single` path. The next stage is to evaluate whether the new geometry profile actually trains and evaluates cleanly before collecting any larger multi-geometry dataset.
+The immediate objective on `feature/multi-geometry` is to keep the single-geometry baseline intact while adding a conservative multi-geometry scaffold. Runtime geometry selection (`single`, `round_square`, `square_square`, `mixed_basic`) is working. The current near-term focus is making single-policy, single-controller high-start insertion stable across those profiles before collecting larger multi-geometry training datasets.
 
 ## Current Branch And Remote
 
@@ -119,14 +119,33 @@ Implemented so far:
   - Finding: `612010` is a real contact-limited failure: wall contact in about `48.5%` of steps, `91.9%` of the 14 mm release-band steps in contact, final east-wall contact, final tilt about `20.65 deg`, and negative tilted square clearance.
   - Finding: `612008` and `612013` are not the same failure class. They have much lower contact rates, no plate contact, low final tilt, and mostly final-servo/recovery phase timeout behavior. `612008` ends high after recovery, while `612013` ends slightly outside the strict 5 mm band with south-wall contact.
   - Conclusion: do not add one broad square-recovery threshold. The next controller change should split the failure modes: a contact-aware unjam/retreat path for persistent wall-contact/high-tilt cases, and a low-contact final-servo phase-completion/acceptance fix for low-tilt near-misses.
+- Split final-servo diagnostic:
+  - Added an opt-in `guard_final_servo_split_recovery_*` path. It is square-only and defaults off.
+  - New phase family:
+    - `contact_unjam_lift` / `contact_unjam_recenter` for persistent wall-contact plus high-tilt or negative tilted clearance.
+    - `near_miss_descend` / `near_miss_recenter` for low-contact, low-tilt, near-threshold final insertion misses.
+  - Eval/demo/inference now expose and validate the new switches. Eval step traces record the new contact-unjam and near-miss counters.
+  - Best current diagnostic setting uses near-miss XY bias `[0.0035, 0.0035]`, near-miss low recenter height `8 mm`, near-miss max down action `2.5 mm/step`, and contact unjam lift `45 mm`.
+  - Targeted seed result: `612008` and `612013` switched from timeout to success; `612010` remains timeout and is still the persistent high-tilt wall-contact case.
+  - Targeted `612000-612013` 14ep window improved from the previous square-recovery `11/14 = 0.786` to `13/14 = 0.929`, with zero collisions.
+  - `square_square`, strictstable49, 20ep seed `612000` improved from baseline `0.850/0.000/0.150` to `0.950/0.000/0.050`.
+  - Profile matrix with the same split setting, 20 episodes, seed `612000`:
+    - `single`: `0.950/0.000/0.050`
+    - `round_square`: `0.950/0.000/0.050`
+    - `square_square`: `0.950/0.000/0.050`
+    - `mixed_basic`: `0.950/0.000/0.050`
+    - only failure in every profile was seed `612010`; no collisions were observed.
+  - Named config: `configs\sim\ur5e_full\eval_multi_geometry_square_square_split_servo_strictstable49_20ep.yaml`
+  - Matrix result directory: `results\ur5e_full\multi_geometry\split_servo_diag_v6_bias35_matrix`
+  - Summary: `results\ur5e_full\multi_geometry\split_servo_diag_v6_bias35\summary_release_band.md`
 
 Next step:
 
 - Do not scale square-square insert-settle BC replay by default; w05 was behaviorally flat under the current guarded deployment.
 - Keep square recovery as a diagnostic hook, not a default.
-- Next implement an opt-in split controller diagnostic instead of threshold scanning:
-  - persistent wall-contact/high-tilt branch: lift enough to clear contact, hold orientation, recenter, then descend slowly.
-  - low-contact near-miss branch: revise final-servo phase completion around the strict 5 mm / 10 mm success boundary and avoid repeated recovery loops when there is no active contact.
+- Treat split final-servo as the current best opt-in multi-geometry guarded controller setting after the 20ep profile matrix passed.
+- Next run a larger 60ep profile gate before tagging/pushing this as a stable multi-geometry controller milestone.
+- Then focus on the remaining hard case `612010`: persistent high-tilt wall contact. Useful next diagnostics are a more deliberate contact unjam retreat/recenter path, phase-local IK/posture control during unjam, or a controlled orientation/clearance scan around the high-tilt contact seed.
 - Keep the data plumbing and 2k correction dataset as a reusable diagnostic asset, but do not promote the w05 checkpoint as a new default.
 
 ## Implemented So Far
