@@ -144,7 +144,12 @@ Implemented so far:
   - Named config: `configs\sim\ur5e_full\eval_multi_geometry_square_square_split_servo_strictstable49_20ep.yaml`
   - Matrix result directory: `results\ur5e_full\multi_geometry\split_servo_diag_v6_bias35_matrix`
   - 60ep matrix result directory: `results\ur5e_full\multi_geometry\split_servo_diag_v6_bias35_matrix_60ep`
+  - Focused one-episode failure contact summary: `results\ur5e_full\multi_geometry\split_servo_diag_v6_bias35_failure_contact\summary_release_band.md`
   - Summary: `results\ur5e_full\multi_geometry\split_servo_diag_v6_bias35\summary_release_band.md`
+  - Focused failure-contact diagnosis:
+    - remaining `single`/`round_square` failures `612010/612032` are also high-contact, high-tilt insert-band timeouts, not square-only geometry failures.
+    - `square_square` failures `612010/612021/612032` show high insert-band wall contact (`0.83 - 0.86`) and final tilt around `15 - 20 deg`; contact unjam activates but does not yet produce a reliable reinsertion.
+    - `mixed_basic` sampled `square_square` on its failing seeds and shows the same high-contact timeout pattern.
 
 Next step:
 
@@ -152,7 +157,7 @@ Next step:
 - Keep square recovery as a diagnostic hook, not a default.
 - Treat split final-servo as the current best opt-in multi-geometry guarded controller setting after both 20ep and 60ep profile gates passed with zero collisions.
 - Before tagging/pushing, decide whether to commit the 60ep compact summaries only. Do not commit the large failure step traces unless specifically needed for debugging.
-- Then focus on the remaining hard cases `612010/612032` and the square-only extra timeout `612021`. Useful next diagnostics are a more deliberate contact unjam retreat/recenter path, phase-local IK/posture control during unjam, or a controlled orientation/clearance scan around high-tilt contact seeds.
+- Then focus on the remaining hard cases `612010/612032` and the square-only extra timeout `612021`. Since `single` and `round_square` also fail through high-contact/high-tilt insert-band stalls, the next unjam design should be contact-aware and not square-only. Useful next diagnostics are a more deliberate retreat/recenter/reinsert sequence, phase-local IK/posture control during unjam, or a controlled orientation/clearance scan around high-tilt contact seeds.
 - Keep the data plumbing and 2k correction dataset as a reusable diagnostic asset, but do not promote the w05 checkpoint as a new default.
 
 ## Implemented So Far

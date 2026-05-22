@@ -1,0 +1,13 @@
+# Final Insert Contact Trace Summary
+
+| seed | geometry_name | outcome | steps | contact_frac | wall_contact_frac | plate_contact_frac | first_wall_contact_step | insert_band_steps | insert_band_contact_frac | low_z_stall_frac | final_contact_walls | min_contact_dist_mm | final_xy_mm | final_z_mm | final_z_above_target_mm | final_tilt_deg | final_yaw_error_deg | final_tilted_margin_mm | final_servo_phase_counts |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 612010 | single | timeout | 1000 | 0.496 | 0.496 | 0.000 | 491 | 529 | 0.938 | 0.915 | east,west | -0.527 | 7.345 | 9.424 | 9.424 | 20.314 | nan | nan | align_hover:55;descend:36;low_recenter:431;stable_confirm:1 |
+| 612032 | single | timeout | 1000 | 0.473 | 0.473 | 0.354 | 505 | 512 | 0.924 | 0.915 | north,east | -0.278 | 7.792 | 7.470 | 7.470 | 18.306 | nan | nan | align_hover:62;descend:26;low_recenter:421;stable_confirm:1 |
+| 612010 | round_square | timeout | 1000 | 0.496 | 0.496 | 0.000 | 491 | 529 | 0.938 | 0.915 | east,west | -0.527 | 7.345 | 9.424 | 9.424 | 20.314 | nan | nan | align_hover:55;descend:36;low_recenter:431;stable_confirm:1 |
+| 612032 | round_square | timeout | 1000 | 0.473 | 0.473 | 0.354 | 505 | 512 | 0.924 | 0.915 | north,east | -0.278 | 7.792 | 7.470 | 7.470 | 18.306 | nan | nan | align_hover:62;descend:26;low_recenter:421;stable_confirm:1 |
+| 612010 | square_square | timeout | 1000 | 0.440 | 0.440 | 0.000 | 510 | 528 | 0.833 | 0.547 | north,east | -0.461 | 6.617 | 13.318 | 13.318 | 19.608 | 3.857 | -11.571 | align_hover:116;contact_unjam_lift:327;contact_unjam_recenter:24;descend:18;stable_confirm:3 |
+| 612021 | square_square | timeout | 1000 | 0.557 | 0.557 | 0.000 | 390 | 654 | 0.852 | 0.704 | east | -0.402 | 5.994 | 7.304 | 7.304 | 18.405 | 4.578 | -10.424 | align_hover:109;contact_unjam_lift:241;contact_unjam_recenter:14;descend:18;stable_confirm:3 |
+| 612032 | square_square | timeout | 1000 | 0.438 | 0.438 | 0.000 | 511 | 512 | 0.855 | 0.760 | none | -0.404 | 6.498 | 41.762 | 41.762 | 15.197 | 2.206 | -8.193 | align_hover:250;contact_unjam_lift:213;contact_unjam_recenter:40;descend:6;stable_confirm:1 |
+| 612010 | square_square | timeout | 1000 | 0.350 | 0.350 | 0.000 | 609 | 428 | 0.818 | 0.647 | none | -0.528 | 7.656 | 37.390 | 37.390 | 16.922 | 4.230 | -8.231 | align_hover:76;contact_unjam_lift:311;contact_unjam_recenter:25;descend:12;stable_confirm:2 |
+| 612032 | square_square | timeout | 1000 | 0.447 | 0.447 | 0.000 | 553 | 470 | 0.951 | nan | north | -0.343 | 6.762 | 40.834 | 40.834 | 15.170 | 2.069 | -9.413 | align_hover:468 |

@@ -374,6 +374,41 @@ Known 60ep result on seed `612000`: `single=0.967`, `round_square=0.967`,
 `square_square=0.950`, `mixed_basic=0.967`, all with zero collisions.
 Common timeout seeds are `612010/612032`; `square_square` adds `612021`.
 
+Focused failure-contact traces should be run one episode per output file so the
+contact summary is not aggregated across multiple episodes. Example:
+
+```powershell
+$out = "results\ur5e_full\multi_geometry\split_servo_diag_v6_bias35_failure_contact"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_localkp3_recovery_strictstable49_60ep.yaml `
+  --geometry-profile square_square `
+  --episodes 1 `
+  --seed 612021 `
+  --guard-final-servo-split-recovery-enabled `
+  --guard-final-servo-contact-unjam-lift-height 0.045 `
+  --guard-final-servo-contact-unjam-wall-steps 6 `
+  --guard-final-servo-near-miss-steps 30 `
+  --guard-final-servo-near-miss-xy-max 0.0068 `
+  --guard-final-servo-near-miss-z-max 0.060 `
+  --guard-final-servo-near-miss-max-steps 500 `
+  --guard-final-servo-near-miss-max-down-action 0.0025 `
+  --guard-final-servo-low-recenter-height 0.008 `
+  --guard-final-servo-near-miss-xy-bias 0.0035 0.0035 `
+  --output-csv "$out\eval_square_square_seed612021.csv" `
+  --output-md "$out\eval_square_square_seed612021.md" `
+  --episode-output-csv "$out\eval_square_square_seed612021_episodes.csv" `
+  --step-output-csv "$out\eval_square_square_seed612021_steps.csv" `
+  --step-trace-outcome-filter any
+
+python scripts\analyze_insert_contact_trace.py `
+  --input $out\eval_square_square_seed612021_steps.csv `
+  --insert-xy-m 0.014 `
+  --output-md $out\summary_square_square_seed612021_release_band.md `
+  --output-csv $out\summary_square_square_seed612021_release_band.csv
+```
+
 ## Robot Model Compatibility / UR5e Adapter
 
 On the `feature/ur5e-mainline` branch, the default simulator uses the
