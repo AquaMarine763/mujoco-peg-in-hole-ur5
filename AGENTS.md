@@ -80,8 +80,9 @@ The current focus is:
   - Best tested split setting uses near-miss XY bias `[0.0035, 0.0035]`, near-miss low recenter height `0.008`, near-miss max down `0.0025`, contact unjam lift `0.045`, contact wall steps `6`, near-miss steps `30`, near-miss XY/Z `0.0068/0.060`.
   - Result: `square_square` strictstable49 20ep seed `612000` improved to `0.950/0.000/0.050`; the `612000-612013` 14ep window improved to `13/14`, with only high-tilt contact seed `612010` still timing out.
   - Profile matrix with the same split setting, 20 episodes, seed `612000`, passed without non-square regression: `single=0.95`, `round_square=0.95`, `square_square=0.95`, `mixed_basic=0.95`, all zero collision. Every profile's only failure was seed `612010`.
-  - Reusable config: `configs\sim\ur5e_full\eval_multi_geometry_square_square_split_servo_strictstable49_20ep.yaml`. Matrix results: `results\ur5e_full\multi_geometry\split_servo_diag_v6_bias35_matrix`.
-  - Next gate before tagging/pushing should be a larger 60ep profile check. After that, focus on the remaining high-tilt wall-contact seed `612010`, not more broad threshold scans.
+  - Larger 60ep profile matrix also passed with zero collisions: `single=0.967`, `round_square=0.967`, `square_square=0.950`, `mixed_basic=0.967`. Common timeout seeds are `612010/612032`; `square_square` adds `612021`.
+  - Reusable config: `configs\sim\ur5e_full\eval_multi_geometry_square_square_split_servo_strictstable49_20ep.yaml`. Matrix results: `results\ur5e_full\multi_geometry\split_servo_diag_v6_bias35_matrix` and `results\ur5e_full\multi_geometry\split_servo_diag_v6_bias35_matrix_60ep`.
+  - Next work should focus on the remaining timeout seeds with a more deliberate contact/high-tilt unjam strategy, not more broad threshold scans. Do not commit large failure step traces unless they are needed for a specific diagnostic.
 - UR5e controller status:
   - Default remains position-only peg-tip IK for checkpoint compatibility.
   - Experimental `ik_control_mode=pose` is implemented in `PegInHoleMujocoEnv` and exposed in guarded eval, demo, inference, and `scripts\diagnose_ur5e_controller.py`.

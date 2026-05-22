@@ -135,17 +135,24 @@ Implemented so far:
     - `square_square`: `0.950/0.000/0.050`
     - `mixed_basic`: `0.950/0.000/0.050`
     - only failure in every profile was seed `612010`; no collisions were observed.
+  - Larger profile gate with the same split setting, 60 episodes, seed `612000`:
+    - `single`: `0.967/0.000/0.033`, failures `612010/612032`
+    - `round_square`: `0.967/0.000/0.033`, failures `612010/612032`
+    - `square_square`: `0.950/0.000/0.050`, failures `612010/612021/612032`
+    - `mixed_basic`: `0.967/0.000/0.033`, failures `612010/612032`
+    - all failures were timeouts; no collisions were observed.
   - Named config: `configs\sim\ur5e_full\eval_multi_geometry_square_square_split_servo_strictstable49_20ep.yaml`
   - Matrix result directory: `results\ur5e_full\multi_geometry\split_servo_diag_v6_bias35_matrix`
+  - 60ep matrix result directory: `results\ur5e_full\multi_geometry\split_servo_diag_v6_bias35_matrix_60ep`
   - Summary: `results\ur5e_full\multi_geometry\split_servo_diag_v6_bias35\summary_release_band.md`
 
 Next step:
 
 - Do not scale square-square insert-settle BC replay by default; w05 was behaviorally flat under the current guarded deployment.
 - Keep square recovery as a diagnostic hook, not a default.
-- Treat split final-servo as the current best opt-in multi-geometry guarded controller setting after the 20ep profile matrix passed.
-- Next run a larger 60ep profile gate before tagging/pushing this as a stable multi-geometry controller milestone.
-- Then focus on the remaining hard case `612010`: persistent high-tilt wall contact. Useful next diagnostics are a more deliberate contact unjam retreat/recenter path, phase-local IK/posture control during unjam, or a controlled orientation/clearance scan around the high-tilt contact seed.
+- Treat split final-servo as the current best opt-in multi-geometry guarded controller setting after both 20ep and 60ep profile gates passed with zero collisions.
+- Before tagging/pushing, decide whether to commit the 60ep compact summaries only. Do not commit the large failure step traces unless specifically needed for debugging.
+- Then focus on the remaining hard cases `612010/612032` and the square-only extra timeout `612021`. Useful next diagnostics are a more deliberate contact unjam retreat/recenter path, phase-local IK/posture control during unjam, or a controlled orientation/clearance scan around high-tilt contact seeds.
 - Keep the data plumbing and 2k correction dataset as a reusable diagnostic asset, but do not promote the w05 checkpoint as a new default.
 
 ## Implemented So Far
