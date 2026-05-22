@@ -11,7 +11,7 @@ The project is moving from a lightweight MuJoCo UR5e-like peg-in-hole environmen
 The current branch is now split into two tracks:
 
 - `feature/control-state-observation`: the stabilized single-geometry high-start controller baseline.
-- `feature/multi-geometry`: the new experimental branch for geometry generalization.
+- `feature/multi-geometry`: the active candidate branch for geometry generalization.
 
 The immediate objective on `feature/multi-geometry` is to keep the single-geometry baseline intact while adding a conservative multi-geometry scaffold. Runtime geometry selection (`single`, `round_square`, `square_square`, `mixed_basic`) is working. The current near-term focus is making single-policy, single-controller high-start insertion stable across those profiles before collecting larger multi-geometry training datasets.
 
@@ -446,7 +446,7 @@ Do not scale these correction recipes further without changing the controller/gu
 3. The focused near-contact diagnostic has now run on the promoted config, and the first preinsert lift-first guard experiment is implemented and evaluated. It is diagnostic only, not promoted.
 4. The TCP response diagnosis has now shown that command-to-motion transfer is the limiting factor in the remaining hard timeout. The first static low-level Kp/IK scan is complete: stronger global Kp improves probe response but is not a safe promoted default in closed-loop policy evaluation.
 5. Next implementation step: add a real stateful retreat/recenter phase with height hysteresis, or test a strictly local near-hole gain schedule inside that phase. Do not keep scanning global Kp or simple guard thresholds.
-6. Start multi-geometry only after the low-Z recenter and near-hole timeout cases stop looking like control-layer issues.
+6. Multi-geometry has now started on `feature/multi-geometry`; keep the remaining timeout work focused on contact-aware insert-band recovery before scaling multi-geometry data collection.
 
 ## Recommended Policy Checkpoint
 

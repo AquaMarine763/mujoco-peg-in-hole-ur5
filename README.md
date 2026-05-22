@@ -3,6 +3,31 @@
 This project is a MuJoCo/Gymnasium reproduction of the core design in
 `DRL_Peg-in-Hole_UR5`.
 
+Current active candidate branch: `feature/multi-geometry`.
+
+The current work has moved beyond the original single-round-peg baseline. The
+active MuJoCo task now supports a full UR5e task model plus runtime geometry
+profiles:
+
+- `single`
+- `round_square`
+- `square_square`
+- `mixed_basic`
+
+The current best opt-in multi-geometry guarded controller is tagged locally as
+`v0.7.0-multi-geometry-split-servo`. On the 60-episode high-start gate with
+seed `612000`, it reached:
+
+- `single`: `0.967/0.000/0.033`
+- `round_square`: `0.967/0.000/0.033`
+- `square_square`: `0.950/0.000/0.050`
+- `mixed_basic`: `0.967/0.000/0.033`
+
+All four results are success/collision/timeout rates. The remaining failures
+are timeout-only and are currently diagnosed as insert-band contact/high-tilt
+stalls, not gross visual hole-finding failures. See `PLAN.md`, `AGENTS.md`,
+and `COMMANDS.md` for the current status and exact reproduction commands.
+
 The first version intentionally keeps the task loop simple and inspectable:
 
 - MuJoCo scene with a UR5-like 6-DoF arm, a fixed peg, a table, a movable hole
@@ -45,11 +70,12 @@ For the current recommended training, evaluation, demo, and scan commands, see
 `COMMANDS.md`. For the real-robot migration checklist, see
 `REAL_ROBOT_PLAN.md`.
 
-On the UR5e mainline branch, the default simulation model is the lightweight
-UR5e adapter at `assets/ur5e_adapter/ur5e_peg_in_hole.xml`. The older
-simplified UR5-like MJCF remains available at `assets/ur5_peg_in_hole.xml` and
-can still be passed with `--model-path` for regression checks. See
-`PROJECT_STRUCTURE.md` for the recommended local artifact layout.
+On the current multi-geometry branch, the most relevant simulation model is the
+full UR5e task XML at `assets/ur5e_full/ur5e_peg_in_hole_full.xml`. The
+lightweight UR5e adapter at `assets/ur5e_adapter/ur5e_peg_in_hole.xml` and the
+older simplified UR5-like MJCF at `assets/ur5_peg_in_hole.xml` remain available
+for regression checks. See `PROJECT_STRUCTURE.md` for the recommended local
+artifact layout.
 
 The common UR5e evaluation, guarded-demo, oracle-data, and BC-smoke defaults
 are also captured under `configs/sim/ur5e/`. For example:

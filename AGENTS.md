@@ -42,7 +42,7 @@ The current focus is:
 ## Repo Conventions
 
 - Repo root: `D:\peg-in-hole-6yh\mujoco_peg_in_hole`
-- Current experimental branch: `feature/multi-geometry`
+- Current active candidate branch: `feature/multi-geometry`
 - Stabilized single-geometry baseline branch: `feature/control-state-observation`
 - Remote: `https://github.com/AquaMarine763/mujoco-peg-in-hole-ur5.git`
 - Default task model remains the lightweight UR5e adapter unless explicitly switched:
@@ -59,7 +59,7 @@ The current focus is:
   - `PegInHoleMujocoEnv` now supports `geometry_profile`.
   - Supported profiles are `single`, `round_square`, `square_square`, and `mixed_basic`.
   - Keep `single` as the default path unless an experiment explicitly overrides it.
-  - The new branch is for geometry generalization experiments, not a replacement for the stabilized single-geometry controller work.
+  - This branch is now the active candidate for geometry generalization, while the stabilized single-geometry controller work remains a useful baseline.
   - Expert/correction dataset collection and BC pretraining scripts accept the same geometry args.
   - Dataset files now record `geometry_profile`, `geometry_name`, `peg_shape`, and `hole_shape`; use those arrays to debug multi-geometry balance.
   - Baseline strictstable49 20ep profile check before split-servo recovery: `single=0.95`, `round_square=0.95`, `square_square=0.85`, `mixed_basic=0.95`, all with zero collisions. Treat `square_square` final insertion stability as the first multi-geometry bottleneck.
