@@ -370,7 +370,9 @@ The current focus is:
         `guard_fixture_clearance_z_max=0.052`, `retreat_release_xy=0.060`, `retreat_max_xy_action=0.003`
       - new config: `configs/sim/ur5e_full/eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml`
       - validation: hard `seed631004` all-profile check reached `4/4` success, and boundary regression seeds `630000/631000` reached `80/80` success/collision/timeout `1.000/0.000/0.000`
-      - before promoting to default, run a larger multi-seed boundary gate and a moderate-stress regression against v46
+      - larger boundary gate seeds `632000/633000/634000` initially reached `238/240`, with two `seed634014` high-Z slow-descent timeouts where guard never activated at `guard_start_z=0.12`
+      - raising `guard_start_z` to `0.14` fixed seed `634000` to `80/80`, and the v47 control settings on the v46 moderate-stress distribution reached `240/240`
+      - current v47 config includes `guard_start_z=0.14`; before promotion/tagging, run one final smoke/demo pass and decide whether this becomes the strict-1000 boundary default
     - results are summarized in `VISUAL_AUDIT.md`; do not scale to 50k control-state data or promote stack3. DAgger v2 is promising but must pass larger evals before promotion
   - keep correction BC as a supporting dataset path, but do not expand to 10k until the controller issue is addressed
   - introduce larger randomized initial XY offsets only after original hard high-start search is stable

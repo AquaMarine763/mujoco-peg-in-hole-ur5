@@ -6447,6 +6447,16 @@ foreach ($profile in "single","round_square","square_square","mixed_basic") {
 }
 ```
 
-Reference result: `4/4` success on `seed631004`; boundary regression
-`D:\peg-in-hole-6yh\v47_boundary_regression_final035_kp3_gxy008_seed630_631`
-reached `80/80` success, `0` collision, `0` timeout.
+Reference results:
+
+```text
+seed631004 targeted all-profile check: 4/4 success, 0 collision, 0 timeout
+seed630/631 boundary regression:       80/80 success, 0 collision, 0 timeout
+seed632-634 boundary gate:             238/240 success, 0 collision, 2 timeout
+seed634 with guard_start_z=0.14:       80/80 success, 0 collision, 0 timeout
+v46 moderate regression with v47 ctl:  240/240 success, 0 collision, 0 timeout
+```
+
+The two `seed632-634` timeouts were high-Z slow-descent cases on episode seed
+`634014`; they were fixed by raising `guard_start_z` from `0.12` to `0.14` in
+`configs\sim\ur5e_full\eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml`.

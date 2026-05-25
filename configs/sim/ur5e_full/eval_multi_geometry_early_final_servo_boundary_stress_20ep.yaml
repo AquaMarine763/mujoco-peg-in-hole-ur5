@@ -5,12 +5,17 @@
 # and final insertion stack, but changes the approach handoff/control envelope:
 # - nominal actuator Kp: 2.0 -> 3.0
 # - guarded XY limit: 5 mm -> 8 mm
+# - guard activation Z: 120 mm -> 140 mm
 # - final-servo handoff XY: 18 mm -> 35 mm
 # - fixture-clearance retreat is available as a low-altitude safety fallback
 #
 # Validation reference:
 # D:\peg-in-hole-6yh\v47_boundary_regression_final035_kp3_gxy008_seed630_631
 # 80/80 success, 0 collision, 0 timeout on seeds 630000/631000 with 10 ep/profile.
+# D:\peg-in-hole-6yh\v47_boundary_seed634000_gstart140_20ep
+# 80/80 success, 0 collision, 0 timeout on the later boundary seed 634000.
+# D:\peg-in-hole-6yh\v47_on_v46_moderate_regression_seed626_628_20ep
+# 240/240 success, 0 collision, 0 timeout on the v46 moderate-stress distribution.
 model_path: assets/ur5e_full/ur5e_peg_in_hole_full.xml
 agent: sac
 model: checkpoints/ur5e_full/high_start/hard/correction/sac_image_bc_wrist_pose_control_state_insert_drift_2k_w10_e1.zip
@@ -75,7 +80,7 @@ distance_reward_scale: 2.0
 action_penalty_scale: 0.002
 action_alignment_scale: 2.0
 guard_start_xy: 0.06
-guard_start_z: 0.12
+guard_start_z: 0.14
 guard_risk_xy: 0.0
 guard_blend: 1.0
 guard_min_policy_steps: 0

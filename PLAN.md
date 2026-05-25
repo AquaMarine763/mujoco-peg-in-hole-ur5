@@ -3005,12 +3005,25 @@ Interpretation:
 - Boundary regression result:
   - `D:\peg-in-hole-6yh\v47_boundary_regression_final035_kp3_gxy008_seed630_631`
   - seeds `630000/631000`, `10` episodes/profile, 4 profiles: `80/80` success, `0` collision, `0` timeout.
+- Larger boundary gate:
+  - `D:\peg-in-hole-6yh\v47_boundary_gate_seed632_634_20ep`
+  - seeds `632000/633000/634000`, `20` episodes/profile, 4 profiles: `238/240` success, `0` collision, `2` timeout.
+  - the two timeouts were both episode seed `634014`; final-servo never activated because the policy reached good XY while still just above `guard_start_z=0.12` at the 1000-step limit.
+- High-Z guard fix:
+  - raising `guard_start_z` to `0.14` fixed the targeted `seed634014` failures without raising `guard_final_servo_start_z`.
+  - `D:\peg-in-hole-6yh\v47_boundary_seed634000_gstart140_20ep`
+  - seed `634000`, `20` episodes/profile, 4 profiles: `80/80` success, `0` collision, `0` timeout.
+- Moderate-stress regression against v46:
+  - `D:\peg-in-hole-6yh\v47_on_v46_moderate_regression_seed626_628_20ep`
+  - v47 control/handoff settings on the v46 moderate-stress distribution, seeds `626000/627000/628000`: `240/240` success, `0` collision, `0` timeout.
 - New opt-in config:
   - `configs/sim/ur5e_full/eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml`
-  - smoke result: `D:\peg-in-hole-6yh\v47_early_final_servo_config_smoke`, `square_square/seed631004`: success.
+  - includes the high-Z guard fix: `guard_start_z=0.14`.
+  - smoke result before the high-Z guard update: `D:\peg-in-hole-6yh\v47_early_final_servo_config_smoke`, `square_square/seed631004`: success.
+  - smoke result after the high-Z guard update: `D:\peg-in-hole-6yh\v47_early_final_servo_gstart140_config_smoke`, `square_square/seed634014`: success.
 - Next step:
-  - run a larger multi-seed boundary gate before promoting this as the default multi-geometry stress config.
-  - include a moderate-stress regression against the previous v46 gate, because v47 changes approach handoff and nominal actuator Kp.
+  - v47 is now a stronger strict-1000 candidate than v46 for boundary stress.
+  - remaining work is demo generation and deciding whether to tag/promote it.
 
 ## Key Commands
 
