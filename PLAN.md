@@ -239,6 +239,13 @@ Implemented so far:
       - Deterministic worst-case improves from `single=4/5`, `square_square=0/5`, `mixed_basic=3/5` to `single=4/5`, `square_square=4/5`, `mixed_basic=4/5`.
       - Remaining failures are all `approach_no_final_servo`, so the final-insertion square contact stall is mostly addressed by this parameter set.
       - Moderate stress smoke with the same contact-tolerant settings reached `40/40 = 1.000`, zero collisions, zero timeouts on seed `625000`.
+      - Larger moderate stress matrix on seeds `626000/627000/628000`, 20 episodes per profile, reached `240/240 = 1.000`, zero collisions, zero timeouts.
+      - Larger matrix details: `single=60/60`, `round_square=60/60`, `square_square=60/60`, `mixed_basic=60/60`; mean steps `293.1`, max steps `826`, mean final XY `1.58 mm`, mean final-servo steps `60.3`.
+      - A config smoke for the new v46 contact-tolerant stress config passed on `square_square/seed629000`, `1/1` success.
+      - Deterministic worst-case demo `square_square/seed624001` succeeded in `245` steps, final XY/Z about `1.30 mm / 9.33 mm`.
+      - Boundary regression with hole half-size `14.5-19 mm`, peg/square max `13.5 mm`, delay `3-4`, filter `0.35-0.55`, noise `0.25-0.8 mm`, seeds `630000/631000`, 10 episodes per profile: `76/80 = 0.950`, with 3 collisions and 1 timeout.
+      - Boundary failures all occur on `seed631004` before final-servo. Single/round/mixed collide with `hole_north` around `36 mm` XY and `51 mm` Z; square-square times out around `32 mm` XY and `44 mm` Z. `square_fast_settle` is not involved.
+      - Targeted `guard_block_down_when_unaligned` did not rescue `seed631004`. Fixture-clearance safety avoided collision but converted all four profiles to timeout; existing fixture realign did not activate (`fixture_realign=0`). Treat this as an approach/fixture-clearance state-machine problem.
     - output directories:
       - targeted probes: `D:\peg-in-hole-6yh\v44_square_fast_settle_probes`
       - 20ep x 3-seed matrix: `D:\peg-in-hole-6yh\v44_square_fast_settle_multiseed_matrix20`
@@ -248,12 +255,19 @@ Implemented so far:
       - v45 deterministic worst-case: `D:\peg-in-hole-6yh\v45_worstcase_probe_seed624`
       - v46 contact-tolerant worst-case probe: `D:\peg-in-hole-6yh\v46_square_recovery_param_probe_worstcase_all`
       - v46 contact-tolerant moderate smoke: `D:\peg-in-hole-6yh\v46_contact_tolerant_moderate_smoke_seed625`
+      - v46 contact-tolerant larger moderate matrix: `D:\peg-in-hole-6yh\v46_contact_tolerant_moderate_matrix_seed626_628`
+      - v46 contact-tolerant boundary regression: `D:\peg-in-hole-6yh\v46_contact_tolerant_boundary_regression_seed630_631`
+      - v46 boundary targeted probes: `D:\peg-in-hole-6yh\v46_boundary_seed631004_blockdown_probe`, `D:\peg-in-hole-6yh\v46_boundary_seed631004_fixture_clearance_probe`, `D:\peg-in-hole-6yh\v46_boundary_seed631004_fixture_realign_probe`
+      - v46 contact-tolerant config smoke: `D:\peg-in-hole-6yh\v46_contact_tolerant_config_smoke`
+      - v46 contact-tolerant demo: `D:\peg-in-hole-6yh\v46_contact_tolerant_demos`
       - demo: `D:\peg-in-hole-6yh\v44_square_fast_settle_demos`
     - New reusable v44 configs:
       - `configs\sim\ur5e_full\eval_multi_geometry_contact_reinsert_tip_priority_square_fast_settle_60ep.yaml`
       - `configs\sim\ur5e_full\demo_multi_geometry_contact_reinsert_tip_priority_square_fast_settle.yaml`
     - New reusable v45 stress config:
       - `configs\sim\ur5e_full\eval_multi_geometry_contact_reinsert_tip_priority_square_fast_settle_stress_20ep.yaml`
+    - New reusable v46 contact-tolerant stress config:
+      - `configs\sim\ur5e_full\eval_multi_geometry_contact_reinsert_tip_priority_square_fast_settle_contact_tolerant_stress_20ep.yaml`
     - v44 demo result:
       - `square_square/615000`: success in `686` steps, no collision, final XY/Z about `1.14 mm / 9.79 mm`, final phase `square_fast_settle`.
   - New reusable 60ep config: `configs\sim\ur5e_full\eval_multi_geometry_contact_reinsert_tip_priority_60ep.yaml`.
@@ -273,8 +287,10 @@ Next step:
 - Treat wide-handoff plus square-fast-settle plus phase-local final-servo/contact-reinsert tip-priority as the current best opt-in multi-geometry guarded controller setting under strict `max_steps=1000`.
 - v44 is locally committed and tagged as `v0.7.1-contact-reinsert-square-fast-settle`; do not add large untracked result traces unless a compact summary is specifically needed.
 - Moderate v45 stress is solved, so do not train on that distribution yet. The useful next learning target is the square-square worst-case family: narrow clearance, delayed/filtered control, and insertion-time yaw/tilt/contact recovery.
-- The v46 contact-tolerant square fast-settle parameter set is promising but should remain opt-in until it passes a larger multi-seed stress matrix. Do not make the 1mm-clearance worst-case the default task yet.
-- Next technical work should run a larger v46 contact-tolerant matrix, then decide whether to promote these settings or separately address the remaining `approach_no_final_servo` extreme-control failures.
+- The v46 contact-tolerant square fast-settle parameter set passed the larger moderate-stress matrix and should now be treated as the current opt-in stress candidate, not a global default.
+- Do not make the 1mm-clearance deterministic worst-case the default task yet; the remaining failures there are `approach_no_final_servo`, not final insertion contact stall.
+- The tighter boundary regression exposed a separate approach/fixture-clearance problem on `seed631004`; solve that separately before claiming the aggressive boundary distribution is stable.
+- Next technical work should implement or repair an approach-stage retreat/recenter/fixture-realign state machine for low-altitude, still-far-from-hole cases under severe delay/filter. Keep v46 contact-tolerant fast-settle as the current moderate-stress candidate.
 - After the next learning/eval change is selected, push/tag only when requested.
 - Keep the data plumbing and 2k correction dataset as a reusable diagnostic asset, but do not promote the w05 checkpoint as a new default.
 

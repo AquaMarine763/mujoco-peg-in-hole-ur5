@@ -757,7 +757,109 @@ foreach ($profile in "single","round_square","square_square","mixed_basic") {
 ```
 
 Known contact-tolerant smoke result: `40/40 = 1.000`, zero collisions,
-zero timeouts. Keep these settings opt-in until they pass a larger matrix.
+zero timeouts. The larger matrix below is the promotion gate for this opt-in
+candidate.
+
+Contact-tolerant moderate-stress 3-seed gate using the reusable v46 config:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v46_contact_tolerant_moderate_matrix_seed626_628"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($seed in 626000,627000,628000) {
+  foreach ($profile in "single","round_square","square_square","mixed_basic") {
+    python scripts\eval_guarded_policy.py `
+      --config configs\sim\ur5e_full\eval_multi_geometry_contact_reinsert_tip_priority_square_fast_settle_contact_tolerant_stress_20ep.yaml `
+      --geometry-profile $profile `
+      --episodes 20 `
+      --seed $seed `
+      --output-csv "$out\eval_$profile`_20ep_seed$seed.csv" `
+      --output-md "$out\eval_$profile`_20ep_seed$seed.md" `
+      --episode-output-csv "$out\eval_$profile`_20ep_seed$seed`_episodes.csv" `
+      --step-output-csv "$out\eval_$profile`_20ep_seed$seed`_failure_steps.csv" `
+      --step-trace-outcome-filter failure
+  }
+}
+```
+
+Known v46 larger moderate-stress result: `240/240 = 1.000`, zero collisions,
+zero timeouts. Per profile: `single=60/60`, `round_square=60/60`,
+`square_square=60/60`, `mixed_basic=60/60`. Mean steps `293.1`, max steps
+`826`.
+
+Tighter v46 boundary regression:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v46_contact_tolerant_boundary_regression_seed630_631"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($seed in 630000,631000) {
+  foreach ($profile in "single","round_square","square_square","mixed_basic") {
+    python scripts\eval_guarded_policy.py `
+      --config configs\sim\ur5e_full\eval_multi_geometry_contact_reinsert_tip_priority_square_fast_settle_contact_tolerant_stress_20ep.yaml `
+      --geometry-profile $profile `
+      --episodes 10 `
+      --seed $seed `
+      --geometry-hole-half-size-range 0.0145 0.019 `
+      --geometry-peg-radius-range 0.0118 0.0135 `
+      --geometry-square-peg-half-size-range 0.0110 0.0135 `
+      --geometry-hole-center-xy-jitter 0.004 0.004 `
+      --geometry-fixture-height-jitter 0.002 `
+      --geometry-table-height-jitter 0.002 `
+      --hard-control-scale-range 0.65 1.00 `
+      --hard-control-noise-std-range 0.00025 0.0008 `
+      --hard-control-delay-range 3 4 `
+      --hard-control-filter-alpha-range 0.35 0.55 `
+      --output-csv "$out\eval_$profile`_10ep_seed$seed.csv" `
+      --output-md "$out\eval_$profile`_10ep_seed$seed.md" `
+      --episode-output-csv "$out\eval_$profile`_10ep_seed$seed`_episodes.csv" `
+      --step-output-csv "$out\eval_$profile`_10ep_seed$seed`_failure_steps.csv" `
+      --step-trace-outcome-filter failure
+  }
+}
+```
+
+Known v46 tighter boundary result: `76/80 = 0.950`, with 3 collisions and 1
+timeout. All failures are `seed631004` before final-servo handoff, around
+`32-37 mm` XY and `44-51 mm` Z, so this is an approach/fixture-clearance issue
+rather than a square-fast-settle regression.
+
+Generate a v46 contact-tolerant deterministic worst-case square-square demo:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v46_contact_tolerant_demos"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+python scripts\demo_policy.py `
+  --config configs\sim\ur5e_full\demo_multi_geometry_contact_reinsert_tip_priority_square_fast_settle.yaml `
+  --guarded-policy `
+  --geometry-profile square_square `
+  --seed 624001 `
+  --domain-randomization `
+  --domain-randomization-level full_light_geometry `
+  --control-action-scale-range 0.65 0.65 `
+  --control-action-noise-std-range 0.0008 0.0008 `
+  --control-action-delay-range 4 4 `
+  --control-action-filter-alpha-range 0.35 0.35 `
+  --geometry-hole-half-size-range 0.0145 0.0145 `
+  --geometry-peg-radius-range 0.0135 0.0135 `
+  --geometry-square-peg-half-size-range 0.0135 0.0135 `
+  --geometry-hole-center-xy-jitter 0.004 0.004 `
+  --geometry-fixture-height-jitter 0.002 `
+  --geometry-table-height-jitter 0.002 `
+  --guard-final-servo-square-fast-settle-z-max 0.060 `
+  --guard-final-servo-square-fast-settle-tilt-max-deg 14.0 `
+  --guard-final-servo-square-fast-settle-contact-max 6 `
+  --render-cameras overview wrist_cam `
+  --render-width 1280 `
+  --render-height 720 `
+  --fps 20 `
+  --output "$out\demo_v46_square_square_worstcase_seed624001_guarded.gif" `
+  --trajectory-output "$out\demo_v46_square_square_worstcase_seed624001_guarded_trajectory.csv"
+```
+
+Known v46 worst-case demo result: `square_square/624001` succeeded in `245`
+steps with final XY/Z about `1.30 mm / 9.33 mm`.
 
 Analyze final-servo phase traces for targeted probes:
 
