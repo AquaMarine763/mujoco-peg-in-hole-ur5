@@ -374,6 +374,309 @@ Known 60ep result on seed `612000`: `single=0.967`, `round_square=0.967`,
 `square_square=0.950`, `mixed_basic=0.967`, all with zero collisions.
 Common timeout seeds are `612010/612032`; `square_square` adds `612021`.
 
+Current best contact-aware tip-priority candidate:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_multi_geometry_contact_reinsert_tip_priority_60ep.yaml `
+  --geometry-profile square_square `
+  --episodes 60 `
+  --seed 612000 `
+  --output-csv results\ur5e_full\multi_geometry\contact_reinsert_tip_priority\eval_square_square_60ep_seed612000.csv `
+  --output-md results\ur5e_full\multi_geometry\contact_reinsert_tip_priority\eval_square_square_60ep_seed612000.md `
+  --episode-output-csv results\ur5e_full\multi_geometry\contact_reinsert_tip_priority\eval_square_square_60ep_seed612000_episodes.csv `
+  --step-output-csv results\ur5e_full\multi_geometry\contact_reinsert_tip_priority\eval_square_square_60ep_seed612000_failure_steps.csv `
+  --step-trace-outcome-filter failure
+```
+
+Run the full profile matrix:
+
+```powershell
+$out = "results\ur5e_full\multi_geometry\contact_reinsert_tip_priority"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($profile in "single","round_square","square_square","mixed_basic") {
+  python scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_contact_reinsert_tip_priority_60ep.yaml `
+    --geometry-profile $profile `
+    --episodes 60 `
+    --seed 612000 `
+    --output-csv "$out\eval_$profile`_60ep_seed612000.csv" `
+    --output-md "$out\eval_$profile`_60ep_seed612000.md" `
+    --episode-output-csv "$out\eval_$profile`_60ep_seed612000_episodes.csv" `
+    --step-output-csv "$out\eval_$profile`_60ep_seed612000_failure_steps.csv" `
+    --step-trace-outcome-filter failure
+}
+```
+
+Known v42 result on seed `612000`: 20ep and 60ep matrices both reached
+`single=1.000`, `round_square=1.000`, `square_square=1.000`,
+`mixed_basic=1.000`, with zero collisions and zero timeouts. Important:
+keep `ik_control_mode: pose` in the config and enable tip-priority only through
+`guard_final_servo_tip_priority_ik_enabled` and
+`guard_contact_reinsert_tip_priority_ik_enabled`; global
+`pose_tip_priority` disrupts the learned approach trajectory.
+
+Additional v42 smoke on seed `613000`, 10 episodes per profile, also reached
+`1.000/0.000/0.000` for all four profiles. Local output directory:
+`D:\peg-in-hole-6yh\v42_tip_priority_seed613000_matrix10`.
+
+Additional v42 gate on seed `614000`, 20 episodes per profile, reached
+`1.000/0.000/0.000` for all four profiles. Local output directory:
+`D:\peg-in-hole-6yh\v42_tip_priority_seed614000_matrix20`.
+
+Generate the current v42 demo GIFs. The demo script requires
+`--guarded-policy`; without it, the run is policy-only and can timeout with
+`guard_steps=0`.
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v42_tip_priority_demos"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+python scripts\demo_policy.py `
+  --config configs\sim\ur5e_full\demo_multi_geometry_contact_reinsert_tip_priority.yaml `
+  --guarded-policy `
+  --geometry-profile single `
+  --episodes 1 `
+  --seed 614000 `
+  --render-width 1280 `
+  --render-height 720 `
+  --render-cameras overview wrist_cam `
+  --fps 20 `
+  --output "$out\demo_v42_single_seed614000_guarded.gif" `
+  --trajectory-output "$out\demo_v42_single_seed614000_guarded_trajectory.csv"
+
+python scripts\demo_policy.py `
+  --config configs\sim\ur5e_full\demo_multi_geometry_contact_reinsert_tip_priority.yaml `
+  --guarded-policy `
+  --geometry-profile square_square `
+  --episodes 1 `
+  --seed 614000 `
+  --render-width 1280 `
+  --render-height 720 `
+  --render-cameras overview wrist_cam `
+  --fps 20 `
+  --output "$out\demo_v42_square_square_seed614000_guarded.gif" `
+  --trajectory-output "$out\demo_v42_square_square_seed614000_guarded_trajectory.csv"
+```
+
+Known demo result:
+
+```text
+single/614000:        success, 316 steps, guard_steps=96,  dist_xy=1.34 mm, dist_z=9.40 mm
+square_square/614000: success, 315 steps, guard_steps=95,  dist_xy=1.33 mm, dist_z=9.67 mm
+GIF resolution:       2560x720, overview + wrist_cam side by side
+```
+
+Larger strict v42 gate:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v42_tip_priority_multiseed_matrix20"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($profile in "single","round_square","square_square","mixed_basic") {
+  foreach ($seed in 615000,616000,617000) {
+    python scripts\eval_guarded_policy.py `
+      --config configs\sim\ur5e_full\eval_multi_geometry_contact_reinsert_tip_priority_60ep.yaml `
+      --geometry-profile $profile `
+      --episodes 20 `
+      --seed $seed `
+      --output-csv "$out\eval_$profile`_20ep_seed$seed.csv" `
+      --output-md "$out\eval_$profile`_20ep_seed$seed.md" `
+      --episode-output-csv "$out\eval_$profile`_20ep_seed$seed`_episodes.csv" `
+      --step-output-csv "$out\eval_$profile`_20ep_seed$seed`_failure_steps.csv" `
+      --step-trace-outcome-filter failure
+  }
+}
+```
+
+Known result: `236/240 = 0.983` success, zero collisions. All four failures
+were `seed615000/episode0`, stalling before final-servo handoff around
+`16.7 mm` XY and `65 mm` Z under low action scale, delay 2, and high action
+filtering.
+
+Wide-handoff candidate for that failure:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v43_tip_priority_widehandoff_multiseed_matrix20"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($profile in "single","round_square","square_square","mixed_basic") {
+  foreach ($seed in 615000,616000,617000) {
+    python scripts\eval_guarded_policy.py `
+      --config configs\sim\ur5e_full\eval_multi_geometry_contact_reinsert_tip_priority_60ep.yaml `
+      --geometry-profile $profile `
+      --episodes 20 `
+      --seed $seed `
+      --guard-approach-recenter-trigger-xy 0.018 `
+      --guard-approach-recenter-stable-xy 0.017 `
+      --guard-final-servo-start-xy 0.018 `
+      --output-csv "$out\eval_$profile`_20ep_seed$seed.csv" `
+      --output-md "$out\eval_$profile`_20ep_seed$seed.md" `
+      --episode-output-csv "$out\eval_$profile`_20ep_seed$seed`_episodes.csv" `
+      --step-output-csv "$out\eval_$profile`_20ep_seed$seed`_failure_steps.csv" `
+      --step-trace-outcome-filter failure
+  }
+}
+```
+
+Known result: `238/240 = 0.992` success, zero collisions. `single` and
+`round_square` reached `60/60`; `square_square` and `mixed_basic` reached
+`59/60`. The two remaining failures are square-geometry final-servo time
+budget failures, not approach failures. With the same wide-handoff settings and
+`--max-steps 1500`, both known failures succeed:
+
+```text
+square_square/615000: success in 1242 steps
+mixed_basic/615000:   success in 1158 steps
+```
+
+Strict 1000-step v44 square-fast-settle gate:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v44_square_fast_settle_multiseed_matrix20"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($profile in "single","round_square","square_square","mixed_basic") {
+  foreach ($seed in 615000,616000,617000) {
+    python scripts\eval_guarded_policy.py `
+      --config configs\sim\ur5e_full\eval_multi_geometry_contact_reinsert_tip_priority_square_fast_settle_60ep.yaml `
+      --geometry-profile $profile `
+      --episodes 20 `
+      --seed $seed `
+      --output-csv "$out\eval_$profile`_20ep_seed$seed.csv" `
+      --output-md "$out\eval_$profile`_20ep_seed$seed.md" `
+      --episode-output-csv "$out\eval_$profile`_20ep_seed$seed`_episodes.csv" `
+      --step-output-csv "$out\eval_$profile`_20ep_seed$seed`_failure_steps.csv" `
+      --step-trace-outcome-filter failure
+  }
+}
+```
+
+Known v44 result: `240/240 = 1.000` success, zero collisions, zero timeouts.
+The previous two strict 1000-step failures are rescued:
+
+```text
+square_square/615000/episode0: success in 858 steps
+mixed_basic/615000/episode0:   success in 772 steps
+```
+
+Analyze final-servo phase traces for targeted probes:
+
+```powershell
+python scripts\analyze_final_servo_phase_trace.py `
+  --input `
+    D:\peg-in-hole-6yh\v44_square_fast_settle_probes\eval_square_square_seed615000_fast_settle_steps.csv `
+    D:\peg-in-hole-6yh\v44_square_fast_settle_probes\eval_mixed_basic_seed615000_fast_settle_steps.csv `
+  --output-md D:\peg-in-hole-6yh\v44_square_fast_settle_probes\phase_summary.md `
+  --output-csv D:\peg-in-hole-6yh\v44_square_fast_settle_probes\phase_summary.csv
+```
+
+Generate a v44 guarded square-square demo:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v44_square_fast_settle_demos"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+python scripts\demo_policy.py `
+  --config configs\sim\ur5e_full\demo_multi_geometry_contact_reinsert_tip_priority_square_fast_settle.yaml `
+  --guarded-policy `
+  --geometry-profile square_square `
+  --episodes 1 `
+  --seed 615000 `
+  --render-width 1280 `
+  --render-height 720 `
+  --render-cameras overview wrist_cam `
+  --fps 20 `
+  --output "$out\demo_v44_square_square_seed615000_guarded.gif" `
+  --trajectory-output "$out\demo_v44_square_square_seed615000_guarded_trajectory.csv"
+```
+
+Known v44 demo result:
+
+```text
+square_square/615000: success, 686 steps, guard_steps=562, dist_xy=1.14 mm, dist_z=9.79 mm
+final phase: square_fast_settle
+GIF: D:\peg-in-hole-6yh\v44_square_fast_settle_demos\demo_v44_square_square_seed615000_guarded.gif
+```
+
+Contact-aware reinsert follow-up diagnostics on
+`feature/contact-aware-reinsert`:
+
+```powershell
+$out = "results\ur5e_full\multi_geometry\contact_reinsert_diag_v8_hover25_finalwori006"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_localkp3_recovery_strictstable49_60ep.yaml `
+  --geometry-profile square_square `
+  --episodes 1 `
+  --seed 612021 `
+  --guard-final-servo-hover-height 0.025 `
+  --guard-final-servo-stable-steps 8 `
+  --guard-final-servo-ik-orientation-weight 0.06 `
+  --guard-final-servo-split-recovery-enabled `
+  --guard-final-servo-contact-reinsert-enabled `
+  --guard-final-servo-lift-height 0.050 `
+  --guard-final-servo-square-recovery-lift-height 0.050 `
+  --guard-final-servo-contact-unjam-lift-height 0.050 `
+  --guard-final-servo-contact-unjam-wall-steps 6 `
+  --guard-final-servo-near-miss-steps 30 `
+  --guard-final-servo-near-miss-xy-max 0.0068 `
+  --guard-final-servo-near-miss-z-max 0.060 `
+  --guard-final-servo-near-miss-max-steps 500 `
+  --guard-final-servo-near-miss-max-down-action 0.0025 `
+  --guard-final-servo-low-recenter-height 0.008 `
+  --guard-final-servo-near-miss-xy-bias 0.0035 0.0035 `
+  --output-csv "$out\eval_square_square_seed612021.csv" `
+  --output-md "$out\eval_square_square_seed612021.md" `
+  --episode-output-csv "$out\eval_square_square_seed612021_episodes.csv" `
+  --step-output-csv "$out\eval_square_square_seed612021_failure_steps.csv" `
+  --step-trace-outcome-filter failure
+```
+
+Known result: this v8 diagnostic rescues `square_square/612021`, but it does
+not rescue the common `612010/612032` timeout seeds across profiles. Do not
+promote it without a broader matrix. The next controller change should add a
+bounded align-hover escape plus a phase-specific reinsert sequence.
+
+Optional align-hover escape diagnostic for `612032`:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_localkp3_recovery_strictstable49_60ep.yaml `
+  --geometry-profile single `
+  --episodes 1 `
+  --seed 612032 `
+  --guard-final-servo-hover-height 0.025 `
+  --guard-final-servo-stable-steps 8 `
+  --guard-final-servo-ik-orientation-weight 0.06 `
+  --guard-final-servo-align-timeout-steps 120 `
+  --guard-final-servo-align-timeout-xy 0.014 `
+  --guard-final-servo-split-recovery-enabled `
+  --guard-final-servo-contact-reinsert-enabled `
+  --guard-final-servo-lift-height 0.050 `
+  --guard-final-servo-square-recovery-lift-height 0.050 `
+  --guard-final-servo-contact-unjam-lift-height 0.050 `
+  --guard-final-servo-contact-unjam-wall-steps 6 `
+  --guard-final-servo-near-miss-steps 30 `
+  --guard-final-servo-near-miss-xy-max 0.0068 `
+  --guard-final-servo-near-miss-z-max 0.060 `
+  --guard-final-servo-near-miss-max-steps 500 `
+  --guard-final-servo-near-miss-max-down-action 0.0025 `
+  --guard-final-servo-low-recenter-height 0.008 `
+  --guard-final-servo-near-miss-xy-bias 0.0035 0.0035 `
+  --output-csv results\ur5e_full\multi_geometry\contact_reinsert_diag_v12_align_timeout\eval_single_seed612032.csv `
+  --output-md results\ur5e_full\multi_geometry\contact_reinsert_diag_v12_align_timeout\eval_single_seed612032.md `
+  --episode-output-csv results\ur5e_full\multi_geometry\contact_reinsert_diag_v12_align_timeout\eval_single_seed612032_episodes.csv `
+  --step-output-csv results\ur5e_full\multi_geometry\contact_reinsert_diag_v12_align_timeout\eval_single_seed612032_failure_steps.csv `
+  --step-trace-outcome-filter failure
+```
+
+Known result: the timeout escape triggers and prevents a single endless
+align-hover hold, but `612032` still times out because recovery/recenter takes
+too long. Treat it as a safety valve, not a promoted success improvement.
+
 Focused failure-contact traces should be run one episode per output file so the
 contact summary is not aggregated across multiple episodes. Example:
 
@@ -5715,3 +6018,94 @@ success and keeps collisions at zero. Treat `ik_orientation_weight=0.03`,
 `ik_max_iterations=64`, and `nominal_actuator_kp_multiplier=2.0` as current
 best. Wider align tolerance `0.030` regressed to
 `0.833 / 0.000 / 0.167`, so do not promote wider align.
+
+## Contact-Aware Reinsert Diagnostics
+
+Current experimental branch: `feature/contact-aware-reinsert`.
+
+Targeted `single/612010` command template for the latest contact-reinsert
+diagnostics:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_high_start_hard_localkp3_recovery_strictstable49_60ep.yaml `
+  --geometry-profile single `
+  --episodes 1 `
+  --seed 612010 `
+  --guard-final-servo-hover-height 0.025 `
+  --guard-final-servo-stable-steps 8 `
+  --guard-final-servo-ik-orientation-weight 0.06 `
+  --guard-contact-unjam-ik-orientation-weight 0.0 `
+  --guard-contact-reinsert-high-ik-orientation-weight 0.0 `
+  --guard-contact-reinsert-orient-ik-orientation-weight 0.12 `
+  --guard-final-servo-contact-reinsert-orient-hold-enabled `
+  --guard-final-servo-contact-reinsert-orient-tilt-deg 10.0 `
+  --guard-final-servo-contact-reinsert-orient-stable-steps 4 `
+  --guard-final-servo-contact-reinsert-orient-max-steps 100 `
+  --guard-final-servo-contact-reinsert-descend-max-steps 260 `
+  --guard-final-servo-align-timeout-steps 120 `
+  --guard-final-servo-align-timeout-xy 0.014 `
+  --guard-final-servo-split-recovery-enabled `
+  --guard-final-servo-contact-reinsert-enabled `
+  --guard-final-servo-lift-height 0.050 `
+  --guard-final-servo-square-recovery-lift-height 0.050 `
+  --guard-final-servo-contact-unjam-lift-height 0.035 `
+  --guard-final-servo-contact-unjam-release-xy 0.0048 `
+  --guard-final-servo-contact-unjam-wall-bias 0.0035 `
+  --guard-final-servo-contact-unjam-wall-steps 6 `
+  --guard-final-servo-near-miss-steps 30 `
+  --guard-final-servo-near-miss-xy-max 0.0068 `
+  --guard-final-servo-near-miss-z-max 0.060 `
+  --guard-final-servo-near-miss-max-steps 500 `
+  --guard-final-servo-near-miss-max-down-action 0.0025 `
+  --guard-final-servo-low-recenter-height 0.008 `
+  --guard-final-servo-near-miss-xy-bias 0.0035 0.0035 `
+  --output-csv results\ur5e_full\multi_geometry\contact_reinsert_diag_vXX\eval_single_seed612010.csv `
+  --output-md results\ur5e_full\multi_geometry\contact_reinsert_diag_vXX\eval_single_seed612010.md `
+  --episode-output-csv results\ur5e_full\multi_geometry\contact_reinsert_diag_vXX\eval_single_seed612010_episodes.csv `
+  --step-output-csv results\ur5e_full\multi_geometry\contact_reinsert_diag_vXX\eval_single_seed612010_failure_steps.csv `
+  --step-trace-outcome-filter failure
+```
+
+Optional diagnostic flags added in this branch:
+
+```powershell
+--guard-final-servo-contact-reinsert-orient-max-xy-action 0.0035
+--guard-final-servo-contact-reinsert-orient-tip-lock-enabled
+--guard-final-servo-contact-reinsert-orient-tip-lock-drift-gain 2.0
+--guard-final-servo-contact-reinsert-orient-tip-lock-max-offset 0.004
+--guard-final-servo-contact-reinsert-high-reapproach-enabled
+--guard-final-servo-contact-reinsert-high-reapproach-height 0.055
+--guard-final-servo-contact-reinsert-high-reapproach-release-xy 0.0045
+--guard-final-servo-contact-reinsert-high-reapproach-stable-steps 4
+--guard-final-servo-contact-reinsert-high-reapproach-max-steps 180
+--guard-final-servo-contact-reinsert-high-reapproach-max-xy-action 0.005
+--guard-final-servo-contact-reinsert-high-reapproach-max-up-action 0.005
+--guard-contact-reinsert-high-ik-orientation-weight 0.0
+--guard-final-servo-contact-reinsert-micro-align-enabled
+--guard-final-servo-contact-reinsert-micro-align-z-max 0.0095
+--guard-final-servo-contact-reinsert-micro-align-xy-max 0.0062
+--guard-final-servo-contact-reinsert-micro-align-release-xy 0.00495
+--guard-final-servo-contact-reinsert-micro-align-max-xy-action 0.005
+--guard-final-servo-contact-reinsert-micro-align-up-action 0.0004
+```
+
+Do not promote the v21-v39 variants. They locate the failure but do not solve
+it: low-Z reinsert reaches the Z success band but stalls around `5.65-5.75 mm`
+XY, and tight recenter loses its `4.7-4.9 mm` alignment while orientation is
+being corrected.
+
+Latest targeted results:
+
+- v35 tip-lock: timeout. Tip-lock was active, but orient hold still moved XY
+  from about `4.66 mm` to `7.1 mm` while reducing tilt to about `7.1 deg`.
+- v36/v37 high re-approach with high-stage IK `0.06`: collision risk; XY can
+  drift to `26-38 mm` during high lift/realign.
+- v38 high-stage IK `0.0`: timeout; high realign stalls around `11-12 mm` XY
+  and `15 deg` tilt.
+- v39 high-stage IK `0.02`: timeout; high realign stalls around `13-14 mm` XY
+  and `14 deg` tilt.
+
+Next useful implementation should be constrained tip-pivot pose servo or
+DAgger/failure-correction data for orientation-induced tip drift, not another
+one-parameter scan.

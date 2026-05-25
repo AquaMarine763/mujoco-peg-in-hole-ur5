@@ -28,7 +28,7 @@ from peg_in_hole_mujoco.paths import resolve_model_path
 
 ObservationMode = Literal["image", "state"]
 InitializationMode = Literal["fixed", "target_relative_high_start"]
-IkControlMode = Literal["position", "pose"]
+IkControlMode = Literal["position", "pose", "pose_tip_priority"]
 GeometryProfile = Literal["single", "round_square", "square_square", "mixed_basic"]
 DomainRandomizationLevel = Literal[
     "none",
@@ -214,8 +214,10 @@ class PegInHoleMujocoEnv(gym.Env):
                 + ", ".join(INITIALIZATION_MODES)
                 + "."
             )
-        if ik_control_mode not in ("position", "pose"):
-            raise ValueError("ik_control_mode must be 'position' or 'pose'.")
+        if ik_control_mode not in ("position", "pose", "pose_tip_priority"):
+            raise ValueError(
+                "ik_control_mode must be 'position', 'pose', or 'pose_tip_priority'."
+            )
         if domain_randomization_level not in DOMAIN_RANDOMIZATION_LEVELS:
             raise ValueError(
                 "domain_randomization_level must be one of: "
@@ -258,6 +260,7 @@ class PegInHoleMujocoEnv(gym.Env):
         self.distance_reward_scale = float(distance_reward_scale)
         self.action_penalty_scale = float(action_penalty_scale)
         self.action_alignment_scale = float(action_alignment_scale)
+        self.requested_ik_joint_count = ik_joint_count
         self.ik_control_mode = ik_control_mode
         self.ik_orientation_weight = float(ik_orientation_weight)
         self.ik_posture_weight = float(ik_posture_weight)
@@ -378,8 +381,10 @@ class PegInHoleMujocoEnv(gym.Env):
             [self.model.jnt_dofadr[joint_id] for joint_id in self.arm_joint_ids],
             dtype=np.int32,
         )
-        self.ik_joint_count = self._resolve_ik_joint_count(ik_joint_count)
-        if self.ik_control_mode == "pose":
+        self.ik_joint_count = self._resolve_ik_joint_count(
+            self.requested_ik_joint_count
+        )
+        if self.ik_control_mode in ("pose", "pose_tip_priority"):
             self.ik_joint_count = len(self.ARM_JOINT_NAMES)
         self.arm_actuator_ids = np.asarray(
             [self._actuator_id(f"{name}_ctrl") for name in self.ARM_JOINT_NAMES],
@@ -913,6 +918,19 @@ class PegInHoleMujocoEnv(gym.Env):
                 f"ik_joint_count must be between 1 and {len(self.ARM_JOINT_NAMES)}, got {count}."
             )
         return count
+
+    def set_ik_control_mode(self, ik_control_mode: IkControlMode) -> None:
+        if ik_control_mode not in ("position", "pose", "pose_tip_priority"):
+            raise ValueError(
+                "ik_control_mode must be 'position', 'pose', or 'pose_tip_priority'."
+            )
+        self.ik_control_mode = ik_control_mode
+        if ik_control_mode in ("pose", "pose_tip_priority"):
+            self.ik_joint_count = len(self.ARM_JOINT_NAMES)
+        else:
+            self.ik_joint_count = self._resolve_ik_joint_count(
+                self.requested_ik_joint_count
+            )
 
     def _set_arm_qpos(self, data: mujoco.MjData, qpos: np.ndarray) -> None:
         data.qpos[self.arm_qpos_ids] = qpos
@@ -1542,6 +1560,8 @@ class PegInHoleMujocoEnv(gym.Env):
     ) -> tuple[np.ndarray, np.ndarray, float, int]:
         if self.ik_control_mode == "pose":
             return self._solve_pose_ik_with_diagnostics(target_pos)
+        if self.ik_control_mode == "pose_tip_priority":
+            return self._solve_tip_priority_pose_ik_with_diagnostics(target_pos)
         return self._solve_position_ik_with_diagnostics(target_pos)
 
     def _solve_position_ik(self, target_pos: np.ndarray) -> np.ndarray:
@@ -1657,6 +1677,88 @@ class PegInHoleMujocoEnv(gym.Env):
                 dq = np.linalg.solve(lhs, rhs)
             except np.linalg.LinAlgError:
                 dq = np.linalg.lstsq(lhs, rhs, rcond=None)[0]
+            dq = np.clip(dq, -self.ik_step_limit, self.ik_step_limit)
+            q = np.clip(q + dq, lower, upper)
+
+        data.qpos[self.arm_qpos_ids] = q
+        mujoco.mj_forward(self.model, data)
+        achieved_tip = data.site_xpos[self.peg_tip_site_id].copy()
+        error = float(np.linalg.norm(target_pos - achieved_tip))
+        return q, achieved_tip, error, iterations
+
+    def _solve_tip_priority_pose_ik_with_diagnostics(
+        self,
+        target_pos: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray, float, int]:
+        data = self.ik_data
+        data.qpos[:] = self.data.qpos
+        data.qvel[:] = 0.0
+        data.mocap_pos[:] = self.data.mocap_pos
+        data.mocap_quat[:] = self.data.mocap_quat
+
+        q = data.qpos[self.arm_qpos_ids].copy()
+        ik_dof_ids = self.arm_dof_ids
+        lower = self.joint_ranges[:, 0]
+        upper = self.joint_ranges[:, 1]
+        target_pos = np.asarray(target_pos, dtype=np.float64).reshape(3)
+
+        jacp = np.zeros((3, self.model.nv), dtype=np.float64)
+        jacr = np.zeros((3, self.model.nv), dtype=np.float64)
+        pos_damping = 1e-5
+        rot_damping = 1e-4
+        iterations = 0
+
+        for iteration in range(self.ik_max_iterations):
+            iterations = iteration + 1
+            data.qpos[self.arm_qpos_ids] = q
+            mujoco.mj_forward(self.model, data)
+
+            pos_error = target_pos - data.site_xpos[self.peg_tip_site_id]
+            current_xmat = self._site_xmat(data, self.peg_tip_site_id)
+            rot_error = self._rotation_error(current_xmat, self.pose_ik_target_xmat)
+            if np.linalg.norm(pos_error) < 1e-4 and np.linalg.norm(rot_error) < 2e-3:
+                break
+
+            mujoco.mj_jacSite(self.model, data, jacp, jacr, self.peg_tip_site_id)
+            jpos = jacp[:, ik_dof_ids]
+            jrot = jacr[:, ik_dof_ids]
+
+            pos_lhs = jpos @ jpos.T + pos_damping * np.eye(3, dtype=np.float64)
+            try:
+                jpos_pinv = jpos.T @ np.linalg.inv(pos_lhs)
+                dq_pos = jpos_pinv @ pos_error
+            except np.linalg.LinAlgError:
+                jpos_pinv = np.linalg.pinv(jpos)
+                dq_pos = jpos_pinv @ pos_error
+
+            identity = np.eye(len(ik_dof_ids), dtype=np.float64)
+            nullspace = identity - jpos_pinv @ jpos
+            dq_rot = np.zeros_like(q)
+            if self.ik_orientation_weight > 0.0:
+                jrot_null = jrot @ nullspace
+                rot_lhs = jrot_null @ jrot_null.T + rot_damping * np.eye(
+                    3,
+                    dtype=np.float64,
+                )
+                try:
+                    rot_step = jrot_null.T @ np.linalg.solve(rot_lhs, rot_error)
+                except np.linalg.LinAlgError:
+                    rot_step = np.linalg.lstsq(jrot_null, rot_error, rcond=None)[0]
+                dq_rot = (
+                    self.ik_orientation_weight
+                    * nullspace
+                    @ np.asarray(rot_step, dtype=np.float64)
+                )
+
+            dq_posture = np.zeros_like(q)
+            if self.ik_posture_weight > 0.0:
+                dq_posture = (
+                    self.ik_posture_weight
+                    * nullspace
+                    @ (self.rest_qpos - q)
+                )
+
+            dq = dq_pos + dq_rot + dq_posture
             dq = np.clip(dq, -self.ik_step_limit, self.ik_step_limit)
             q = np.clip(q + dq, lower, upper)
 

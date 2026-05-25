@@ -1,6 +1,6 @@
 # Project Plan And Status
 
-Last updated: 2026-05-22
+Last updated: 2026-05-25
 
 This file records the current project status, known metrics, and next planned steps. Keep it current when a milestone changes.
 
@@ -17,9 +17,11 @@ The immediate objective on `feature/multi-geometry` is to keep the single-geomet
 
 ## Current Branch And Remote
 
-- Branch: `feature/multi-geometry`
+- Active working branch: `feature/contact-aware-reinsert`
+- Base candidate branch: `feature/multi-geometry`
 - Remote: `https://github.com/AquaMarine763/mujoco-peg-in-hole-ur5.git`
 - Latest local single-geometry milestone: `v0.6.50-single-geometry` / `4a0f65f Promote strict single-geometry high-start baseline`
+- Latest pushed multi-geometry milestone: `v0.7.0-multi-geometry-split-servo`
 
 ## Multi-Geometry Branch Status
 
@@ -150,14 +152,96 @@ Implemented so far:
     - remaining `single`/`round_square` failures `612010/612032` are also high-contact, high-tilt insert-band timeouts, not square-only geometry failures.
     - `square_square` failures `612010/612021/612032` show high insert-band wall contact (`0.83 - 0.86`) and final tilt around `15 - 20 deg`; contact unjam activates but does not yet produce a reliable reinsertion.
     - `mixed_basic` sampled `square_square` on its failing seeds and shows the same high-contact timeout pattern.
+- Contact-aware reinsert follow-up branch:
+  - Branch: `feature/contact-aware-reinsert`.
+  - Implemented opt-in general contact reinsert with `--guard-final-servo-contact-reinsert-enabled`, so `contact_unjam_lift/contact_unjam_recenter` can be tested outside square-only split recovery.
+  - Added wall-direction contact fields to guarded state and optional `--guard-final-servo-contact-unjam-wall-bias`; early v2 wall-bias diagnostics did not rescue the targeted seeds.
+  - Added phase-local IK overrides:
+    - `--guard-final-servo-ik-orientation-weight`
+    - `--guard-contact-unjam-ik-orientation-weight`
+  - v6 final-servo-only `0.03` did not rescue `square_square/612021`; it still timed out with final tilt around `18 deg`.
+  - v7 high hover `40 mm` plus final-servo IK `0.12` reduced tilt to about `4 deg`, but hurt XY tracking and left the episode stuck high, so that setting is not usable.
+  - v8 medium hover `25 mm`, stable steps `8`, and final-servo IK `0.06` rescued `square_square/612021` with zero collision.
+  - The same v8 setting did not rescue the common `612010/612032` failures across profiles. `612010` still becomes a high-tilt contact/recenter timeout; `612032` can get stuck in final-servo align-hover when XY drifts outside the useful band.
+  - Contact-only IK relaxation (`--guard-contact-unjam-ik-orientation-weight 0.0`) improves `612010` XY recentering but allows tilt to grow too much; it is diagnostic only.
+  - Added default-off final-servo align-hover timeout with `--guard-final-servo-align-timeout-steps` and `--guard-final-servo-align-timeout-xy`. v12 confirms it prevents indefinite align-hover holding on `612032`, but it does not rescue the seed because the subsequent recovery/recenter consumes too many steps.
+  - Added a default-off phase-specific reinsert path:
+    - `contact_reinsert_orient_hold`
+    - `contact_reinsert_descend`
+    - `--guard-contact-reinsert-orient-ik-orientation-weight`
+    - `--guard-final-servo-contact-reinsert-orient-*`
+    - `--guard-final-servo-contact-reinsert-descend-max-steps`
+  - v15/v16 show the phase-local strong IK idea works: `612010` contact reinsert can reduce tilt from about `18 deg` to about `8 deg` without the global `0.12` IK collision regression.
+  - v18/v19 show the new reinsert descent is much closer but still not successful. It can keep tilt near `8 deg` and descend to the success Z band (`min_dist_z` about `8.1 mm`), but XY stalls around `5.7 mm`, just outside the `5 mm` strict success threshold.
+  - v20 adds wall relief into `contact_reinsert_descend`; on `612010` this did not materially improve the final XY stall.
+  - v35-v39 tip-lock and high re-approach scans were negative. Tip-lock did not preserve XY during orientation hold, and high re-approach either drifted too far in XY or failed to reduce tilt enough.
+  - Added `pose_tip_priority` IK mode as an opt-in controller mode. Global `--ik-control-mode pose_tip_priority` is not usable for the learned policy path because it changes the nominal trajectory too much.
+  - Added phase-local tip-priority switches:
+    - `--guard-contact-reinsert-tip-priority-ik-enabled`
+    - `--guard-final-servo-tip-priority-ik-enabled`
+  - v41 contact-reinsert-only tip-priority rescued `single/612010` and `square_square/612021`, but not `single/612032` or `square_square/612010`.
+  - v42 final-servo-wide tip-priority rescued the remaining targeted `single/612032` and `square_square/612010` cases.
+  - v42 profile gates on seed `612000`:
+    - 20ep matrix: `single=1.000`, `round_square=1.000`, `square_square=1.000`, `mixed_basic=1.000`, all zero collision and zero timeout.
+    - 60ep matrix: `single=1.000`, `round_square=1.000`, `square_square=1.000`, `mixed_basic=1.000`, all zero collision and zero timeout.
+  - Additional v42 seed smoke on seed `613000`, 10 episodes per profile: `single=1.000`, `round_square=1.000`, `square_square=1.000`, `mixed_basic=1.000`, all zero collision and zero timeout. Output directory: `D:\peg-in-hole-6yh\v42_tip_priority_seed613000_matrix10`.
+  - Additional v42 seed gate on seed `614000`, 20 episodes per profile: `single=1.000`, `round_square=1.000`, `square_square=1.000`, `mixed_basic=1.000`, all zero collision and zero timeout. Output directory: `D:\peg-in-hole-6yh\v42_tip_priority_seed614000_matrix20`.
+  - Larger v42 gate on seeds `615000/616000/617000`, 20 episodes per profile:
+    - strict 1000-step v42 result: `236/240 = 0.983` overall success, zero collisions.
+    - each profile had one timeout on `seed615000/episode0`; all other episodes succeeded.
+    - failure type: approach-stage timeout before final-servo handoff, not insertion wedging. The failures stalled around `16.7 mm` XY and `65 mm` Z, with `final_servo_steps=0`, under a hard control-randomization draw (`action_scale_multiplier=0.849`, `delay=2`, `filter_alpha=0.698`).
+    - output directory: `D:\peg-in-hole-6yh\v42_tip_priority_multiseed_matrix20`.
+  - Wide-handoff probe:
+    - overrides: `guard_approach_recenter_trigger_xy=0.018`, `guard_approach_recenter_stable_xy=0.017`, `guard_final_servo_start_xy=0.018`.
+    - targeted `single/615000` succeeded; lowering approach recenter height to `55 mm` caused collision and is rejected.
+    - wide-handoff 3-seed matrix improved strict 1000-step result to `238/240 = 0.992`, zero collisions.
+    - `single` and `round_square` reached `60/60`; `square_square` and `mixed_basic` reached `59/60`.
+    - remaining failures are `square_square/615000/episode0` and `mixed_basic/615000/episode0`; both are square-square geometry cases that enter final-servo, get very close, and then run out of the 1000-step budget.
+    - output directory: `D:\peg-in-hole-6yh\v43_tip_priority_widehandoff_multiseed_matrix20`.
+  - Remaining square timeout probes:
+    - `max_steps=1500` plus wide-handoff rescues both remaining known failures. `square_square/615000` succeeds in `1242` steps; `mixed_basic/615000` succeeds in `1158` steps.
+    - increasing `guard_final_servo_max_down_action` to `0.0020` or `0.0025` did not rescue the 1000-step square failures, so the bottleneck is final-servo recovery time/phase sequencing rather than a simple descent speed cap.
+    - output directory: `D:\peg-in-hole-6yh\v43_seed615000_square_timeout_probes`.
+  - Strict 1000-step square fast-settle follow-up:
+    - Added default-off `guard_final_servo_square_fast_settle_*` knobs and a new `square_fast_settle` final-servo phase.
+    - The phase is square-only and only triggers when the tip is close, low, low-tilt, and low-contact. It bypasses the slow hover/stable/recovery loop and applies direct XY correction plus bounded descent.
+    - Added CLI/config wiring in guarded eval, demo, and inference scripts.
+    - Added `scripts\analyze_final_servo_phase_trace.py` to summarize phase counts from step traces.
+    - Targeted known failures under strict `max_steps=1000` are now rescued:
+      - `square_square/615000/episode0`: success in `858` steps, no collision, final phase `square_fast_settle`.
+      - `mixed_basic/615000/episode0`: success in `772` steps, no collision, final phase `square_fast_settle`.
+    - v44 3-seed profile gate with wide-handoff plus square-fast-settle reached `240/240 = 1.000` success, zero collisions, zero timeouts.
+      - `single`: `60/60`
+      - `round_square`: `60/60`
+      - `square_square`: `60/60`
+      - `mixed_basic`: `60/60`
+    - output directories:
+      - targeted probes: `D:\peg-in-hole-6yh\v44_square_fast_settle_probes`
+      - 20ep x 3-seed matrix: `D:\peg-in-hole-6yh\v44_square_fast_settle_multiseed_matrix20`
+      - demo: `D:\peg-in-hole-6yh\v44_square_fast_settle_demos`
+    - New reusable v44 configs:
+      - `configs\sim\ur5e_full\eval_multi_geometry_contact_reinsert_tip_priority_square_fast_settle_60ep.yaml`
+      - `configs\sim\ur5e_full\demo_multi_geometry_contact_reinsert_tip_priority_square_fast_settle.yaml`
+    - v44 demo result:
+      - `square_square/615000`: success in `686` steps, no collision, final XY/Z about `1.14 mm / 9.79 mm`, final phase `square_fast_settle`.
+  - New reusable 60ep config: `configs\sim\ur5e_full\eval_multi_geometry_contact_reinsert_tip_priority_60ep.yaml`.
+  - New demo config: `configs\sim\ur5e_full\demo_multi_geometry_contact_reinsert_tip_priority.yaml`.
+  - Demo result on seed `614000`:
+    - `single`: success in `316` steps, `guard_steps=96`, final XY/Z about `1.34 mm / 9.40 mm`.
+    - `square_square`: success in `315` steps, `guard_steps=95`, final XY/Z about `1.33 mm / 9.67 mm`.
+    - GIFs are `2560x720`, overview plus wrist camera. Output directory: `D:\peg-in-hole-6yh\v42_tip_priority_demos`.
+    - Important: `scripts\demo_policy.py` must be run with `--guarded-policy`; without it the demo is policy-only and can timeout with `guard_steps=0`.
+  - Config smoke passed on 2026-05-24 with `single/seed612000`, `1/1` success. The local Codex shell could not create a new directory under repo `results\...` because of Windows permissions, so the smoke command overrode output paths to `D:\peg-in-hole-6yh\config_smoke*.csv/md`.
+  - Current conclusion: wide-handoff plus square-fast-settle on top of phase-local final-servo/contact-reinsert tip-priority IK is the current strict 1000-step contact-aware reinsert candidate. Keep nominal `ik_control_mode: pose`; do not enable `pose_tip_priority` globally.
 
 Next step:
 
 - Do not scale square-square insert-settle BC replay by default; w05 was behaviorally flat under the current guarded deployment.
 - Keep square recovery as a diagnostic hook, not a default.
-- Treat split final-servo as the current best opt-in multi-geometry guarded controller setting after both 20ep and 60ep profile gates passed with zero collisions.
-- Before tagging/pushing, decide whether to commit the 60ep compact summaries only. Do not commit the large failure step traces unless specifically needed for debugging.
-- Then focus on the remaining hard cases `612010/612032` and the square-only extra timeout `612021`. Since `single` and `round_square` also fail through high-contact/high-tilt insert-band stalls, the next unjam design should be contact-aware and not square-only. Useful next diagnostics are a more deliberate retreat/recenter/reinsert sequence, phase-local IK/posture control during unjam, or a controlled orientation/clearance scan around high-tilt contact seeds.
+- Treat wide-handoff plus square-fast-settle plus phase-local final-servo/contact-reinsert tip-priority as the current best opt-in multi-geometry guarded controller setting under strict `max_steps=1000`.
+- Before tagging/pushing, commit the code/config/docs selectively. Do not add the large untracked result traces unless a compact summary is specifically needed.
+- Next technical work should package v44 cleanly: add a named config or config override snippet for square-fast-settle, generate updated demos, and optionally tag/push when requested.
+- After v44 is packaged, restart multi-geometry learning work from this stronger guarded controller instead of scaling the old w05 insert-settle replay.
 - Keep the data plumbing and 2k correction dataset as a reusable diagnostic asset, but do not promote the w05 checkpoint as a new default.
 
 ## Implemented So Far
@@ -2814,6 +2898,40 @@ Interpretation:
    - crop inspection
    - calibration/config validation
    - synthetic or recorded replay
+
+## Contact-Aware Reinsert Diagnostics
+
+- Branch `feature/contact-aware-reinsert` is still experimental and is not promoted.
+- New guarded-controller hooks are implemented and default off:
+  - `contact_reinsert_orient_hold`
+  - `contact_reinsert_descend`
+  - `contact_reinsert_micro_align`
+  - phase-specific `guard_final_servo_contact_reinsert_orient_max_xy_action`
+  - optional micro-align up action
+  - tip-locked orient hold drift compensation
+  - high-clearance re-approach phases `contact_reinsert_high_lift` / `contact_reinsert_high_realign`
+- Target seed `single/612010` remained timeout-only through v39, then was rescued by the v42 phase-local tip-priority candidate.
+- Best diagnosis so far:
+  - phase-local strong orientation can reduce tilt from about `18 deg` to `7-8 deg`
+  - reinsert can reach the Z success band around `8 mm`
+  - XY still stalls around `5.65-5.75 mm`, just outside the `5 mm` success threshold
+  - tight contact-unjam recenter can briefly reach `4.7-4.9 mm` XY, but subsequent orientation correction moves the peg tip back out to `6-7 mm`
+- Negative results to avoid repeating:
+  - lateral-only micro-align at low Z did not reduce the residual XY error
+  - micro-align with 0.4mm/step or 1.5mm/step upward unload did not clear wall contact
+  - global `guard_final_servo_max_xy_action` of `0.0035-0.005` caused collision through later recovery behavior
+  - phase-local orient max XY up to `0.005` still did not preserve XY during tilt correction
+  - reinsert orientation IK weight `0.20` reduced tilt to about `4 deg` but worsened XY tracking
+- v35 tip-lock result on `single/612010`: timeout. Tip-lock was active for 100 orient-hold steps, but XY still moved from about `4.66 mm` to `7.1 mm`; tilt improved to about `7.1 deg`. Stop the tip-lock line.
+- v36-v39 high-clearance re-approach result on `single/612010`: not promoted.
+  - With high-stage IK `0.06`, high re-approach lowered tilt to about `9 deg` but moved XY out to `26-38 mm` and could collide during recovery.
+  - With high-stage IK `0.0`, it avoided collision but did not reduce tilt; high realign stalled around `11-12 mm` XY and `15 deg` tilt.
+  - With high-stage IK `0.02`, it still timed out around `13-14 mm` XY and `14 deg` tilt.
+- v40-v42 tip-priority IK result:
+  - Added `pose_tip_priority` IK mode and default-off phase-local switches for contact reinsert and final servo.
+  - Global `pose_tip_priority` is not promoted because it disrupts the learned approach trajectory.
+  - Phase-local final-servo/contact-reinsert tip-priority fixed the known hard seeds and reached `1.000/0.000/0.000` on 20ep and 60ep profile matrices for `single`, `round_square`, `square_square`, and `mixed_basic` on seed `612000`.
+- Current conclusion: the scalar orientation-weight line is closed, and v42 phase-local tip-priority is the current contact-aware candidate. Next work should stress-test v42 with larger/multi-seed gates and demos before promotion/tagging.
 
 ## Key Commands
 

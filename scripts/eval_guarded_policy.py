@@ -215,6 +215,8 @@ STEP_TRACE_FIELDNAMES = [
     "guard_final_servo_square_recovery_triggered",
     "guard_final_servo_square_recovery_tilt_steps",
     "guard_final_servo_contact_unjam_wall_steps",
+    "guard_final_servo_contact_reinsert_orient_tip_lock_active",
+    "guard_final_servo_contact_reinsert_orient_tip_lock_drift_xy",
     "guard_final_servo_near_miss_steps",
     "policy_action_x",
     "policy_action_y",
@@ -341,9 +343,19 @@ def build_parser(
     parser.add_argument("--initial-tip-xy-offset-range", nargs=2, type=float, default=(0.08, 0.16))
     parser.add_argument("--initial-tip-xy-angle-range-deg", nargs=2, type=float, default=(0.0, 360.0))
     parser.add_argument("--initial-ik-max-attempts", type=int, default=20)
-    parser.add_argument("--ik-control-mode", choices=["position", "pose"], default="position")
+    parser.add_argument(
+        "--ik-control-mode",
+        choices=["position", "pose", "pose_tip_priority"],
+        default="position",
+    )
     parser.add_argument("--ik-orientation-weight", type=float, default=0.12)
     parser.add_argument("--guard-near-ik-orientation-weight", type=float, default=None)
+    parser.add_argument("--guard-final-servo-ik-orientation-weight", type=float, default=None)
+    parser.add_argument("--guard-final-servo-tip-priority-ik-enabled", action="store_true")
+    parser.add_argument("--guard-contact-unjam-ik-orientation-weight", type=float, default=None)
+    parser.add_argument("--guard-contact-reinsert-orient-ik-orientation-weight", type=float, default=None)
+    parser.add_argument("--guard-contact-reinsert-high-ik-orientation-weight", type=float, default=None)
+    parser.add_argument("--guard-contact-reinsert-tip-priority-ik-enabled", action="store_true")
     parser.add_argument("--ik-posture-weight", type=float, default=0.01)
     parser.add_argument("--ik-step-limit", type=float, default=0.06)
     parser.add_argument("--ik-max-iterations", type=int, default=24)
@@ -477,6 +489,8 @@ def build_parser(
     parser.add_argument("--guard-final-servo-descent-start-xy", type=float, default=0.0)
     parser.add_argument("--guard-final-servo-stable-steps", type=int, default=6)
     parser.add_argument("--guard-final-servo-release-xy", type=float, default=0.008)
+    parser.add_argument("--guard-final-servo-align-timeout-steps", type=int, default=0)
+    parser.add_argument("--guard-final-servo-align-timeout-xy", type=float, default=0.0)
     parser.add_argument("--guard-final-servo-max-xy-action", type=float, default=0.0025)
     parser.add_argument("--guard-final-servo-max-down-action", type=float, default=0.0015)
     parser.add_argument("--guard-final-servo-low-recenter-enabled", action="store_true")
@@ -534,6 +548,7 @@ def build_parser(
     parser.add_argument("--guard-final-servo-square-recovery-xy-max", type=float, default=0.014)
     parser.add_argument("--guard-final-servo-square-recovery-lift-height", type=float, default=0.035)
     parser.add_argument("--guard-final-servo-split-recovery-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-contact-reinsert-enabled", action="store_true")
     parser.add_argument("--guard-final-servo-contact-unjam-wall-steps", type=int, default=8)
     parser.add_argument("--guard-final-servo-contact-unjam-tilt-deg", type=float, default=12.0)
     parser.add_argument("--guard-final-servo-contact-unjam-z-max", type=float, default=0.025)
@@ -541,6 +556,33 @@ def build_parser(
     parser.add_argument("--guard-final-servo-contact-unjam-lift-height", type=float, default=0.055)
     parser.add_argument("--guard-final-servo-contact-unjam-release-xy", type=float, default=0.0055)
     parser.add_argument("--guard-final-servo-contact-unjam-max-up-action", type=float, default=0.005)
+    parser.add_argument("--guard-final-servo-contact-unjam-wall-bias", type=float, default=0.0)
+    parser.add_argument("--guard-final-servo-contact-reinsert-orient-hold-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-contact-reinsert-orient-tilt-deg", type=float, default=10.0)
+    parser.add_argument("--guard-final-servo-contact-reinsert-orient-stable-steps", type=int, default=4)
+    parser.add_argument("--guard-final-servo-contact-reinsert-orient-max-steps", type=int, default=80)
+    parser.add_argument("--guard-final-servo-contact-reinsert-orient-max-xy-action", type=float, default=0.0)
+    parser.add_argument("--guard-final-servo-contact-reinsert-orient-tip-lock-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-contact-reinsert-orient-tip-lock-drift-gain", type=float, default=2.0)
+    parser.add_argument("--guard-final-servo-contact-reinsert-orient-tip-lock-max-offset", type=float, default=0.004)
+    parser.add_argument("--guard-final-servo-contact-reinsert-high-reapproach-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-contact-reinsert-high-reapproach-height", type=float, default=0.055)
+    parser.add_argument("--guard-final-servo-contact-reinsert-high-reapproach-release-xy", type=float, default=0.0045)
+    parser.add_argument("--guard-final-servo-contact-reinsert-high-reapproach-stable-steps", type=int, default=4)
+    parser.add_argument("--guard-final-servo-contact-reinsert-high-reapproach-max-steps", type=int, default=180)
+    parser.add_argument("--guard-final-servo-contact-reinsert-high-reapproach-max-xy-action", type=float, default=0.005)
+    parser.add_argument("--guard-final-servo-contact-reinsert-high-reapproach-max-up-action", type=float, default=0.005)
+    parser.add_argument("--guard-final-servo-contact-reinsert-descend-max-steps", type=int, default=180)
+    parser.add_argument("--guard-final-servo-contact-reinsert-micro-align-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-contact-reinsert-micro-align-z-max", type=float, default=0.012)
+    parser.add_argument("--guard-final-servo-contact-reinsert-micro-align-xy-max", type=float, default=0.0068)
+    parser.add_argument("--guard-final-servo-contact-reinsert-micro-align-release-xy", type=float, default=0.0050)
+    parser.add_argument("--guard-final-servo-contact-reinsert-micro-align-tilt-deg", type=float, default=9.0)
+    parser.add_argument("--guard-final-servo-contact-reinsert-micro-align-max-steps", type=int, default=120)
+    parser.add_argument("--guard-final-servo-contact-reinsert-micro-align-stall-steps", type=int, default=40)
+    parser.add_argument("--guard-final-servo-contact-reinsert-micro-align-min-xy-progress", type=float, default=0.00003)
+    parser.add_argument("--guard-final-servo-contact-reinsert-micro-align-max-xy-action", type=float, default=0.0015)
+    parser.add_argument("--guard-final-servo-contact-reinsert-micro-align-up-action", type=float, default=0.0)
     parser.add_argument("--guard-final-servo-near-miss-steps", type=int, default=40)
     parser.add_argument("--guard-final-servo-near-miss-xy-max", type=float, default=0.0065)
     parser.add_argument("--guard-final-servo-near-miss-z-max", type=float, default=0.055)
@@ -549,6 +591,15 @@ def build_parser(
     parser.add_argument("--guard-final-servo-near-miss-max-steps", type=int, default=180)
     parser.add_argument("--guard-final-servo-near-miss-max-down-action", type=float, default=0.0015)
     parser.add_argument("--guard-final-servo-near-miss-xy-bias", nargs=2, type=float, default=(0.0, 0.0))
+    parser.add_argument("--guard-final-servo-square-fast-settle-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-fast-settle-xy-max", type=float, default=0.008)
+    parser.add_argument("--guard-final-servo-square-fast-settle-z-max", type=float, default=0.040)
+    parser.add_argument("--guard-final-servo-square-fast-settle-release-xy", type=float, default=0.005)
+    parser.add_argument("--guard-final-servo-square-fast-settle-tilt-max-deg", type=float, default=8.0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-max", type=int, default=0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-max-steps", type=int, default=260)
+    parser.add_argument("--guard-final-servo-square-fast-settle-max-xy-action", type=float, default=0.008)
+    parser.add_argument("--guard-final-servo-square-fast-settle-max-down-action", type=float, default=0.0020)
     parser.add_argument(
         "--guarded-oracle-mode",
         choices=[
@@ -761,6 +812,10 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         guard_final_servo_descent_start_xy=args.guard_final_servo_descent_start_xy,
         guard_final_servo_stable_steps=args.guard_final_servo_stable_steps,
         guard_final_servo_release_xy=args.guard_final_servo_release_xy,
+        guard_final_servo_align_timeout_steps=(
+            args.guard_final_servo_align_timeout_steps
+        ),
+        guard_final_servo_align_timeout_xy=args.guard_final_servo_align_timeout_xy,
         guard_final_servo_max_xy_action=args.guard_final_servo_max_xy_action,
         guard_final_servo_max_down_action=args.guard_final_servo_max_down_action,
         guard_final_servo_low_recenter_enabled=args.guard_final_servo_low_recenter_enabled,
@@ -826,6 +881,9 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         guard_final_servo_split_recovery_enabled=(
             args.guard_final_servo_split_recovery_enabled
         ),
+        guard_final_servo_contact_reinsert_enabled=(
+            args.guard_final_servo_contact_reinsert_enabled
+        ),
         guard_final_servo_contact_unjam_wall_steps=(
             args.guard_final_servo_contact_unjam_wall_steps
         ),
@@ -847,6 +905,87 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         guard_final_servo_contact_unjam_max_up_action=(
             args.guard_final_servo_contact_unjam_max_up_action
         ),
+        guard_final_servo_contact_unjam_wall_bias=(
+            args.guard_final_servo_contact_unjam_wall_bias
+        ),
+        guard_final_servo_contact_reinsert_orient_hold_enabled=(
+            args.guard_final_servo_contact_reinsert_orient_hold_enabled
+        ),
+        guard_final_servo_contact_reinsert_orient_tilt_deg=(
+            args.guard_final_servo_contact_reinsert_orient_tilt_deg
+        ),
+        guard_final_servo_contact_reinsert_orient_stable_steps=(
+            args.guard_final_servo_contact_reinsert_orient_stable_steps
+        ),
+        guard_final_servo_contact_reinsert_orient_max_steps=(
+            args.guard_final_servo_contact_reinsert_orient_max_steps
+        ),
+        guard_final_servo_contact_reinsert_orient_max_xy_action=(
+            args.guard_final_servo_contact_reinsert_orient_max_xy_action
+        ),
+        guard_final_servo_contact_reinsert_orient_tip_lock_enabled=(
+            args.guard_final_servo_contact_reinsert_orient_tip_lock_enabled
+        ),
+        guard_final_servo_contact_reinsert_orient_tip_lock_drift_gain=(
+            args.guard_final_servo_contact_reinsert_orient_tip_lock_drift_gain
+        ),
+        guard_final_servo_contact_reinsert_orient_tip_lock_max_offset=(
+            args.guard_final_servo_contact_reinsert_orient_tip_lock_max_offset
+        ),
+        guard_final_servo_contact_reinsert_high_reapproach_enabled=(
+            args.guard_final_servo_contact_reinsert_high_reapproach_enabled
+        ),
+        guard_final_servo_contact_reinsert_high_reapproach_height=(
+            args.guard_final_servo_contact_reinsert_high_reapproach_height
+        ),
+        guard_final_servo_contact_reinsert_high_reapproach_release_xy=(
+            args.guard_final_servo_contact_reinsert_high_reapproach_release_xy
+        ),
+        guard_final_servo_contact_reinsert_high_reapproach_stable_steps=(
+            args.guard_final_servo_contact_reinsert_high_reapproach_stable_steps
+        ),
+        guard_final_servo_contact_reinsert_high_reapproach_max_steps=(
+            args.guard_final_servo_contact_reinsert_high_reapproach_max_steps
+        ),
+        guard_final_servo_contact_reinsert_high_reapproach_max_xy_action=(
+            args.guard_final_servo_contact_reinsert_high_reapproach_max_xy_action
+        ),
+        guard_final_servo_contact_reinsert_high_reapproach_max_up_action=(
+            args.guard_final_servo_contact_reinsert_high_reapproach_max_up_action
+        ),
+        guard_final_servo_contact_reinsert_descend_max_steps=(
+            args.guard_final_servo_contact_reinsert_descend_max_steps
+        ),
+        guard_final_servo_contact_reinsert_micro_align_enabled=(
+            args.guard_final_servo_contact_reinsert_micro_align_enabled
+        ),
+        guard_final_servo_contact_reinsert_micro_align_z_max=(
+            args.guard_final_servo_contact_reinsert_micro_align_z_max
+        ),
+        guard_final_servo_contact_reinsert_micro_align_xy_max=(
+            args.guard_final_servo_contact_reinsert_micro_align_xy_max
+        ),
+        guard_final_servo_contact_reinsert_micro_align_release_xy=(
+            args.guard_final_servo_contact_reinsert_micro_align_release_xy
+        ),
+        guard_final_servo_contact_reinsert_micro_align_tilt_deg=(
+            args.guard_final_servo_contact_reinsert_micro_align_tilt_deg
+        ),
+        guard_final_servo_contact_reinsert_micro_align_max_steps=(
+            args.guard_final_servo_contact_reinsert_micro_align_max_steps
+        ),
+        guard_final_servo_contact_reinsert_micro_align_stall_steps=(
+            args.guard_final_servo_contact_reinsert_micro_align_stall_steps
+        ),
+        guard_final_servo_contact_reinsert_micro_align_min_xy_progress=(
+            args.guard_final_servo_contact_reinsert_micro_align_min_xy_progress
+        ),
+        guard_final_servo_contact_reinsert_micro_align_max_xy_action=(
+            args.guard_final_servo_contact_reinsert_micro_align_max_xy_action
+        ),
+        guard_final_servo_contact_reinsert_micro_align_up_action=(
+            args.guard_final_servo_contact_reinsert_micro_align_up_action
+        ),
         guard_final_servo_near_miss_steps=args.guard_final_servo_near_miss_steps,
         guard_final_servo_near_miss_xy_max=args.guard_final_servo_near_miss_xy_max,
         guard_final_servo_near_miss_z_max=args.guard_final_servo_near_miss_z_max,
@@ -862,6 +1001,33 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         ),
         guard_final_servo_near_miss_xy_bias=(
             tuple(args.guard_final_servo_near_miss_xy_bias)
+        ),
+        guard_final_servo_square_fast_settle_enabled=(
+            args.guard_final_servo_square_fast_settle_enabled
+        ),
+        guard_final_servo_square_fast_settle_xy_max=(
+            args.guard_final_servo_square_fast_settle_xy_max
+        ),
+        guard_final_servo_square_fast_settle_z_max=(
+            args.guard_final_servo_square_fast_settle_z_max
+        ),
+        guard_final_servo_square_fast_settle_release_xy=(
+            args.guard_final_servo_square_fast_settle_release_xy
+        ),
+        guard_final_servo_square_fast_settle_tilt_max_deg=(
+            args.guard_final_servo_square_fast_settle_tilt_max_deg
+        ),
+        guard_final_servo_square_fast_settle_contact_max=(
+            args.guard_final_servo_square_fast_settle_contact_max
+        ),
+        guard_final_servo_square_fast_settle_max_steps=(
+            args.guard_final_servo_square_fast_settle_max_steps
+        ),
+        guard_final_servo_square_fast_settle_max_xy_action=(
+            args.guard_final_servo_square_fast_settle_max_xy_action
+        ),
+        guard_final_servo_square_fast_settle_max_down_action=(
+            args.guard_final_servo_square_fast_settle_max_down_action
         ),
         oracle=OracleControllerConfig(
             mode=args.guarded_oracle_mode,
@@ -1230,6 +1396,16 @@ def build_step_trace_row(
         "guard_final_servo_contact_unjam_wall_steps": (
             int(step.guard_final_servo_contact_unjam_wall_steps) if step_guard else 0
         ),
+        "guard_final_servo_contact_reinsert_orient_tip_lock_active": (
+            bool(step.guard_final_servo_contact_reinsert_orient_tip_lock_active)
+            if step_guard
+            else False
+        ),
+        "guard_final_servo_contact_reinsert_orient_tip_lock_drift_xy": (
+            float(step.guard_final_servo_contact_reinsert_orient_tip_lock_drift_xy)
+            if step_guard
+            else 0.0
+        ),
         "guard_final_servo_near_miss_steps": (
             int(step.guard_final_servo_near_miss_steps) if step_guard else 0
         ),
@@ -1324,6 +1500,63 @@ def apply_guard_near_ik_orientation_weight(
     step: GuardedPolicyStep | None,
     args: argparse.Namespace,
 ) -> bool:
+    env.set_ik_control_mode(args.ik_control_mode)
+    if (
+        args.guard_final_servo_tip_priority_ik_enabled
+        and step is not None
+        and step.guard_final_servo_active
+    ):
+        env.set_ik_control_mode("pose_tip_priority")
+    contact_unjam_active = (
+        step is not None and str(step.guard_final_servo_phase).startswith("contact_unjam")
+    )
+    if (
+        args.guard_contact_unjam_ik_orientation_weight is not None
+        and contact_unjam_active
+    ):
+        env.set_ik_orientation_weight(args.guard_contact_unjam_ik_orientation_weight)
+        return True
+    contact_reinsert_high_active = step is not None and str(
+        step.guard_final_servo_phase
+    ) in (
+        "contact_reinsert_high_lift",
+        "contact_reinsert_high_realign",
+    )
+    if (
+        args.guard_contact_reinsert_high_ik_orientation_weight is not None
+        and contact_reinsert_high_active
+    ):
+        env.set_ik_orientation_weight(
+            args.guard_contact_reinsert_high_ik_orientation_weight
+        )
+        return True
+    contact_reinsert_orient_active = step is not None and str(
+        step.guard_final_servo_phase
+    ) in (
+        "contact_reinsert_orient_hold",
+        "contact_reinsert_descend",
+        "contact_reinsert_micro_align",
+    )
+    if (
+        args.guard_contact_reinsert_tip_priority_ik_enabled
+        and contact_reinsert_orient_active
+    ):
+        env.set_ik_control_mode("pose_tip_priority")
+    if (
+        args.guard_contact_reinsert_orient_ik_orientation_weight is not None
+        and contact_reinsert_orient_active
+    ):
+        env.set_ik_orientation_weight(
+            args.guard_contact_reinsert_orient_ik_orientation_weight
+        )
+        return True
+    if (
+        args.guard_final_servo_ik_orientation_weight is not None
+        and step is not None
+        and step.guard_final_servo_active
+    ):
+        env.set_ik_orientation_weight(args.guard_final_servo_ik_orientation_weight)
+        return True
     active = (
         args.guard_near_ik_orientation_weight is not None
         and guard_near_control_active(step, args)
@@ -1408,6 +1641,7 @@ def evaluate_scenario(
     try:
         for episode in range(args.episodes):
             episode_seed = args.seed + episode
+            env.set_ik_control_mode(args.ik_control_mode)
             env.set_ik_orientation_weight(args.ik_orientation_weight)
             obs, info = env.reset(seed=episode_seed)
             guarded_controller.reset()
@@ -1930,6 +2164,12 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- IK control mode: `{args.ik_control_mode}`",
         f"- IK orientation/posture weight: `{args.ik_orientation_weight}/{args.ik_posture_weight}`",
         f"- Guard near IK orientation weight: `{args.guard_near_ik_orientation_weight}`",
+        f"- Guard final servo IK orientation weight: `{args.guard_final_servo_ik_orientation_weight}`",
+        f"- Guard final servo tip-priority IK enabled: `{args.guard_final_servo_tip_priority_ik_enabled}`",
+        f"- Guard contact unjam IK orientation weight: `{args.guard_contact_unjam_ik_orientation_weight}`",
+        f"- Guard contact reinsert orient IK orientation weight: `{args.guard_contact_reinsert_orient_ik_orientation_weight}`",
+        f"- Guard contact reinsert high IK orientation weight: `{args.guard_contact_reinsert_high_ik_orientation_weight}`",
+        f"- Guard contact reinsert tip-priority IK enabled: `{args.guard_contact_reinsert_tip_priority_ik_enabled}`",
         f"- IK step limit/max iterations: `{args.ik_step_limit}/{args.ik_max_iterations}`",
         f"- Nominal joint damping / actuator Kp multiplier: `{args.nominal_joint_damping_multiplier}/{args.nominal_actuator_kp_multiplier}`",
         f"- Guard near actuator Kp enabled/multiplier: `{args.guard_near_actuator_kp_enabled}/{args.guard_near_actuator_kp_multiplier}`",
@@ -1966,6 +2206,7 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Guard final servo start XY/Z/min Z: `{args.guard_final_servo_start_xy}/{args.guard_final_servo_start_z}/{args.guard_final_servo_min_start_z}`",
         f"- Guard final servo hover/stable/descent-start/release: `{args.guard_final_servo_hover_height}/{args.guard_final_servo_stable_xy}/{args.guard_final_servo_descent_start_xy}/{args.guard_final_servo_release_xy}`",
         f"- Guard final servo stable/stall/retries: `{args.guard_final_servo_stable_steps}/{args.guard_final_servo_stall_steps}/{args.guard_final_servo_max_retries}`",
+        f"- Guard final servo align timeout steps/XY: `{args.guard_final_servo_align_timeout_steps}/{args.guard_final_servo_align_timeout_xy}`",
         f"- Guard final servo low recenter enabled/Z/trigger/release/height/steps/max steps/stall: `{args.guard_final_servo_low_recenter_enabled}/{args.guard_final_servo_low_recenter_z_max}/{args.guard_final_servo_low_recenter_trigger_xy}/{args.guard_final_servo_low_recenter_release_xy}/{args.guard_final_servo_low_recenter_height}/{args.guard_final_servo_low_recenter_stable_steps}/{args.guard_final_servo_low_recenter_max_steps}/{args.guard_final_servo_low_recenter_stall_steps}`",
         f"- Guard final servo max XY/down/descend bias/lift/recovery steps: `{args.guard_final_servo_max_xy_action}/{args.guard_final_servo_max_down_action}/{tuple(args.guard_final_servo_descend_xy_bias)}/{args.guard_final_servo_lift_height}/{args.guard_final_servo_max_recovery_steps}`",
         f"- Guard final servo descend bias max clearance: `{args.guard_final_servo_descend_xy_bias_max_clearance}`",
@@ -1973,8 +2214,13 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Guard final servo recovery mode/soft lift/min height/z tol/hold/max up: `{args.guard_final_servo_recovery_mode}/{args.guard_final_servo_soft_unjam_lift}/{args.guard_final_servo_soft_unjam_min_height}/{args.guard_final_servo_soft_unjam_z_tolerance}/{args.guard_final_servo_soft_unjam_hold_steps}/{args.guard_final_servo_soft_unjam_max_up_action}`",
         f"- Guard final servo square recovery enabled/tilt/steps/XY/Z/lift: `{args.guard_final_servo_square_recovery_enabled}/{args.guard_final_servo_square_recovery_tilt_deg}/{args.guard_final_servo_square_recovery_tilt_steps}/{args.guard_final_servo_square_recovery_xy_max}/{args.guard_final_servo_square_recovery_z_max}/{args.guard_final_servo_square_recovery_lift_height}`",
         f"- Guard final servo split recovery enabled: `{args.guard_final_servo_split_recovery_enabled}`",
-        f"- Guard final servo contact unjam steps/tilt/XY/Z/lift/release/max up: `{args.guard_final_servo_contact_unjam_wall_steps}/{args.guard_final_servo_contact_unjam_tilt_deg}/{args.guard_final_servo_contact_unjam_xy_max}/{args.guard_final_servo_contact_unjam_z_max}/{args.guard_final_servo_contact_unjam_lift_height}/{args.guard_final_servo_contact_unjam_release_xy}/{args.guard_final_servo_contact_unjam_max_up_action}`",
+        f"- Guard final servo contact reinsert enabled: `{args.guard_final_servo_contact_reinsert_enabled}`",
+        f"- Guard final servo contact unjam steps/tilt/XY/Z/lift/release/max up/wall bias: `{args.guard_final_servo_contact_unjam_wall_steps}/{args.guard_final_servo_contact_unjam_tilt_deg}/{args.guard_final_servo_contact_unjam_xy_max}/{args.guard_final_servo_contact_unjam_z_max}/{args.guard_final_servo_contact_unjam_lift_height}/{args.guard_final_servo_contact_unjam_release_xy}/{args.guard_final_servo_contact_unjam_max_up_action}/{args.guard_final_servo_contact_unjam_wall_bias}`",
+        f"- Guard final servo contact reinsert orient hold/tilt/steps/max steps/max XY/tip lock/gain/max offset/descend max: `{args.guard_final_servo_contact_reinsert_orient_hold_enabled}/{args.guard_final_servo_contact_reinsert_orient_tilt_deg}/{args.guard_final_servo_contact_reinsert_orient_stable_steps}/{args.guard_final_servo_contact_reinsert_orient_max_steps}/{args.guard_final_servo_contact_reinsert_orient_max_xy_action}/{args.guard_final_servo_contact_reinsert_orient_tip_lock_enabled}/{args.guard_final_servo_contact_reinsert_orient_tip_lock_drift_gain}/{args.guard_final_servo_contact_reinsert_orient_tip_lock_max_offset}/{args.guard_final_servo_contact_reinsert_descend_max_steps}`",
+        f"- Guard final servo contact reinsert high reapproach enabled/height/release/stable/max steps/max XY/max up: `{args.guard_final_servo_contact_reinsert_high_reapproach_enabled}/{args.guard_final_servo_contact_reinsert_high_reapproach_height}/{args.guard_final_servo_contact_reinsert_high_reapproach_release_xy}/{args.guard_final_servo_contact_reinsert_high_reapproach_stable_steps}/{args.guard_final_servo_contact_reinsert_high_reapproach_max_steps}/{args.guard_final_servo_contact_reinsert_high_reapproach_max_xy_action}/{args.guard_final_servo_contact_reinsert_high_reapproach_max_up_action}`",
+        f"- Guard final servo contact reinsert micro align enabled/Z/XY/release/tilt/max/stall/progress/max XY/up: `{args.guard_final_servo_contact_reinsert_micro_align_enabled}/{args.guard_final_servo_contact_reinsert_micro_align_z_max}/{args.guard_final_servo_contact_reinsert_micro_align_xy_max}/{args.guard_final_servo_contact_reinsert_micro_align_release_xy}/{args.guard_final_servo_contact_reinsert_micro_align_tilt_deg}/{args.guard_final_servo_contact_reinsert_micro_align_max_steps}/{args.guard_final_servo_contact_reinsert_micro_align_stall_steps}/{args.guard_final_servo_contact_reinsert_micro_align_min_xy_progress}/{args.guard_final_servo_contact_reinsert_micro_align_max_xy_action}/{args.guard_final_servo_contact_reinsert_micro_align_up_action}`",
         f"- Guard final servo near-miss steps/XY/Z/contact/tilt/max steps/max down/bias: `{args.guard_final_servo_near_miss_steps}/{args.guard_final_servo_near_miss_xy_max}/{args.guard_final_servo_near_miss_z_max}/{args.guard_final_servo_near_miss_contact_max}/{args.guard_final_servo_near_miss_tilt_max_deg}/{args.guard_final_servo_near_miss_max_steps}/{args.guard_final_servo_near_miss_max_down_action}/{tuple(args.guard_final_servo_near_miss_xy_bias)}`",
+        f"- Guard final servo square fast settle enabled/XY/Z/release/contact/tilt/max steps/max XY/max down: `{args.guard_final_servo_square_fast_settle_enabled}/{args.guard_final_servo_square_fast_settle_xy_max}/{args.guard_final_servo_square_fast_settle_z_max}/{args.guard_final_servo_square_fast_settle_release_xy}/{args.guard_final_servo_square_fast_settle_contact_max}/{args.guard_final_servo_square_fast_settle_tilt_max_deg}/{args.guard_final_servo_square_fast_settle_max_steps}/{args.guard_final_servo_square_fast_settle_max_xy_action}/{args.guard_final_servo_square_fast_settle_max_down_action}`",
         f"- Guard approach recenter enabled/requires stateful recovery: `{args.guard_approach_recenter_enabled}/{args.guard_approach_recenter_requires_stateful_recovery}`",
         f"- Guard approach recenter XY window/stable/bias: `{args.guard_approach_recenter_trigger_xy}-{args.guard_approach_recenter_max_xy}/{args.guard_approach_recenter_stable_xy}/{tuple(args.guard_approach_recenter_xy_bias)}`",
         f"- Guard approach recenter Z window/height/tolerance/max steps: `{args.guard_approach_recenter_min_z}-{args.guard_approach_recenter_start_z}/{args.guard_approach_recenter_height}/{args.guard_approach_recenter_z_tolerance}/{args.guard_approach_recenter_max_steps}`",
@@ -2026,6 +2272,30 @@ def main() -> None:
         and args.guard_near_ik_orientation_weight < 0.0
     ):
         raise ValueError("--guard-near-ik-orientation-weight cannot be negative.")
+    if (
+        args.guard_final_servo_ik_orientation_weight is not None
+        and args.guard_final_servo_ik_orientation_weight < 0.0
+    ):
+        raise ValueError("--guard-final-servo-ik-orientation-weight cannot be negative.")
+    if (
+        args.guard_contact_unjam_ik_orientation_weight is not None
+        and args.guard_contact_unjam_ik_orientation_weight < 0.0
+    ):
+        raise ValueError("--guard-contact-unjam-ik-orientation-weight cannot be negative.")
+    if (
+        args.guard_contact_reinsert_orient_ik_orientation_weight is not None
+        and args.guard_contact_reinsert_orient_ik_orientation_weight < 0.0
+    ):
+        raise ValueError(
+            "--guard-contact-reinsert-orient-ik-orientation-weight cannot be negative."
+        )
+    if (
+        args.guard_contact_reinsert_high_ik_orientation_weight is not None
+        and args.guard_contact_reinsert_high_ik_orientation_weight < 0.0
+    ):
+        raise ValueError(
+            "--guard-contact-reinsert-high-ik-orientation-weight cannot be negative."
+        )
     if args.guard_start_xy <= 0.0 or args.guard_start_z <= 0.0:
         raise ValueError("--guard-start-xy and --guard-start-z must be positive.")
     if args.guard_risk_xy < 0.0 or args.guard_risk_xy > args.guard_start_xy:
@@ -2189,6 +2459,10 @@ def main() -> None:
         raise ValueError("--guard-final-servo-stable-steps must be positive.")
     if args.guard_final_servo_release_xy < args.guard_final_servo_stable_xy:
         raise ValueError("--guard-final-servo-release-xy must be >= stable-xy.")
+    if args.guard_final_servo_align_timeout_steps < 0:
+        raise ValueError("--guard-final-servo-align-timeout-steps cannot be negative.")
+    if args.guard_final_servo_align_timeout_xy < 0.0:
+        raise ValueError("--guard-final-servo-align-timeout-xy cannot be negative.")
     if args.guard_final_servo_max_xy_action <= 0.0:
         raise ValueError("--guard-final-servo-max-xy-action must be positive.")
     if args.guard_final_servo_max_down_action < 0.0:
@@ -2253,6 +2527,121 @@ def main() -> None:
         raise ValueError("--guard-final-servo-contact-unjam-release-xy must be <= release-xy.")
     if args.guard_final_servo_contact_unjam_max_up_action <= 0.0:
         raise ValueError("--guard-final-servo-contact-unjam-max-up-action must be positive.")
+    if args.guard_final_servo_contact_unjam_wall_bias < 0.0:
+        raise ValueError("--guard-final-servo-contact-unjam-wall-bias cannot be negative.")
+    if args.guard_final_servo_contact_unjam_wall_bias > args.guard_final_servo_contact_unjam_release_xy:
+        raise ValueError(
+            "--guard-final-servo-contact-unjam-wall-bias must be <= "
+            "--guard-final-servo-contact-unjam-release-xy."
+        )
+    if args.guard_final_servo_contact_reinsert_orient_tilt_deg <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-contact-reinsert-orient-tilt-deg must be positive."
+        )
+    if args.guard_final_servo_contact_reinsert_orient_stable_steps <= 0:
+        raise ValueError(
+            "--guard-final-servo-contact-reinsert-orient-stable-steps must be positive."
+        )
+    if args.guard_final_servo_contact_reinsert_orient_max_steps <= 0:
+        raise ValueError(
+            "--guard-final-servo-contact-reinsert-orient-max-steps must be positive."
+        )
+    if args.guard_final_servo_contact_reinsert_orient_max_xy_action < 0.0:
+        raise ValueError(
+            "--guard-final-servo-contact-reinsert-orient-max-xy-action cannot be negative."
+        )
+    if args.guard_final_servo_contact_reinsert_orient_tip_lock_drift_gain < 0.0:
+        raise ValueError(
+            "--guard-final-servo-contact-reinsert-orient-tip-lock-drift-gain cannot be negative."
+        )
+    if args.guard_final_servo_contact_reinsert_orient_tip_lock_max_offset <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-contact-reinsert-orient-tip-lock-max-offset must be positive."
+        )
+    if (
+        args.guard_final_servo_contact_reinsert_high_reapproach_height
+        <= args.guard_final_servo_hover_height
+    ):
+        raise ValueError(
+            "--guard-final-servo-contact-reinsert-high-reapproach-height must be "
+            "greater than --guard-final-servo-hover-height."
+        )
+    if args.guard_final_servo_contact_reinsert_high_reapproach_release_xy <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-contact-reinsert-high-reapproach-release-xy must be positive."
+        )
+    if (
+        args.guard_final_servo_contact_reinsert_high_reapproach_release_xy
+        > args.guard_final_servo_release_xy
+    ):
+        raise ValueError(
+            "--guard-final-servo-contact-reinsert-high-reapproach-release-xy must be <= "
+            "--guard-final-servo-release-xy."
+        )
+    if args.guard_final_servo_contact_reinsert_high_reapproach_stable_steps <= 0:
+        raise ValueError(
+            "--guard-final-servo-contact-reinsert-high-reapproach-stable-steps must be positive."
+        )
+    if args.guard_final_servo_contact_reinsert_high_reapproach_max_steps <= 0:
+        raise ValueError(
+            "--guard-final-servo-contact-reinsert-high-reapproach-max-steps must be positive."
+        )
+    if args.guard_final_servo_contact_reinsert_high_reapproach_max_xy_action <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-contact-reinsert-high-reapproach-max-xy-action must be positive."
+        )
+    if args.guard_final_servo_contact_reinsert_high_reapproach_max_up_action <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-contact-reinsert-high-reapproach-max-up-action must be positive."
+        )
+    if args.guard_final_servo_contact_reinsert_descend_max_steps <= 0:
+        raise ValueError(
+            "--guard-final-servo-contact-reinsert-descend-max-steps must be positive."
+        )
+    if args.guard_final_servo_contact_reinsert_micro_align_z_max <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-contact-reinsert-micro-align-z-max must be positive."
+        )
+    if args.guard_final_servo_contact_reinsert_micro_align_xy_max <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-contact-reinsert-micro-align-xy-max must be positive."
+        )
+    if args.guard_final_servo_contact_reinsert_micro_align_release_xy <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-contact-reinsert-micro-align-release-xy must be positive."
+        )
+    if (
+        args.guard_final_servo_contact_reinsert_micro_align_release_xy
+        > args.guard_final_servo_contact_reinsert_micro_align_xy_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-contact-reinsert-micro-align-release-xy must be <= "
+            "--guard-final-servo-contact-reinsert-micro-align-xy-max."
+        )
+    if args.guard_final_servo_contact_reinsert_micro_align_tilt_deg <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-contact-reinsert-micro-align-tilt-deg must be positive."
+        )
+    if args.guard_final_servo_contact_reinsert_micro_align_max_steps <= 0:
+        raise ValueError(
+            "--guard-final-servo-contact-reinsert-micro-align-max-steps must be positive."
+        )
+    if args.guard_final_servo_contact_reinsert_micro_align_stall_steps <= 0:
+        raise ValueError(
+            "--guard-final-servo-contact-reinsert-micro-align-stall-steps must be positive."
+        )
+    if args.guard_final_servo_contact_reinsert_micro_align_min_xy_progress < 0.0:
+        raise ValueError(
+            "--guard-final-servo-contact-reinsert-micro-align-min-xy-progress cannot be negative."
+        )
+    if args.guard_final_servo_contact_reinsert_micro_align_max_xy_action <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-contact-reinsert-micro-align-max-xy-action must be positive."
+        )
+    if args.guard_final_servo_contact_reinsert_micro_align_up_action < 0.0:
+        raise ValueError(
+            "--guard-final-servo-contact-reinsert-micro-align-up-action cannot be negative."
+        )
     if args.guard_final_servo_near_miss_steps <= 0:
         raise ValueError("--guard-final-servo-near-miss-steps must be positive.")
     if args.guard_final_servo_near_miss_xy_max <= 0.0:
@@ -2269,6 +2658,30 @@ def main() -> None:
         raise ValueError("--guard-final-servo-near-miss-max-down-action cannot be negative.")
     if len(args.guard_final_servo_near_miss_xy_bias) != 2:
         raise ValueError("--guard-final-servo-near-miss-xy-bias requires two values.")
+    if args.guard_final_servo_square_fast_settle_xy_max <= 0.0:
+        raise ValueError("--guard-final-servo-square-fast-settle-xy-max must be positive.")
+    if args.guard_final_servo_square_fast_settle_z_max <= 0.0:
+        raise ValueError("--guard-final-servo-square-fast-settle-z-max must be positive.")
+    if args.guard_final_servo_square_fast_settle_release_xy <= 0.0:
+        raise ValueError("--guard-final-servo-square-fast-settle-release-xy must be positive.")
+    if (
+        args.guard_final_servo_square_fast_settle_release_xy
+        > args.guard_final_servo_square_fast_settle_xy_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-release-xy must be <= "
+            "--guard-final-servo-square-fast-settle-xy-max."
+        )
+    if args.guard_final_servo_square_fast_settle_tilt_max_deg <= 0.0:
+        raise ValueError("--guard-final-servo-square-fast-settle-tilt-max-deg must be positive.")
+    if args.guard_final_servo_square_fast_settle_contact_max < 0:
+        raise ValueError("--guard-final-servo-square-fast-settle-contact-max cannot be negative.")
+    if args.guard_final_servo_square_fast_settle_max_steps <= 0:
+        raise ValueError("--guard-final-servo-square-fast-settle-max-steps must be positive.")
+    if args.guard_final_servo_square_fast_settle_max_xy_action <= 0.0:
+        raise ValueError("--guard-final-servo-square-fast-settle-max-xy-action must be positive.")
+    if args.guard_final_servo_square_fast_settle_max_down_action < 0.0:
+        raise ValueError("--guard-final-servo-square-fast-settle-max-down-action cannot be negative.")
     if args.guarded_lift_before_lateral_xy_tolerance <= 0.0:
         raise ValueError("--guarded-lift-before-lateral-xy-tolerance must be positive.")
     if args.guarded_lift_before_lateral_z_margin < 0.0:

@@ -331,6 +331,42 @@ class PolicyInferenceSession:
             "guard_near_ik_orientation_weight": float(
                 action_diagnostics.get("guard_near_ik_orientation_weight", float("nan"))
             ),
+            "guard_final_servo_ik_orientation_weight_active": bool(
+                action_diagnostics.get("guard_final_servo_ik_orientation_weight_active", False)
+            ),
+            "guard_contact_unjam_ik_orientation_weight_active": bool(
+                action_diagnostics.get(
+                    "guard_contact_unjam_ik_orientation_weight_active",
+                    False,
+                )
+            ),
+            "guard_contact_reinsert_high_ik_orientation_weight_active": bool(
+                action_diagnostics.get(
+                    "guard_contact_reinsert_high_ik_orientation_weight_active",
+                    False,
+                )
+            ),
+            "guard_contact_reinsert_orient_ik_orientation_weight_active": bool(
+                action_diagnostics.get(
+                    "guard_contact_reinsert_orient_ik_orientation_weight_active",
+                    False,
+                )
+            ),
+            "guard_contact_reinsert_tip_priority_ik_active": bool(
+                action_diagnostics.get(
+                    "guard_contact_reinsert_tip_priority_ik_active",
+                    False,
+                )
+            ),
+            "guard_final_servo_tip_priority_ik_active": bool(
+                action_diagnostics.get(
+                    "guard_final_servo_tip_priority_ik_active",
+                    False,
+                )
+            ),
+            "guard_ik_orientation_weight": float(
+                action_diagnostics.get("guard_ik_orientation_weight", float("nan"))
+            ),
             "action_limited": safe_action.action_limited,
             "workspace_limited": safe_action.workspace_limited,
             "control_action_scale_multiplier": float(info.get("control_action_scale_multiplier", float("nan"))),
