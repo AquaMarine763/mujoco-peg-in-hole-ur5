@@ -231,6 +231,14 @@ Implemented so far:
       - boundary random probe with hole half-size `14.5-19 mm`, peg/square max `13.5 mm`, delay `3-4`, filter `0.35-0.55`, noise `0.25-0.8 mm`: `40/40 = 1.000` success on seed `623000`
       - deterministic worst-case with only `1 mm` geometric clearance, fixed scale `0.65`, delay `4`, filter `0.35`, noise `0.8 mm`: `single=4/5`, `square_square=0/5`, `mixed_basic=3/5`
       - worst-case failures are not the normal v44 timeout pattern. They are mostly extreme square-square clearance/control-limit failures: either approach never hands off, or final servo gets XY near `1-3 mm` but stalls high at `18-40 mm` Z with peg-hole wall contact and high tilt/yaw.
+    - v46 square worst-case diagnosis:
+      - Added `scripts\analyze_square_worstcase_failures.py`.
+      - Baseline deterministic worst-case failure analysis: 8 failures total, with 3 `approach_no_final_servo` and 5 `near_xy_contact_high_z`.
+      - The `near_xy_contact_high_z` failures briefly enter `square_fast_settle`, then contact/tilt rejects the phase; after that the episode stalls high with wall contact.
+      - Opt-in contact-tolerant fast-settle probe uses `guard_final_servo_square_fast_settle_z_max=0.060`, `tilt_max_deg=14.0`, `contact_max=6`.
+      - Deterministic worst-case improves from `single=4/5`, `square_square=0/5`, `mixed_basic=3/5` to `single=4/5`, `square_square=4/5`, `mixed_basic=4/5`.
+      - Remaining failures are all `approach_no_final_servo`, so the final-insertion square contact stall is mostly addressed by this parameter set.
+      - Moderate stress smoke with the same contact-tolerant settings reached `40/40 = 1.000`, zero collisions, zero timeouts on seed `625000`.
     - output directories:
       - targeted probes: `D:\peg-in-hole-6yh\v44_square_fast_settle_probes`
       - 20ep x 3-seed matrix: `D:\peg-in-hole-6yh\v44_square_fast_settle_multiseed_matrix20`
@@ -238,6 +246,8 @@ Implemented so far:
       - v45 moderate stress: `D:\peg-in-hole-6yh\v45_stress_matrix20_seed621_622`
       - v45 boundary probe: `D:\peg-in-hole-6yh\v45_boundary_probe_seed623`
       - v45 deterministic worst-case: `D:\peg-in-hole-6yh\v45_worstcase_probe_seed624`
+      - v46 contact-tolerant worst-case probe: `D:\peg-in-hole-6yh\v46_square_recovery_param_probe_worstcase_all`
+      - v46 contact-tolerant moderate smoke: `D:\peg-in-hole-6yh\v46_contact_tolerant_moderate_smoke_seed625`
       - demo: `D:\peg-in-hole-6yh\v44_square_fast_settle_demos`
     - New reusable v44 configs:
       - `configs\sim\ur5e_full\eval_multi_geometry_contact_reinsert_tip_priority_square_fast_settle_60ep.yaml`
@@ -263,7 +273,8 @@ Next step:
 - Treat wide-handoff plus square-fast-settle plus phase-local final-servo/contact-reinsert tip-priority as the current best opt-in multi-geometry guarded controller setting under strict `max_steps=1000`.
 - v44 is locally committed and tagged as `v0.7.1-contact-reinsert-square-fast-settle`; do not add large untracked result traces unless a compact summary is specifically needed.
 - Moderate v45 stress is solved, so do not train on that distribution yet. The useful next learning target is the square-square worst-case family: narrow clearance, delayed/filtered control, and insertion-time yaw/tilt/contact recovery.
-- Next technical work should either add a square orientation/yaw-aware final insertion diagnostic, or collect a small failure-correction dataset from the deterministic worst-case square-square failures. Do not make the 1mm-clearance worst-case the default task yet.
+- The v46 contact-tolerant square fast-settle parameter set is promising but should remain opt-in until it passes a larger multi-seed stress matrix. Do not make the 1mm-clearance worst-case the default task yet.
+- Next technical work should run a larger v46 contact-tolerant matrix, then decide whether to promote these settings or separately address the remaining `approach_no_final_servo` extreme-control failures.
 - After the next learning/eval change is selected, push/tag only when requested.
 - Keep the data plumbing and 2k correction dataset as a reusable diagnostic asset, but do not promote the w05 checkpoint as a new default.
 

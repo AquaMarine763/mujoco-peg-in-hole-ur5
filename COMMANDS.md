@@ -678,6 +678,87 @@ foreach ($profile in "single","square_square","mixed_basic") {
 Known worst-case result: `single=4/5`, `square_square=0/5`,
 `mixed_basic=3/5`. Treat this as a boundary diagnostic, not the default task.
 
+Analyze square worst-case failures:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v45_worstcase_probe_seed624\square_failure_analysis"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+python scripts\analyze_square_worstcase_failures.py `
+  --steps `
+    D:\peg-in-hole-6yh\v45_worstcase_probe_seed624\eval_single_5ep_seed624000_failure_steps.csv `
+    D:\peg-in-hole-6yh\v45_worstcase_probe_seed624\eval_square_square_5ep_seed624000_failure_steps.csv `
+    D:\peg-in-hole-6yh\v45_worstcase_probe_seed624\eval_mixed_basic_5ep_seed624000_failure_steps.csv `
+  --output-md "$out\summary.md" `
+  --output-csv "$out\summary.csv"
+```
+
+Known analysis result: 8 failures total, with 3 `approach_no_final_servo` and
+5 `near_xy_contact_high_z`. The latter briefly enter `square_fast_settle` and
+then get rejected by contact/tilt before stalling high with wall contact.
+
+Contact-tolerant square-fast-settle worst-case probe:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v46_square_recovery_param_probe_worstcase_all"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($profile in "single","square_square","mixed_basic") {
+  python scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_contact_reinsert_tip_priority_square_fast_settle_stress_20ep.yaml `
+    --geometry-profile $profile `
+    --episodes 5 `
+    --seed 624000 `
+    --geometry-hole-half-size-range 0.0145 0.0145 `
+    --geometry-peg-radius-range 0.0135 0.0135 `
+    --geometry-square-peg-half-size-range 0.0135 0.0135 `
+    --geometry-hole-center-xy-jitter 0.004 0.004 `
+    --geometry-fixture-height-jitter 0.002 `
+    --geometry-table-height-jitter 0.002 `
+    --hard-control-scale-range 0.65 0.65 `
+    --hard-control-noise-std-range 0.0008 0.0008 `
+    --hard-control-delay-range 4 4 `
+    --hard-control-filter-alpha-range 0.35 0.35 `
+    --guard-final-servo-square-fast-settle-z-max 0.060 `
+    --guard-final-servo-square-fast-settle-tilt-max-deg 14.0 `
+    --guard-final-servo-square-fast-settle-contact-max 6 `
+    --output-csv "$out\eval_$profile`_5ep_seed624000.csv" `
+    --output-md "$out\eval_$profile`_5ep_seed624000.md" `
+    --episode-output-csv "$out\eval_$profile`_5ep_seed624000`_episodes.csv" `
+    --step-output-csv "$out\eval_$profile`_5ep_seed624000`_failure_steps.csv" `
+    --step-trace-outcome-filter failure
+}
+```
+
+Known contact-tolerant result: `single=4/5`, `square_square=4/5`,
+`mixed_basic=4/5`. Remaining failures are all `approach_no_final_servo`.
+
+Contact-tolerant moderate-stress smoke:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v46_contact_tolerant_moderate_smoke_seed625"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($profile in "single","round_square","square_square","mixed_basic") {
+  python scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_contact_reinsert_tip_priority_square_fast_settle_stress_20ep.yaml `
+    --geometry-profile $profile `
+    --episodes 10 `
+    --seed 625000 `
+    --guard-final-servo-square-fast-settle-z-max 0.060 `
+    --guard-final-servo-square-fast-settle-tilt-max-deg 14.0 `
+    --guard-final-servo-square-fast-settle-contact-max 6 `
+    --output-csv "$out\eval_$profile`_10ep_seed625000.csv" `
+    --output-md "$out\eval_$profile`_10ep_seed625000.md" `
+    --episode-output-csv "$out\eval_$profile`_10ep_seed625000`_episodes.csv" `
+    --step-output-csv "$out\eval_$profile`_10ep_seed625000`_failure_steps.csv" `
+    --step-trace-outcome-filter failure
+}
+```
+
+Known contact-tolerant smoke result: `40/40 = 1.000`, zero collisions,
+zero timeouts. Keep these settings opt-in until they pass a larger matrix.
+
 Analyze final-servo phase traces for targeted probes:
 
 ```powershell

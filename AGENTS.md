@@ -108,6 +108,10 @@ The current focus is:
   - v45 moderate stress result on seeds `621000/622000`, 20 episodes per profile: `160/160 = 1.000`, zero collisions, zero timeouts. Output directory: `D:\peg-in-hole-6yh\v45_stress_matrix20_seed621_622`.
   - v45 boundary probe on seed `623000` with tighter geometry and harder control also reached `40/40 = 1.000`. Output directory: `D:\peg-in-hole-6yh\v45_boundary_probe_seed623`.
   - v45 deterministic worst-case with only `1 mm` clearance, fixed action scale `0.65`, delay `4`, filter alpha `0.35`, and noise `0.8 mm`: `single=4/5`, `square_square=0/5`, `mixed_basic=3/5`. Output directory: `D:\peg-in-hole-6yh\v45_worstcase_probe_seed624`. Treat this as a boundary diagnostic, not the default task.
+  - v46 square worst-case diagnostic script added: `scripts\analyze_square_worstcase_failures.py`.
+  - v46 baseline analysis of v45 deterministic worst-case found 8 failures: 3 `approach_no_final_servo` and 5 `near_xy_contact_high_z`. The latter briefly enter `square_fast_settle`, then get rejected by contact/tilt and stall high with wall contact.
+  - v46 contact-tolerant square-fast-settle opt-in probe sets `guard_final_servo_square_fast_settle_z_max=0.060`, `guard_final_servo_square_fast_settle_tilt_max_deg=14.0`, and `guard_final_servo_square_fast_settle_contact_max=6`. Deterministic worst-case improves to `single=4/5`, `square_square=4/5`, `mixed_basic=4/5`. Remaining failures are all `approach_no_final_servo`. Output directory: `D:\peg-in-hole-6yh\v46_square_recovery_param_probe_worstcase_all`.
+  - v46 contact-tolerant moderate-stress smoke on seed `625000`, 10 episodes per profile, reached `40/40 = 1.000`, zero collisions, zero timeouts. Output directory: `D:\peg-in-hole-6yh\v46_contact_tolerant_moderate_smoke_seed625`.
   - Reusable v44 configs:
     - `configs\sim\ur5e_full\eval_multi_geometry_contact_reinsert_tip_priority_square_fast_settle_60ep.yaml`
     - `configs\sim\ur5e_full\demo_multi_geometry_contact_reinsert_tip_priority_square_fast_settle.yaml`
@@ -116,7 +120,7 @@ The current focus is:
   - Use config `configs\sim\ur5e_full\demo_multi_geometry_contact_reinsert_tip_priority.yaml` for v42 demos. Always pass `--guarded-policy`; otherwise demo is policy-only and can timeout with `guard_steps=0`.
   - Demo outputs on seed `614000` live in `D:\peg-in-hole-6yh\v42_tip_priority_demos`: `single` succeeded in `316` steps and `square_square` succeeded in `315` steps. GIFs are `2560x720`, overview plus wrist camera.
   - Do not enable `--ik-control-mode pose_tip_priority` globally. It breaks the learned approach trajectory. Keep nominal `ik_control_mode: pose` and enable tip-priority only through `--guard-final-servo-tip-priority-ik-enabled` and `--guard-contact-reinsert-tip-priority-ik-enabled`.
-  - v44 has been locally committed and tagged as `v0.7.1-contact-reinsert-square-fast-settle`. Next work should use this controller as the baseline for multi-geometry learning and harder stress gates. Since moderate v45 stress already passes, the next useful target is square-square worst-case yaw/tilt/contact recovery or a small failure-correction dataset from the deterministic boundary failures. Do not add large untracked result traces by default, and push/tag only when requested.
+  - v44 has been locally committed and tagged as `v0.7.1-contact-reinsert-square-fast-settle`. Since moderate v45 stress already passes, the current opt-in v46 direction is contact-tolerant square-fast-settle for the deterministic boundary. Do not promote it by default until it passes a larger matrix. Do not add large untracked result traces by default, and push/tag only when requested.
 - UR5e controller status:
   - Default remains position-only peg-tip IK for checkpoint compatibility.
   - Experimental `ik_control_mode=pose` is implemented in `PegInHoleMujocoEnv` and exposed in guarded eval, demo, inference, and `scripts\diagnose_ur5e_controller.py`.
