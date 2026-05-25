@@ -587,6 +587,97 @@ Known new-seed regression result: `240/240 = 1.000` success, zero collisions,
 zero timeouts. Mean steps `292.2`, max steps `802`, mean final XY `1.59 mm`,
 max final XY `5.00 mm`, max final peg tilt `3.19 deg`.
 
+Strict 1000-step v45 moderate stress gate:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v45_stress_matrix20_seed621_622"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($profile in "single","round_square","square_square","mixed_basic") {
+  foreach ($seed in 621000,622000) {
+    python scripts\eval_guarded_policy.py `
+      --config configs\sim\ur5e_full\eval_multi_geometry_contact_reinsert_tip_priority_square_fast_settle_stress_20ep.yaml `
+      --geometry-profile $profile `
+      --episodes 20 `
+      --seed $seed `
+      --output-csv "$out\eval_$profile`_20ep_seed$seed.csv" `
+      --output-md "$out\eval_$profile`_20ep_seed$seed.md" `
+      --episode-output-csv "$out\eval_$profile`_20ep_seed$seed`_episodes.csv" `
+      --step-output-csv "$out\eval_$profile`_20ep_seed$seed`_failure_steps.csv" `
+      --step-trace-outcome-filter failure
+  }
+}
+```
+
+Known v45 moderate stress result: `160/160 = 1.000` success, zero collisions,
+zero timeouts. Mean steps `291.6`, max steps `715`, mean final XY `1.54 mm`,
+max final XY `4.97 mm`, max final peg tilt `3.22 deg`.
+
+Boundary probe that still passes:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v45_boundary_probe_seed623"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($profile in "single","round_square","square_square","mixed_basic") {
+  python scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_contact_reinsert_tip_priority_square_fast_settle_stress_20ep.yaml `
+    --geometry-profile $profile `
+    --episodes 10 `
+    --seed 623000 `
+    --geometry-hole-half-size-range 0.0145 0.019 `
+    --geometry-peg-radius-range 0.0120 0.0135 `
+    --geometry-square-peg-half-size-range 0.0115 0.0135 `
+    --geometry-hole-center-xy-jitter 0.004 0.004 `
+    --geometry-fixture-height-jitter 0.002 `
+    --geometry-table-height-jitter 0.002 `
+    --hard-control-scale-range 0.65 0.95 `
+    --hard-control-noise-std-range 0.00025 0.0008 `
+    --hard-control-delay-range 3 4 `
+    --hard-control-filter-alpha-range 0.35 0.55 `
+    --output-csv "$out\eval_$profile`_10ep_seed623000.csv" `
+    --output-md "$out\eval_$profile`_10ep_seed623000.md" `
+    --episode-output-csv "$out\eval_$profile`_10ep_seed623000`_episodes.csv" `
+    --step-output-csv "$out\eval_$profile`_10ep_seed623000`_failure_steps.csv" `
+    --step-trace-outcome-filter failure
+}
+```
+
+Known boundary result: `40/40 = 1.000` success, zero collisions, zero timeouts.
+
+Deterministic worst-case probe that finds the current boundary:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v45_worstcase_probe_seed624"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($profile in "single","square_square","mixed_basic") {
+  python scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_contact_reinsert_tip_priority_square_fast_settle_stress_20ep.yaml `
+    --geometry-profile $profile `
+    --episodes 5 `
+    --seed 624000 `
+    --geometry-hole-half-size-range 0.0145 0.0145 `
+    --geometry-peg-radius-range 0.0135 0.0135 `
+    --geometry-square-peg-half-size-range 0.0135 0.0135 `
+    --geometry-hole-center-xy-jitter 0.004 0.004 `
+    --geometry-fixture-height-jitter 0.002 `
+    --geometry-table-height-jitter 0.002 `
+    --hard-control-scale-range 0.65 0.65 `
+    --hard-control-noise-std-range 0.0008 0.0008 `
+    --hard-control-delay-range 4 4 `
+    --hard-control-filter-alpha-range 0.35 0.35 `
+    --output-csv "$out\eval_$profile`_5ep_seed624000.csv" `
+    --output-md "$out\eval_$profile`_5ep_seed624000.md" `
+    --episode-output-csv "$out\eval_$profile`_5ep_seed624000`_episodes.csv" `
+    --step-output-csv "$out\eval_$profile`_5ep_seed624000`_failure_steps.csv" `
+    --step-trace-outcome-filter failure
+}
+```
+
+Known worst-case result: `single=4/5`, `square_square=0/5`,
+`mixed_basic=3/5`. Treat this as a boundary diagnostic, not the default task.
+
 Analyze final-servo phase traces for targeted probes:
 
 ```powershell

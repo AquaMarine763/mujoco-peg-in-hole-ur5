@@ -221,14 +221,29 @@ Implemented so far:
       - `square_square`: `60/60`
       - `mixed_basic`: `60/60`
       - mean steps `292.2`, max steps `802`, mean final XY `1.59 mm`, max final XY `5.00 mm`, max final peg tilt `3.19 deg`.
+    - v45 moderate stress gate adds configurable hard-bucket control ranges and peg/jitter geometry overrides, then tightens the eval distribution:
+      - hole half-size `16-20 mm`, round peg radius `11.8-13.0 mm`, square half-size `11.0-13.0 mm`
+      - hole-center jitter `3 mm`, table/fixture height jitter `1.5 mm`
+      - action scale `0.75-1.05`, noise `0.1-0.5 mm`, delay `2-3`, filter alpha `0.45-0.65`
+      - seeds `621000/622000`, 20 episodes per profile: `160/160 = 1.000` success, zero collisions, zero timeouts
+      - mean steps `291.6`, max steps `715`, mean final XY `1.54 mm`, max final XY `4.97 mm`, max final peg tilt `3.22 deg`
+    - v45 boundary/worst-case probes:
+      - boundary random probe with hole half-size `14.5-19 mm`, peg/square max `13.5 mm`, delay `3-4`, filter `0.35-0.55`, noise `0.25-0.8 mm`: `40/40 = 1.000` success on seed `623000`
+      - deterministic worst-case with only `1 mm` geometric clearance, fixed scale `0.65`, delay `4`, filter `0.35`, noise `0.8 mm`: `single=4/5`, `square_square=0/5`, `mixed_basic=3/5`
+      - worst-case failures are not the normal v44 timeout pattern. They are mostly extreme square-square clearance/control-limit failures: either approach never hands off, or final servo gets XY near `1-3 mm` but stalls high at `18-40 mm` Z with peg-hole wall contact and high tilt/yaw.
     - output directories:
       - targeted probes: `D:\peg-in-hole-6yh\v44_square_fast_settle_probes`
       - 20ep x 3-seed matrix: `D:\peg-in-hole-6yh\v44_square_fast_settle_multiseed_matrix20`
       - new-seed 20ep x 3-seed regression: `D:\peg-in-hole-6yh\v44_square_fast_settle_regression_newseeds`
+      - v45 moderate stress: `D:\peg-in-hole-6yh\v45_stress_matrix20_seed621_622`
+      - v45 boundary probe: `D:\peg-in-hole-6yh\v45_boundary_probe_seed623`
+      - v45 deterministic worst-case: `D:\peg-in-hole-6yh\v45_worstcase_probe_seed624`
       - demo: `D:\peg-in-hole-6yh\v44_square_fast_settle_demos`
     - New reusable v44 configs:
       - `configs\sim\ur5e_full\eval_multi_geometry_contact_reinsert_tip_priority_square_fast_settle_60ep.yaml`
       - `configs\sim\ur5e_full\demo_multi_geometry_contact_reinsert_tip_priority_square_fast_settle.yaml`
+    - New reusable v45 stress config:
+      - `configs\sim\ur5e_full\eval_multi_geometry_contact_reinsert_tip_priority_square_fast_settle_stress_20ep.yaml`
     - v44 demo result:
       - `square_square/615000`: success in `686` steps, no collision, final XY/Z about `1.14 mm / 9.79 mm`, final phase `square_fast_settle`.
   - New reusable 60ep config: `configs\sim\ur5e_full\eval_multi_geometry_contact_reinsert_tip_priority_60ep.yaml`.
@@ -247,7 +262,8 @@ Next step:
 - Keep square recovery as a diagnostic hook, not a default.
 - Treat wide-handoff plus square-fast-settle plus phase-local final-servo/contact-reinsert tip-priority as the current best opt-in multi-geometry guarded controller setting under strict `max_steps=1000`.
 - v44 is locally committed and tagged as `v0.7.1-contact-reinsert-square-fast-settle`; do not add large untracked result traces unless a compact summary is specifically needed.
-- Next technical work should use the v44 controller as the baseline for multi-geometry learning, and stress it with harder geometry/control variation before scaling new data.
+- Moderate v45 stress is solved, so do not train on that distribution yet. The useful next learning target is the square-square worst-case family: narrow clearance, delayed/filtered control, and insertion-time yaw/tilt/contact recovery.
+- Next technical work should either add a square orientation/yaw-aware final insertion diagnostic, or collect a small failure-correction dataset from the deterministic worst-case square-square failures. Do not make the 1mm-clearance worst-case the default task yet.
 - After the next learning/eval change is selected, push/tag only when requested.
 - Keep the data plumbing and 2k correction dataset as a reusable diagnostic asset, but do not promote the w05 checkpoint as a new default.
 

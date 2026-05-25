@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 import csv
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -90,6 +90,21 @@ HARD_BUCKET_SCENARIO = Scenario(
     control_action_delay_range=(2, 2),
     control_action_filter_alpha_range=(0.55, 0.70),
 )
+
+
+def make_hard_bucket_scenario(args: argparse.Namespace) -> Scenario:
+    overrides: dict[str, tuple[float, float] | tuple[int, int]] = {}
+    if args.hard_control_scale_range is not None:
+        overrides["control_action_scale_range"] = tuple(args.hard_control_scale_range)
+    if args.hard_control_noise_std_range is not None:
+        overrides["control_action_noise_std_range"] = tuple(args.hard_control_noise_std_range)
+    if args.hard_control_delay_range is not None:
+        overrides["control_action_delay_range"] = tuple(args.hard_control_delay_range)
+    if args.hard_control_filter_alpha_range is not None:
+        overrides["control_action_filter_alpha_range"] = tuple(args.hard_control_filter_alpha_range)
+    if not overrides:
+        return HARD_BUCKET_SCENARIO
+    return replace(HARD_BUCKET_SCENARIO, **overrides)
 
 
 STEP_TRACE_FIELDNAMES = [
@@ -362,6 +377,10 @@ def build_parser(
     parser.add_argument("--success-xy-tolerance", type=float, default=0.005)
     parser.add_argument("--success-z-tolerance", type=float, default=0.01)
     parser.add_argument("--geometry-hole-half-size-range", nargs=2, type=float, default=(0.017, 0.021))
+    parser.add_argument("--geometry-peg-radius-range", nargs=2, type=float, default=(0.0115, 0.0125))
+    parser.add_argument("--geometry-hole-center-xy-jitter", nargs=2, type=float, default=None)
+    parser.add_argument("--geometry-fixture-height-jitter", type=float, default=None)
+    parser.add_argument("--geometry-table-height-jitter", type=float, default=None)
     parser.add_argument(
         "--geometry-profile",
         choices=["single", "round_square", "square_square", "mixed_basic"],
@@ -369,6 +388,10 @@ def build_parser(
     )
     parser.add_argument("--geometry-square-peg-half-size-range", nargs=2, type=float, default=(0.0105, 0.0125))
     parser.add_argument("--geometry-mixed-square-probability", type=float, default=0.5)
+    parser.add_argument("--hard-control-scale-range", nargs=2, type=float, default=None)
+    parser.add_argument("--hard-control-noise-std-range", nargs=2, type=float, default=None)
+    parser.add_argument("--hard-control-delay-range", nargs=2, type=int, default=None)
+    parser.add_argument("--hard-control-filter-alpha-range", nargs=2, type=float, default=None)
     parser.add_argument("--nominal-joint-damping-multiplier", type=float, default=1.0)
     parser.add_argument("--nominal-actuator-kp-multiplier", type=float, default=1.0)
     parser.add_argument("--guard-near-actuator-kp-enabled", action="store_true")
@@ -638,6 +661,33 @@ def parse_args() -> argparse.Namespace:
     return parse_args_with_config(build_parser())
 
 
+def validate_ordered_pair(
+    name: str,
+    values: tuple[float, float] | list[float] | tuple[int, int] | list[int] | None,
+    *,
+    min_value: float | None = None,
+    max_value: float | None = None,
+    allow_equal: bool = True,
+) -> None:
+    if values is None:
+        return
+    if len(values) != 2:
+        raise ValueError(f"{name} requires two values.")
+    low, high = values
+    if allow_equal:
+        ordered = low <= high
+        relation = "<="
+    else:
+        ordered = low < high
+        relation = "<"
+    if not ordered:
+        raise ValueError(f"{name} must satisfy low {relation} high.")
+    if min_value is not None and (low < min_value or high < min_value):
+        raise ValueError(f"{name} values must be >= {min_value}.")
+    if max_value is not None and (low > max_value or high > max_value):
+        raise ValueError(f"{name} values must be <= {max_value}.")
+
+
 def make_env(args: argparse.Namespace, scenario: Scenario) -> PegInHoleMujocoEnv:
     return PegInHoleMujocoEnv(
         model_path=args.model_path,
@@ -683,11 +733,23 @@ def make_env(args: argparse.Namespace, scenario: Scenario) -> PegInHoleMujocoEnv
         control_action_noise_std_range=scenario.control_action_noise_std_range,
         control_action_delay_range=scenario.control_action_delay_range,
         control_action_filter_alpha_range=scenario.control_action_filter_alpha_range,
-        geometry_hole_center_xy_jitter=scenario.geometry_hole_center_xy_jitter,
-        geometry_fixture_height_jitter=scenario.geometry_fixture_height_jitter,
-        geometry_table_height_jitter=scenario.geometry_table_height_jitter,
+        geometry_hole_center_xy_jitter=(
+            tuple(args.geometry_hole_center_xy_jitter)
+            if args.geometry_hole_center_xy_jitter is not None
+            else scenario.geometry_hole_center_xy_jitter
+        ),
+        geometry_fixture_height_jitter=(
+            args.geometry_fixture_height_jitter
+            if args.geometry_fixture_height_jitter is not None
+            else scenario.geometry_fixture_height_jitter
+        ),
+        geometry_table_height_jitter=(
+            args.geometry_table_height_jitter
+            if args.geometry_table_height_jitter is not None
+            else scenario.geometry_table_height_jitter
+        ),
         geometry_hole_half_size_range=tuple(args.geometry_hole_half_size_range),
-        geometry_peg_radius_range=scenario.geometry_peg_radius_range,
+        geometry_peg_radius_range=tuple(args.geometry_peg_radius_range),
         geometry_profile=args.geometry_profile,
         geometry_square_peg_half_size_range=tuple(args.geometry_square_peg_half_size_range),
         geometry_mixed_square_probability=args.geometry_mixed_square_probability,
@@ -2265,6 +2327,44 @@ def main() -> None:
         raise ValueError("--episodes must be positive.")
     if args.image_ablation != "normal" and args.observation_mode != "image":
         raise ValueError("--image-ablation requires --observation-mode image.")
+    validate_ordered_pair("--initial-tip-z-above-range", args.initial_tip_z_above_range, min_value=0.0)
+    validate_ordered_pair("--initial-tip-xy-offset-range", args.initial_tip_xy_offset_range, min_value=0.0)
+    validate_ordered_pair("--geometry-hole-half-size-range", args.geometry_hole_half_size_range, min_value=0.0)
+    validate_ordered_pair("--geometry-peg-radius-range", args.geometry_peg_radius_range, min_value=0.0)
+    validate_ordered_pair(
+        "--geometry-square-peg-half-size-range",
+        args.geometry_square_peg_half_size_range,
+        min_value=0.0,
+    )
+    validate_ordered_pair(
+        "--geometry-hole-center-xy-jitter",
+        args.geometry_hole_center_xy_jitter,
+        min_value=0.0,
+    )
+    validate_ordered_pair("--hard-control-scale-range", args.hard_control_scale_range, min_value=0.0)
+    validate_ordered_pair(
+        "--hard-control-noise-std-range",
+        args.hard_control_noise_std_range,
+        min_value=0.0,
+    )
+    validate_ordered_pair("--hard-control-delay-range", args.hard_control_delay_range, min_value=0.0)
+    validate_ordered_pair(
+        "--hard-control-filter-alpha-range",
+        args.hard_control_filter_alpha_range,
+        min_value=0.0,
+        max_value=1.0,
+    )
+    if (
+        args.hard_control_filter_alpha_range is not None
+        and args.hard_control_filter_alpha_range[0] <= 0.0
+    ):
+        raise ValueError("--hard-control-filter-alpha-range values must be > 0.")
+    if args.geometry_fixture_height_jitter is not None and args.geometry_fixture_height_jitter < 0.0:
+        raise ValueError("--geometry-fixture-height-jitter cannot be negative.")
+    if args.geometry_table_height_jitter is not None and args.geometry_table_height_jitter < 0.0:
+        raise ValueError("--geometry-table-height-jitter cannot be negative.")
+    if not 0.0 <= args.geometry_mixed_square_probability <= 1.0:
+        raise ValueError("--geometry-mixed-square-probability must be between 0 and 1.")
     if args.ik_orientation_weight < 0.0:
         raise ValueError("--ik-orientation-weight cannot be negative.")
     if (
@@ -2703,9 +2803,10 @@ def main() -> None:
     if args.timeout_progress_max_down_action < 0.0:
         raise ValueError("--timeout-progress-max-down-action cannot be negative.")
 
-    scenarios = [HARD_BUCKET_SCENARIO] if args.hard_bucket_only else list(CORE_SCENARIOS)
+    hard_bucket_scenario = make_hard_bucket_scenario(args)
+    scenarios = [hard_bucket_scenario] if args.hard_bucket_only else list(CORE_SCENARIOS)
     if args.include_hard_bucket and not args.hard_bucket_only:
-        scenarios.append(HARD_BUCKET_SCENARIO)
+        scenarios.append(hard_bucket_scenario)
 
     rows = []
     episode_rows = []
