@@ -215,9 +215,16 @@ Implemented so far:
       - `round_square`: `60/60`
       - `square_square`: `60/60`
       - `mixed_basic`: `60/60`
+    - v44 new-seed strict regression on seeds `618000/619000/620000`, 20 episodes per profile, also reached `240/240 = 1.000` success, zero collisions, zero timeouts.
+      - `single`: `60/60`
+      - `round_square`: `60/60`
+      - `square_square`: `60/60`
+      - `mixed_basic`: `60/60`
+      - mean steps `292.2`, max steps `802`, mean final XY `1.59 mm`, max final XY `5.00 mm`, max final peg tilt `3.19 deg`.
     - output directories:
       - targeted probes: `D:\peg-in-hole-6yh\v44_square_fast_settle_probes`
       - 20ep x 3-seed matrix: `D:\peg-in-hole-6yh\v44_square_fast_settle_multiseed_matrix20`
+      - new-seed 20ep x 3-seed regression: `D:\peg-in-hole-6yh\v44_square_fast_settle_regression_newseeds`
       - demo: `D:\peg-in-hole-6yh\v44_square_fast_settle_demos`
     - New reusable v44 configs:
       - `configs\sim\ur5e_full\eval_multi_geometry_contact_reinsert_tip_priority_square_fast_settle_60ep.yaml`
@@ -239,9 +246,9 @@ Next step:
 - Do not scale square-square insert-settle BC replay by default; w05 was behaviorally flat under the current guarded deployment.
 - Keep square recovery as a diagnostic hook, not a default.
 - Treat wide-handoff plus square-fast-settle plus phase-local final-servo/contact-reinsert tip-priority as the current best opt-in multi-geometry guarded controller setting under strict `max_steps=1000`.
-- Before tagging/pushing, commit the code/config/docs selectively. Do not add the large untracked result traces unless a compact summary is specifically needed.
-- Next technical work should package v44 cleanly: add a named config or config override snippet for square-fast-settle, generate updated demos, and optionally tag/push when requested.
-- After v44 is packaged, restart multi-geometry learning work from this stronger guarded controller instead of scaling the old w05 insert-settle replay.
+- v44 is locally committed and tagged as `v0.7.1-contact-reinsert-square-fast-settle`; do not add large untracked result traces unless a compact summary is specifically needed.
+- Next technical work should use the v44 controller as the baseline for multi-geometry learning, and stress it with harder geometry/control variation before scaling new data.
+- After the next learning/eval change is selected, push/tag only when requested.
 - Keep the data plumbing and 2k correction dataset as a reusable diagnostic asset, but do not promote the w05 checkpoint as a new default.
 
 ## Implemented So Far

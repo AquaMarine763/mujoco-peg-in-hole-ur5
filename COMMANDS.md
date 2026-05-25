@@ -561,6 +561,32 @@ square_square/615000/episode0: success in 858 steps
 mixed_basic/615000/episode0:   success in 772 steps
 ```
 
+Strict 1000-step v44 new-seed regression:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v44_square_fast_settle_regression_newseeds"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($profile in "single","round_square","square_square","mixed_basic") {
+  foreach ($seed in 618000,619000,620000) {
+    python scripts\eval_guarded_policy.py `
+      --config configs\sim\ur5e_full\eval_multi_geometry_contact_reinsert_tip_priority_square_fast_settle_60ep.yaml `
+      --geometry-profile $profile `
+      --episodes 20 `
+      --seed $seed `
+      --output-csv "$out\eval_$profile`_20ep_seed$seed.csv" `
+      --output-md "$out\eval_$profile`_20ep_seed$seed.md" `
+      --episode-output-csv "$out\eval_$profile`_20ep_seed$seed`_episodes.csv" `
+      --step-output-csv "$out\eval_$profile`_20ep_seed$seed`_failure_steps.csv" `
+      --step-trace-outcome-filter failure
+  }
+}
+```
+
+Known new-seed regression result: `240/240 = 1.000` success, zero collisions,
+zero timeouts. Mean steps `292.2`, max steps `802`, mean final XY `1.59 mm`,
+max final XY `5.00 mm`, max final peg tilt `3.19 deg`.
+
 Analyze final-servo phase traces for targeted probes:
 
 ```powershell
