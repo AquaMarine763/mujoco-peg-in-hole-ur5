@@ -6409,3 +6409,44 @@ Latest targeted results:
 Next useful implementation should be constrained tip-pivot pose servo or
 DAgger/failure-correction data for orientation-induced tip drift, not another
 one-parameter scan.
+
+## v47 Early Final-Servo Boundary Stress
+
+Run the opt-in v47 boundary stress config:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml `
+  --geometry-profile mixed_basic `
+  --episodes 20 `
+  --seed 632000 `
+  --output-csv results\ur5e_full\multi_geometry\early_final_servo_boundary_stress\eval_mixed_basic_20ep_seed632000.csv `
+  --output-md results\ur5e_full\multi_geometry\early_final_servo_boundary_stress\eval_mixed_basic_20ep_seed632000.md `
+  --episode-output-csv results\ur5e_full\multi_geometry\early_final_servo_boundary_stress\eval_mixed_basic_20ep_seed632000_episodes.csv `
+  --step-output-csv results\ur5e_full\multi_geometry\early_final_servo_boundary_stress\eval_mixed_basic_20ep_seed632000_failure_steps.csv `
+  --step-trace-outcome-filter failure
+```
+
+Reproduce the targeted hard seed `631004` all-profile check:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v47_boundary_seed631004_early_final_servo_all_profiles"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($profile in "single","round_square","square_square","mixed_basic") {
+  python scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml `
+    --geometry-profile $profile `
+    --episodes 1 `
+    --seed 631004 `
+    --output-csv "$out\eval_$profile`_final035_kp3_gxy008.csv" `
+    --output-md "$out\eval_$profile`_final035_kp3_gxy008.md" `
+    --episode-output-csv "$out\eval_$profile`_final035_kp3_gxy008`_episodes.csv" `
+    --step-output-csv "$out\eval_$profile`_final035_kp3_gxy008`_failure_steps.csv" `
+    --step-trace-outcome-filter failure
+}
+```
+
+Reference result: `4/4` success on `seed631004`; boundary regression
+`D:\peg-in-hole-6yh\v47_boundary_regression_final035_kp3_gxy008_seed630_631`
+reached `80/80` success, `0` collision, `0` timeout.

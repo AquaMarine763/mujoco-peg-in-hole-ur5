@@ -2981,7 +2981,36 @@ Interpretation:
   - Added `pose_tip_priority` IK mode and default-off phase-local switches for contact reinsert and final servo.
   - Global `pose_tip_priority` is not promoted because it disrupts the learned approach trajectory.
   - Phase-local final-servo/contact-reinsert tip-priority fixed the known hard seeds and reached `1.000/0.000/0.000` on 20ep and 60ep profile matrices for `single`, `round_square`, `square_square`, and `mixed_basic` on seed `612000`.
-- Current conclusion: the scalar orientation-weight line is closed, and v42 phase-local tip-priority is the current contact-aware candidate. Next work should stress-test v42 with larger/multi-seed gates and demos before promotion/tagging.
+- Current conclusion: the scalar orientation-weight line is closed, and v42 phase-local tip-priority remains the final-insertion base candidate.
+
+## v47 Early Final-Servo Boundary Candidate
+
+- Implemented default-off fixture-clearance retreat:
+  - `guard_fixture_clearance_retreat_enabled`
+  - `guard_fixture_clearance_retreat_release_xy`
+  - `guard_fixture_clearance_retreat_max_xy_action`
+  - fixture-clearance active steps now also use local near-control Kp/IK hooks in eval/demo/inference.
+- Direct fixture retreat on the hard boundary seed `631004` improved safety but not completion:
+  - `v47_boundary_seed631004_fixture_retreat_probe`: 4/4 profiles became timeout-only, 0 collision, 0 success.
+  - The trace showed repeated retreat/re-approach between roughly `40-70 mm` XY; this was too conservative for the 1000-step target.
+- The successful fix was not pure retreat; it was earlier final-servo handoff plus stronger approach control:
+  - `nominal_actuator_kp_multiplier=3.0`
+  - `guarded_max_xy_action=0.008`
+  - `guard_final_servo_start_xy=0.035`
+  - fixture-clearance retreat kept as a low-altitude fallback with `z_max=0.052`, `release_xy=0.060`, `max_xy_action=0.003`.
+- Targeted hard seed result:
+  - `D:\peg-in-hole-6yh\v47_boundary_seed631004_early_final_servo_all_profiles`
+  - `single`, `round_square`, `square_square`, `mixed_basic`: `4/4` success, `0` collision, `0` timeout.
+  - typical completion was `315-329` steps, with about `95-103` final-servo steps.
+- Boundary regression result:
+  - `D:\peg-in-hole-6yh\v47_boundary_regression_final035_kp3_gxy008_seed630_631`
+  - seeds `630000/631000`, `10` episodes/profile, 4 profiles: `80/80` success, `0` collision, `0` timeout.
+- New opt-in config:
+  - `configs/sim/ur5e_full/eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml`
+  - smoke result: `D:\peg-in-hole-6yh\v47_early_final_servo_config_smoke`, `square_square/seed631004`: success.
+- Next step:
+  - run a larger multi-seed boundary gate before promoting this as the default multi-geometry stress config.
+  - include a moderate-stress regression against the previous v46 gate, because v47 changes approach handoff and nominal actuator Kp.
 
 ## Key Commands
 

@@ -361,6 +361,16 @@ The current focus is:
       - seed `614000` 20ep profile matrix also reached `1.000/0.000/0.000` for all four profiles
       - seeds `615000/616000/617000` 20ep profile matrix exposed one hard initialization. v42 reached `236/240`; wide-handoff reached `238/240`; `max_steps=1500` rescues the two known remaining square timeouts.
       - next work is not another scalar scan; decide whether the project target is strict 1000-step completion or practical 1500-step completion, then promote or tune final-servo recovery accordingly
+    - v47 strict-1000 boundary recovery candidate is now the current approach-stage candidate:
+      - added default-off fixture-clearance retreat config fields and CLI wiring in eval/demo/inference
+      - direct retreat alone converted the hard `seed631004` collisions to timeouts but did not solve completion
+      - successful recipe is earlier final-servo handoff plus stronger approach control:
+        `nominal_actuator_kp_multiplier=3.0`, `guarded_max_xy_action=0.008`, `guard_final_servo_start_xy=0.035`
+      - fixture retreat remains enabled only as a low-altitude fallback in the v47 config:
+        `guard_fixture_clearance_z_max=0.052`, `retreat_release_xy=0.060`, `retreat_max_xy_action=0.003`
+      - new config: `configs/sim/ur5e_full/eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml`
+      - validation: hard `seed631004` all-profile check reached `4/4` success, and boundary regression seeds `630000/631000` reached `80/80` success/collision/timeout `1.000/0.000/0.000`
+      - before promoting to default, run a larger multi-seed boundary gate and a moderate-stress regression against v46
     - results are summarized in `VISUAL_AUDIT.md`; do not scale to 50k control-state data or promote stack3. DAgger v2 is promising but must pass larger evals before promotion
   - keep correction BC as a supporting dataset path, but do not expand to 10k until the controller issue is addressed
   - introduce larger randomized initial XY offsets only after original hard high-start search is stable

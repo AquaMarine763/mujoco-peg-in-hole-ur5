@@ -218,6 +218,9 @@ class GuardedPolicyConfig:
     guard_fixture_clearance_max_xy_action: float = 0.005
     guard_fixture_clearance_max_down_action: float = 0.0
     guard_fixture_clearance_max_steps: int = 240
+    guard_fixture_clearance_retreat_enabled: bool = False
+    guard_fixture_clearance_retreat_release_xy: float = 0.070
+    guard_fixture_clearance_retreat_max_xy_action: float = 0.003
     guard_preinsert_recenter_enabled: bool = False
     guard_preinsert_recenter_start_z: float = 0.025
     guard_preinsert_recenter_min_z: float = 0.0
@@ -461,6 +464,15 @@ class GuardedPolicyConfig:
             raise ValueError("guard_fixture_clearance_max_down_action cannot be negative.")
         if self.guard_fixture_clearance_max_steps <= 0:
             raise ValueError("guard_fixture_clearance_max_steps must be positive.")
+        if self.guard_fixture_clearance_retreat_release_xy <= self.guard_fixture_clearance_xy_min:
+            raise ValueError(
+                "guard_fixture_clearance_retreat_release_xy must be greater than "
+                "guard_fixture_clearance_xy_min."
+            )
+        if self.guard_fixture_clearance_retreat_max_xy_action <= 0.0:
+            raise ValueError(
+                "guard_fixture_clearance_retreat_max_xy_action must be positive."
+            )
         if self.guard_preinsert_recenter_start_z <= 0.0:
             raise ValueError("guard_preinsert_recenter_start_z must be positive.")
         if self.guard_preinsert_recenter_min_z < 0.0:
@@ -3739,7 +3751,14 @@ class GuardedPolicyController:
         if self.guard_fixture_clearance_active:
             aligned_enough = dist_xy <= self.config.guard_fixture_clearance_realign_xy
             timed_out = self.guard_fixture_clearance_steps >= self.config.guard_fixture_clearance_max_steps
+            retreated_enough = (
+                self.guard_fixture_clearance_phase == "retreat"
+                and dist_xy >= self.config.guard_fixture_clearance_retreat_release_xy
+            )
             if aligned_enough or timed_out:
+                self._reset_fixture_clearance()
+                return False, False, True
+            if retreated_enough:
                 self._reset_fixture_clearance()
                 return False, False, True
             realign_start_z = (
@@ -3764,14 +3783,54 @@ class GuardedPolicyController:
         )
         if not in_danger_band:
             return False, False, False
+        if (
+            self.config.guard_fixture_clearance_retreat_enabled
+            and dist_xy >= self.config.guard_fixture_clearance_retreat_release_xy
+        ):
+            return False, False, False
 
         self.guard_fixture_clearance_active = True
-        self.guard_fixture_clearance_phase = "lift"
+        self.guard_fixture_clearance_phase = (
+            "retreat" if self.config.guard_fixture_clearance_retreat_enabled else "lift"
+        )
         self.guard_fixture_clearance_steps = 0
         self.guard_fixture_clearance_realign_steps = 0
         return True, True, False
 
     def _fixture_clearance_action_from_state(self, state: GuardedDeploymentState) -> np.ndarray:
+        if self.guard_fixture_clearance_phase == "retreat":
+            tip = _as_vector3(state.peg_tip_pos, "peg_tip_pos")
+            target = _as_vector3(state.target_pos, "target_pos")
+            applied_action = _as_vector3(state.applied_action, "applied_action")
+            control_tip = tip + float(self.config.oracle.guarded_prediction_steps) * applied_action
+            retreat_xy = control_tip[:2] - target[:2]
+            retreat_norm = float(np.linalg.norm(retreat_xy))
+            if retreat_norm <= 1e-9:
+                retreat_xy = np.asarray([1.0, 0.0], dtype=np.float64)
+            else:
+                retreat_xy = retreat_xy / retreat_norm
+            desired = np.asarray(
+                [
+                    target[0]
+                    + retreat_xy[0] * self.config.guard_fixture_clearance_retreat_release_xy,
+                    target[1]
+                    + retreat_xy[1] * self.config.guard_fixture_clearance_retreat_release_xy,
+                    target[2] + self.config.guard_fixture_clearance_lift_height,
+                ],
+                dtype=np.float64,
+            )
+            action = self.config.oracle.action_gain * (desired - control_tip)
+            action = self._limit_xy_action(
+                action,
+                self.config.guard_fixture_clearance_retreat_max_xy_action,
+            )
+            action = self._limit_z_action(
+                action,
+                max_down_action=0.0,
+                max_up_action=self.config.guard_fixture_clearance_max_up_action,
+            )
+            return np.clip(action, state.action_low, state.action_high).astype(np.float32)
+
         if self.guard_fixture_clearance_phase == "realign":
             tip = _as_vector3(state.peg_tip_pos, "peg_tip_pos")
             target = _as_vector3(state.target_pos, "target_pos")

@@ -200,6 +200,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--guard-fixture-clearance-max-xy-action", type=float, default=0.005)
     parser.add_argument("--guard-fixture-clearance-max-down-action", type=float, default=0.0)
     parser.add_argument("--guard-fixture-clearance-max-steps", type=int, default=240)
+    parser.add_argument("--guard-fixture-clearance-retreat-enabled", action="store_true")
+    parser.add_argument("--guard-fixture-clearance-retreat-release-xy", type=float, default=0.070)
+    parser.add_argument("--guard-fixture-clearance-retreat-max-xy-action", type=float, default=0.003)
     parser.add_argument("--guard-preinsert-recenter-enabled", action="store_true")
     parser.add_argument("--guard-preinsert-recenter-start-z", type=float, default=0.025)
     parser.add_argument("--guard-preinsert-recenter-min-z", type=float, default=0.0)
@@ -531,6 +534,9 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         guard_fixture_clearance_max_xy_action=args.guard_fixture_clearance_max_xy_action,
         guard_fixture_clearance_max_down_action=args.guard_fixture_clearance_max_down_action,
         guard_fixture_clearance_max_steps=args.guard_fixture_clearance_max_steps,
+        guard_fixture_clearance_retreat_enabled=args.guard_fixture_clearance_retreat_enabled,
+        guard_fixture_clearance_retreat_release_xy=args.guard_fixture_clearance_retreat_release_xy,
+        guard_fixture_clearance_retreat_max_xy_action=args.guard_fixture_clearance_retreat_max_xy_action,
         guard_preinsert_recenter_enabled=args.guard_preinsert_recenter_enabled,
         guard_preinsert_recenter_start_z=args.guard_preinsert_recenter_start_z,
         guard_preinsert_recenter_min_z=args.guard_preinsert_recenter_min_z,
@@ -1072,6 +1078,7 @@ def guard_near_control_active(
     return (
         bool(guarded_step.guard_stateful_recovery_active)
         or bool(guarded_step.guard_approach_recenter_active)
+        or bool(guarded_step.guard_fixture_clearance_active)
         or bool(guarded_step.guard_final_servo_active)
         or (
             bool(guarded_step.guard_active)

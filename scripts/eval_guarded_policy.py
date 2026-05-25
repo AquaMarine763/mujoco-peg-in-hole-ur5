@@ -453,6 +453,9 @@ def build_parser(
     parser.add_argument("--guard-fixture-clearance-max-xy-action", type=float, default=0.005)
     parser.add_argument("--guard-fixture-clearance-max-down-action", type=float, default=0.0)
     parser.add_argument("--guard-fixture-clearance-max-steps", type=int, default=240)
+    parser.add_argument("--guard-fixture-clearance-retreat-enabled", action="store_true")
+    parser.add_argument("--guard-fixture-clearance-retreat-release-xy", type=float, default=0.070)
+    parser.add_argument("--guard-fixture-clearance-retreat-max-xy-action", type=float, default=0.003)
     parser.add_argument("--guard-preinsert-recenter-enabled", action="store_true")
     parser.add_argument("--guard-preinsert-recenter-start-z", type=float, default=0.025)
     parser.add_argument("--guard-preinsert-recenter-min-z", type=float, default=0.0)
@@ -813,6 +816,9 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         guard_fixture_clearance_max_xy_action=args.guard_fixture_clearance_max_xy_action,
         guard_fixture_clearance_max_down_action=args.guard_fixture_clearance_max_down_action,
         guard_fixture_clearance_max_steps=args.guard_fixture_clearance_max_steps,
+        guard_fixture_clearance_retreat_enabled=args.guard_fixture_clearance_retreat_enabled,
+        guard_fixture_clearance_retreat_release_xy=args.guard_fixture_clearance_retreat_release_xy,
+        guard_fixture_clearance_retreat_max_xy_action=args.guard_fixture_clearance_retreat_max_xy_action,
         guard_preinsert_recenter_enabled=args.guard_preinsert_recenter_enabled,
         guard_preinsert_recenter_start_z=args.guard_preinsert_recenter_start_z,
         guard_preinsert_recenter_min_z=args.guard_preinsert_recenter_min_z,
@@ -1548,6 +1554,7 @@ def guard_near_control_active(
     return (
         bool(step.guard_stateful_recovery_active)
         or bool(step.guard_approach_recenter_active)
+        or bool(step.guard_fixture_clearance_active)
         or bool(step.guard_final_servo_active)
         or (
             bool(step.guard_active)
@@ -2257,6 +2264,7 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Guard fixture clearance XY/Z/lift/max up: `{args.guard_fixture_clearance_xy_min}-{args.guard_fixture_clearance_xy_max}/{args.guard_fixture_clearance_z_max}/{args.guard_fixture_clearance_lift_height}/{args.guard_fixture_clearance_max_up_action}`",
         f"- Guard fixture clearance realign enabled: `{args.guard_fixture_clearance_realign_enabled}`",
         f"- Guard fixture clearance realign start Z/XY/max XY/max down/max steps: `{args.guard_fixture_clearance_realign_start_z}/{args.guard_fixture_clearance_realign_xy}/{args.guard_fixture_clearance_max_xy_action}/{args.guard_fixture_clearance_max_down_action}/{args.guard_fixture_clearance_max_steps}`",
+        f"- Guard fixture clearance retreat enabled/release XY/max XY: `{args.guard_fixture_clearance_retreat_enabled}/{args.guard_fixture_clearance_retreat_release_xy}/{args.guard_fixture_clearance_retreat_max_xy_action}`",
         f"- Guard preinsert recenter enabled: `{args.guard_preinsert_recenter_enabled}`",
         f"- Guard preinsert recenter start/min Z, trigger/stable XY: `{args.guard_preinsert_recenter_start_z}/{args.guard_preinsert_recenter_min_z}/{args.guard_preinsert_recenter_trigger_xy}/{args.guard_preinsert_recenter_stable_xy}`",
         f"- Guard preinsert recenter height/Z tol/stable/max steps/max XY/max up: `{args.guard_preinsert_recenter_height}/{args.guard_preinsert_recenter_z_tolerance}/{args.guard_preinsert_recenter_stable_steps}/{args.guard_preinsert_recenter_max_steps}/{args.guard_preinsert_recenter_max_xy_action}/{args.guard_preinsert_recenter_max_up_action}`",
@@ -2448,6 +2456,10 @@ def main() -> None:
         raise ValueError("--guard-fixture-clearance-max-down-action cannot be negative.")
     if args.guard_fixture_clearance_max_steps <= 0:
         raise ValueError("--guard-fixture-clearance-max-steps must be positive.")
+    if args.guard_fixture_clearance_retreat_release_xy <= args.guard_fixture_clearance_xy_min:
+        raise ValueError("--guard-fixture-clearance-retreat-release-xy must be greater than --guard-fixture-clearance-xy-min.")
+    if args.guard_fixture_clearance_retreat_max_xy_action <= 0.0:
+        raise ValueError("--guard-fixture-clearance-retreat-max-xy-action must be positive.")
     if args.guard_preinsert_recenter_start_z <= 0.0:
         raise ValueError("--guard-preinsert-recenter-start-z must be positive.")
     if args.guard_preinsert_recenter_min_z < 0.0:
