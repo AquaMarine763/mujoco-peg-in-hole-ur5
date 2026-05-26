@@ -3063,6 +3063,14 @@ Interpretation:
     - guard-only: `24/30 = 0.800`
     - policy-only: `0/30 = 0.000`
   - Updated conclusion: visual corruption clearly hurts performance, so the policy is not visual-agnostic. However, shuffled images matching normal means this experiment does not prove strong spatial visual servoing; the model may rely on coarse image statistics, control-state channels, or guarded-controller takeover. The next useful diagnostic should add control-state ablation and/or channel-specific image ablations.
+- Control-state contribution scale-up:
+  - Output directory: `D:\peg-in-hole-6yh\v47_control_state_ablation_seed637_20ep`
+  - Config: same v47 boundary config, `mixed_basic`, seed `637000`, `20` episodes/condition.
+  - normal image + control normal/zero/noise/shuffle: all `20/20 = 1.000`, zero collision.
+  - black image + control normal: `18/20 = 0.900`, zero collision, `2` timeouts.
+  - black image + control zero: `17/20 = 0.850`, `3` collisions.
+  - Interpretation: with normal images, control-state corruption does not matter on this window. With black images, control-state helps somewhat, but image corruption is still the larger lever. The current v47 policy is not primarily depending on the low-dimensional control-state channel to succeed.
+  - Next diagnostic should move back to the image path itself, ideally channel-specific image ablation or a camera/crop change that makes spatial alignment harder to fake.
 
 ## Key Commands
 

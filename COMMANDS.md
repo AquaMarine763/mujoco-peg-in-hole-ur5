@@ -6588,3 +6588,49 @@ Combined diagnostic with the earlier seed `635000` 10ep run: normal and
 shuffle both reached `29/30`, black reached `22/30`, noise reached `14/30`,
 guard-only reached `24/30`, and policy-only reached `0/30`. The next diagnostic
 should separate image contribution from `include_control_state` contribution.
+
+Run the v47 control-state contribution ablation:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v47_control_state_ablation_seed637_20ep"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+$conditions = @(
+  @{name="normal_img_control_normal"; image="normal"; control="normal"},
+  @{name="normal_img_control_zero"; image="normal"; control="zero"},
+  @{name="normal_img_control_noise"; image="normal"; control="noise"},
+  @{name="normal_img_control_shuffle"; image="normal"; control="shuffle"},
+  @{name="black_img_control_normal"; image="black"; control="normal"},
+  @{name="black_img_control_zero"; image="black"; control="zero"}
+)
+foreach ($c in $conditions) {
+  python scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml `
+    --geometry-profile mixed_basic `
+    --episodes 20 `
+    --seed 637000 `
+    --control-mode guarded `
+    --image-ablation $c.image `
+    --control-state-ablation $c.control `
+    --guard-blend 1.0 `
+    --output-csv "$out\eval_$($c.name).csv" `
+    --output-md "$out\eval_$($c.name).md" `
+    --episode-output-csv "$out\eval_$($c.name)_episodes.csv" `
+    --step-output-csv "$out\eval_$($c.name)_failure_steps.csv" `
+    --step-trace-outcome-filter failure
+}
+```
+
+Known 20-episode result on seed `637000`:
+
+```text
+normal image + control normal: 1.000 success, 0.000 collision, 0.000 timeout
+normal image + control zero:   1.000 success, 0.000 collision, 0.000 timeout
+normal image + control noise:  1.000 success, 0.000 collision, 0.000 timeout
+normal image + control shuffle: 1.000 success, 0.000 collision, 0.000 timeout
+black image + control normal:  0.900 success, 0.000 collision, 0.100 timeout
+black image + control zero:    0.850 success, 0.150 collision, 0.000 timeout
+```
+
+This says the low-dimensional control_state channel is not the main driver of
+success under normal visual input. The next useful step is a more surgical
+image-path diagnostic, not more control-state ablation.

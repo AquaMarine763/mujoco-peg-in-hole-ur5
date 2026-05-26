@@ -112,6 +112,7 @@ STEP_TRACE_FIELDNAMES = [
     "level",
     "control_mode",
     "image_ablation",
+    "control_state_ablation",
     "episode",
     "seed",
     "episode_outcome",
@@ -324,6 +325,12 @@ def build_parser(
         choices=["normal", "black", "noise", "shuffle"],
         default="normal",
         help="Corrupt image observations before policy inference for visual contribution audits.",
+    )
+    parser.add_argument(
+        "--control-state-ablation",
+        choices=["normal", "zero", "noise", "shuffle"],
+        default="normal",
+        help="Corrupt only the control_state observation key before policy inference.",
     )
     parser.add_argument(
         "--guard-scenario-filter",
@@ -1167,25 +1174,67 @@ def preserve_non_image_values(ablated: Any, original: Any) -> Any:
 def policy_observation(
     obs: Any,
     *,
+    image_ablation: str,
+    control_state_ablation: str,
+    rng: np.random.Generator,
+    image_shuffle_bank: list[Any],
+    control_state_shuffle_bank: list[np.ndarray],
+) -> Any:
+    if image_ablation == "normal":
+        image_obs = obs
+    elif image_ablation == "black":
+        image_obs = black_like(obs)
+    elif image_ablation == "noise":
+        image_obs = noise_like(obs, rng)
+    elif image_ablation == "shuffle":
+        if image_shuffle_bank:
+            index = int(rng.integers(0, len(image_shuffle_bank)))
+            ablated = clone_observation(image_shuffle_bank[index])
+        else:
+            ablated = black_like(obs)
+        image_shuffle_bank.append(clone_observation(obs))
+        image_obs = preserve_non_image_values(ablated, obs)
+    else:
+        raise ValueError(f"Unknown image ablation mode: {image_ablation}")
+    return ablate_control_state(
+        image_obs,
+        mode=control_state_ablation,
+        rng=rng,
+        shuffle_bank=control_state_shuffle_bank,
+    )
+
+
+def ablate_control_state(
+    obs: Any,
+    *,
     mode: str,
     rng: np.random.Generator,
-    shuffle_bank: list[Any],
+    shuffle_bank: list[np.ndarray],
 ) -> Any:
     if mode == "normal":
         return obs
-    if mode == "black":
-        return black_like(obs)
-    if mode == "noise":
-        return noise_like(obs, rng)
-    if mode == "shuffle":
+    if not isinstance(obs, dict) or "control_state" not in obs:
+        return obs
+    ablated = dict(obs)
+    control_state = np.asarray(obs["control_state"])
+    if mode == "zero":
+        ablated["control_state"] = np.zeros_like(control_state)
+    elif mode == "noise":
+        ablated["control_state"] = rng.normal(
+            loc=0.0,
+            scale=1.0,
+            size=control_state.shape,
+        ).astype(control_state.dtype, copy=False)
+    elif mode == "shuffle":
         if shuffle_bank:
             index = int(rng.integers(0, len(shuffle_bank)))
-            ablated = clone_observation(shuffle_bank[index])
+            ablated["control_state"] = shuffle_bank[index].copy()
         else:
-            ablated = black_like(obs)
-        shuffle_bank.append(clone_observation(obs))
-        return preserve_non_image_values(ablated, obs)
-    raise ValueError(f"Unknown image ablation mode: {mode}")
+            ablated["control_state"] = np.zeros_like(control_state)
+        shuffle_bank.append(control_state.copy())
+    else:
+        raise ValueError(f"Unknown control-state ablation mode: {mode}")
+    return ablated
 
 
 def mean(values: list[float]) -> float:
@@ -1263,6 +1312,7 @@ def build_step_trace_row(
         "level": scenario.level,
         "control_mode": args.control_mode,
         "image_ablation": args.image_ablation,
+        "control_state_ablation": args.control_state_ablation,
         "episode": episode,
         "seed": episode_seed,
         "episode_outcome": outcome,
@@ -1656,7 +1706,8 @@ def evaluate_scenario(
         )
     )
     ablation_rng = np.random.default_rng(args.seed + 1_000_003)
-    shuffle_bank: list[Any] = []
+    image_shuffle_bank: list[Any] = []
+    control_state_shuffle_bank: list[np.ndarray] = []
     successes = 0
     collisions = 0
     timeouts = 0
@@ -1776,9 +1827,11 @@ def evaluate_scenario(
                     assert model is not None
                     model_obs = policy_observation(
                         obs,
-                        mode=args.image_ablation,
+                        image_ablation=args.image_ablation,
+                        control_state_ablation=args.control_state_ablation,
                         rng=ablation_rng,
-                        shuffle_bank=shuffle_bank,
+                        image_shuffle_bank=image_shuffle_bank,
+                        control_state_shuffle_bank=control_state_shuffle_bank,
                     )
                     policy_action, _ = model.predict(model_obs, deterministic=True)
                     if args.control_mode == "policy":
@@ -2008,6 +2061,9 @@ def evaluate_scenario(
                 {
                     "scenario": scenario.name,
                     "level": scenario.level,
+                    "control_mode": args.control_mode,
+                    "image_ablation": args.image_ablation,
+                    "control_state_ablation": args.control_state_ablation,
                     "episode": episode,
                     "seed": episode_seed,
                     "outcome": outcome,
@@ -2107,6 +2163,7 @@ def evaluate_scenario(
         "level": scenario.level,
         "control_mode": args.control_mode,
         "image_ablation": args.image_ablation,
+        "control_state_ablation": args.control_state_ablation,
         "episodes": args.episodes,
         "success_rate": successes / args.episodes,
         "collision_rate": collisions / args.episodes,
@@ -2219,6 +2276,7 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Observation mode: `{args.observation_mode}`",
         f"- Control mode: `{args.control_mode}`",
         f"- Image ablation: `{args.image_ablation}`",
+        f"- Control-state ablation: `{args.control_state_ablation}`",
         f"- Episodes per scenario: `{args.episodes}`",
         f"- Seed: `{args.seed}`",
         f"- Frame skip: `{args.frame_skip}`",
@@ -2304,12 +2362,12 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Contact recovery XY/Z/lift/Z tol/max down: `{args.contact_recovery_xy_tolerance}/{args.contact_recovery_z_max}/{args.contact_recovery_lift_height}/{args.contact_recovery_lift_z_tolerance}/{args.contact_recovery_max_down_action}`",
         f"- Timeout progress XY/Z/max down: `{args.timeout_progress_xy_tolerance}/{args.timeout_progress_z_max}/{args.timeout_progress_max_down_action}`",
         "",
-        "| Scenario | Level | Mode | Image | Guard | Success | Collision | Timeout | Mean return | Mean steps | Guard steps | Retry steps | Latch steps | Hover steps | Near limited | Fixture steps | Fixture realign | Preinsert | Approach rec | Stateful rec | Final servo | Final servo descend | Final XY | Final Z |",
-        "| --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Scenario | Level | Mode | Image | Control state | Guard | Success | Collision | Timeout | Mean return | Mean steps | Guard steps | Retry steps | Latch steps | Hover steps | Near limited | Fixture steps | Fixture realign | Preinsert | Approach rec | Stateful rec | Final servo | Final servo descend | Final XY | Final Z |",
+        "| --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for row in rows:
         lines.append(
-            "| {name} | {level} | {control_mode} | {image_ablation} | {guard_enabled} | {success_rate:.3f} | {collision_rate:.3f} | "
+            "| {name} | {level} | {control_mode} | {image_ablation} | {control_state_ablation} | {guard_enabled} | {success_rate:.3f} | {collision_rate:.3f} | "
             "{timeout_rate:.3f} | {mean_return:.3f} | {mean_steps:.1f} | "
             "{mean_guarded_steps:.1f} ({mean_guarded_step_fraction:.2f}) | "
             "{mean_retry_steps:.1f} ({mean_retry_step_fraction:.2f}) | "
@@ -2335,6 +2393,11 @@ def main() -> None:
         raise ValueError("--episodes must be positive.")
     if args.image_ablation != "normal" and args.observation_mode != "image":
         raise ValueError("--image-ablation requires --observation-mode image.")
+    if args.control_state_ablation != "normal":
+        if args.observation_mode != "image":
+            raise ValueError("--control-state-ablation requires --observation-mode image.")
+        if not args.include_control_state:
+            raise ValueError("--control-state-ablation requires --include-control-state.")
     validate_ordered_pair("--initial-tip-z-above-range", args.initial_tip_z_above_range, min_value=0.0)
     validate_ordered_pair("--initial-tip-xy-offset-range", args.initial_tip_xy_offset_range, min_value=0.0)
     validate_ordered_pair("--geometry-hole-half-size-range", args.geometry_hole_half_size_range, min_value=0.0)
