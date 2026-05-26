@@ -6750,3 +6750,57 @@ seed640 focused 10ep:
 Do not directly change `near_hole_crop_size` with the current checkpoint:
 SB3 checks the observation space and the model expects `64x64`. To test crop
 scale, add a separate crop-source-size option that resizes back to `64x64`.
+
+Run the v47 crop source-size resize scan:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v47_crop_source_resize_scan_seed642_5ep"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+$conditions = @()
+foreach ($source in 48,64,80,96) {
+  foreach ($ox in -18,12,24) {
+    $conditions += @{source=$source; ox=$ox; oy=0; fovy=100.0}
+  }
+}
+foreach ($c in $conditions) {
+  python scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml `
+    --geometry-profile mixed_basic `
+    --episodes 5 `
+    --seed 642000 `
+    --control-mode guarded `
+    --image-ablation normal `
+    --control-state-ablation normal `
+    --near-hole-crop-size 64 `
+    --near-hole-crop-source-size $c.source `
+    --near-hole-crop-offset $c.ox $c.oy `
+    --wrist-camera-fovy $c.fovy `
+    --guard-blend 1.0 `
+    --output-csv "$out\eval_source$($c.source)_out64_ox$($c.ox)_oy$($c.oy)_fovy100.csv" `
+    --output-md "$out\eval_source$($c.source)_out64_ox$($c.ox)_oy$($c.oy)_fovy100.md" `
+    --episode-output-csv "$out\eval_source$($c.source)_out64_ox$($c.ox)_oy$($c.oy)_fovy100_episodes.csv" `
+    --step-output-csv "$out\eval_source$($c.source)_out64_ox$($c.ox)_oy$($c.oy)_fovy100_failure_steps.csv" `
+    --step-trace-outcome-filter failure
+}
+```
+
+Known source-size resize result on seed `642000`:
+
+```text
+source 48 -> 64:  offset [-18,0] 5/5,  [+12,0] 2/5,  [+24,0] 2/5
+source 64 -> 64:  offset [-18,0] 5/5,  [+12,0] 2/5,  [+24,0] 2/5
+source 80 -> 64:  offset [-18,0] 5/5,  [+12,0] 3/5,  [+24,0] 3/5
+source 96 -> 64:  offset [-18,0] 5/5,  [+12,0] 5/5,  [+24,0] 5/5
+```
+
+Summary files:
+
+```text
+D:\peg-in-hole-6yh\v47_crop_source_resize_scan_seed642_5ep\summary.md
+D:\peg-in-hole-6yh\v47_crop_source_resize_scan_seed642_5ep\summary.csv
+```
+
+Interpretation: a larger source crop, especially `96 -> 64`, fixes the positive
+X crop-offset sensitivity in this 5-episode probe. The next training-side
+experiment should collect/train with source-size jitter around `80-96` while
+keeping the output observation at `64x64`.

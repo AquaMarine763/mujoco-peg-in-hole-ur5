@@ -141,6 +141,7 @@ class PegInHoleMujocoEnv(gym.Env):
         image_height: int = 100,
         include_near_hole_crop: bool = False,
         near_hole_crop_size: int = 64,
+        near_hole_crop_source_size: int | None = None,
         near_hole_crop_offset: tuple[int, int] = (0, 0),
         include_control_state: bool = False,
         image_frame_stack: int = 1,
@@ -237,6 +238,11 @@ class PegInHoleMujocoEnv(gym.Env):
         self.image_height = int(image_height)
         self.include_near_hole_crop = bool(include_near_hole_crop)
         self.near_hole_crop_size = int(near_hole_crop_size)
+        self.near_hole_crop_source_size = (
+            int(near_hole_crop_source_size)
+            if near_hole_crop_source_size is not None
+            else int(near_hole_crop_size)
+        )
         self.near_hole_crop_offset = tuple(int(value) for value in near_hole_crop_offset)
         self.include_control_state = bool(include_control_state)
         self.image_frame_stack = int(image_frame_stack)
@@ -611,6 +617,8 @@ class PegInHoleMujocoEnv(gym.Env):
             raise ValueError("image_width and image_height must be positive.")
         if self.near_hole_crop_size <= 0:
             raise ValueError("near_hole_crop_size must be positive.")
+        if self.near_hole_crop_source_size <= 0:
+            raise ValueError("near_hole_crop_source_size must be positive.")
         if len(self.near_hole_crop_offset) != 2:
             raise ValueError("near_hole_crop_offset must contain two integer values.")
         if self.image_frame_stack <= 0:
@@ -1975,17 +1983,32 @@ class PegInHoleMujocoEnv(gym.Env):
     def _center_crop_gray(self, gray: np.ndarray) -> np.ndarray:
         if self.near_hole_crop_size <= 0:
             raise ValueError("near_hole_crop_size must be positive.")
+        if self.near_hole_crop_source_size <= 0:
+            raise ValueError("near_hole_crop_source_size must be positive.")
         height, width = gray.shape[:2]
-        crop_size = min(self.near_hole_crop_size, height, width)
+        crop_source_size = min(self.near_hole_crop_source_size, height, width)
+        crop_output_size = self.near_hole_crop_size
         offset_x, offset_y = self.near_hole_crop_offset
-        x0 = int(np.clip((width - crop_size) // 2 + offset_x, 0, width - crop_size))
-        y0 = int(np.clip((height - crop_size) // 2 + offset_y, 0, height - crop_size))
-        crop = gray[y0 : y0 + crop_size, x0 : x0 + crop_size]
-        if crop.shape == (self.near_hole_crop_size, self.near_hole_crop_size):
+        x0 = int(
+            np.clip(
+                (width - crop_source_size) // 2 + offset_x,
+                0,
+                width - crop_source_size,
+            )
+        )
+        y0 = int(
+            np.clip(
+                (height - crop_source_size) // 2 + offset_y,
+                0,
+                height - crop_source_size,
+            )
+        )
+        crop = gray[y0 : y0 + crop_source_size, x0 : x0 + crop_source_size]
+        if crop.shape == (crop_output_size, crop_output_size):
             return crop
 
-        y_idx = np.linspace(0, crop.shape[0] - 1, self.near_hole_crop_size).round().astype(np.int64)
-        x_idx = np.linspace(0, crop.shape[1] - 1, self.near_hole_crop_size).round().astype(np.int64)
+        y_idx = np.linspace(0, crop.shape[0] - 1, crop_output_size).round().astype(np.int64)
+        x_idx = np.linspace(0, crop.shape[1] - 1, crop_output_size).round().astype(np.int64)
         return crop[y_idx][:, x_idx]
 
     def _augment_gray_image(self, gray: np.ndarray) -> np.ndarray:
@@ -2121,6 +2144,8 @@ class PegInHoleMujocoEnv(gym.Env):
             "initial_tip_target": self.current_initial_tip_target.astype(np.float32),
             "initial_ik_error": self.current_initial_ik_error,
             "initial_ik_attempts": self.current_initial_ik_attempts,
+            "near_hole_crop_size": self.near_hole_crop_size,
+            "near_hole_crop_source_size": self.near_hole_crop_source_size,
             "near_hole_crop_offset": np.asarray(self.near_hole_crop_offset, dtype=np.int32),
             "wrist_camera_pos_offset": self.wrist_camera_pos_offset.astype(np.float32),
             "wrist_camera_rot_offset_deg": np.rad2deg(

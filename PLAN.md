@@ -3098,6 +3098,18 @@ Interpretation:
     - crop X `+12`, FOV `100`: `7/10`.
     - crop `[-18,0]`, FOV `80`: `8/10`.
   - Interpretation: v47 is not fully crop-geometry invariant. It tolerates negative/nominal offsets and moderate-to-wide FOV, but positive crop X offsets and narrow FOV expose approach/guard-entry failures. Next training-side work should add crop/camera jitter around this axis, or redesign the crop to make hole-centered spatial information more stable.
+- Crop source-size resize scan:
+  - Added `near_hole_crop_source_size` to `PegInHoleMujocoEnv` and `scripts\eval_guarded_policy.py`.
+  - This keeps the policy observation key shape fixed at `near_hole_crop=64x64`, while cropping a different source window and resizing it back to `64x64` before inference.
+  - Output directory: `D:\peg-in-hole-6yh\v47_crop_source_resize_scan_seed642_5ep`.
+  - Summary files: `summary.md` and `summary.csv` in that directory.
+  - Source-size matrix, output size fixed at `64`, FOV `100`, seed `642000`, 5 episodes/condition:
+    - source `48`: offset `[-18,0]` `5/5`, `[+12,0]` `2/5`, `[+24,0]` `2/5`.
+    - source `64`: offset `[-18,0]` `5/5`, `[+12,0]` `2/5`, `[+24,0]` `2/5`.
+    - source `80`: offset `[-18,0]` `5/5`, `[+12,0]` `3/5`, `[+24,0]` `3/5`.
+    - source `96`: offset `[-18,0]` `5/5`, `[+12,0]` `5/5`, `[+24,0]` `5/5`.
+  - Interpretation: the current checkpoint benefits from a wider source crop when the crop center shifts positive in X. Directly changing the output crop size is still incompatible with the saved SB3 observation space; source-size resize is the safe evaluation path.
+  - Next visual-policy step: add collection/training support for crop-source jitter, starting around `80-96` source pixels with output fixed at `64`, then rerun the same offset/FOV scan with a trained jitter model.
 
 ## Key Commands
 
