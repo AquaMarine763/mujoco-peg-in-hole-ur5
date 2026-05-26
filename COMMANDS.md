@@ -6412,6 +6412,12 @@ one-parameter scan.
 
 ## v47 Early Final-Servo Boundary Stress
 
+v47 is promoted as the current strict-1000 multi-geometry boundary-stress
+candidate under local tag `v0.7.2-early-final-servo-boundary`. Use the
+`early_final_servo_boundary` configs below for the current recommended
+boundary run. v46 remains the moderate-stress reference; do not use the
+deterministic 1 mm clearance worst-case as the default task.
+
 Run the opt-in v47 boundary stress config:
 
 ```powershell

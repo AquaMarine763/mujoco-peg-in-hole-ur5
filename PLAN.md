@@ -1,6 +1,6 @@
 # Project Plan And Status
 
-Last updated: 2026-05-25
+Last updated: 2026-05-26
 
 This file records the current project status, known metrics, and next planned steps. Keep it current when a milestone changes.
 
@@ -22,6 +22,7 @@ The immediate objective on `feature/multi-geometry` is to keep the single-geomet
 - Remote: `https://github.com/AquaMarine763/mujoco-peg-in-hole-ur5.git`
 - Latest local single-geometry milestone: `v0.6.50-single-geometry` / `4a0f65f Promote strict single-geometry high-start baseline`
 - Latest pushed multi-geometry milestone: `v0.7.0-multi-geometry-split-servo`
+- Latest local multi-geometry boundary milestone: `v0.7.2-early-final-servo-boundary`
 
 ## Multi-Geometry Branch Status
 
@@ -3027,9 +3028,12 @@ Interpretation:
   - trajectory output: `D:\peg-in-hole-6yh\v47_early_final_servo_demos\demo_v47_square_square_seed634014_guarded_trajectory.csv`
   - result: `square_square/seed634014` success in `288` steps, final XY/Z about `0.60 mm / 9.26 mm`, `94` guarded steps, `50` final-servo steps, `0` fixture-retreat steps.
   - GIF is `2560x720`, `289` frames, overview + wrist camera side-by-side. MP4 output fell back to GIF because the local `imageio` install has no ffmpeg/pyav writer.
-- Next step:
-  - v47 is now a stronger strict-1000 candidate than v46 for boundary stress.
-  - remaining work is deciding whether to tag/promote it, or running one larger final promotion gate first.
+- Promotion decision:
+  - v47 is promoted as the current strict-1000 multi-geometry boundary-stress candidate.
+  - `v0.7.2-early-final-servo-boundary` points at the promotion commit for this state.
+  - v46 remains the moderate-stress reference, but v47 supersedes it for boundary stress because it fixes the v46 approach/fixture-clearance failures without regressing the v46 moderate matrix.
+  - Do not treat the deterministic 1 mm clearance worst-case as the default task; use it only as a boundary diagnostic.
+  - Next work should start from v47 and inspect whether the remaining robustness gap is policy-side visual search, control tracking, or a deliberately harder geometry distribution.
 
 ## Key Commands
 

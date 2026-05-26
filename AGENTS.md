@@ -1,6 +1,6 @@
 # Agent Working Notes
 
-Last updated: 2026-05-25
+Last updated: 2026-05-26
 
 This file records the standing workflow, user preferences, safety rules, and project constraints for future Codex work in this repository. Read this file before making non-trivial changes.
 
@@ -13,6 +13,7 @@ The current focus is:
 - Keep the existing lightweight UR5e adapter training pipeline usable.
 - Add and validate a full UR5e MuJoCo task model.
 - Improve robustness with image observations, near-hole crop, domain randomization, guarded insertion, and staged geometry curriculum.
+- Treat v47 early-final-servo boundary as the current promoted strict-1000 multi-geometry boundary candidate.
 - Prepare real UR5e deployment in read-only / dry-run form before enabling any real robot motion.
 
 ## User Preferences
@@ -125,7 +126,9 @@ The current focus is:
   - Use config `configs\sim\ur5e_full\demo_multi_geometry_contact_reinsert_tip_priority.yaml` for v42 demos. Always pass `--guarded-policy`; otherwise demo is policy-only and can timeout with `guard_steps=0`.
   - Demo outputs on seed `614000` live in `D:\peg-in-hole-6yh\v42_tip_priority_demos`: `single` succeeded in `316` steps and `square_square` succeeded in `315` steps. GIFs are `2560x720`, overview plus wrist camera.
   - Do not enable `--ik-control-mode pose_tip_priority` globally. It breaks the learned approach trajectory. Keep nominal `ik_control_mode: pose` and enable tip-priority only through `--guard-final-servo-tip-priority-ik-enabled` and `--guard-contact-reinsert-tip-priority-ik-enabled`.
-  - v44 has been locally committed and tagged as `v0.7.1-contact-reinsert-square-fast-settle`. v46 contact-tolerant square-fast-settle has now passed a larger moderate-stress matrix and is the current opt-in stress candidate. Do not make the 1mm-clearance deterministic worst-case or tighter boundary regression the default task; remaining failures there are approach/fixture-clearance issues, not final insertion fast-settle. Do not add large untracked result traces by default, and push/tag only when requested.
+  - v44 has been locally committed and tagged as `v0.7.1-contact-reinsert-square-fast-settle`.
+  - v47 early-final-servo boundary is promoted as the current strict-1000 multi-geometry boundary candidate; tag `v0.7.2-early-final-servo-boundary` identifies this promoted state. It uses `configs\sim\ur5e_full\eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml` plus `guard_start_z=0.14`, `guard_final_servo_start_xy=0.035`, `guarded_max_xy_action=0.008`, and `nominal_actuator_kp_multiplier=3.0`.
+  - v46 contact-tolerant square-fast-settle remains the moderate-stress reference, but v47 supersedes it for boundary stress. Do not make the 1mm-clearance deterministic worst-case the default task; treat it as a diagnostic. Do not add large untracked result traces by default, and push/tag only when requested.
 - UR5e controller status:
   - Default remains position-only peg-tip IK for checkpoint compatibility.
   - Experimental `ik_control_mode=pose` is implemented in `PegInHoleMujocoEnv` and exposed in guarded eval, demo, inference, and `scripts\diagnose_ur5e_controller.py`.

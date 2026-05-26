@@ -31,7 +31,26 @@ The current recommended narrowed-hole full UR5e policy is:
 checkpoints/ur5e_full/adapt/sac_image_bc_50k_narrow_hole_full_light_geometry.zip
 ```
 
-It was fine-tuned from the pre-narrow full UR5e adapted checkpoint using:
+The current promoted strict-1000 multi-geometry boundary candidate is v47:
+
+```text
+configs/sim/ur5e_full/eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml
+configs/sim/ur5e_full/demo_multi_geometry_early_final_servo_boundary.yaml
+```
+
+Recommended checkpoint:
+
+```text
+checkpoints/ur5e_full/high_start/hard/correction/sac_image_bc_wrist_pose_control_state_insert_drift_2k_w10_e1.zip
+```
+
+v47 uses early final-servo handoff, local stronger approach control, and the
+`guard_start_z=0.14` high-Z guard fix. It supersedes v46 for boundary stress;
+v46 remains a moderate-stress reference. Do not treat the deterministic 1 mm
+clearance worst-case as the default task.
+
+The narrowed-hole policy was fine-tuned from the pre-narrow full UR5e adapted
+checkpoint using:
 
 ```text
 datasets/ur5e_full/adapt/image_expert_50k_narrow_hole_full_light_geometry.npz
