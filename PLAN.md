@@ -3021,9 +3021,15 @@ Interpretation:
   - includes the high-Z guard fix: `guard_start_z=0.14`.
   - smoke result before the high-Z guard update: `D:\peg-in-hole-6yh\v47_early_final_servo_config_smoke`, `square_square/seed631004`: success.
   - smoke result after the high-Z guard update: `D:\peg-in-hole-6yh\v47_early_final_servo_gstart140_config_smoke`, `square_square/seed634014`: success.
+- New demo config:
+  - `configs/sim/ur5e_full/demo_multi_geometry_early_final_servo_boundary.yaml`
+  - demo output: `D:\peg-in-hole-6yh\v47_early_final_servo_demos\demo_v47_square_square_seed634014_guarded_overview_wrist.gif`
+  - trajectory output: `D:\peg-in-hole-6yh\v47_early_final_servo_demos\demo_v47_square_square_seed634014_guarded_trajectory.csv`
+  - result: `square_square/seed634014` success in `288` steps, final XY/Z about `0.60 mm / 9.26 mm`, `94` guarded steps, `50` final-servo steps, `0` fixture-retreat steps.
+  - GIF is `2560x720`, `289` frames, overview + wrist camera side-by-side. MP4 output fell back to GIF because the local `imageio` install has no ffmpeg/pyav writer.
 - Next step:
   - v47 is now a stronger strict-1000 candidate than v46 for boundary stress.
-  - remaining work is demo generation and deciding whether to tag/promote it.
+  - remaining work is deciding whether to tag/promote it, or running one larger final promotion gate first.
 
 ## Key Commands
 

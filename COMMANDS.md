@@ -6460,3 +6460,29 @@ v46 moderate regression with v47 ctl:  240/240 success, 0 collision, 0 timeout
 The two `seed632-634` timeouts were high-Z slow-descent cases on episode seed
 `634014`; they were fixed by raising `guard_start_z` from `0.12` to `0.14` in
 `configs\sim\ur5e_full\eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml`.
+
+Generate the v47 high-resolution hard-boundary demo:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v47_early_final_servo_demos"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+python scripts\demo_policy.py `
+  --config configs\sim\ur5e_full\demo_multi_geometry_early_final_servo_boundary.yaml `
+  --geometry-profile square_square `
+  --seed 634014 `
+  --output "$out\demo_v47_square_square_seed634014_guarded_overview_wrist.mp4" `
+  --trajectory-output "$out\demo_v47_square_square_seed634014_guarded_trajectory.csv"
+```
+
+Known demo result:
+
+```text
+square_square/seed634014: success, 288 steps
+final XY/Z:               0.60 mm / 9.26 mm
+guard/final-servo steps:  94 / 50
+GIF fallback:             2560x720, 289 frames, overview + wrist_cam side by side
+```
+
+If MP4 is required instead of GIF, install an `imageio` video backend such as
+`imageio[ffmpeg]`; otherwise the script automatically writes a GIF fallback.
