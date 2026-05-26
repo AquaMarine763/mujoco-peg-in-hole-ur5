@@ -3034,6 +3034,18 @@ Interpretation:
   - v46 remains the moderate-stress reference, but v47 supersedes it for boundary stress because it fixes the v46 approach/fixture-clearance failures without regressing the v46 moderate matrix.
   - Do not treat the deterministic 1 mm clearance worst-case as the default task; use it only as a boundary diagnostic.
   - Next work should start from v47 and inspect whether the remaining robustness gap is policy-side visual search, control tracking, or a deliberately harder geometry distribution.
+- Policy/controller contribution ablation:
+  - Output directory: `D:\peg-in-hole-6yh\v47_policy_contribution_ablation_seed635_10ep`
+  - Config: `configs/sim/ur5e_full/eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml`, `mixed_basic`, seed `635000`, `10` episodes/condition.
+  - guarded blend `1.0`, normal image: `1.000/0.000/0.000`, mean `312.3` steps.
+  - guarded blend `0.75`, normal image: `1.000/0.000/0.000`, mean `346.0` steps.
+  - guarded blend `0.5`, normal image: `0.900/0.000/0.100`, timeout on `635008`.
+  - guarded blend `1.0`, black image: `0.700/0.000/0.300`.
+  - guarded blend `1.0`, noise image: `0.600/0.000/0.400`.
+  - guarded blend `1.0`, shuffled image: `1.000/0.000/0.000` on this small seed window; do not over-interpret without more seeds.
+  - guard-only: `0.700/0.000/0.300`.
+  - policy-only: `0.000/0.000/1.000`.
+  - Conclusion: v47 is a coupled policy plus controller system. Vision contributes to reaching useful guard conditions, while the final insertion remains controller-dominated. Do not claim the learned image policy is an independent insertion controller under the boundary distribution.
 
 ## Key Commands
 

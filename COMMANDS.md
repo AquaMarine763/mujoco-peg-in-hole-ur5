@@ -6492,3 +6492,53 @@ GIF fallback:             2560x720, 289 frames, overview + wrist_cam side by sid
 
 If MP4 is required instead of GIF, install an `imageio` video backend such as
 `imageio[ffmpeg]`; otherwise the script automatically writes a GIF fallback.
+
+Run the v47 policy/controller contribution ablation:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v47_policy_contribution_ablation_seed635_10ep"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+$conditions = @(
+  @{name="guarded_blend100_normal"; mode="guarded"; ablation="normal"; blend="1.0"},
+  @{name="guarded_blend075_normal"; mode="guarded"; ablation="normal"; blend="0.75"},
+  @{name="guarded_blend050_normal"; mode="guarded"; ablation="normal"; blend="0.5"},
+  @{name="guarded_blend100_black"; mode="guarded"; ablation="black"; blend="1.0"},
+  @{name="guarded_blend100_noise"; mode="guarded"; ablation="noise"; blend="1.0"},
+  @{name="guarded_blend100_shuffle"; mode="guarded"; ablation="shuffle"; blend="1.0"},
+  @{name="guard_only"; mode="guard_only"; ablation="normal"; blend="1.0"},
+  @{name="policy_only"; mode="policy"; ablation="normal"; blend="1.0"}
+)
+foreach ($c in $conditions) {
+  python scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml `
+    --geometry-profile mixed_basic `
+    --episodes 10 `
+    --seed 635000 `
+    --control-mode $c.mode `
+    --image-ablation $c.ablation `
+    --guard-blend $c.blend `
+    --output-csv "$out\eval_$($c.name).csv" `
+    --output-md "$out\eval_$($c.name).md" `
+    --episode-output-csv "$out\eval_$($c.name)_episodes.csv" `
+    --step-output-csv "$out\eval_$($c.name)_failure_steps.csv" `
+    --step-trace-outcome-filter failure
+}
+```
+
+Known 10-episode contribution result on seed `635000`:
+
+```text
+guarded blend=1.00 normal:   1.000 success, 0.000 collision, 0.000 timeout
+guarded blend=0.75 normal:   1.000 success, 0.000 collision, 0.000 timeout
+guarded blend=0.50 normal:   0.900 success, 0.000 collision, 0.100 timeout
+guarded black image:         0.700 success, 0.000 collision, 0.300 timeout
+guarded noise image:         0.600 success, 0.000 collision, 0.400 timeout
+guarded shuffled image:      1.000 success, 0.000 collision, 0.000 timeout
+guard only:                  0.700 success, 0.000 collision, 0.300 timeout
+policy only:                 0.000 success, 0.000 collision, 1.000 timeout
+```
+
+Interpretation: v47 is not policy-only. Vision helps approach-to-guard entry,
+but final insertion is still dominated by guarded/final-servo control. The
+shuffle result is a small-window diagnostic and needs more seeds before making
+any spatial-robustness claim.
