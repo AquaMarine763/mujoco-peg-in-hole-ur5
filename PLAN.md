@@ -3081,6 +3081,23 @@ Interpretation:
   - `near_hole_crop` black/noise: `7/10 = 0.700` / `0/10 = 0.000`.
   - all/cam/crop shuffle: all `10/10 = 1.000`.
   - Interpretation: the near-hole crop is the sensitive visual channel, not the full wrist frame. The policy is sensitive to crop content quality, especially noise, but crop shuffle still passing means this does not prove precise per-frame spatial visual servoing. Next work should improve crop/camera spatial informativeness or collect handoff/approach diagnostics around crop-driven actions.
+- Crop/camera sensitivity scan:
+  - Output directories:
+    - `D:\peg-in-hole-6yh\v47_crop_camera_scan_seed639_5ep`
+    - `D:\peg-in-hole-6yh\v47_crop_camera_scan_focus_seed640_10ep`
+  - Direct crop-size scanning was not run because the trained SB3 observation space expects `near_hole_crop` shape `64x64`; changing `near_hole_crop_size` changes the model input space. To test crop scale later, add a separate "crop source size then resize to 64" option.
+  - Fixed-size `64x64` crop offset probe, seed `639000`, 5ep/condition:
+    - X offsets `-36, -24, -18, -12, 0, +12` at `FOV=100`: all `5/5`.
+    - X offset `+24`: `4/5`, timeout on `639004`.
+    - Y offsets `-16, 0, +16` at X `-18`: all `5/5`.
+    - FOV `90, 100, 110, 120`: all `5/5`.
+    - FOV `80`: `3/5`, timeouts on `639000/639001`.
+  - Focused seed `640000` 10ep expansion:
+    - baseline crop `[-18,0]`, FOV `100`: `10/10`.
+    - crop X `+24`, FOV `100`: `7/10`.
+    - crop X `+12`, FOV `100`: `7/10`.
+    - crop `[-18,0]`, FOV `80`: `8/10`.
+  - Interpretation: v47 is not fully crop-geometry invariant. It tolerates negative/nominal offsets and moderate-to-wide FOV, but positive crop X offsets and narrow FOV expose approach/guard-entry failures. Next training-side work should add crop/camera jitter around this axis, or redesign the crop to make hole-centered spatial information more stable.
 
 ## Key Commands
 

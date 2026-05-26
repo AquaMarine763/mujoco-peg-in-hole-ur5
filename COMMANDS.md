@@ -6690,3 +6690,63 @@ Interpretation: `near_hole_crop` is the sensitive visual input. The full wrist
 `cam_image` is much less important in this v47 setup. Shuffle still passing
 means this proves crop content sensitivity, not precise per-frame visual
 servoing.
+
+Run the v47 fixed-size crop/camera scan:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v47_crop_camera_scan_seed639_5ep"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+$conditions = @()
+foreach ($ox in -36,-24,-18,-12,0,12,24) {
+  $conditions += @{name="crop64_ox$ox`_oy0_fovy100"; ox=$ox; oy=0; fovy=100.0}
+}
+foreach ($oy in -16,0,16) {
+  $conditions += @{name="crop64_oxm18_oy$oy`_fovy100"; ox=-18; oy=$oy; fovy=100.0}
+}
+foreach ($fovy in 80.0,90.0,100.0,110.0,120.0) {
+  $conditions += @{name="crop64_oxm18_oy0_fovy$fovy"; ox=-18; oy=0; fovy=$fovy}
+}
+$seen = @{}
+foreach ($c in $conditions) {
+  if ($seen.ContainsKey($c.name)) { continue }
+  $seen[$c.name] = $true
+  python scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml `
+    --geometry-profile mixed_basic `
+    --episodes 5 `
+    --seed 639000 `
+    --control-mode guarded `
+    --image-ablation normal `
+    --control-state-ablation normal `
+    --near-hole-crop-size 64 `
+    --near-hole-crop-offset $c.ox $c.oy `
+    --wrist-camera-fovy $c.fovy `
+    --guard-blend 1.0 `
+    --output-csv "$out\eval_$($c.name).csv" `
+    --output-md "$out\eval_$($c.name).md" `
+    --episode-output-csv "$out\eval_$($c.name)_episodes.csv" `
+    --step-output-csv "$out\eval_$($c.name)_failure_steps.csv" `
+    --step-trace-outcome-filter failure
+}
+```
+
+Known crop/camera scan result:
+
+```text
+seed639 5ep:
+  crop X -36/-24/-18/-12/0/+12, FOV 100: all 5/5
+  crop X +24, FOV 100:                    4/5
+  crop Y -16/0/+16 at X -18, FOV 100:     all 5/5
+  FOV 90/100/110/120 at crop [-18,0]:     all 5/5
+  FOV 80 at crop [-18,0]:                 3/5
+
+seed640 focused 10ep:
+  baseline crop [-18,0], FOV 100:         10/10
+  crop X +12, FOV 100:                    7/10
+  crop X +24, FOV 100:                    7/10
+  crop [-18,0], FOV 80:                   8/10
+```
+
+Do not directly change `near_hole_crop_size` with the current checkpoint:
+SB3 checks the observation space and the model expects `64x64`. To test crop
+scale, add a separate crop-source-size option that resizes back to `64x64`.
