@@ -28,6 +28,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--height", type=int, default=100)
     parser.add_argument("--include-near-hole-crop", action="store_true")
     parser.add_argument("--near-hole-crop-size", type=int, default=64)
+    parser.add_argument("--near-hole-crop-source-size", type=int, default=None)
+    parser.add_argument("--near-hole-crop-source-size-range", nargs=2, type=int, default=None)
     parser.add_argument("--near-hole-crop-offset", nargs=2, type=int, default=(0, 0))
     parser.add_argument("--include-control-state", action="store_true")
     parser.add_argument("--image-frame-stack", type=int, default=1)
@@ -98,6 +100,12 @@ def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
         image_height=args.height,
         include_near_hole_crop=args.include_near_hole_crop,
         near_hole_crop_size=args.near_hole_crop_size,
+        near_hole_crop_source_size=args.near_hole_crop_source_size,
+        near_hole_crop_source_size_range=(
+            tuple(args.near_hole_crop_source_size_range)
+            if args.near_hole_crop_source_size_range is not None
+            else None
+        ),
         near_hole_crop_offset=tuple(args.near_hole_crop_offset),
         include_control_state=args.include_control_state,
         image_frame_stack=args.image_frame_stack,

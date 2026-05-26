@@ -1,0 +1,55 @@
+# Smoke test for v47 crop-source jitter data collection.
+# Keeps policy input/output crop at 64x64 while sampling the source crop size
+# per episode. This validates data plumbing only, not production performance.
+
+model_path: assets/ur5e_full/ur5e_peg_in_hole_full.xml
+output: datasets/ur5e_full/multi_geometry/image_expert_crop_source_jitter_smoke.npz
+samples: 32
+seed: 642100
+compressed: true
+
+domain_randomization_level: full_light_geometry
+geometry_profile: mixed_basic
+geometry_square_peg_half_size_range: [0.0105, 0.0125]
+geometry_mixed_square_probability: 0.5
+
+image_width: 100
+image_height: 100
+include_near_hole_crop: true
+near_hole_crop_size: 64
+near_hole_crop_source_size_range: [80, 96]
+near_hole_crop_offset: [-18, 0]
+include_control_state: true
+image_frame_stack: 1
+wrist_camera_pos_offset: [-0.04, -0.04, 0.0]
+wrist_camera_rot_offset_deg: [0.0, 0.0, 0.0]
+wrist_camera_fovy: 100.0
+
+max_steps: 1000
+action_scale: 0.005
+initialization_mode: target_relative_high_start
+initial_tip_z_above_range: [0.15, 0.25]
+initial_tip_xy_offset_range: [0.08, 0.16]
+initial_tip_xy_angle_range_deg: [0.0, 360.0]
+initial_ik_max_attempts: 30
+
+ik_control_mode: pose
+ik_orientation_weight: 0.03
+ik_posture_weight: 0.01
+ik_step_limit: 0.06
+ik_max_iterations: 64
+
+success_xy_tolerance: 0.005
+success_z_tolerance: 0.01
+approach_height: 0.12
+
+oracle_mode: guarded_two_stage
+expert_action_gain: 1.0
+guarded_align_xy_tolerance: 0.020
+guarded_insert_xy_tolerance: 0.005
+guarded_retract_xy_tolerance: 0.012
+guarded_preinsert_height: 0.0
+guarded_max_xy_action: 0.005
+guarded_max_down_action: 0.0035
+guarded_max_up_action: 0.005
+guarded_prediction_steps: 0.0

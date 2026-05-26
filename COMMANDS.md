@@ -6804,3 +6804,58 @@ Interpretation: a larger source crop, especially `96 -> 64`, fixes the positive
 X crop-offset sensitivity in this 5-episode probe. The next training-side
 experiment should collect/train with source-size jitter around `80-96` while
 keeping the output observation at `64x64`.
+
+Run the crop-source jitter data-path smoke:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v47_crop_source_jitter_smoke"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+python scripts\collect_image_expert_dataset.py `
+  --config configs\sim\ur5e_full\collect_multi_geometry_crop_source_jitter_smoke.yaml `
+  --samples 8 `
+  --output "$out\image_expert_crop_source_jitter_smoke.npz"
+
+python scripts\pretrain_image_actor_bc.py `
+  --model-path assets\ur5e_full\ur5e_peg_in_hole_full.xml `
+  --dataset "$out\image_expert_crop_source_jitter_smoke.npz" `
+  --output "$out\sac_image_bc_crop_source_jitter_smoke.zip" `
+  --epochs 1 `
+  --batch-size 4 `
+  --learning-rate 0.000001 `
+  --validation-split 0.25 `
+  --device cpu `
+  --image-width 100 `
+  --image-height 100 `
+  --include-near-hole-crop `
+  --near-hole-crop-size 64 `
+  --near-hole-crop-source-size-range 80 96 `
+  --near-hole-crop-offset -18 0 `
+  --include-control-state `
+  --image-frame-stack 1 `
+  --wrist-camera-pos-offset -0.04 -0.04 0.0 `
+  --wrist-camera-fovy 100.0 `
+  --max-steps 1000 `
+  --ik-control-mode pose `
+  --ik-orientation-weight 0.03 `
+  --ik-max-iterations 64
+```
+
+Known smoke result:
+
+```text
+env reset source sizes with range [80,96]: [96, 87, 95, 96, 81, 89, 81, 83]
+dataset cam_images:       (8, 100, 100, 1), uint8
+dataset near_hole_crops:  (8, 64, 64, 1), uint8
+BC smoke:                 epoch=1 train_loss=0.532733 val_loss=0.526600
+```
+
+Production-sized crop-source jitter collection should start from the smoke
+config and only increase `samples` and output path, for example:
+
+```powershell
+python scripts\collect_image_expert_dataset.py `
+  --config configs\sim\ur5e_full\collect_multi_geometry_crop_source_jitter_smoke.yaml `
+  --samples 50000 `
+  --output datasets\ur5e_full\multi_geometry\image_expert_50k_crop_source_jitter_80_96.npz
+```

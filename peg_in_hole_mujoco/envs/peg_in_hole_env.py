@@ -142,6 +142,7 @@ class PegInHoleMujocoEnv(gym.Env):
         include_near_hole_crop: bool = False,
         near_hole_crop_size: int = 64,
         near_hole_crop_source_size: int | None = None,
+        near_hole_crop_source_size_range: tuple[int, int] | None = None,
         near_hole_crop_offset: tuple[int, int] = (0, 0),
         include_control_state: bool = False,
         image_frame_stack: int = 1,
@@ -243,6 +244,12 @@ class PegInHoleMujocoEnv(gym.Env):
             if near_hole_crop_source_size is not None
             else int(near_hole_crop_size)
         )
+        self.near_hole_crop_source_size_range = (
+            tuple(int(value) for value in near_hole_crop_source_size_range)
+            if near_hole_crop_source_size_range is not None
+            else None
+        )
+        self.current_near_hole_crop_source_size = self.near_hole_crop_source_size
         self.near_hole_crop_offset = tuple(int(value) for value in near_hole_crop_offset)
         self.include_control_state = bool(include_control_state)
         self.image_frame_stack = int(image_frame_stack)
@@ -532,6 +539,7 @@ class PegInHoleMujocoEnv(gym.Env):
         mujoco.mj_resetData(self.model, self.data)
         self.step_count = 0
 
+        self._sample_near_hole_crop_source_size()
         self._sample_target()
         self._maybe_randomize_domain()
         self._initialize_arm_pose()
@@ -619,6 +627,13 @@ class PegInHoleMujocoEnv(gym.Env):
             raise ValueError("near_hole_crop_size must be positive.")
         if self.near_hole_crop_source_size <= 0:
             raise ValueError("near_hole_crop_source_size must be positive.")
+        if self.near_hole_crop_source_size_range is not None:
+            if len(self.near_hole_crop_source_size_range) != 2:
+                raise ValueError("near_hole_crop_source_size_range must contain two integer values.")
+            if self.near_hole_crop_source_size_range[0] <= 0:
+                raise ValueError("near_hole_crop_source_size_range must stay positive.")
+            if self.near_hole_crop_source_size_range[0] > self.near_hole_crop_source_size_range[1]:
+                raise ValueError("near_hole_crop_source_size_range must be increasing.")
         if len(self.near_hole_crop_offset) != 2:
             raise ValueError("near_hole_crop_offset must contain two integer values.")
         if self.image_frame_stack <= 0:
@@ -1031,6 +1046,15 @@ class PegInHoleMujocoEnv(gym.Env):
             dtype=np.float64,
         )
 
+    def _sample_near_hole_crop_source_size(self) -> None:
+        if self.near_hole_crop_source_size_range is None:
+            self.current_near_hole_crop_source_size = self.near_hole_crop_source_size
+            return
+        low, high = self.near_hole_crop_source_size_range
+        self.current_near_hole_crop_source_size = int(
+            self.np_random.integers(low, high + 1)
+        )
+
     def _sample_target(self) -> None:
         self.fixture_pos = self.np_random.uniform(self.target_low, self.target_high)
         self.target_pos = self.fixture_pos.copy()
@@ -1160,6 +1184,8 @@ class PegInHoleMujocoEnv(gym.Env):
         self.current_contact_solimp_width_multiplier = 1.0
         self.current_joint_damping_multiplier = self.nominal_joint_damping_multiplier
         self.current_actuator_kp_multiplier = self.nominal_actuator_kp_multiplier
+        if self.near_hole_crop_source_size_range is None:
+            self.current_near_hole_crop_source_size = self.near_hole_crop_source_size
 
     def _apply_arm_dynamics_multipliers(
         self,
@@ -1983,10 +2009,10 @@ class PegInHoleMujocoEnv(gym.Env):
     def _center_crop_gray(self, gray: np.ndarray) -> np.ndarray:
         if self.near_hole_crop_size <= 0:
             raise ValueError("near_hole_crop_size must be positive.")
-        if self.near_hole_crop_source_size <= 0:
+        if self.current_near_hole_crop_source_size <= 0:
             raise ValueError("near_hole_crop_source_size must be positive.")
         height, width = gray.shape[:2]
-        crop_source_size = min(self.near_hole_crop_source_size, height, width)
+        crop_source_size = min(self.current_near_hole_crop_source_size, height, width)
         crop_output_size = self.near_hole_crop_size
         offset_x, offset_y = self.near_hole_crop_offset
         x0 = int(
@@ -2145,7 +2171,18 @@ class PegInHoleMujocoEnv(gym.Env):
             "initial_ik_error": self.current_initial_ik_error,
             "initial_ik_attempts": self.current_initial_ik_attempts,
             "near_hole_crop_size": self.near_hole_crop_size,
-            "near_hole_crop_source_size": self.near_hole_crop_source_size,
+            "near_hole_crop_source_size": self.current_near_hole_crop_source_size,
+            "near_hole_crop_source_size_range": (
+                np.asarray(self.near_hole_crop_source_size_range, dtype=np.int32)
+                if self.near_hole_crop_source_size_range is not None
+                else np.asarray(
+                    [
+                        self.near_hole_crop_source_size,
+                        self.near_hole_crop_source_size,
+                    ],
+                    dtype=np.int32,
+                )
+            ),
             "near_hole_crop_offset": np.asarray(self.near_hole_crop_offset, dtype=np.int32),
             "wrist_camera_pos_offset": self.wrist_camera_pos_offset.astype(np.float32),
             "wrist_camera_rot_offset_deg": np.rad2deg(

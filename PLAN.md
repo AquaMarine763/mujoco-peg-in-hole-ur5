@@ -3110,6 +3110,17 @@ Interpretation:
     - source `96`: offset `[-18,0]` `5/5`, `[+12,0]` `5/5`, `[+24,0]` `5/5`.
   - Interpretation: the current checkpoint benefits from a wider source crop when the crop center shifts positive in X. Directly changing the output crop size is still incompatible with the saved SB3 observation space; source-size resize is the safe evaluation path.
   - Next visual-policy step: add collection/training support for crop-source jitter, starting around `80-96` source pixels with output fixed at `64`, then rerun the same offset/FOV scan with a trained jitter model.
+- Crop-source jitter data path:
+  - Added default-off `near_hole_crop_source_size_range` to the environment. When set, it samples the source crop size once per episode and still outputs the fixed `near_hole_crop_size`.
+  - Wired fixed source size and source-size range through guarded eval, ordinary eval, matrix eval, demo, deployment-style inference, expert collection, correction collection, and image BC pretraining scripts.
+  - Expert/correction datasets now record `near_hole_crop_source_size` as a diagnostic array, and metadata records the configured source-size range.
+  - New smoke config: `configs\sim\ur5e_full\collect_multi_geometry_crop_source_jitter_smoke.yaml`.
+  - Smoke output directory: `D:\peg-in-hole-6yh\v47_crop_source_jitter_smoke`.
+  - Smoke result:
+    - environment reset probe sampled source sizes `[96, 87, 95, 96, 81, 89, 81, 83]` under range `[80,96]`.
+    - 8-sample expert dataset wrote `cam_images (8,100,100,1)`, `near_hole_crops (8,64,64,1)`, and metadata range `[80,96]`.
+    - 1-epoch BC smoke loaded the dataset and saved `sac_image_bc_crop_source_jitter_smoke.zip`.
+  - Next experiment: collect a real crop-source-jitter expert dataset, likely `20k-50k` samples with source range `[80,96]`, fine-tune the current v47 actor lightly, then rerun the source-size/offset/FOV scan plus the standard `clean/visual_camera/visual_camera_control/full_light_geometry/full_contact_light/hard` matrix.
 
 ## Key Commands
 

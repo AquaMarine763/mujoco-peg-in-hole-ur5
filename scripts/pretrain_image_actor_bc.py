@@ -33,6 +33,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--image-height", type=int, default=100)
     parser.add_argument("--include-near-hole-crop", action="store_true")
     parser.add_argument("--near-hole-crop-size", type=int, default=64)
+    parser.add_argument("--near-hole-crop-source-size", type=int, default=None)
+    parser.add_argument("--near-hole-crop-source-size-range", nargs=2, type=int, default=None)
     parser.add_argument("--near-hole-crop-offset", nargs=2, type=int, default=(0, 0))
     parser.add_argument("--include-control-state", action="store_true")
     parser.add_argument("--image-frame-stack", type=int, default=1)
@@ -98,6 +100,12 @@ def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
         image_height=args.image_height,
         include_near_hole_crop=args.include_near_hole_crop,
         near_hole_crop_size=args.near_hole_crop_size,
+        near_hole_crop_source_size=args.near_hole_crop_source_size,
+        near_hole_crop_source_size_range=(
+            tuple(args.near_hole_crop_source_size_range)
+            if args.near_hole_crop_source_size_range is not None
+            else None
+        ),
         near_hole_crop_offset=tuple(args.near_hole_crop_offset),
         include_control_state=args.include_control_state,
         image_frame_stack=args.image_frame_stack,
@@ -158,15 +166,48 @@ def load_or_create_model(args: argparse.Namespace, env: PegInHoleMujocoEnv) -> S
 def center_crop_images(
     images: np.ndarray,
     crop_size: int,
+    crop_source_size: int | None = None,
+    crop_source_size_range: tuple[int, int] | None = None,
     crop_offset: tuple[int, int] = (0, 0),
+    rng: np.random.Generator | None = None,
 ) -> np.ndarray:
     if crop_size <= 0:
         raise ValueError("crop_size must be positive.")
     if images.ndim != 4:
         raise ValueError(f"Expected image batch shape (N, H, W, C), got {images.shape}")
     height, width = images.shape[1:3]
-    source_size = min(crop_size, height, width)
     offset_x, offset_y = crop_offset
+
+    def crop_one(image: np.ndarray, source_size_value: int) -> np.ndarray:
+        source_size = min(int(source_size_value), height, width)
+        x0 = int(np.clip((width - source_size) // 2 + offset_x, 0, width - source_size))
+        y0 = int(np.clip((height - source_size) // 2 + offset_y, 0, height - source_size))
+        crop = image[y0 : y0 + source_size, x0 : x0 + source_size, :]
+        if crop.shape[0] == crop_size and crop.shape[1] == crop_size:
+            return np.ascontiguousarray(crop)
+        y_idx = np.linspace(0, crop.shape[0] - 1, crop_size).round().astype(np.int64)
+        x_idx = np.linspace(0, crop.shape[1] - 1, crop_size).round().astype(np.int64)
+        return np.ascontiguousarray(crop[y_idx][:, x_idx, :])
+
+    if crop_source_size_range is not None:
+        if crop_source_size_range[0] <= 0 or crop_source_size_range[0] > crop_source_size_range[1]:
+            raise ValueError("crop_source_size_range must be positive and increasing.")
+        if rng is None:
+            rng = np.random.default_rng()
+        source_sizes = rng.integers(
+            crop_source_size_range[0],
+            crop_source_size_range[1] + 1,
+            size=len(images),
+        )
+        return np.stack(
+            [crop_one(image, int(source_size)) for image, source_size in zip(images, source_sizes)],
+            axis=0,
+        )
+
+    source_size_value = crop_source_size if crop_source_size is not None else crop_size
+    if source_size_value <= 0:
+        raise ValueError("crop_source_size must be positive.")
+    source_size = min(int(source_size_value), height, width)
     x0 = int(np.clip((width - source_size) // 2 + offset_x, 0, width - source_size))
     y0 = int(np.clip((height - source_size) // 2 + offset_y, 0, height - source_size))
     crop = images[:, y0 : y0 + source_size, x0 : x0 + source_size, :]
@@ -181,10 +222,13 @@ def load_near_hole_crops(
     dataset: np.lib.npyio.NpzFile,
     images: np.ndarray,
     crop_size: int,
+    crop_source_size: int | None = None,
+    crop_source_size_range: tuple[int, int] | None = None,
     crop_offset: tuple[int, int] = (0, 0),
     frame_stack: int = 1,
     episode_ids: np.ndarray | None = None,
     step_ids: np.ndarray | None = None,
+    rng: np.random.Generator | None = None,
 ) -> np.ndarray:
     if "near_hole_crops" in dataset:
         crops = dataset["near_hole_crops"]
@@ -196,7 +240,14 @@ def load_near_hole_crops(
             episode_ids=episode_ids,
             step_ids=step_ids,
         )
-    return center_crop_images(images, crop_size, crop_offset)
+    return center_crop_images(
+        images,
+        crop_size,
+        crop_source_size,
+        crop_source_size_range,
+        crop_offset,
+        rng,
+    )
 
 
 def derive_control_state(
@@ -354,10 +405,17 @@ def main() -> None:
             dataset,
             images,
             args.near_hole_crop_size,
+            args.near_hole_crop_source_size,
+            (
+                tuple(args.near_hole_crop_source_size_range)
+                if args.near_hole_crop_source_size_range is not None
+                else None
+            ),
             tuple(args.near_hole_crop_offset),
             args.image_frame_stack,
             episode_ids,
             step_ids,
+            rng,
         )
         if args.include_near_hole_crop
         else None

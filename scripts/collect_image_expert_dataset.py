@@ -31,6 +31,7 @@ SCALAR_DIAGNOSTIC_KEYS = (
     "ik_target_error",
     "ik_iterations",
     "joint_target_error",
+    "near_hole_crop_source_size",
 )
 TEXT_DIAGNOSTIC_KEYS = (
     "geometry_profile",
@@ -46,7 +47,7 @@ VECTOR_DIAGNOSTIC_KEYS = (
     "joint_target_qpos",
     "joint_qpos_after_action",
 )
-DATASET_SCHEMA_VERSION = "image_expert_v2_diagnostics"
+DATASET_SCHEMA_VERSION = "image_expert_v3_crop_source"
 
 
 def new_diagnostic_buffers() -> dict[str, list[float | np.ndarray]]:
@@ -103,6 +104,7 @@ def read_sample_diagnostics(info: dict) -> dict[str, float | np.ndarray]:
         "ik_target_error": float(info.get("ik_target_error", np.nan)),
         "ik_iterations": float(info.get("ik_iterations", -1)),
         "joint_target_error": float(info.get("joint_target_error", np.nan)),
+        "near_hole_crop_source_size": float(info.get("near_hole_crop_source_size", np.nan)),
         "geometry_profile": str(info.get("geometry_profile", "")),
         "geometry_name": str(info.get("geometry_name", "")),
         "peg_shape": str(info.get("peg_shape", "")),
@@ -225,6 +227,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--image-height", type=int, default=100)
     parser.add_argument("--include-near-hole-crop", action="store_true")
     parser.add_argument("--near-hole-crop-size", type=int, default=64)
+    parser.add_argument("--near-hole-crop-source-size", type=int, default=None)
+    parser.add_argument("--near-hole-crop-source-size-range", nargs=2, type=int, default=None)
     parser.add_argument("--near-hole-crop-offset", nargs=2, type=int, default=(0, 0))
     parser.add_argument("--include-control-state", action="store_true")
     parser.add_argument("--image-frame-stack", type=int, default=1)
@@ -310,6 +314,12 @@ def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
         image_height=args.image_height,
         include_near_hole_crop=args.include_near_hole_crop,
         near_hole_crop_size=args.near_hole_crop_size,
+        near_hole_crop_source_size=args.near_hole_crop_source_size,
+        near_hole_crop_source_size_range=(
+            tuple(args.near_hole_crop_source_size_range)
+            if args.near_hole_crop_source_size_range is not None
+            else None
+        ),
         near_hole_crop_offset=tuple(args.near_hole_crop_offset),
         include_control_state=args.include_control_state,
         image_frame_stack=args.image_frame_stack,
@@ -571,6 +581,12 @@ def main() -> None:
         "include_control_state": args.include_control_state,
         "image_frame_stack": args.image_frame_stack,
         "near_hole_crop_size": args.near_hole_crop_size,
+        "near_hole_crop_source_size": args.near_hole_crop_source_size,
+        "near_hole_crop_source_size_range": (
+            list(args.near_hole_crop_source_size_range)
+            if args.near_hole_crop_source_size_range is not None
+            else None
+        ),
         "near_hole_crop_offset": list(args.near_hole_crop_offset),
         "wrist_camera_pos_offset": list(args.wrist_camera_pos_offset),
         "wrist_camera_rot_offset_deg": list(args.wrist_camera_rot_offset_deg),
@@ -618,6 +634,9 @@ def main() -> None:
             ),
             "control_action_filter_alpha": summarize_float_array(
                 arrays["control_action_filter_alpha"]
+            ),
+            "near_hole_crop_source_size": summarize_float_array(
+                arrays["near_hole_crop_source_size"]
             ),
         },
     }

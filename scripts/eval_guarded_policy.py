@@ -350,6 +350,7 @@ def build_parser(
     parser.add_argument("--include-near-hole-crop", action="store_true")
     parser.add_argument("--near-hole-crop-size", type=int, default=64)
     parser.add_argument("--near-hole-crop-source-size", type=int, default=None)
+    parser.add_argument("--near-hole-crop-source-size-range", nargs=2, type=int, default=None)
     parser.add_argument("--near-hole-crop-offset", nargs=2, type=int, default=(0, 0))
     parser.add_argument("--include-control-state", action="store_true")
     parser.add_argument("--image-frame-stack", type=int, default=1)
@@ -715,6 +716,11 @@ def make_env(args: argparse.Namespace, scenario: Scenario) -> PegInHoleMujocoEnv
         include_near_hole_crop=args.include_near_hole_crop,
         near_hole_crop_size=args.near_hole_crop_size,
         near_hole_crop_source_size=args.near_hole_crop_source_size,
+        near_hole_crop_source_size_range=(
+            tuple(args.near_hole_crop_source_size_range)
+            if args.near_hole_crop_source_size_range is not None
+            else None
+        ),
         near_hole_crop_offset=tuple(args.near_hole_crop_offset),
         include_control_state=args.include_control_state,
         image_frame_stack=args.image_frame_stack,
@@ -2333,6 +2339,7 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Step trace CSV: `{args.step_output_csv}`",
         f"- Step trace outcome filter: `{args.step_trace_outcome_filter}`",
         f"- Near-hole crop size/source size: `{args.near_hole_crop_size}/{args.near_hole_crop_source_size or args.near_hole_crop_size}`",
+        f"- Near-hole crop source size range: `{args.near_hole_crop_source_size_range}`",
         f"- Near-hole crop offset: `{tuple(args.near_hole_crop_offset)}`",
         f"- Include control state: `{args.include_control_state}`",
         f"- Image frame stack: `{args.image_frame_stack}`",
@@ -2451,6 +2458,11 @@ def main() -> None:
         raise ValueError("--near-hole-crop-size must be positive.")
     if args.near_hole_crop_source_size is not None and args.near_hole_crop_source_size <= 0:
         raise ValueError("--near-hole-crop-source-size must be positive when set.")
+    if args.near_hole_crop_source_size_range is not None:
+        if args.near_hole_crop_source_size_range[0] <= 0:
+            raise ValueError("--near-hole-crop-source-size-range must stay positive.")
+        if args.near_hole_crop_source_size_range[0] > args.near_hole_crop_source_size_range[1]:
+            raise ValueError("--near-hole-crop-source-size-range must be increasing.")
     if args.control_state_ablation != "normal":
         if args.observation_mode != "image":
             raise ValueError("--control-state-ablation requires --observation-mode image.")

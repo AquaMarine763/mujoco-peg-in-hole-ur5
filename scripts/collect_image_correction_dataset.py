@@ -114,6 +114,7 @@ SCALAR_DIAGNOSTIC_KEYS = (
     "peg_tilt_angle_deg",
     "joint_limit_min_normalized_margin",
     "joint_target_error",
+    "near_hole_crop_source_size",
 )
 TEXT_DIAGNOSTIC_KEYS = (
     "geometry_profile",
@@ -129,7 +130,7 @@ VECTOR_DIAGNOSTIC_KEYS = (
     "joint_target_qpos",
     "joint_qpos_after_action",
 )
-DATASET_SCHEMA_VERSION = "image_correction_v7_insert_settle_control_state"
+DATASET_SCHEMA_VERSION = "image_correction_v8_crop_source"
 
 
 def parse_args() -> argparse.Namespace:
@@ -214,6 +215,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--image-height", type=int, default=100)
     parser.add_argument("--include-near-hole-crop", action="store_true")
     parser.add_argument("--near-hole-crop-size", type=int, default=64)
+    parser.add_argument("--near-hole-crop-source-size", type=int, default=None)
+    parser.add_argument("--near-hole-crop-source-size-range", nargs=2, type=int, default=None)
     parser.add_argument("--near-hole-crop-offset", nargs=2, type=int, default=(0, 0))
     parser.add_argument("--include-control-state", action="store_true")
     parser.add_argument("--image-frame-stack", type=int, default=1)
@@ -409,6 +412,12 @@ def make_env(args: argparse.Namespace, scenario: Scenario, tier: ClearanceTier) 
         image_height=args.image_height,
         include_near_hole_crop=args.include_near_hole_crop,
         near_hole_crop_size=args.near_hole_crop_size,
+        near_hole_crop_source_size=args.near_hole_crop_source_size,
+        near_hole_crop_source_size_range=(
+            tuple(args.near_hole_crop_source_size_range)
+            if args.near_hole_crop_source_size_range is not None
+            else None
+        ),
         near_hole_crop_offset=tuple(args.near_hole_crop_offset),
         include_control_state=args.include_control_state,
         image_frame_stack=args.image_frame_stack,
@@ -1125,6 +1134,7 @@ def read_diagnostics(info: dict[str, Any]) -> dict[str, float | np.ndarray]:
         "ik_target_error": float(info.get("ik_target_error", np.nan)),
         "ik_iterations": float(info.get("ik_iterations", -1)),
         "joint_target_error": float(info.get("joint_target_error", np.nan)),
+        "near_hole_crop_source_size": float(info.get("near_hole_crop_source_size", np.nan)),
         "geometry_profile": str(info.get("geometry_profile", "")),
         "geometry_name": str(info.get("geometry_name", "")),
         "peg_shape": str(info.get("peg_shape", "")),
@@ -2541,6 +2551,12 @@ def main() -> None:
         "include_control_state": args.include_control_state,
         "image_frame_stack": args.image_frame_stack,
         "near_hole_crop_size": args.near_hole_crop_size,
+        "near_hole_crop_source_size": args.near_hole_crop_source_size,
+        "near_hole_crop_source_size_range": (
+            list(args.near_hole_crop_source_size_range)
+            if args.near_hole_crop_source_size_range is not None
+            else None
+        ),
         "near_hole_crop_offset": list(args.near_hole_crop_offset),
         "wrist_camera_pos_offset": list(args.wrist_camera_pos_offset),
         "wrist_camera_rot_offset_deg": list(args.wrist_camera_rot_offset_deg),
@@ -2633,6 +2649,9 @@ def main() -> None:
             ),
             "control_action_filter_alpha": summarize_float_array(
                 arrays["control_action_filter_alpha"]
+            ),
+            "near_hole_crop_source_size": summarize_float_array(
+                arrays["near_hole_crop_source_size"]
             ),
             "near_hole_rate": float(np.mean(arrays["near_hole"])) if arrays["near_hole"].size else 0.0,
             "contact_recovery_window_rate": float(np.mean(arrays["contact_recovery_window"]))
