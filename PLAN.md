@@ -3149,6 +3149,34 @@ Interpretation:
   - The current bottleneck is not final insertion or crop-size jitter training. It is the learned approach policy failing to close large XY error on some high-start `round_square` cases before guarded insertion can take over.
   - Next work should target approach-stage visual servoing: collect/weight hard far-XY approach failures, especially `round_square`, and consider a guard/assist path that can activate earlier for large XY approach failures without taking over normal successful cases.
 
+### 2026-05-26 Round-Square Approach Pilot
+
+- Added correction-dataset support for matching the v47 hard bucket:
+  - hard control overrides: scale/noise/delay/filter ranges.
+  - geometry overrides: hole/peg ranges, hole-center/fixture/table jitter.
+  - nominal joint damping / actuator Kp multipliers.
+  - `approach_sample_sort_key` for approach-window selection; default remains `correction_norm` to preserve old behavior.
+- Output directory: `D:\peg-in-hole-6yh\v49_round_square_approach_failure_pilot`.
+- First failure-only collection attempt timed out after 20 minutes, so natural timeout-only sampling is too sparse as a primary route.
+- DAgger-style `round_square` approach-window pilot:
+  - `image_correction_512_round_square_approach_window_v47_hardmatch.npz`
+  - `512` samples from `28` policy-only timeout episodes, all `approach_recenter`.
+  - XY range `0.080-0.153 m`; this over-sampled early approach, not the late far-drift region.
+  - Weighted BC output `sac_image_bc_v49_round_square_approach_w10_e1_lr1e-6.zip` did not improve success: `round_square` seed643 `[+12,+24]` both stayed `9/10`.
+- Late-window focused pilot:
+  - Added `--approach-sample-sort-key steps_to_end`.
+  - Exact seed `643009` late set reached steps `936-999`, XY `0.158-0.176 m`, with many opposed policy/oracle actions.
+  - Larger set `image_correction_512_round_square_late_approach_v47_hardmatch.npz` used `26` policy-only timeout episodes.
+  - Weighted BC output `sac_image_bc_v49_round_square_late_approach_w15_e1_lr2e-6.zip`.
+  - Evaluation on `round_square`, seed `643000`, crop-source range `[80,96]`:
+    - base v47: `[+12,0] 9/10`, `[+24,0] 9/10`, final failure XY about `0.206 m`.
+    - v49 late candidate: `[+12,0] 9/10`, `[+24,0] 9/10`, final failure XY about `0.205 m`.
+  - Conclusion: this is useful instrumentation and data plumbing, but not a promoted model. Small BC correction can slightly change the failure trajectory but does not solve the far-XY approach blind spot.
+- Next recommendation:
+  - Keep the correction script enhancements.
+  - Do not scale this exact BC recipe yet.
+  - Next test should compare two routes: a stronger approach-specific learner/data curriculum versus a default-off early approach assist/guard that activates only when `dist_xy` remains high and Z is still safely above the fixture.
+
 ## Key Commands
 
 Full UR5e model check:

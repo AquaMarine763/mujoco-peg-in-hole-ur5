@@ -396,6 +396,14 @@ The current focus is:
     - fixed-source candidate scan on seed `642000` matched v47: `64 -> 64` positive X offsets `2/5`, `80 -> 64` `3/5`, `96 -> 64` `5/5`
     - runtime `[80,96]` source range on seed `643000` gave both base v47 and candidate `9/10` at `+12` and `+24`; do not promote the 2k jitter continuation
     - observed failure is far-XY approach on `round_square`: `dist_xy` grows to about `0.20 m`, guard never activates, no collision. Next useful work is approach-stage visual servoing / hard far-XY data, not more low-risk crop jitter.
+  - round-square approach pilot status:
+    - correction data collection now supports hard-control overrides, geometry overrides, nominal actuator/joint multipliers, and `approach_sample_sort_key`; these are useful and should be kept
+    - v49 outputs are outside the repo at `D:\peg-in-hole-6yh\v49_round_square_approach_failure_pilot`
+    - natural timeout-only collection was too sparse and timed out after 20 minutes
+    - DAgger-style approach-window data was easier to collect but the first `correction_norm`-sorted set over-sampled early approach states
+    - `steps_to_end` sorting captured late seed643009 states with XY up to about `0.176 m` and opposed policy/oracle actions
+    - weighted BC candidates did not improve the hard `round_square` seed643 eval: base and v49 late candidate both stayed `9/10` at crop offsets `+12` and `+24`
+    - do not promote/tag the v49 approach BC models; next useful step is to compare stronger approach-specific visual curriculum against a default-off early approach assist/guard
 
 ## Editing Workflow
 

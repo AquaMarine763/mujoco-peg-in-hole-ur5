@@ -7019,3 +7019,131 @@ jitter_2k_e1:   [+12,0] 9/10, [+24,0] 9/10, 0 collision
 Interpretation: do not promote the 2k jitter continuation. The larger runtime
 source crop/range is useful, but the remaining failure is far-XY approach on a
 `round_square` episode where guard never activates.
+
+## Round-Square Approach Failure Pilot
+
+The v49 approach pilot outputs are outside the repo:
+
+```text
+D:\peg-in-hole-6yh\v49_round_square_approach_failure_pilot
+```
+
+Collect late-window `round_square` approach correction samples matching the v47
+hard bucket:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v49_round_square_approach_failure_pilot"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+python scripts\collect_image_correction_dataset.py `
+  --config configs\sim\ur5e_full\collect_high_start_hard_wrist_pose_control_state_approach_2k.yaml `
+  --model checkpoints\ur5e_full\high_start\hard\correction\sac_image_bc_wrist_pose_control_state_insert_drift_2k_w10_e1.zip `
+  --output "$out\image_correction_512_round_square_late_approach_v47_hardmatch.npz" `
+  --samples 512 `
+  --samples-per-config 512 `
+  --max-episodes-per-config 80 `
+  --seed 643000 `
+  --geometry-profile round_square `
+  --selection approach_window `
+  --episode-outcome-filter any `
+  --keep-success-episodes `
+  --failure-window-steps 1000 `
+  --max-samples-per-episode 24 `
+  --near-hole-crop-source-size-range 80 96 `
+  --approach-window-xy-min 0.080 `
+  --approach-window-xy-max 0.250 `
+  --approach-window-z-min 0.100 `
+  --approach-window-z-max 0.230 `
+  --approach-sample-sort-key steps_to_end `
+  --hard-control-scale-range 0.65 1.00 `
+  --hard-control-noise-std-range 0.00025 0.0008 `
+  --hard-control-delay-range 3 4 `
+  --hard-control-filter-alpha-range 0.35 0.55 `
+  --geometry-hole-half-size-range 0.0145 0.019 `
+  --geometry-peg-radius-range 0.0118 0.0135 `
+  --geometry-hole-center-xy-jitter 0.004 0.004 `
+  --geometry-fixture-height-jitter 0.002 `
+  --geometry-table-height-jitter 0.002 `
+  --nominal-actuator-kp-multiplier 3.0 `
+  --ik-control-mode pose `
+  --ik-orientation-weight 0.03 `
+  --ik-posture-weight 0.01 `
+  --ik-step-limit 0.06 `
+  --ik-max-iterations 64 `
+  --guarded-max-xy-action 0.008 `
+  --guarded-prediction-steps 0.0
+```
+
+Known dataset result:
+
+```text
+samples=512, episodes_completed=26
+episode outcomes: all timeout, no collision
+dist_xy min/mean/p90/max = 0.080 / 0.0969 / 0.111 / 0.176 m
+recovery_phase = approach_recenter for all samples
+```
+
+Train the late-window weighted candidate:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v49_round_square_approach_failure_pilot"
+
+python scripts\pretrain_image_actor_bc_weighted.py `
+  --datasets `
+    datasets\ur5e_full\high_start\hard\image_expert_50k_high_start_hard_wrist_pose_visual_camera_seed564k.npz `
+    datasets\ur5e_full\high_start\hard\image_expert_10k_high_start_hard_wrist_pose_control_state_visual_camera_control_seed590k.npz `
+    datasets\ur5e_full\high_start\hard\correction\image_correction_2k_high_start_hard_wrist_pose_control_state_approach.npz `
+    datasets\ur5e_full\high_start\hard\correction\image_correction_2k_high_start_hard_wrist_pose_control_state_insert_drift.npz `
+    "$out\image_correction_512_round_square_late_approach_v47_hardmatch.npz" `
+  --dataset-weights 0.40 0.25 0.10 0.10 0.15 `
+  --model checkpoints\ur5e_full\high_start\hard\correction\sac_image_bc_wrist_pose_control_state_insert_drift_2k_w10_e1.zip `
+  --output "$out\sac_image_bc_v49_round_square_late_approach_w15_e1_lr2e-6.zip" `
+  --metadata-output "$out\training_metadata_v49_round_square_late_approach_w15_e1_lr2e-6.json" `
+  --epochs 1 `
+  --samples-per-epoch 8192 `
+  --batch-size 256 `
+  --learning-rate 0.000002 `
+  --validation-split 0.05 `
+  --validation-batches 4 `
+  --phase-balanced-recovery `
+  --recovery-phase-names approach_recenter insert_drift_recenter insert_drift_slow_insert `
+  --recovery-phase-weights 1.0 1.0 1.0 `
+  --device cpu `
+  --seed 646000 `
+  --model-path assets\ur5e_full\ur5e_peg_in_hole_full.xml `
+  --image-width 100 `
+  --image-height 100 `
+  --include-near-hole-crop `
+  --near-hole-crop-size 64 `
+  --near-hole-crop-offset -18 0 `
+  --include-control-state `
+  --image-frame-stack 1 `
+  --wrist-camera-pos-offset -0.04 -0.04 0.0 `
+  --wrist-camera-fovy 100.0 `
+  --max-steps 1000 `
+  --action-scale 0.005 `
+  --initialization-mode target_relative_high_start `
+  --initial-tip-z-above-range 0.15 0.25 `
+  --initial-tip-xy-offset-range 0.08 0.16 `
+  --ik-control-mode pose `
+  --ik-orientation-weight 0.03 `
+  --ik-max-iterations 64 `
+  --geometry-profile mixed_basic `
+  --geometry-hole-half-size-range 0.0145 0.019 `
+  --geometry-peg-radius-range 0.0118 0.0135 `
+  --approach-height 0.12
+```
+
+Known v49 late result:
+
+```text
+training: epoch=1 train_loss=0.231070 val_loss=0.183079
+round_square seed643, range [80,96], +12/+24 crop offsets:
+  base v47:       9/10, 9/10
+  v49 late w15:   9/10, 9/10
+failure final XY improved only slightly, about 0.206 m -> 0.205 m
+```
+
+Interpretation: do not promote the v49 BC candidate. The data plumbing is useful,
+but this failure likely needs either a stronger approach-specific curriculum or
+a default-off early approach assist/guard.

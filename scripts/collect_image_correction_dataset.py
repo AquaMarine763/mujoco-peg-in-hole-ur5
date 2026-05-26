@@ -170,8 +170,19 @@ def parse_args() -> argparse.Namespace:
         choices=["single", "round_square", "square_square", "mixed_basic"],
         default="single",
     )
+    parser.add_argument("--geometry-hole-half-size-range", nargs=2, type=float, default=None)
+    parser.add_argument("--geometry-peg-radius-range", nargs=2, type=float, default=None)
+    parser.add_argument("--geometry-hole-center-xy-jitter", nargs=2, type=float, default=None)
+    parser.add_argument("--geometry-fixture-height-jitter", type=float, default=None)
+    parser.add_argument("--geometry-table-height-jitter", type=float, default=None)
     parser.add_argument("--geometry-square-peg-half-size-range", nargs=2, type=float, default=(0.0105, 0.0125))
     parser.add_argument("--geometry-mixed-square-probability", type=float, default=0.5)
+    parser.add_argument("--hard-control-scale-range", nargs=2, type=float, default=None)
+    parser.add_argument("--hard-control-noise-std-range", nargs=2, type=float, default=None)
+    parser.add_argument("--hard-control-delay-range", nargs=2, type=int, default=None)
+    parser.add_argument("--hard-control-filter-alpha-range", nargs=2, type=float, default=None)
+    parser.add_argument("--nominal-joint-damping-multiplier", type=float, default=1.0)
+    parser.add_argument("--nominal-actuator-kp-multiplier", type=float, default=1.0)
     parser.add_argument(
         "--selection",
         choices=[
@@ -346,6 +357,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--approach-correction-target-height", type=float, default=0.120)
     parser.add_argument("--approach-correction-max-down-action", type=float, default=0.0)
     parser.add_argument(
+        "--approach-sample-sort-key",
+        choices=["correction_norm", "dist_xy", "steps_to_end"],
+        default="correction_norm",
+        help="How to rank approach-window samples within an episode.",
+    )
+    parser.add_argument(
         "--fixture-wall-correction-labels",
         action="store_true",
         help="Use pre-contact fixture-wall labels for high-offset, mid-height states.",
@@ -405,6 +422,45 @@ def scenarios_for_args(args: argparse.Namespace) -> list[Scenario]:
 
 
 def make_env(args: argparse.Namespace, scenario: Scenario, tier: ClearanceTier) -> PegInHoleMujocoEnv:
+    control_action_scale_range = scenario.control_action_scale_range
+    control_action_noise_std_range = scenario.control_action_noise_std_range
+    control_action_delay_range = scenario.control_action_delay_range
+    control_action_filter_alpha_range = scenario.control_action_filter_alpha_range
+    if scenario.name == "hard_full_light_bucket":
+        if args.hard_control_scale_range is not None:
+            control_action_scale_range = tuple(args.hard_control_scale_range)
+        if args.hard_control_noise_std_range is not None:
+            control_action_noise_std_range = tuple(args.hard_control_noise_std_range)
+        if args.hard_control_delay_range is not None:
+            control_action_delay_range = tuple(args.hard_control_delay_range)
+        if args.hard_control_filter_alpha_range is not None:
+            control_action_filter_alpha_range = tuple(args.hard_control_filter_alpha_range)
+
+    geometry_hole_center_xy_jitter = (
+        tuple(args.geometry_hole_center_xy_jitter)
+        if args.geometry_hole_center_xy_jitter is not None
+        else (0.002, 0.002)
+    )
+    geometry_fixture_height_jitter = (
+        args.geometry_fixture_height_jitter
+        if args.geometry_fixture_height_jitter is not None
+        else 0.001
+    )
+    geometry_table_height_jitter = (
+        args.geometry_table_height_jitter
+        if args.geometry_table_height_jitter is not None
+        else 0.001
+    )
+    geometry_hole_half_size_range = (
+        tuple(args.geometry_hole_half_size_range)
+        if args.geometry_hole_half_size_range is not None
+        else tier.hole_half_size_range
+    )
+    geometry_peg_radius_range = (
+        tuple(args.geometry_peg_radius_range)
+        if args.geometry_peg_radius_range is not None
+        else tier.peg_radius_range
+    )
     return PegInHoleMujocoEnv(
         model_path=args.model_path,
         observation_mode="image",
@@ -450,15 +506,15 @@ def make_env(args: argparse.Namespace, scenario: Scenario, tier: ClearanceTier) 
         action_penalty_scale=args.action_penalty_scale,
         action_alignment_scale=args.action_alignment_scale,
         domain_randomization_level=scenario.level,
-        control_action_scale_range=scenario.control_action_scale_range,
-        control_action_noise_std_range=scenario.control_action_noise_std_range,
-        control_action_delay_range=scenario.control_action_delay_range,
-        control_action_filter_alpha_range=scenario.control_action_filter_alpha_range,
-        geometry_hole_center_xy_jitter=(0.002, 0.002),
-        geometry_fixture_height_jitter=0.001,
-        geometry_table_height_jitter=0.001,
-        geometry_hole_half_size_range=tier.hole_half_size_range,
-        geometry_peg_radius_range=tier.peg_radius_range,
+        control_action_scale_range=control_action_scale_range,
+        control_action_noise_std_range=control_action_noise_std_range,
+        control_action_delay_range=control_action_delay_range,
+        control_action_filter_alpha_range=control_action_filter_alpha_range,
+        geometry_hole_center_xy_jitter=geometry_hole_center_xy_jitter,
+        geometry_fixture_height_jitter=geometry_fixture_height_jitter,
+        geometry_table_height_jitter=geometry_table_height_jitter,
+        geometry_hole_half_size_range=geometry_hole_half_size_range,
+        geometry_peg_radius_range=geometry_peg_radius_range,
         geometry_profile=args.geometry_profile,
         geometry_square_peg_half_size_range=tuple(args.geometry_square_peg_half_size_range),
         geometry_mixed_square_probability=args.geometry_mixed_square_probability,
@@ -468,6 +524,8 @@ def make_env(args: argparse.Namespace, scenario: Scenario, tier: ClearanceTier) 
         contact_solimp_width_multiplier_range=scenario.contact_solimp_width_multiplier_range,
         dynamics_joint_damping_multiplier_range=scenario.dynamics_joint_damping_multiplier_range,
         dynamics_actuator_kp_multiplier_range=scenario.dynamics_actuator_kp_multiplier_range,
+        nominal_joint_damping_multiplier=args.nominal_joint_damping_multiplier,
+        nominal_actuator_kp_multiplier=args.nominal_actuator_kp_multiplier,
     )
 
 
@@ -1933,7 +1991,24 @@ def select_episode_samples(rows: list[dict[str, Any]], args: argparse.Namespace)
         for sample in candidates:
             grouped.setdefault(str(sample["recovery_phase"]), []).append(sample)
         for phase_samples in grouped.values():
-            phase_samples.sort(key=lambda item: float(item["correction_norm"]), reverse=True)
+            if args.approach_sample_sort_key == "dist_xy":
+                phase_samples.sort(
+                    key=lambda item: (
+                        float(item["dist_xy"]),
+                        float(item["correction_norm"]),
+                    ),
+                    reverse=True,
+                )
+            elif args.approach_sample_sort_key == "steps_to_end":
+                phase_samples.sort(
+                    key=lambda item: (
+                        -float(item["steps_to_end"]),
+                        float(item["correction_norm"]),
+                    ),
+                    reverse=True,
+                )
+            else:
+                phase_samples.sort(key=lambda item: float(item["correction_norm"]), reverse=True)
 
         selected: list[dict[str, Any]] = []
         phases = (
@@ -2303,6 +2378,24 @@ def array_metadata(arrays: dict[str, np.ndarray]) -> dict[str, dict[str, object]
     }
 
 
+def validate_ordered_pair(
+    name: str,
+    values: tuple[float, float] | list[float] | None,
+    *,
+    min_value: float | None = None,
+) -> None:
+    if values is None:
+        return
+    if len(values) != 2:
+        raise ValueError(f"{name} must contain two values.")
+    low = float(values[0])
+    high = float(values[1])
+    if min_value is not None and (low < min_value or high < min_value):
+        raise ValueError(f"{name} values must be >= {min_value}.")
+    if low > high:
+        raise ValueError(f"{name} must be increasing.")
+
+
 def main() -> None:
     args = parse_args()
     if args.samples <= 0:
@@ -2425,6 +2518,59 @@ def main() -> None:
         raise ValueError("--recovery-branch-stride must be positive.")
     if args.image_frame_stack <= 0:
         raise ValueError("--image-frame-stack must be positive.")
+    validate_ordered_pair(
+        "--geometry-hole-half-size-range",
+        args.geometry_hole_half_size_range,
+        min_value=0.0,
+    )
+    validate_ordered_pair(
+        "--geometry-peg-radius-range",
+        args.geometry_peg_radius_range,
+        min_value=0.0,
+    )
+    validate_ordered_pair(
+        "--hard-control-scale-range",
+        args.hard_control_scale_range,
+        min_value=0.0,
+    )
+    validate_ordered_pair(
+        "--hard-control-noise-std-range",
+        args.hard_control_noise_std_range,
+        min_value=0.0,
+    )
+    validate_ordered_pair(
+        "--hard-control-delay-range",
+        args.hard_control_delay_range,
+        min_value=0.0,
+    )
+    validate_ordered_pair(
+        "--hard-control-filter-alpha-range",
+        args.hard_control_filter_alpha_range,
+        min_value=0.0,
+    )
+    if (
+        args.hard_control_filter_alpha_range is not None
+        and args.hard_control_filter_alpha_range[0] <= 0.0
+    ):
+        raise ValueError("--hard-control-filter-alpha-range values must be > 0.")
+    if args.geometry_hole_center_xy_jitter is not None and any(
+        value < 0.0 for value in args.geometry_hole_center_xy_jitter
+    ):
+        raise ValueError("--geometry-hole-center-xy-jitter cannot be negative.")
+    if (
+        args.geometry_fixture_height_jitter is not None
+        and args.geometry_fixture_height_jitter < 0.0
+    ):
+        raise ValueError("--geometry-fixture-height-jitter cannot be negative.")
+    if (
+        args.geometry_table_height_jitter is not None
+        and args.geometry_table_height_jitter < 0.0
+    ):
+        raise ValueError("--geometry-table-height-jitter cannot be negative.")
+    if args.nominal_joint_damping_multiplier <= 0.0:
+        raise ValueError("--nominal-joint-damping-multiplier must be positive.")
+    if args.nominal_actuator_kp_multiplier <= 0.0:
+        raise ValueError("--nominal-actuator-kp-multiplier must be positive.")
 
     configs = [(tier, scenario) for tier in tiers_for_args(args) for scenario in scenarios_for_args(args)]
     target_per_config = (
@@ -2521,8 +2667,47 @@ def main() -> None:
         "scenario_preset": args.scenario_preset,
         "tier_preset": args.tier_preset,
         "geometry_profile": args.geometry_profile,
+        "geometry_hole_half_size_range_override": (
+            list(args.geometry_hole_half_size_range)
+            if args.geometry_hole_half_size_range is not None
+            else None
+        ),
+        "geometry_peg_radius_range_override": (
+            list(args.geometry_peg_radius_range)
+            if args.geometry_peg_radius_range is not None
+            else None
+        ),
+        "geometry_hole_center_xy_jitter": (
+            list(args.geometry_hole_center_xy_jitter)
+            if args.geometry_hole_center_xy_jitter is not None
+            else None
+        ),
+        "geometry_fixture_height_jitter": args.geometry_fixture_height_jitter,
+        "geometry_table_height_jitter": args.geometry_table_height_jitter,
         "geometry_square_peg_half_size_range": list(args.geometry_square_peg_half_size_range),
         "geometry_mixed_square_probability": args.geometry_mixed_square_probability,
+        "hard_control_scale_range": (
+            list(args.hard_control_scale_range)
+            if args.hard_control_scale_range is not None
+            else None
+        ),
+        "hard_control_noise_std_range": (
+            list(args.hard_control_noise_std_range)
+            if args.hard_control_noise_std_range is not None
+            else None
+        ),
+        "hard_control_delay_range": (
+            list(args.hard_control_delay_range)
+            if args.hard_control_delay_range is not None
+            else None
+        ),
+        "hard_control_filter_alpha_range": (
+            list(args.hard_control_filter_alpha_range)
+            if args.hard_control_filter_alpha_range is not None
+            else None
+        ),
+        "nominal_joint_damping_multiplier": args.nominal_joint_damping_multiplier,
+        "nominal_actuator_kp_multiplier": args.nominal_actuator_kp_multiplier,
         "initialization_mode": args.initialization_mode,
         "initial_tip_z_above_range": list(args.initial_tip_z_above_range),
         "initial_tip_xy_offset_range": list(args.initial_tip_xy_offset_range),
@@ -2621,6 +2806,7 @@ def main() -> None:
         "approach_window_z_max": args.approach_window_z_max,
         "approach_correction_target_height": args.approach_correction_target_height,
         "approach_correction_max_down_action": args.approach_correction_max_down_action,
+        "approach_sample_sort_key": args.approach_sample_sort_key,
         "fixture_wall_correction_labels": args.fixture_wall_correction_labels,
         "fixture_wall_window_xy_min": args.fixture_wall_window_xy_min,
         "fixture_wall_window_xy_max": args.fixture_wall_window_xy_max,
