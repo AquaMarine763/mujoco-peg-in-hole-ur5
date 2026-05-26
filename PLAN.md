@@ -3046,6 +3046,23 @@ Interpretation:
   - guard-only: `0.700/0.000/0.300`.
   - policy-only: `0.000/0.000/1.000`.
   - Conclusion: v47 is a coupled policy plus controller system. Vision contributes to reaching useful guard conditions, while the final insertion remains controller-dominated. Do not claim the learned image policy is an independent insertion controller under the boundary distribution.
+- Visual contribution scale-up:
+  - Output directory: `D:\peg-in-hole-6yh\v47_visual_contribution_ablation_seed636_20ep`
+  - Config: same v47 boundary config, `mixed_basic`, seed `636000`, `20` episodes/condition.
+  - guarded normal image: `0.950/0.000/0.050`, timeout on `636017`.
+  - guarded black image: `0.750/0.000/0.250`.
+  - guarded noise image: `0.400/0.000/0.600`.
+  - guarded shuffled image: `0.950/0.000/0.050`, same timeout seed as normal.
+  - guard-only: `0.850/0.000/0.150`.
+  - policy-only: `0.000/0.000/1.000`.
+  - Combined with the earlier seed `635000` 10ep diagnostic:
+    - normal: `29/30 = 0.967`
+    - black: `22/30 = 0.733`
+    - noise: `14/30 = 0.467`
+    - shuffle: `29/30 = 0.967`
+    - guard-only: `24/30 = 0.800`
+    - policy-only: `0/30 = 0.000`
+  - Updated conclusion: visual corruption clearly hurts performance, so the policy is not visual-agnostic. However, shuffled images matching normal means this experiment does not prove strong spatial visual servoing; the model may rely on coarse image statistics, control-state channels, or guarded-controller takeover. The next useful diagnostic should add control-state ablation and/or channel-specific image ablations.
 
 ## Key Commands
 

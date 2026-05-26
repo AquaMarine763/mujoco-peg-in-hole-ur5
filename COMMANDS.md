@@ -6542,3 +6542,49 @@ Interpretation: v47 is not policy-only. Vision helps approach-to-guard entry,
 but final insertion is still dominated by guarded/final-servo control. The
 shuffle result is a small-window diagnostic and needs more seeds before making
 any spatial-robustness claim.
+
+Run the focused 20-episode visual contribution scale-up:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v47_visual_contribution_ablation_seed636_20ep"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+$conditions = @(
+  @{name="guarded_normal"; mode="guarded"; ablation="normal"; blend="1.0"},
+  @{name="guarded_black"; mode="guarded"; ablation="black"; blend="1.0"},
+  @{name="guarded_noise"; mode="guarded"; ablation="noise"; blend="1.0"},
+  @{name="guarded_shuffle"; mode="guarded"; ablation="shuffle"; blend="1.0"},
+  @{name="guard_only"; mode="guard_only"; ablation="normal"; blend="1.0"},
+  @{name="policy_only"; mode="policy"; ablation="normal"; blend="1.0"}
+)
+foreach ($c in $conditions) {
+  python scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml `
+    --geometry-profile mixed_basic `
+    --episodes 20 `
+    --seed 636000 `
+    --control-mode $c.mode `
+    --image-ablation $c.ablation `
+    --guard-blend $c.blend `
+    --output-csv "$out\eval_$($c.name).csv" `
+    --output-md "$out\eval_$($c.name).md" `
+    --episode-output-csv "$out\eval_$($c.name)_episodes.csv" `
+    --step-output-csv "$out\eval_$($c.name)_failure_steps.csv" `
+    --step-trace-outcome-filter failure
+}
+```
+
+Known 20-episode result on seed `636000`:
+
+```text
+normal:       0.950 success, 0.000 collision, 0.050 timeout
+black image:  0.750 success, 0.000 collision, 0.250 timeout
+noise image:  0.400 success, 0.000 collision, 0.600 timeout
+shuffle:      0.950 success, 0.000 collision, 0.050 timeout
+guard only:   0.850 success, 0.000 collision, 0.150 timeout
+policy only:  0.000 success, 0.000 collision, 1.000 timeout
+```
+
+Combined diagnostic with the earlier seed `635000` 10ep run: normal and
+shuffle both reached `29/30`, black reached `22/30`, noise reached `14/30`,
+guard-only reached `24/30`, and policy-only reached `0/30`. The next diagnostic
+should separate image contribution from `include_control_state` contribution.
