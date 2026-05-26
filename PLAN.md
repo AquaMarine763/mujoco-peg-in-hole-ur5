@@ -3122,6 +3122,33 @@ Interpretation:
     - 1-epoch BC smoke loaded the dataset and saved `sac_image_bc_crop_source_jitter_smoke.zip`.
   - Next experiment: collect a real crop-source-jitter expert dataset, likely `20k-50k` samples with source range `[80,96]`, fine-tune the current v47 actor lightly, then rerun the source-size/offset/FOV scan plus the standard `clean/visual_camera/visual_camera_control/full_light_geometry/full_contact_light/hard` matrix.
 
+### 2026-05-26 Crop-Source Jitter Pilot Result
+
+- Ran a medium crop-source jitter pilot outside the repo at `D:\peg-in-hole-6yh\v48_crop_source_jitter_pilot`.
+- Dataset:
+  - `image_expert_2k_crop_source_jitter_80_96_pilot.npz`
+  - `2048` samples, `5` completed episodes, success/collision/timeout `0.800/0.000/0.200`.
+  - Source-size counts: `81:1000`, `87:232`, `89:54`, `95:220`, `96:542`.
+  - Geometry split: `square_square:1746`, `round_square:302`.
+  - Schema: `image_expert_v3_crop_source`.
+- Conservative continuation:
+  - Base model: `checkpoints/ur5e_full/high_start/hard/correction/sac_image_bc_wrist_pose_control_state_insert_drift_2k_w10_e1.zip`.
+  - Output: `D:\peg-in-hole-6yh\v48_crop_source_jitter_pilot\sac_image_bc_crop_source_jitter_2k_e1_lr1e-6.zip`.
+  - One epoch, LR `1e-6`, batch `256`; train/val loss `0.096211/0.098894`.
+- Fixed source-size scan on seed `642000`, 5 episodes per condition:
+  - `64 -> 64`: `[-18,0] 5/5`, `[+12,0] 2/5`, `[+24,0] 2/5`.
+  - `80 -> 64`: `[-18,0] 5/5`, `[+12,0] 3/5`, `[+24,0] 3/5`.
+  - `96 -> 64`: `[-18,0] 5/5`, `[+12,0] 5/5`, `[+24,0] 5/5`.
+  - This matches the v47 base pattern; the 2k one-epoch jitter continuation is not a promoted model.
+- Runtime source-size range `[80,96]` comparison on seed `643000`, 10 episodes:
+  - Base v47: `[+12,0] 9/10`, `[+24,0] 9/10`, no collisions.
+  - 2k jitter continuation: `[+12,0] 9/10`, `[+24,0] 9/10`, no collisions.
+  - The common failure is episode 9, `round_square`, timeout from far approach: final XY remains around `0.20 m`; guard never activates.
+- Conclusion:
+  - Runtime larger source crop/range is useful and should stay available.
+  - The current bottleneck is not final insertion or crop-size jitter training. It is the learned approach policy failing to close large XY error on some high-start `round_square` cases before guarded insertion can take over.
+  - Next work should target approach-stage visual servoing: collect/weight hard far-XY approach failures, especially `round_square`, and consider a guard/assist path that can activate earlier for large XY approach failures without taking over normal successful cases.
+
 ## Key Commands
 
 Full UR5e model check:

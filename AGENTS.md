@@ -389,6 +389,13 @@ The current focus is:
   - keep correction BC as a supporting dataset path, but do not expand to 10k until the controller issue is addressed
   - introduce larger randomized initial XY offsets only after original hard high-start search is stable
   - then reintroduce control/geometry/contact randomization
+  - crop-source jitter pilot status:
+    - 2026-05-26 pilot output is outside the repo at `D:\peg-in-hole-6yh\v48_crop_source_jitter_pilot`
+    - 2k expert jitter dataset reached success/collision/timeout `0.800/0.000/0.200`; geometry split was skewed toward `square_square`
+    - 1-epoch LR `1e-6` continuation from v47 trained cleanly but did not improve the fixed source-size scan
+    - fixed-source candidate scan on seed `642000` matched v47: `64 -> 64` positive X offsets `2/5`, `80 -> 64` `3/5`, `96 -> 64` `5/5`
+    - runtime `[80,96]` source range on seed `643000` gave both base v47 and candidate `9/10` at `+12` and `+24`; do not promote the 2k jitter continuation
+    - observed failure is far-XY approach on `round_square`: `dist_xy` grows to about `0.20 m`, guard never activates, no collision. Next useful work is approach-stage visual servoing / hard far-XY data, not more low-risk crop jitter.
 
 ## Editing Workflow
 

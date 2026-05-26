@@ -6859,3 +6859,163 @@ python scripts\collect_image_expert_dataset.py `
   --samples 50000 `
   --output datasets\ur5e_full\multi_geometry\image_expert_50k_crop_source_jitter_80_96.npz
 ```
+
+Run the 2k crop-source jitter pilot used on 2026-05-26:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v48_crop_source_jitter_pilot"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+python scripts\collect_image_expert_dataset.py `
+  --config configs\sim\ur5e_full\collect_multi_geometry_crop_source_jitter_smoke.yaml `
+  --samples 2048 `
+  --output "$out\image_expert_2k_crop_source_jitter_80_96_pilot.npz"
+```
+
+Pilot result:
+
+```text
+episodes_completed=5
+success/collision/timeout = 0.800/0.000/0.200
+source-size counts = 81:1000, 87:232, 89:54, 95:220, 96:542
+geometry split = square_square:1746, round_square:302
+```
+
+Run the conservative 1-epoch continuation from v47:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v48_crop_source_jitter_pilot"
+
+python scripts\pretrain_image_actor_bc.py `
+  --dataset "$out\image_expert_2k_crop_source_jitter_80_96_pilot.npz" `
+  --model checkpoints\ur5e_full\high_start\hard\correction\sac_image_bc_wrist_pose_control_state_insert_drift_2k_w10_e1.zip `
+  --output "$out\sac_image_bc_crop_source_jitter_2k_e1_lr1e-6.zip" `
+  --epochs 1 `
+  --batch-size 256 `
+  --learning-rate 0.000001 `
+  --validation-split 0.1 `
+  --device cpu `
+  --model-path assets\ur5e_full\ur5e_peg_in_hole_full.xml `
+  --image-width 100 `
+  --image-height 100 `
+  --include-near-hole-crop `
+  --near-hole-crop-size 64 `
+  --near-hole-crop-source-size-range 80 96 `
+  --near-hole-crop-offset -18 0 `
+  --include-control-state `
+  --image-frame-stack 1 `
+  --wrist-camera-pos-offset -0.04 -0.04 0.0 `
+  --wrist-camera-rot-offset-deg 0.0 0.0 0.0 `
+  --wrist-camera-fovy 100.0 `
+  --max-steps 1000 `
+  --action-scale 0.005 `
+  --initialization-mode target_relative_high_start `
+  --initial-tip-z-above-range 0.15 0.25 `
+  --initial-tip-xy-offset-range 0.08 0.16 `
+  --initial-tip-xy-angle-range-deg 0.0 360.0 `
+  --initial-ik-max-attempts 30 `
+  --ik-control-mode pose `
+  --ik-orientation-weight 0.03 `
+  --ik-posture-weight 0.01 `
+  --ik-step-limit 0.06 `
+  --ik-max-iterations 64 `
+  --success-xy-tolerance 0.005 `
+  --success-z-tolerance 0.01 `
+  --geometry-profile mixed_basic `
+  --geometry-square-peg-half-size-range 0.0105 0.0125 `
+  --geometry-mixed-square-probability 0.5 `
+  --approach-height 0.12
+```
+
+Known result:
+
+```text
+epoch=1 train_loss=0.096211 val_loss=0.098894
+```
+
+Run the v48 fixed source-size scan for the jitter candidate:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v48_crop_source_jitter_pilot\scan_seed642_5ep_candidate"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+$conditions = @()
+foreach ($source in 64,80,96) {
+  foreach ($ox in -18,12,24) {
+    $conditions += @{source=$source; ox=$ox; oy=0; fovy=100.0}
+  }
+}
+foreach ($c in $conditions) {
+  python scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml `
+    --model D:\peg-in-hole-6yh\v48_crop_source_jitter_pilot\sac_image_bc_crop_source_jitter_2k_e1_lr1e-6.zip `
+    --geometry-profile mixed_basic `
+    --episodes 5 `
+    --seed 642000 `
+    --control-mode guarded `
+    --image-ablation normal `
+    --control-state-ablation normal `
+    --near-hole-crop-size 64 `
+    --near-hole-crop-source-size $c.source `
+    --near-hole-crop-offset $c.ox $c.oy `
+    --wrist-camera-fovy $c.fovy `
+    --guard-blend 1.0 `
+    --output-csv "$out\eval_source$($c.source)_out64_ox$($c.ox)_oy$($c.oy)_fovy100.csv" `
+    --output-md "$out\eval_source$($c.source)_out64_ox$($c.ox)_oy$($c.oy)_fovy100.md" `
+    --episode-output-csv "$out\eval_source$($c.source)_out64_ox$($c.ox)_oy$($c.oy)_fovy100_episodes.csv" `
+    --step-output-csv "$out\eval_source$($c.source)_out64_ox$($c.ox)_oy$($c.oy)_fovy100_failure_steps.csv" `
+    --step-trace-outcome-filter failure
+}
+```
+
+Known candidate result on seed `642000`:
+
+```text
+source 64 -> 64:  [-18,0] 5/5,  [+12,0] 2/5,  [+24,0] 2/5
+source 80 -> 64:  [-18,0] 5/5,  [+12,0] 3/5,  [+24,0] 3/5
+source 96 -> 64:  [-18,0] 5/5,  [+12,0] 5/5,  [+24,0] 5/5
+```
+
+Run runtime source-size range `[80,96]` comparison:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v48_crop_source_jitter_pilot\range80_96_compare_seed643_10ep"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+$models = @(
+  @{name='base_v47'; path='checkpoints\ur5e_full\high_start\hard\correction\sac_image_bc_wrist_pose_control_state_insert_drift_2k_w10_e1.zip'},
+  @{name='jitter_2k_e1'; path='D:\peg-in-hole-6yh\v48_crop_source_jitter_pilot\sac_image_bc_crop_source_jitter_2k_e1_lr1e-6.zip'}
+)
+foreach ($m in $models) {
+  foreach ($ox in 12,24) {
+    python scripts\eval_guarded_policy.py `
+      --config configs\sim\ur5e_full\eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml `
+      --model $m.path `
+      --geometry-profile mixed_basic `
+      --episodes 10 `
+      --seed 643000 `
+      --control-mode guarded `
+      --image-ablation normal `
+      --control-state-ablation normal `
+      --near-hole-crop-size 64 `
+      --near-hole-crop-source-size-range 80 96 `
+      --near-hole-crop-offset $ox 0 `
+      --wrist-camera-fovy 100.0 `
+      --guard-blend 1.0 `
+      --output-csv "$out\eval_$($m.name)_range80_96_ox$($ox)_oy0.csv" `
+      --output-md "$out\eval_$($m.name)_range80_96_ox$($ox)_oy0.md" `
+      --episode-output-csv "$out\eval_$($m.name)_range80_96_ox$($ox)_oy0_episodes.csv" `
+      --step-output-csv "$out\eval_$($m.name)_range80_96_ox$($ox)_oy0_failure_steps.csv" `
+      --step-trace-outcome-filter failure
+  }
+}
+```
+
+Known range result on seed `643000`:
+
+```text
+base_v47:       [+12,0] 9/10, [+24,0] 9/10, 0 collision
+jitter_2k_e1:   [+12,0] 9/10, [+24,0] 9/10, 0 collision
+```
+
+Interpretation: do not promote the 2k jitter continuation. The larger runtime
+source crop/range is useful, but the remaining failure is far-XY approach on a
+`round_square` episode where guard never activates.
