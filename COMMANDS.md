@@ -6634,3 +6634,59 @@ black image + control zero:    0.850 success, 0.150 collision, 0.000 timeout
 This says the low-dimensional control_state channel is not the main driver of
 success under normal visual input. The next useful step is a more surgical
 image-path diagnostic, not more control-state ablation.
+
+Run the v47 image-channel ablation:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v47_image_channel_ablation_seed638_10ep"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+$conditions = @(
+  @{name="normal"; ablation="normal"; target="all"},
+  @{name="all_black"; ablation="black"; target="all"},
+  @{name="cam_black"; ablation="black"; target="cam_image"},
+  @{name="crop_black"; ablation="black"; target="near_hole_crop"},
+  @{name="all_noise"; ablation="noise"; target="all"},
+  @{name="cam_noise"; ablation="noise"; target="cam_image"},
+  @{name="crop_noise"; ablation="noise"; target="near_hole_crop"},
+  @{name="all_shuffle"; ablation="shuffle"; target="all"},
+  @{name="cam_shuffle"; ablation="shuffle"; target="cam_image"},
+  @{name="crop_shuffle"; ablation="shuffle"; target="near_hole_crop"}
+)
+foreach ($c in $conditions) {
+  python scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml `
+    --geometry-profile mixed_basic `
+    --episodes 10 `
+    --seed 638000 `
+    --control-mode guarded `
+    --image-ablation $c.ablation `
+    --image-ablation-target $c.target `
+    --control-state-ablation normal `
+    --guard-blend 1.0 `
+    --output-csv "$out\eval_$($c.name).csv" `
+    --output-md "$out\eval_$($c.name).md" `
+    --episode-output-csv "$out\eval_$($c.name)_episodes.csv" `
+    --step-output-csv "$out\eval_$($c.name)_failure_steps.csv" `
+    --step-trace-outcome-filter failure
+}
+```
+
+Known 10-episode result on seed `638000`:
+
+```text
+normal:                 1.000 success, 0.000 collision, 0.000 timeout
+all images black:       0.800 success, 0.000 collision, 0.200 timeout
+cam_image black:        1.000 success, 0.000 collision, 0.000 timeout
+near_hole_crop black:   0.700 success, 0.000 collision, 0.300 timeout
+all images noise:       0.400 success, 0.000 collision, 0.600 timeout
+cam_image noise:        0.800 success, 0.000 collision, 0.200 timeout
+near_hole_crop noise:   0.000 success, 0.000 collision, 1.000 timeout
+all images shuffle:     1.000 success, 0.000 collision, 0.000 timeout
+cam_image shuffle:      1.000 success, 0.000 collision, 0.000 timeout
+near_hole_crop shuffle: 1.000 success, 0.000 collision, 0.000 timeout
+```
+
+Interpretation: `near_hole_crop` is the sensitive visual input. The full wrist
+`cam_image` is much less important in this v47 setup. Shuffle still passing
+means this proves crop content sensitivity, not precise per-frame visual
+servoing.

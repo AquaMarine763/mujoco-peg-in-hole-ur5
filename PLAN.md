@@ -3071,6 +3071,16 @@ Interpretation:
   - black image + control zero: `17/20 = 0.850`, `3` collisions.
   - Interpretation: with normal images, control-state corruption does not matter on this window. With black images, control-state helps somewhat, but image corruption is still the larger lever. The current v47 policy is not primarily depending on the low-dimensional control-state channel to succeed.
   - Next diagnostic should move back to the image path itself, ideally channel-specific image ablation or a camera/crop change that makes spatial alignment harder to fake.
+- Image-channel contribution scale-up:
+  - Added `--image-ablation-target {all,cam_image,near_hole_crop}` to `scripts/eval_guarded_policy.py`.
+  - Output directory: `D:\peg-in-hole-6yh\v47_image_channel_ablation_seed638_10ep`
+  - Config: same v47 boundary config, `mixed_basic`, seed `638000`, `10` episodes/condition.
+  - normal: `10/10 = 1.000`.
+  - all images black/noise: `8/10 = 0.800` / `4/10 = 0.400`.
+  - `cam_image` black/noise: `10/10 = 1.000` / `8/10 = 0.800`.
+  - `near_hole_crop` black/noise: `7/10 = 0.700` / `0/10 = 0.000`.
+  - all/cam/crop shuffle: all `10/10 = 1.000`.
+  - Interpretation: the near-hole crop is the sensitive visual channel, not the full wrist frame. The policy is sensitive to crop content quality, especially noise, but crop shuffle still passing means this does not prove precise per-frame spatial visual servoing. Next work should improve crop/camera spatial informativeness or collect handoff/approach diagnostics around crop-driven actions.
 
 ## Key Commands
 
