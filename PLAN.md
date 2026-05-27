@@ -3192,12 +3192,19 @@ Interpretation:
 - Spillover smoke, `mixed_basic`, same seed/range:
   - `[+12,0] 10/10`, `[+24,0] 10/10`, 0 collisions, 0 timeouts.
   - mean early-assist usage: `18.8` steps, trigger rate `0.4` per episode.
+- Larger v50 gate:
+  - Output directory: `D:\peg-in-hole-6yh\v50_early_approach_assist_gate`.
+  - Config: `configs/sim/ur5e_full/eval_multi_geometry_early_approach_assist_gate_10ep.yaml`.
+  - Seed `643000`, crop-source range `[80,96]`, offsets `[-18,0]`, `[+12,0]`, `[+24,0]`.
+  - Profiles `single`, `round_square`, `square_square`, `mixed_basic`, 10 episodes/profile/offset.
+  - Result: `120/120` success, `0` collisions, `0` timeouts.
+  - Config smoke with `mixed_basic`, 1 episode succeeded.
 - Interpretation:
   - This confirms the exposed v47/v48/v49 failure is an approach-stage far-XY timeout before normal guard activation, not a final insertion/contact failure.
-  - The default-off assist is a useful deploy-time guard candidate, but it should not be made default until it passes a larger multi-seed/profile matrix.
+  - The early assist is now a promoted eval/deployment guard candidate for this branch, but it is still a guarded-controller solution, not proof that the visual policy alone learned robust far-XY search.
 - Next recommendation:
-  - Run a 40-80 episode gate across `single`, `round_square`, `square_square`, and `mixed_basic` with crop-source range `[80,96]` and offsets `[-18,0]`, `[+12,0]`, `[+24,0]`.
-  - If clean, add a YAML config for the v50 assisted eval and promote/tag.
+  - Tag this as the v50 early-assist milestone.
+  - Next technical branch should return to learned approach improvement: collect/weight high-start far-XY approach data and test whether the policy can reduce early-assist usage, rather than expanding deploy-time assist first.
   - Keep the longer-term learner route open: train an approach-specific visual curriculum so the policy itself closes far XY error, instead of relying entirely on deploy-time assist.
 
 ## Key Commands

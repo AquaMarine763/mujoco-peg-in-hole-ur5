@@ -7218,3 +7218,35 @@ mixed_basic seed643 range [80,96]:
 Interpretation: the remaining exposed v47 failure is high-start far-XY approach
 timeout before normal guard activation. Early assist is promising but should pass
 a larger multi-profile/multi-offset gate before promotion.
+
+Promoted v50 gate config:
+
+```text
+configs/sim/ur5e_full/eval_multi_geometry_early_approach_assist_gate_10ep.yaml
+```
+
+Run one profile/offset from the promoted config:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v50_early_approach_assist_gate"
+
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_multi_geometry_early_approach_assist_gate_10ep.yaml `
+  --geometry-profile round_square `
+  --near-hole-crop-offset 24 0 `
+  --output-csv "$out\eval_round_square_p24_seed643000_10ep.csv" `
+  --output-md "$out\eval_round_square_p24_seed643000_10ep.md" `
+  --episode-output-csv "$out\eval_round_square_p24_seed643000_10ep_episodes.csv" `
+  --step-output-csv "$out\eval_round_square_p24_seed643000_10ep_failure_steps.csv"
+```
+
+Known v50 gate result:
+
+```text
+seed643000, crop-source range [80,96], 10 episodes/profile/offset
+profiles: single, round_square, square_square, mixed_basic
+offsets: [-18,0], [+12,0], [+24,0]
+
+total: 120/120 success, 0 collision, 0 timeout
+summary: D:\peg-in-hole-6yh\v50_early_approach_assist_gate\summary_seed643000_12x10_clean.csv
+```

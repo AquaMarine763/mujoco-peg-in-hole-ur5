@@ -409,7 +409,10 @@ The current focus is:
     - v50 pilot outputs are outside the repo at `D:\peg-in-hole-6yh\v50_early_approach_assist` because `results/` currently rejects new writes
     - no-assist baseline on `round_square`, seed `643000`, crop-source range `[80,96]`: `[+12,0] 9/10`, `[+24,0] 9/10`, both with one timeout and no collision
     - early assist on the same target: `[+12,0] 10/10`, `[+24,0] 10/10`, no collisions/timeouts; mixed_basic spillover `[+12,0]` and `[+24,0]` also reached `10/10`
-    - do not make this default yet; next gate should cover all geometry profiles and crop offsets before tagging/promoting
+    - larger v50 gate outputs are outside the repo at `D:\peg-in-hole-6yh\v50_early_approach_assist_gate`
+    - promoted config: `configs/sim/ur5e_full/eval_multi_geometry_early_approach_assist_gate_10ep.yaml`
+    - v50 gate reached `120/120` success, `0` collision, `0` timeout on seed `643000`, crop-source range `[80,96]`, profiles `single/round_square/square_square/mixed_basic`, offsets `[-18,0]`, `[+12,0]`, `[+24,0]`
+    - next work should reduce dependence on deploy-time assist by improving learned high-start far-XY approach behavior
 
 ## Editing Workflow
 
