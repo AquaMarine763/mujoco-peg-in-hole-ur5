@@ -3177,6 +3177,29 @@ Interpretation:
   - Do not scale this exact BC recipe yet.
   - Next test should compare two routes: a stronger approach-specific learner/data curriculum versus a default-off early approach assist/guard that activates only when `dist_xy` remains high and Z is still safely above the fixture.
 
+### 2026-05-27 Early Approach Assist Pilot
+
+- Added a default-off `guard_early_approach_assist` mode in `GuardedPolicyController`.
+  - It can activate before normal `guard_active` when high-start XY error is still large and Z is in a safe approach window.
+  - It commands a guarded lateral recenter toward the hole center, keeps/targets a high approach height, and hands back to the learned policy plus existing guarded insertion stack after XY reaches the release threshold.
+  - CLI and step/episode/summary metrics are wired through `scripts/eval_guarded_policy.py`.
+- Validation output directory: `D:\peg-in-hole-6yh\v50_early_approach_assist`.
+  - `results/` currently rejected creation of new files/directories on this machine, so this pilot's raw CSV/Markdown outputs are kept outside the repo.
+- Targeted seed `643000`, `round_square`, crop-source range `[80,96]`:
+  - no-assist baseline: `[+12,0] 9/10`, `[+24,0] 9/10`, 0 collisions, 1 timeout each.
+  - early assist enabled: `[+12,0] 10/10`, `[+24,0] 10/10`, 0 collisions, 0 timeouts.
+  - mean early-assist usage: `30.2` steps, trigger rate `0.7` per episode.
+- Spillover smoke, `mixed_basic`, same seed/range:
+  - `[+12,0] 10/10`, `[+24,0] 10/10`, 0 collisions, 0 timeouts.
+  - mean early-assist usage: `18.8` steps, trigger rate `0.4` per episode.
+- Interpretation:
+  - This confirms the exposed v47/v48/v49 failure is an approach-stage far-XY timeout before normal guard activation, not a final insertion/contact failure.
+  - The default-off assist is a useful deploy-time guard candidate, but it should not be made default until it passes a larger multi-seed/profile matrix.
+- Next recommendation:
+  - Run a 40-80 episode gate across `single`, `round_square`, `square_square`, and `mixed_basic` with crop-source range `[80,96]` and offsets `[-18,0]`, `[+12,0]`, `[+24,0]`.
+  - If clean, add a YAML config for the v50 assisted eval and promote/tag.
+  - Keep the longer-term learner route open: train an approach-specific visual curriculum so the policy itself closes far XY error, instead of relying entirely on deploy-time assist.
+
 ## Key Commands
 
 Full UR5e model check:

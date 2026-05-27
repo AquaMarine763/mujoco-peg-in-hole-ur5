@@ -205,6 +205,11 @@ STEP_TRACE_FIELDNAMES = [
     "guard_approach_recenter_steps",
     "guard_approach_recenter_stable_steps",
     "guard_approach_recenter_down_blocked",
+    "guard_early_approach_assist_active",
+    "guard_early_approach_assist_triggered",
+    "guard_early_approach_assist_released",
+    "guard_early_approach_assist_steps",
+    "guard_early_approach_assist_down_blocked",
     "guard_stateful_recovery_active",
     "guard_stateful_recovery_triggered",
     "guard_stateful_recovery_released",
@@ -502,6 +507,15 @@ def build_parser(
     parser.add_argument("--guard-approach-recenter-max-xy-action", type=float, default=0.005)
     parser.add_argument("--guard-approach-recenter-max-up-action", type=float, default=0.005)
     parser.add_argument("--guard-approach-recenter-xy-bias", nargs=2, type=float, default=(0.0, 0.0))
+    parser.add_argument("--guard-early-approach-assist-enabled", action="store_true")
+    parser.add_argument("--guard-early-approach-assist-trigger-xy", type=float, default=0.100)
+    parser.add_argument("--guard-early-approach-assist-release-xy", type=float, default=0.060)
+    parser.add_argument("--guard-early-approach-assist-min-z", type=float, default=0.120)
+    parser.add_argument("--guard-early-approach-assist-max-z", type=float, default=0.240)
+    parser.add_argument("--guard-early-approach-assist-target-height", type=float, default=0.140)
+    parser.add_argument("--guard-early-approach-assist-max-xy-action", type=float, default=0.008)
+    parser.add_argument("--guard-early-approach-assist-max-up-action", type=float, default=0.005)
+    parser.add_argument("--guard-early-approach-assist-max-steps", type=int, default=300)
     parser.add_argument("--guard-stateful-recovery-enabled", action="store_true")
     parser.add_argument("--guard-stateful-recovery-trigger-xy-min", type=float, default=0.006)
     parser.add_argument("--guard-stateful-recovery-trigger-xy-max", type=float, default=0.030)
@@ -871,6 +885,27 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         guard_approach_recenter_max_xy_action=args.guard_approach_recenter_max_xy_action,
         guard_approach_recenter_max_up_action=args.guard_approach_recenter_max_up_action,
         guard_approach_recenter_xy_bias=tuple(args.guard_approach_recenter_xy_bias),
+        guard_early_approach_assist_enabled=args.guard_early_approach_assist_enabled,
+        guard_early_approach_assist_trigger_xy=(
+            args.guard_early_approach_assist_trigger_xy
+        ),
+        guard_early_approach_assist_release_xy=(
+            args.guard_early_approach_assist_release_xy
+        ),
+        guard_early_approach_assist_min_z=args.guard_early_approach_assist_min_z,
+        guard_early_approach_assist_max_z=args.guard_early_approach_assist_max_z,
+        guard_early_approach_assist_target_height=(
+            args.guard_early_approach_assist_target_height
+        ),
+        guard_early_approach_assist_max_xy_action=(
+            args.guard_early_approach_assist_max_xy_action
+        ),
+        guard_early_approach_assist_max_up_action=(
+            args.guard_early_approach_assist_max_up_action
+        ),
+        guard_early_approach_assist_max_steps=(
+            args.guard_early_approach_assist_max_steps
+        ),
         guard_stateful_recovery_enabled=args.guard_stateful_recovery_enabled,
         guard_stateful_recovery_trigger_xy_min=args.guard_stateful_recovery_trigger_xy_min,
         guard_stateful_recovery_trigger_xy_max=args.guard_stateful_recovery_trigger_xy_max,
@@ -1484,6 +1519,21 @@ def build_step_trace_row(
         "guard_approach_recenter_down_blocked": (
             bool(step.guard_approach_recenter_down_blocked) if step_guard else False
         ),
+        "guard_early_approach_assist_active": (
+            bool(step.guard_early_approach_assist_active) if step_guard else False
+        ),
+        "guard_early_approach_assist_triggered": (
+            bool(step.guard_early_approach_assist_triggered) if step_guard else False
+        ),
+        "guard_early_approach_assist_released": (
+            bool(step.guard_early_approach_assist_released) if step_guard else False
+        ),
+        "guard_early_approach_assist_steps": (
+            int(step.guard_early_approach_assist_steps) if step_guard else 0
+        ),
+        "guard_early_approach_assist_down_blocked": (
+            bool(step.guard_early_approach_assist_down_blocked) if step_guard else False
+        ),
         "guard_stateful_recovery_active": (
             bool(step.guard_stateful_recovery_active) if step_guard else False
         ),
@@ -1793,6 +1843,11 @@ def evaluate_scenario(
     approach_recenter_triggers: list[float] = []
     approach_recenter_releases: list[float] = []
     approach_recenter_blocked_steps: list[float] = []
+    early_approach_assist_episodes = 0
+    early_approach_assist_steps: list[float] = []
+    early_approach_assist_triggers: list[float] = []
+    early_approach_assist_releases: list[float] = []
+    early_approach_assist_blocked_steps: list[float] = []
     stateful_recovery_episodes = 0
     stateful_recovery_steps: list[float] = []
     stateful_recovery_triggers: list[float] = []
@@ -1842,6 +1897,10 @@ def evaluate_scenario(
             episode_approach_recenter_triggers = 0
             episode_approach_recenter_releases = 0
             episode_approach_recenter_blocked_steps = 0
+            episode_early_approach_assist_steps = 0
+            episode_early_approach_assist_triggers = 0
+            episode_early_approach_assist_releases = 0
+            episode_early_approach_assist_blocked_steps = 0
             episode_stateful_recovery_steps = 0
             episode_stateful_recovery_triggers = 0
             episode_stateful_recovery_releases = 0
@@ -1945,6 +2004,18 @@ def evaluate_scenario(
                     episode_approach_recenter_blocked_steps += int(
                         step.guard_approach_recenter_down_blocked
                     )
+                    episode_early_approach_assist_steps += int(
+                        step.guard_early_approach_assist_active
+                    )
+                    episode_early_approach_assist_triggers += int(
+                        step.guard_early_approach_assist_triggered
+                    )
+                    episode_early_approach_assist_releases += int(
+                        step.guard_early_approach_assist_released
+                    )
+                    episode_early_approach_assist_blocked_steps += int(
+                        step.guard_early_approach_assist_down_blocked
+                    )
                     episode_stateful_recovery_steps += int(
                         step.guard_stateful_recovery_active
                     )
@@ -2039,6 +2110,10 @@ def evaluate_scenario(
                 episode_approach_recenter_steps > 0
                 or episode_approach_recenter_triggers > 0
             )
+            early_approach_assist_episodes += int(
+                episode_early_approach_assist_steps > 0
+                or episode_early_approach_assist_triggers > 0
+            )
             stateful_recovery_episodes += int(
                 episode_stateful_recovery_steps > 0
                 or episode_stateful_recovery_triggers > 0
@@ -2073,6 +2148,18 @@ def evaluate_scenario(
             approach_recenter_triggers.append(float(episode_approach_recenter_triggers))
             approach_recenter_releases.append(float(episode_approach_recenter_releases))
             approach_recenter_blocked_steps.append(float(episode_approach_recenter_blocked_steps))
+            early_approach_assist_steps.append(
+                float(episode_early_approach_assist_steps)
+            )
+            early_approach_assist_triggers.append(
+                float(episode_early_approach_assist_triggers)
+            )
+            early_approach_assist_releases.append(
+                float(episode_early_approach_assist_releases)
+            )
+            early_approach_assist_blocked_steps.append(
+                float(episode_early_approach_assist_blocked_steps)
+            )
             stateful_recovery_steps.append(float(episode_stateful_recovery_steps))
             stateful_recovery_triggers.append(float(episode_stateful_recovery_triggers))
             stateful_recovery_releases.append(float(episode_stateful_recovery_releases))
@@ -2147,6 +2234,16 @@ def evaluate_scenario(
                     "approach_recenter_blocked_steps": (
                         episode_approach_recenter_blocked_steps
                     ),
+                    "early_approach_assist_steps": episode_early_approach_assist_steps,
+                    "early_approach_assist_triggers": (
+                        episode_early_approach_assist_triggers
+                    ),
+                    "early_approach_assist_releases": (
+                        episode_early_approach_assist_releases
+                    ),
+                    "early_approach_assist_blocked_steps": (
+                        episode_early_approach_assist_blocked_steps
+                    ),
                     "stateful_recovery_steps": episode_stateful_recovery_steps,
                     "stateful_recovery_triggers": episode_stateful_recovery_triggers,
                     "stateful_recovery_releases": episode_stateful_recovery_releases,
@@ -2209,6 +2306,7 @@ def evaluate_scenario(
     mean_fixture_clearance_steps = mean(fixture_clearance_steps)
     mean_fixture_clearance_realign_steps = mean(fixture_clearance_realign_steps)
     mean_preinsert_recenter_steps = mean(preinsert_recenter_steps)
+    mean_early_approach_assist_steps = mean(early_approach_assist_steps)
     mean_stateful_recovery_steps = mean(stateful_recovery_steps)
     mean_final_servo_steps = mean(final_servo_steps)
     mean_final_servo_descent_steps = mean(final_servo_descent_steps)
@@ -2269,6 +2367,22 @@ def evaluate_scenario(
         "mean_approach_recenter_releases": mean(approach_recenter_releases),
         "mean_approach_recenter_blocked_steps": mean(approach_recenter_blocked_steps),
         "approach_recenter_episode_rate": approach_recenter_episodes / args.episodes,
+        "mean_early_approach_assist_steps": mean_early_approach_assist_steps,
+        "mean_early_approach_assist_fraction": (
+            mean_early_approach_assist_steps / max(mean_steps, 1e-9)
+        ),
+        "mean_early_approach_assist_triggers": mean(
+            early_approach_assist_triggers
+        ),
+        "mean_early_approach_assist_releases": mean(
+            early_approach_assist_releases
+        ),
+        "mean_early_approach_assist_blocked_steps": mean(
+            early_approach_assist_blocked_steps
+        ),
+        "early_approach_assist_episode_rate": (
+            early_approach_assist_episodes / args.episodes
+        ),
         "mean_stateful_recovery_steps": mean_stateful_recovery_steps,
         "mean_stateful_recovery_fraction": (
             mean_stateful_recovery_steps / max(mean_steps, 1e-9)
@@ -2410,6 +2524,8 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Guard approach recenter enabled/requires stateful recovery: `{args.guard_approach_recenter_enabled}/{args.guard_approach_recenter_requires_stateful_recovery}`",
         f"- Guard approach recenter XY window/stable/bias: `{args.guard_approach_recenter_trigger_xy}-{args.guard_approach_recenter_max_xy}/{args.guard_approach_recenter_stable_xy}/{tuple(args.guard_approach_recenter_xy_bias)}`",
         f"- Guard approach recenter Z window/height/tolerance/max steps: `{args.guard_approach_recenter_min_z}-{args.guard_approach_recenter_start_z}/{args.guard_approach_recenter_height}/{args.guard_approach_recenter_z_tolerance}/{args.guard_approach_recenter_max_steps}`",
+        f"- Guard early approach assist enabled: `{args.guard_early_approach_assist_enabled}`",
+        f"- Guard early approach assist XY/Z/target/max steps: `{args.guard_early_approach_assist_trigger_xy}->{args.guard_early_approach_assist_release_xy}/{args.guard_early_approach_assist_min_z}-{args.guard_early_approach_assist_max_z}/{args.guard_early_approach_assist_target_height}/{args.guard_early_approach_assist_max_steps}`",
         f"- Guarded oracle mode: `{args.guarded_oracle_mode}`",
         f"- Guarded align/insert XY: `{args.guarded_align_xy_tolerance}/{args.guarded_insert_xy_tolerance}`",
         f"- Guarded max XY/down/up action: `{args.guarded_max_xy_action}/{args.guarded_max_down_action}/{args.guarded_max_up_action}`",
@@ -2420,8 +2536,8 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Contact recovery XY/Z/lift/Z tol/max down: `{args.contact_recovery_xy_tolerance}/{args.contact_recovery_z_max}/{args.contact_recovery_lift_height}/{args.contact_recovery_lift_z_tolerance}/{args.contact_recovery_max_down_action}`",
         f"- Timeout progress XY/Z/max down: `{args.timeout_progress_xy_tolerance}/{args.timeout_progress_z_max}/{args.timeout_progress_max_down_action}`",
         "",
-        "| Scenario | Level | Mode | Image | Image target | Control state | Guard | Success | Collision | Timeout | Mean return | Mean steps | Guard steps | Retry steps | Latch steps | Hover steps | Near limited | Fixture steps | Fixture realign | Preinsert | Approach rec | Stateful rec | Final servo | Final servo descend | Final XY | Final Z |",
-        "| --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Scenario | Level | Mode | Image | Image target | Control state | Guard | Success | Collision | Timeout | Mean return | Mean steps | Guard steps | Retry steps | Latch steps | Hover steps | Near limited | Fixture steps | Fixture realign | Preinsert | Approach rec | Early approach | Stateful rec | Final servo | Final servo descend | Final XY | Final Z |",
+        "| --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for row in rows:
         lines.append(
@@ -2436,6 +2552,7 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
             "{mean_fixture_clearance_realign_steps:.1f} ({mean_fixture_clearance_realign_fraction:.2f}) | "
             "{mean_preinsert_recenter_steps:.1f} ({mean_preinsert_recenter_fraction:.2f}, trig {mean_preinsert_recenter_triggers:.2f}, rel {mean_preinsert_recenter_releases:.2f}) | "
             "{mean_approach_recenter_steps:.1f} ({mean_approach_recenter_fraction:.2f}, trig {mean_approach_recenter_triggers:.2f}, rel {mean_approach_recenter_releases:.2f}) | "
+            "{mean_early_approach_assist_steps:.1f} ({mean_early_approach_assist_fraction:.2f}, trig {mean_early_approach_assist_triggers:.2f}, rel {mean_early_approach_assist_releases:.2f}) | "
             "{mean_stateful_recovery_steps:.1f} ({mean_stateful_recovery_fraction:.2f}, trig {mean_stateful_recovery_triggers:.2f}, rel {mean_stateful_recovery_releases:.2f}) | "
             "{mean_final_servo_steps:.1f} ({mean_final_servo_step_fraction:.2f}, trig {mean_final_servo_triggers:.2f}, rec {mean_final_servo_recovery_triggers:.2f}) | "
             "{mean_final_servo_descent_steps:.1f} ({mean_final_servo_descent_fraction:.2f}) | {mean_final_dist_xy:.5f} | "
@@ -2645,6 +2762,31 @@ def main() -> None:
         raise ValueError("--guard-approach-recenter-max-up-action must be positive.")
     if len(args.guard_approach_recenter_xy_bias) != 2:
         raise ValueError("--guard-approach-recenter-xy-bias must contain two values.")
+    if args.guard_early_approach_assist_trigger_xy <= 0.0:
+        raise ValueError("--guard-early-approach-assist-trigger-xy must be positive.")
+    if args.guard_early_approach_assist_release_xy <= 0.0:
+        raise ValueError("--guard-early-approach-assist-release-xy must be positive.")
+    if (
+        args.guard_early_approach_assist_release_xy
+        >= args.guard_early_approach_assist_trigger_xy
+    ):
+        raise ValueError(
+            "--guard-early-approach-assist-release-xy must be less than trigger-xy."
+        )
+    if args.guard_early_approach_assist_min_z < 0.0:
+        raise ValueError("--guard-early-approach-assist-min-z cannot be negative.")
+    if args.guard_early_approach_assist_max_z <= args.guard_early_approach_assist_min_z:
+        raise ValueError(
+            "--guard-early-approach-assist-max-z must be greater than min-z."
+        )
+    if args.guard_early_approach_assist_target_height <= 0.0:
+        raise ValueError("--guard-early-approach-assist-target-height must be positive.")
+    if args.guard_early_approach_assist_max_xy_action <= 0.0:
+        raise ValueError("--guard-early-approach-assist-max-xy-action must be positive.")
+    if args.guard_early_approach_assist_max_up_action <= 0.0:
+        raise ValueError("--guard-early-approach-assist-max-up-action must be positive.")
+    if args.guard_early_approach_assist_max_steps <= 0:
+        raise ValueError("--guard-early-approach-assist-max-steps must be positive.")
     if args.guard_stateful_recovery_trigger_xy_min < 0.0:
         raise ValueError("--guard-stateful-recovery-trigger-xy-min cannot be negative.")
     if args.guard_stateful_recovery_trigger_xy_max <= args.guard_stateful_recovery_trigger_xy_min:
@@ -2970,6 +3112,7 @@ def main() -> None:
             "fixture_realign={mean_fixture_clearance_realign_steps:.1f} "
             "preinsert={mean_preinsert_recenter_steps:.1f} "
             "approach={mean_approach_recenter_steps:.1f} "
+            "early_approach={mean_early_approach_assist_steps:.1f} "
             "stateful_recovery={mean_stateful_recovery_steps:.1f} "
             "final_servo={mean_final_servo_steps:.1f} "
             "return={mean_return:.3f}".format(**row)

@@ -404,6 +404,12 @@ The current focus is:
     - `steps_to_end` sorting captured late seed643009 states with XY up to about `0.176 m` and opposed policy/oracle actions
     - weighted BC candidates did not improve the hard `round_square` seed643 eval: base and v49 late candidate both stayed `9/10` at crop offsets `+12` and `+24`
     - do not promote/tag the v49 approach BC models; next useful step is to compare stronger approach-specific visual curriculum against a default-off early approach assist/guard
+  - early approach assist pilot status:
+    - `guard_early_approach_assist` is implemented default-off in `GuardedPolicyController` and wired through `scripts/eval_guarded_policy.py`
+    - v50 pilot outputs are outside the repo at `D:\peg-in-hole-6yh\v50_early_approach_assist` because `results/` currently rejects new writes
+    - no-assist baseline on `round_square`, seed `643000`, crop-source range `[80,96]`: `[+12,0] 9/10`, `[+24,0] 9/10`, both with one timeout and no collision
+    - early assist on the same target: `[+12,0] 10/10`, `[+24,0] 10/10`, no collisions/timeouts; mixed_basic spillover `[+12,0]` and `[+24,0]` also reached `10/10`
+    - do not make this default yet; next gate should cover all geometry profiles and crop offsets before tagging/promoting
 
 ## Editing Workflow
 

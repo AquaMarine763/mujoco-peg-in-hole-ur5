@@ -247,6 +247,15 @@ class GuardedPolicyConfig:
     guard_approach_recenter_max_xy_action: float = 0.005
     guard_approach_recenter_max_up_action: float = 0.005
     guard_approach_recenter_xy_bias: tuple[float, float] = (0.0, 0.0)
+    guard_early_approach_assist_enabled: bool = False
+    guard_early_approach_assist_trigger_xy: float = 0.100
+    guard_early_approach_assist_release_xy: float = 0.060
+    guard_early_approach_assist_min_z: float = 0.120
+    guard_early_approach_assist_max_z: float = 0.240
+    guard_early_approach_assist_target_height: float = 0.140
+    guard_early_approach_assist_max_xy_action: float = 0.008
+    guard_early_approach_assist_max_up_action: float = 0.005
+    guard_early_approach_assist_max_steps: int = 300
     guard_stateful_recovery_enabled: bool = False
     guard_stateful_recovery_trigger_xy_min: float = 0.006
     guard_stateful_recovery_trigger_xy_max: float = 0.030
@@ -538,6 +547,33 @@ class GuardedPolicyConfig:
             raise ValueError("guard_approach_recenter_max_up_action must be positive.")
         if len(self.guard_approach_recenter_xy_bias) != 2:
             raise ValueError("guard_approach_recenter_xy_bias must contain two values.")
+        if self.guard_early_approach_assist_trigger_xy <= 0.0:
+            raise ValueError("guard_early_approach_assist_trigger_xy must be positive.")
+        if self.guard_early_approach_assist_release_xy <= 0.0:
+            raise ValueError("guard_early_approach_assist_release_xy must be positive.")
+        if (
+            self.guard_early_approach_assist_release_xy
+            >= self.guard_early_approach_assist_trigger_xy
+        ):
+            raise ValueError(
+                "guard_early_approach_assist_release_xy must be less than "
+                "guard_early_approach_assist_trigger_xy."
+            )
+        if self.guard_early_approach_assist_min_z < 0.0:
+            raise ValueError("guard_early_approach_assist_min_z cannot be negative.")
+        if self.guard_early_approach_assist_max_z <= self.guard_early_approach_assist_min_z:
+            raise ValueError(
+                "guard_early_approach_assist_max_z must be greater than "
+                "guard_early_approach_assist_min_z."
+            )
+        if self.guard_early_approach_assist_target_height <= 0.0:
+            raise ValueError("guard_early_approach_assist_target_height must be positive.")
+        if self.guard_early_approach_assist_max_xy_action <= 0.0:
+            raise ValueError("guard_early_approach_assist_max_xy_action must be positive.")
+        if self.guard_early_approach_assist_max_up_action <= 0.0:
+            raise ValueError("guard_early_approach_assist_max_up_action must be positive.")
+        if self.guard_early_approach_assist_max_steps <= 0:
+            raise ValueError("guard_early_approach_assist_max_steps must be positive.")
         if self.guard_stateful_recovery_trigger_xy_min < 0.0:
             raise ValueError("guard_stateful_recovery_trigger_xy_min cannot be negative.")
         if self.guard_stateful_recovery_trigger_xy_max <= self.guard_stateful_recovery_trigger_xy_min:
@@ -1004,6 +1040,11 @@ class GuardedPolicyStep:
     guard_approach_recenter_steps: int = 0
     guard_approach_recenter_stable_steps: int = 0
     guard_approach_recenter_down_blocked: bool = False
+    guard_early_approach_assist_active: bool = False
+    guard_early_approach_assist_triggered: bool = False
+    guard_early_approach_assist_released: bool = False
+    guard_early_approach_assist_steps: int = 0
+    guard_early_approach_assist_down_blocked: bool = False
     guard_stateful_recovery_active: bool = False
     guard_stateful_recovery_triggered: bool = False
     guard_stateful_recovery_released: bool = False
@@ -1061,6 +1102,8 @@ class GuardedPolicyController:
         self.guard_approach_recenter_active = False
         self.guard_approach_recenter_steps = 0
         self.guard_approach_recenter_stable_steps = 0
+        self.guard_early_approach_assist_active = False
+        self.guard_early_approach_assist_steps = 0
         self.guard_stateful_recovery_phase = "inactive"
         self.guard_stateful_recovery_phase_steps = 0
         self.guard_stateful_recovery_stall_steps = 0
@@ -1113,6 +1156,8 @@ class GuardedPolicyController:
         self.guard_approach_recenter_active = False
         self.guard_approach_recenter_steps = 0
         self.guard_approach_recenter_stable_steps = 0
+        self.guard_early_approach_assist_active = False
+        self.guard_early_approach_assist_steps = 0
         self.guard_stateful_recovery_phase = "inactive"
         self.guard_stateful_recovery_phase_steps = 0
         self.guard_stateful_recovery_stall_steps = 0
@@ -1191,6 +1236,7 @@ class GuardedPolicyController:
             self._reset_fixture_clearance()
             self._reset_preinsert_recenter()
             self._reset_approach_recenter()
+            self._reset_early_approach_assist()
             self._reset_stateful_recovery()
             self._reset_final_servo()
             result = GuardedPolicyStep(
@@ -1231,6 +1277,7 @@ class GuardedPolicyController:
             self._reset_hover()
             self._reset_preinsert_recenter()
             self._reset_approach_recenter()
+            self._reset_early_approach_assist()
             self._reset_stateful_recovery()
             self._reset_final_servo()
             guarded_action = self._fixture_clearance_action_from_state(state)
@@ -1282,15 +1329,75 @@ class GuardedPolicyController:
                 self._reset_hover()
                 self._reset_preinsert_recenter()
                 self._reset_approach_recenter()
+                self._reset_early_approach_assist()
                 self._reset_stateful_recovery()
                 self._reset_final_servo()
 
+        if self.guard_active:
+            self._reset_early_approach_assist()
+
         if not self.guard_active:
+            early_active, early_triggered, early_released = (
+                self._update_early_approach_assist_state(dist_xy, z_above_target)
+            )
+            if early_active:
+                self._reset_retry()
+                self._reset_insert_latch()
+                self._reset_hover()
+                self._reset_preinsert_recenter()
+                self._reset_approach_recenter()
+                self._reset_stateful_recovery()
+                self._reset_final_servo()
+                guarded_action = self._early_approach_assist_action_from_state(state)
+                blend = float(np.clip(self.config.guard_blend, 0.0, 1.0))
+                action = (1.0 - blend) * policy_action + blend * guarded_action
+                down_blocked = self._block_down_if_unaligned(action, dist_xy)
+                action = np.clip(action, state.action_low, state.action_high).astype(np.float32)
+                self.guard_steps += 1
+                self.guard_early_approach_assist_steps += 1
+                result = GuardedPolicyStep(
+                    action=action,
+                    guarded=True,
+                    guard_active=False,
+                    guard_enabled=True,
+                    guard_should_activate=should_activate,
+                    guard_can_activate=can_activate,
+                    guard_activated=False,
+                    guard_down_blocked=down_blocked,
+                    guard_steps_since_reset=step_index,
+                    guard_dist_xy=dist_xy,
+                    guard_z_above_target=z_above_target,
+                    policy_action=policy_action,
+                    guarded_action=guarded_action,
+                    guard_retry_active=False,
+                    guard_retry_triggered=False,
+                    guard_retry_count=self.guard_retry_count,
+                    guard_retry_stall_steps=self.guard_retry_stall_steps,
+                    guard_retry_active_steps=self.guard_retry_active_steps,
+                    guard_insert_latched=False,
+                    guard_insert_latch_activated=False,
+                    guard_insert_latch_released=False,
+                    guard_insert_latch_steps=self.guard_insert_latch_steps,
+                    guard_insert_latch_descent_allowed=False,
+                    guard_hover_descent_latched=False,
+                    guard_fixture_clearance_released=fixture_released,
+                    guard_fixture_clearance_steps=self.guard_fixture_clearance_steps,
+                    guard_fixture_clearance_realign_steps=self.guard_fixture_clearance_realign_steps,
+                    guard_early_approach_assist_active=True,
+                    guard_early_approach_assist_triggered=early_triggered,
+                    guard_early_approach_assist_released=early_released,
+                    guard_early_approach_assist_steps=self.guard_early_approach_assist_steps,
+                    guard_early_approach_assist_down_blocked=down_blocked,
+                )
+                self.steps_since_reset += 1
+                return result
+
             self._reset_retry()
             self._reset_insert_latch()
             self._reset_hover()
             self._reset_preinsert_recenter()
             self._reset_approach_recenter()
+            self._reset_early_approach_assist()
             self._reset_stateful_recovery()
             self._reset_final_servo()
             action = policy_action.copy()
@@ -1323,6 +1430,9 @@ class GuardedPolicyController:
                 guard_fixture_clearance_released=fixture_released,
                 guard_fixture_clearance_steps=self.guard_fixture_clearance_steps,
                 guard_fixture_clearance_realign_steps=self.guard_fixture_clearance_realign_steps,
+                guard_early_approach_assist_triggered=early_triggered,
+                guard_early_approach_assist_released=early_released,
+                guard_early_approach_assist_steps=self.guard_early_approach_assist_steps,
             )
             self.steps_since_reset += 1
             return result
@@ -1336,6 +1446,7 @@ class GuardedPolicyController:
             self._reset_hover()
             self._reset_preinsert_recenter()
             self._reset_approach_recenter()
+            self._reset_early_approach_assist()
             self._reset_final_servo()
             guarded_action, recovery_down_blocked = (
                 self._stateful_recovery_action_from_state(state)
@@ -1398,6 +1509,7 @@ class GuardedPolicyController:
             self._reset_insert_latch()
             self._reset_hover()
             self._reset_preinsert_recenter()
+            self._reset_early_approach_assist()
             self._reset_final_servo()
             guarded_action = self._approach_recenter_action_from_state(state)
             self.guard_approach_recenter_steps += 1
@@ -1456,6 +1568,7 @@ class GuardedPolicyController:
             self._reset_retry()
             self._reset_insert_latch()
             self._reset_hover()
+            self._reset_early_approach_assist()
             self._reset_final_servo()
             guarded_action = self._preinsert_recenter_action_from_state(state)
             self.guard_preinsert_recenter_steps += 1
@@ -1776,6 +1889,10 @@ class GuardedPolicyController:
         self.guard_approach_recenter_steps = 0
         self.guard_approach_recenter_stable_steps = 0
 
+    def _reset_early_approach_assist(self) -> None:
+        self.guard_early_approach_assist_active = False
+        self.guard_early_approach_assist_steps = 0
+
     def _reset_stateful_recovery(self, *, keep_attempts: bool = False) -> None:
         self.guard_stateful_recovery_phase = "inactive"
         self.guard_stateful_recovery_phase_steps = 0
@@ -2032,6 +2149,66 @@ class GuardedPolicyController:
             max_up_action=self.config.guard_stateful_recovery_max_up_action,
         )
         return np.clip(action, state.action_low, state.action_high).astype(np.float32), True
+
+    def _update_early_approach_assist_state(
+        self,
+        dist_xy: float,
+        z_above_target: float,
+    ) -> tuple[bool, bool, bool]:
+        if not self.config.guard_early_approach_assist_enabled:
+            self._reset_early_approach_assist()
+            return False, False, False
+
+        in_height_window = (
+            self.config.guard_early_approach_assist_min_z
+            <= z_above_target
+            <= self.config.guard_early_approach_assist_max_z
+        )
+        if self.guard_early_approach_assist_active:
+            timed_out = (
+                self.guard_early_approach_assist_steps
+                >= self.config.guard_early_approach_assist_max_steps
+            )
+            reached_handoff = (
+                dist_xy <= self.config.guard_early_approach_assist_release_xy
+            )
+            if reached_handoff or timed_out or not in_height_window:
+                self._reset_early_approach_assist()
+                return False, False, True
+            return True, False, False
+
+        in_approach_zone = (
+            in_height_window
+            and dist_xy >= self.config.guard_early_approach_assist_trigger_xy
+        )
+        if not in_approach_zone:
+            return False, False, False
+
+        self.guard_early_approach_assist_active = True
+        self.guard_early_approach_assist_steps = 0
+        return True, True, False
+
+    def _early_approach_assist_action_from_state(
+        self,
+        state: GuardedDeploymentState,
+    ) -> np.ndarray:
+        tip = _as_vector3(state.peg_tip_pos, "peg_tip_pos")
+        target = _as_vector3(state.target_pos, "target_pos")
+        applied_action = _as_vector3(state.applied_action, "applied_action")
+        control_tip = tip + float(self.config.oracle.guarded_prediction_steps) * applied_action
+        desired_z = float(target[2] + self.config.guard_early_approach_assist_target_height)
+        desired = np.asarray([target[0], target[1], desired_z], dtype=np.float64)
+        action = self.config.oracle.action_gain * (desired - control_tip)
+        action = self._limit_xy_action(
+            action,
+            self.config.guard_early_approach_assist_max_xy_action,
+        )
+        action = self._limit_z_action(
+            action,
+            max_down_action=self.config.oracle.guarded_max_down_action,
+            max_up_action=self.config.guard_early_approach_assist_max_up_action,
+        )
+        return np.clip(action, state.action_low, state.action_high).astype(np.float32)
 
     def _update_approach_recenter_state(
         self,

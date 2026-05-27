@@ -7147,3 +7147,74 @@ failure final XY improved only slightly, about 0.206 m -> 0.205 m
 Interpretation: do not promote the v49 BC candidate. The data plumbing is useful,
 but this failure likely needs either a stronger approach-specific curriculum or
 a default-off early approach assist/guard.
+
+## Early Approach Assist Pilot
+
+The v50 early-assist pilot outputs are outside the repo because `results/`
+currently rejects new writes on this machine:
+
+```text
+D:\peg-in-hole-6yh\v50_early_approach_assist
+```
+
+Baseline no-assist comparison for the exposed `round_square` crop-source jitter
+failure:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v50_early_approach_assist"
+
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml `
+  --model checkpoints\ur5e_full\high_start\hard\correction\sac_image_bc_wrist_pose_control_state_insert_drift_2k_w10_e1.zip `
+  --geometry-profile round_square `
+  --episodes 10 `
+  --seed 643000 `
+  --control-mode guarded `
+  --near-hole-crop-source-size-range 80 96 `
+  --near-hole-crop-offset 12 0 `
+  --output-csv "$out\baseline_noassist_round_square_crop_jitter_p12_seed643000_10ep.csv" `
+  --output-md "$out\baseline_noassist_round_square_crop_jitter_p12_seed643000_10ep.md" `
+  --episode-output-csv "$out\baseline_noassist_round_square_crop_jitter_p12_seed643000_10ep_episodes.csv" `
+  --step-output-csv "$out\baseline_noassist_round_square_crop_jitter_p12_seed643000_10ep_failure_steps.csv"
+```
+
+Enable early approach assist:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v50_early_approach_assist"
+
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml `
+  --model checkpoints\ur5e_full\high_start\hard\correction\sac_image_bc_wrist_pose_control_state_insert_drift_2k_w10_e1.zip `
+  --geometry-profile round_square `
+  --episodes 10 `
+  --seed 643000 `
+  --control-mode guarded `
+  --near-hole-crop-source-size-range 80 96 `
+  --near-hole-crop-offset 12 0 `
+  --guard-early-approach-assist-enabled `
+  --guard-early-approach-assist-trigger-xy 0.10 `
+  --guard-early-approach-assist-release-xy 0.06 `
+  --guard-early-approach-assist-min-z 0.12 `
+  --guard-early-approach-assist-max-z 0.27 `
+  --guard-early-approach-assist-target-height 0.14 `
+  --guard-early-approach-assist-max-xy-action 0.008 `
+  --output-csv "$out\eval_round_square_crop_jitter_p12_seed643000_10ep.csv" `
+  --output-md "$out\eval_round_square_crop_jitter_p12_seed643000_10ep.md" `
+  --episode-output-csv "$out\eval_round_square_crop_jitter_p12_seed643000_10ep_episodes.csv" `
+  --step-output-csv "$out\eval_round_square_crop_jitter_p12_seed643000_10ep_failure_steps.csv"
+```
+
+Known pilot result:
+
+```text
+round_square seed643 range [80,96]:
+  no assist:       [+12,0] 9/10, [+24,0] 9/10, 0 collision, 1 timeout each
+  early assist:    [+12,0] 10/10, [+24,0] 10/10, 0 collision, 0 timeout
+mixed_basic seed643 range [80,96]:
+  early assist:    [+12,0] 10/10, [+24,0] 10/10, 0 collision, 0 timeout
+```
+
+Interpretation: the remaining exposed v47 failure is high-start far-XY approach
+timeout before normal guard activation. Early assist is promising but should pass
+a larger multi-profile/multi-offset gate before promotion.
