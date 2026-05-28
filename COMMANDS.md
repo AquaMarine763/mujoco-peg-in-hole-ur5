@@ -7411,7 +7411,9 @@ python scripts\eval_guarded_policy.py `
   --step-output-csv "$out\eval_adapter_trigger512_override_r005_noassist_round_square_p12_seed643000_10ep_failure_steps.csv"
 ```
 
-Evaluate the current v6 DAgger adapter with the lower handoff gate:
+Evaluate the current v6 DAgger adapter with the diagnostic tuned gate. This is
+useful for reproducing seed645000, but it is not promoted because it regresses
+seed644000:
 
 ```powershell
 $out = "D:\peg-in-hole-6yh\v51_early_approach_learning"
@@ -7428,12 +7430,14 @@ python scripts\eval_guarded_policy.py `
   --approach-adapter-enabled `
   --approach-adapter-trigger-xy 0.06 `
   --approach-adapter-release-xy 0.03 `
+  --approach-adapter-min-z 0.08 `
+  --approach-adapter-max-z 0.27 `
   --approach-adapter-mode override_xy `
-  --approach-adapter-max-xy-residual 0.003 `
-  --output-csv "$out\eval_adapter_v6_fullcrop_mix_targeted_dagger_override_r003_gate006_noassist_round_square_p12_seed643000_10ep.csv" `
-  --output-md "$out\eval_adapter_v6_fullcrop_mix_targeted_dagger_override_r003_gate006_noassist_round_square_p12_seed643000_10ep.md" `
-  --episode-output-csv "$out\eval_adapter_v6_fullcrop_mix_targeted_dagger_override_r003_gate006_noassist_round_square_p12_seed643000_10ep_episodes.csv" `
-  --step-output-csv "$out\eval_adapter_v6_fullcrop_mix_targeted_dagger_override_r003_gate006_noassist_round_square_p12_seed643000_10ep_failure_steps.csv"
+  --approach-adapter-max-xy-residual 0.006 `
+  --output-csv "$out\eval_adapter_v6_fullcrop_mix_targeted_dagger_override_r006_minz08_gate006_noassist_round_square_p12_seed643000_10ep.csv" `
+  --output-md "$out\eval_adapter_v6_fullcrop_mix_targeted_dagger_override_r006_minz08_gate006_noassist_round_square_p12_seed643000_10ep.md" `
+  --episode-output-csv "$out\eval_adapter_v6_fullcrop_mix_targeted_dagger_override_r006_minz08_gate006_noassist_round_square_p12_seed643000_10ep_episodes.csv" `
+  --step-output-csv "$out\eval_adapter_v6_fullcrop_mix_targeted_dagger_override_r006_minz08_gate006_noassist_round_square_p12_seed643000_10ep_failure_steps.csv"
 ```
 
 Known adapter smoke result:
@@ -7467,8 +7471,52 @@ full+crop mixed wide-XY + targeted DAgger v6 adapter:
     120/120, zero collision, zero timeout
     profiles: single/round_square/square_square/mixed_basic
     crop offsets: [-18,0], [+12,0], [+24,0]
+  gate 0.06, full no-assist profile/offset matrix seed644000:
+    120/120, zero collision, zero timeout
+    same profiles and crop offsets
+  seed645000 tuning:
+    original min_z 0.12 / max_xy 0.003: 106/120, zero collision, 14 timeouts
+    min_z 0.08 / max_xy 0.005: 118/120, zero collision, 2 timeouts
+    min_z 0.08 / max_xy 0.008: 117/120, zero collision, 3 timeouts
+    min_z 0.08 / max_xy 0.006: 120/120, zero collision, zero timeout
+  seed644000 regression with min_z 0.08 / max_xy 0.006:
+    109/120, zero collision, 11 timeouts
 ```
 
 Interpretation: adapter infrastructure works, but the 512-sample adapter is not
-a promoted milestone. v6 passed the seed643000 profile/offset matrix, but still
-needs new-seed validation before promotion/tagging.
+a promoted milestone. v6 passed the seed643000 and seed644000 profile/offset
+matrices with the original conservative eval setting. On seed645000 it needs the
+tuned setting `--approach-adapter-min-z 0.08 --approach-adapter-max-xy-residual
+0.006`, but that tuned setting regresses seed644000. Do not promote v6 by fixed
+eval-parameter tuning; collect targeted adapter-rollout DAgger data and train a
+v7 adapter before tagging.
+
+Small v7 targeted DAgger pilot, not promoted:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v62_adapter_v7_targeted_dagger"
+
+python scripts\collect_image_correction_dataset.py `
+  --config configs\sim\ur5e_full\collect_high_start_hard_wrist_pose_control_state_early_approach_assist_2k.yaml `
+  --samples 96 `
+  --samples-per-config 96 `
+  --max-episodes-per-config 80 `
+  --seed 645000 `
+  --geometry-profile mixed_basic `
+  --near-hole-crop-offset 24 0 `
+  --selection early_approach_assist_failure_window `
+  --episode-outcome-filter timeout `
+  --keep-success-episodes `
+  --rollout-approach-adapter D:\peg-in-hole-6yh\v51_early_approach_learning\approach_adapter_v6_fullcrop_mix_targeted_dagger_xy_override.pt `
+  --rollout-approach-adapter-enabled `
+  --rollout-approach-adapter-trigger-xy 0.06 `
+  --rollout-approach-adapter-min-z 0.12 `
+  --rollout-approach-adapter-max-z 0.27 `
+  --rollout-approach-adapter-mode override_xy `
+  --rollout-approach-adapter-max-xy-residual 0.003 `
+  --output "$out\image_correction_96_mixed_basic_p24_seed645000_timeout_rollout_adapter_v6.npz"
+```
+
+Result: the dataset path works and v7 improved some seed645 failures to `9/10`,
+but did not solve them. Next collection should be larger and balanced across
+profiles and crop offsets.

@@ -3321,18 +3321,52 @@ Interpretation:
     - full no-assist profile/offset matrix, seed `643000`, crop-source `[80,96]`, offsets `[-18,0]`, `[+12,0]`, `[+24,0]`: `120/120`, `0` collision, `0` timeout
       - mean adapter steps ranged from `72.6` to `102.6`
       - mean episode steps ranged from `224.9` to `256.6`
+    - new-seed full no-assist profile/offset matrix, seed `644000`, same profiles and offsets: `120/120`, `0` collision, `0` timeout
+    - new-seed seed `645000` exposed that the original eval setting was too conservative:
+      - original `min_z=0.12`, `max_xy_residual=0.003`: `106/120`, `0` collision, `14` timeouts
+      - lowered `min_z=0.08` with `max_xy_residual=0.005`: `118/120`, `0` collision, `2` timeouts
+      - stronger `max_xy_residual=0.008`: `117/120`, `0` collision, `3` timeouts because adapter stayed active too long and starved final-servo time
+      - compromise `min_z=0.08`, `max_xy_residual=0.006`: `120/120`, `0` collision, `0` timeout
+    - regression check on seed `644000` rejected the tuned eval-only fix:
+      - `min_z=0.08`, `max_xy_residual=0.006`: `109/120`, `0` collision, `11` timeouts
+      - failures concentrated on episode seed `644002`, where the adapter stayed active for all `1000` steps and guard/final-servo never took over
+      - keeping `min_z=0.12` while raising `max_xy_residual=0.006` also failed targeted seed645 probes, so a single fixed cap/gate is not robust enough
   - v6 output: `D:\peg-in-hole-6yh\v51_early_approach_learning\approach_adapter_v6_fullcrop_mix_targeted_dagger_xy_override.pt`
 - Interpretation:
   - The code path is now in place, but the 512-sample adapter is not a promoted learner milestone.
-  - `override_xy` is the better adapter formulation, but current data/inputs are insufficient to replace early assist.
+  - `override_xy` is the better adapter formulation, but the v6 checkpoint is not ready to replace v50 early assist through eval-parameter tuning alone.
   - Adding full camera features alone did not fix the unassisted far-XY timeout; targeted DAgger plus a lower handoff gate was needed.
-  - The failure likely still reflects visual observability and distribution shift: the high-start crop/control-state pair does not reliably encode the direction needed to correct a 20+ cm drift once rollout leaves the data manifold.
+  - The seed645/seed644 contrast shows two concrete tuning modes: if the XY cap is too small or the Z gate exits early, approach timeout remains; if the adapter owns the trajectory too long, it can diverge or consume the 1000-step budget before final-servo.
 - Next recommendation:
   - Keep the adapter infrastructure.
   - Do not scale residual mode.
-  - v6 is now a candidate, but not yet a promoted tag because it is trained from small local smoke/targeted datasets and the checkpoint is outside Git.
-  - Next validation should use new seeds, not only seed `643000`: run at least `seed644000/645000`, 10 episodes/profile, with offsets `[-18,0]`, `[+12,0]`, `[+24,0]`.
-  - If the new-seed matrix passes, collect a larger adapter-rollout DAgger dataset and train a non-smoke v7 adapter; compare it against v50 early assist and an explicit visual-servo target estimator.
+  - Do not promote/tag v6.
+  - Next work should collect targeted adapter-rollout DAgger data from the newly exposed seed645 failures while preserving seed644 passing behavior, then train a non-smoke v7 adapter.
+  - Compare v7 against v50 early assist and an explicit visual-servo target estimator; avoid more broad fixed-threshold scans unless the adapter policy or gate logic changes.
+
+### 2026-05-28 Adapter v7 Targeted DAgger Pilot
+
+- Collected a small targeted adapter-rollout dataset:
+  - output: `D:\peg-in-hole-6yh\v62_adapter_v7_targeted_dagger\image_correction_96_mixed_basic_p24_seed645000_timeout_rollout_adapter_v6.npz`
+  - rollout adapter: v6 with original conservative rollout gate `trigger_xy=0.06`, `min_z=0.12`, `max_xy_residual=0.003`
+  - selection: `early_approach_assist_failure_window`, timeout episodes only
+  - `96` samples from `5` timeout source episodes, `11` completed episodes
+  - `opposed_actions_rate=0.552`, `approach_window_rate=0.698`, `dist_xy` mean about `117 mm`, `z_above_target` mean about `171 mm`
+- Trained pilot v7:
+  - output: `D:\peg-in-hole-6yh\v62_adapter_v7_targeted_dagger\approach_adapter_v7_fullcrop_mix_seed645_dagger_xy_override.pt`
+  - final train/validation loss: `0.00000785 / 0.00000760`
+  - training mixed the v6 data recipe plus the new seed645 timeout dataset repeated three times.
+- Targeted seed645 eval with the original conservative eval gate (`min_z=0.12`, `max_xy_residual=0.003`) improved but did not solve the failures:
+  - `single +12`: `9/10`
+  - `single +24`: `9/10`
+  - `round_square +24`: `9/10`
+  - `square_square +24`: `9/10`
+  - `mixed_basic +24`: `9/10`
+  - all failures were timeouts, zero collisions
+- Interpretation:
+  - The DAgger route is still the right next direction, but the 96-sample mixed-basic pilot is underpowered and too narrow.
+  - Do not promote v7.
+  - Next collection should be balanced across `single`, `round_square`, `square_square`, and `mixed_basic`, both `[+12,0]` and `[+24,0]`, and should include seed644 preservation/negative cases so the adapter learns when not to overtake.
 
 ## Key Commands
 

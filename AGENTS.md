@@ -433,7 +433,14 @@ The current focus is:
     - v6 full+crop mixed wide-XY + targeted DAgger adapter plus lower eval gate `--approach-adapter-trigger-xy 0.06 --approach-adapter-release-xy 0.03` reached `10/10` on `round_square` seed `643000` for crop offsets `[-18,0]`, `[+12,0]`, and `[+24,0]` without v50 early assist
     - v6 also reached `10/10` for the `+12` crop-offset smoke on `single`, `round_square`, `square_square`, and `mixed_basic`, with zero collision and zero timeout
     - v6 seed643000 full profile/offset matrix passed: `120/120`, zero collision, zero timeout across `single`, `round_square`, `square_square`, `mixed_basic` and offsets `[-18,0]`, `[+12,0]`, `[+24,0]`
-    - do not promote v6 yet; checkpoint is a local smoke/targeted-data artifact outside Git, and the next validation should be new-seed matrix testing before any tag
+    - v6 seed644000 full profile/offset matrix also passed: `120/120`, zero collision, zero timeout with the same profiles and offsets
+    - v6 seed645000 with the original conservative eval setting `min_z=0.12`, `max_xy_residual=0.003` failed at `106/120`, zero collision, 14 timeouts. The failures were approach-stage timeouts, not insertion wedging.
+    - tuned eval setting `min_z=0.08`, `max_xy_residual=0.006` passed seed645000 full profile/offset matrix: `120/120`, zero collision, zero timeout.
+    - the same tuned setting regressed seed644000 to `109/120`, zero collision, 11 timeouts, mostly episode seed `644002` with adapter active for all 1000 steps and no guard/final-servo handoff
+    - do not promote v6; checkpoint is a local smoke/targeted-data artifact outside Git, and fixed eval-threshold tuning is not robust enough. Next work should collect targeted adapter-rollout DAgger data from seed645 failures and train v7 while preserving seed644 behavior
+    - v7 targeted DAgger smoke collected `96` mixed-basic `+24` timeout samples from seed645 rollout-adapter failures and trained `D:\peg-in-hole-6yh\v62_adapter_v7_targeted_dagger\approach_adapter_v7_fullcrop_mix_seed645_dagger_xy_override.pt`
+    - v7 is not promoted: under the original conservative eval gate it reached only `9/10` on each targeted seed645 condition tested (`single +12`, `single +24`, `round_square +24`, `square_square +24`, `mixed_basic +24`), all zero collision but still one timeout each
+    - next adapter work should scale targeted DAgger across profiles and crop offsets and include seed644 preservation cases; do not keep scanning fixed min-z/max-xy thresholds
 
 ## Editing Workflow
 
