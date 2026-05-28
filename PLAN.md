@@ -3368,6 +3368,50 @@ Interpretation:
   - Do not promote v7.
   - Next collection should be balanced across `single`, `round_square`, `square_square`, and `mixed_basic`, both `[+12,0]` and `[+24,0]`, and should include seed644 preservation/negative cases so the adapter learns when not to overtake.
 
+### 2026-05-28 Adapter v8 Latched-Gate Candidate
+
+- Implemented default-off latched approach-adapter evaluation in `scripts/eval_guarded_policy.py`.
+  - New switches:
+    - `--approach-adapter-latch-enabled`
+    - `--approach-adapter-latched-min-z`
+    - `--approach-adapter-max-steps`
+  - Default behavior is unchanged.
+  - With latch enabled, the adapter still must first activate in the normal high-Z gate, then it may continue until `release_xy`, `latched_min_z`, or the consecutive step cap.
+- Motivation:
+  - v8 without latch still timed out on seed645 episode `645009`.
+  - The adapter exited at about `90 mm` XY because `z_above_target` slipped just below `0.12 m`; then the base policy drifted back out to about `164 mm` XY.
+  - A fixed lower `min_z=0.08` was unsafe because it let the adapter own seed644 episode `644002` for all `1000` steps.
+  - The latch makes the lower-Z extension bounded and stateful rather than globally lowering the activation gate.
+- Collected balanced targeted DAgger data for v8:
+  - output directory: `D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger`
+  - 8 datasets, `96` samples each
+  - profiles: `single`, `round_square`, `square_square`, `mixed_basic`
+  - offsets: `[+12,0]`, `[+24,0]`
+  - rollout adapter: v7 under the original conservative gate
+- Trained v8 adapter:
+  - output: `D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt`
+  - final train/validation loss: about `0.00000389 / 0.00000391`
+  - v8 alone, under the original conservative gate, still only reached `9/10` on most targeted seed645 conditions.
+- Latched v8 evaluation setting:
+  - `trigger_xy=0.06`
+  - `release_xy=0.03`
+  - activation `min_z=0.12`, `max_z=0.27`
+  - latched `min_z=0.08`
+  - `max_steps=220`
+  - `mode=override_xy`
+  - `max_xy_residual=0.003`
+- Validation:
+  - seed `643000`, 12 profile/offset runs, 10 episodes each: `120/120`, `0` collision, `0` timeout
+  - seed `644000`, same matrix: `120/120`, `0` collision, `0` timeout
+  - seed `645000`, same matrix: `120/120`, `0` collision, `0` timeout
+  - combined: `360/360`, `0` collision, `0` timeout
+  - mean adapter steps by seed were roughly `146`, `157`, and `152`.
+- Interpretation:
+  - This is the first learner-side approach-adapter path that matches the v50 early-assist matrix on the tested seeds without enabling v50 early assist.
+  - The mechanism is not pure policy-only insertion; the guarded final-servo stack still performs final insertion.
+  - Do not tag yet unless checkpoint packaging is decided. The adapter checkpoint is local and outside Git.
+  - Next validation should run one or two fresh seeds beyond `643000-645000`, then package the v8 checkpoint or publish it as a release asset if it remains stable.
+
 ## Key Commands
 
 Full UR5e model check:

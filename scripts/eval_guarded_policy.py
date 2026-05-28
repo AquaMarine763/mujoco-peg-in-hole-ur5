@@ -359,6 +359,26 @@ def build_parser(
     parser.add_argument("--approach-adapter-release-xy", type=float, default=0.060)
     parser.add_argument("--approach-adapter-min-z", type=float, default=0.120)
     parser.add_argument("--approach-adapter-max-z", type=float, default=0.270)
+    parser.add_argument(
+        "--approach-adapter-latch-enabled",
+        action="store_true",
+        help=(
+            "Once the approach adapter activates, keep it active until release_xy, "
+            "latched_min_z, or max_steps is reached."
+        ),
+    )
+    parser.add_argument(
+        "--approach-adapter-latched-min-z",
+        type=float,
+        default=None,
+        help="Lower Z bound for an already-active latched adapter. Defaults to min-z.",
+    )
+    parser.add_argument(
+        "--approach-adapter-max-steps",
+        type=int,
+        default=0,
+        help="Maximum consecutive latched adapter steps. 0 disables the step cap.",
+    )
     parser.add_argument("--approach-adapter-max-xy-residual", type=float, default=0.003)
     parser.add_argument("--approach-adapter-max-z-residual", type=float, default=0.0)
     parser.add_argument("--approach-adapter-scale", type=float, default=1.0)
@@ -1293,14 +1313,38 @@ def policy_observation(
     )
 
 
-def approach_adapter_gate(args: argparse.Namespace, info: dict[str, Any]) -> bool:
+def approach_adapter_gate(
+    args: argparse.Namespace,
+    info: dict[str, Any],
+    *,
+    latched: bool = False,
+    latch_steps: int = 0,
+) -> bool:
     tip = np.asarray(info["peg_tip_pos"], dtype=np.float64)
     target = np.asarray(info["target_pos"], dtype=np.float64)
     z_above_target = float(tip[2] - target[2])
     dist_xy = float(info["dist_xy"])
+    if not args.approach_adapter_enabled:
+        return False
+    if args.approach_adapter_latch_enabled and latched:
+        latched_min_z = (
+            args.approach_adapter_min_z
+            if args.approach_adapter_latched_min_z is None
+            else args.approach_adapter_latched_min_z
+        )
+        under_step_cap = (
+            args.approach_adapter_max_steps <= 0
+            or latch_steps < args.approach_adapter_max_steps
+        )
+        return bool(
+            under_step_cap
+            and dist_xy >= args.approach_adapter_release_xy
+            and latched_min_z
+            <= z_above_target
+            <= args.approach_adapter_max_z
+        )
     return bool(
-        args.approach_adapter_enabled
-        and dist_xy >= args.approach_adapter_trigger_xy
+        dist_xy >= args.approach_adapter_trigger_xy
         and args.approach_adapter_min_z
         <= z_above_target
         <= args.approach_adapter_max_z
@@ -1327,8 +1371,15 @@ def apply_approach_adapter(
     policy_action: np.ndarray,
     action_low: np.ndarray,
     action_high: np.ndarray,
+    latched: bool = False,
+    latch_steps: int = 0,
 ) -> tuple[np.ndarray, np.ndarray, bool]:
-    if adapter is None or not approach_adapter_gate(args, info):
+    if adapter is None or not approach_adapter_gate(
+        args,
+        info,
+        latched=latched,
+        latch_steps=latch_steps,
+    ):
         return policy_action, np.zeros(3, dtype=np.float32), False
     if not isinstance(obs, dict):
         raise ValueError("approach adapter requires dict observations.")
@@ -2051,6 +2102,8 @@ def evaluate_scenario(
             insert_band_steps = 0
             insert_band_misaligned_steps = 0
             near_xy_steps = 0
+            approach_adapter_latched = False
+            approach_adapter_latch_steps = 0
             while True:
                 pre_info = {key: value for key, value in info.items()}
                 if args.control_mode == "guard_only":
@@ -2095,7 +2148,16 @@ def evaluate_scenario(
                         policy_action=base_policy_action,
                         action_low=np.asarray(env.action_space.low, dtype=np.float64),
                         action_high=np.asarray(env.action_space.high, dtype=np.float64),
+                        latched=approach_adapter_latched,
+                        latch_steps=approach_adapter_latch_steps,
                     )
+                    if args.approach_adapter_latch_enabled:
+                        if approach_adapter_active:
+                            approach_adapter_latched = True
+                            approach_adapter_latch_steps += 1
+                        else:
+                            approach_adapter_latched = False
+                            approach_adapter_latch_steps = 0
                     if args.control_mode == "policy":
                         action = policy_action
                         guarded = False
@@ -2618,6 +2680,7 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Control-state ablation: `{args.control_state_ablation}`",
         f"- Approach adapter: `{args.approach_adapter}` enabled `{args.approach_adapter_enabled}`",
         f"- Approach adapter XY/Z gate: `{args.approach_adapter_trigger_xy}->{args.approach_adapter_release_xy}/{args.approach_adapter_min_z}-{args.approach_adapter_max_z}`",
+        f"- Approach adapter latch/min-z/max steps: `{args.approach_adapter_latch_enabled}/{args.approach_adapter_latched_min_z}/{args.approach_adapter_max_steps}`",
         f"- Approach adapter mode/residual limit/scale/apply Z: `{args.approach_adapter_mode}/{args.approach_adapter_max_xy_residual}/{args.approach_adapter_max_z_residual}/{args.approach_adapter_scale}/{args.approach_adapter_apply_z}`",
         f"- Episodes per scenario: `{args.episodes}`",
         f"- Seed: `{args.seed}`",
@@ -2777,6 +2840,15 @@ def main() -> None:
         raise ValueError("--approach-adapter-min-z cannot be negative.")
     if args.approach_adapter_max_z <= args.approach_adapter_min_z:
         raise ValueError("--approach-adapter-max-z must exceed min Z.")
+    if args.approach_adapter_latched_min_z is not None:
+        if args.approach_adapter_latched_min_z < 0.0:
+            raise ValueError("--approach-adapter-latched-min-z cannot be negative.")
+        if args.approach_adapter_latched_min_z > args.approach_adapter_min_z:
+            raise ValueError(
+                "--approach-adapter-latched-min-z must be <= --approach-adapter-min-z."
+            )
+    if args.approach_adapter_max_steps < 0:
+        raise ValueError("--approach-adapter-max-steps cannot be negative.")
     if args.approach_adapter_max_xy_residual < 0.0:
         raise ValueError("--approach-adapter-max-xy-residual cannot be negative.")
     if args.approach_adapter_max_z_residual < 0.0:

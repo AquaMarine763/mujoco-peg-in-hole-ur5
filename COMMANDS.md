@@ -7520,3 +7520,48 @@ python scripts\collect_image_correction_dataset.py `
 Result: the dataset path works and v7 improved some seed645 failures to `9/10`,
 but did not solve them. Next collection should be larger and balanced across
 profiles and crop offsets.
+
+Current adapter v8 latched-gate candidate:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v64_adapter_latch_probe"
+$adapter = "D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"
+
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml `
+  --model checkpoints\ur5e_full\high_start\hard\correction\sac_image_bc_wrist_pose_control_state_insert_drift_2k_w10_e1.zip `
+  --geometry-profile mixed_basic `
+  --episodes 10 `
+  --seed 645000 `
+  --near-hole-crop-source-size-range 80 96 `
+  --near-hole-crop-offset 24 0 `
+  --approach-adapter $adapter `
+  --approach-adapter-enabled `
+  --approach-adapter-trigger-xy 0.06 `
+  --approach-adapter-release-xy 0.03 `
+  --approach-adapter-min-z 0.12 `
+  --approach-adapter-max-z 0.27 `
+  --approach-adapter-latch-enabled `
+  --approach-adapter-latched-min-z 0.08 `
+  --approach-adapter-max-steps 220 `
+  --approach-adapter-mode override_xy `
+  --approach-adapter-max-xy-residual 0.003 `
+  --output-csv "$out\eval_adapter_v8_latch220_mixed_basic_p24_seed645000_10ep.csv" `
+  --output-md "$out\eval_adapter_v8_latch220_mixed_basic_p24_seed645000_10ep.md" `
+  --episode-output-csv "$out\eval_adapter_v8_latch220_mixed_basic_p24_seed645000_10ep_episodes.csv" `
+  --step-output-csv "$out\eval_adapter_v8_latch220_mixed_basic_p24_seed645000_10ep_failure_steps.csv"
+```
+
+Known v8 latched-gate matrix result:
+
+```text
+seed643000: 120/120, zero collision, zero timeout
+seed644000: 120/120, zero collision, zero timeout
+seed645000: 120/120, zero collision, zero timeout
+combined: 360/360
+```
+
+Interpretation: this is now the strongest learner-side approach-adapter
+candidate, but it is not tagged yet because the v8 checkpoint is local and has
+not been packaged. Next run fresh seeds and then decide whether to publish the
+checkpoint as a release asset.
