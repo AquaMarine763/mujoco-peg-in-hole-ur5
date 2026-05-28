@@ -1,0 +1,20 @@
+# Gated high-start approach subpolicy.
+#
+# Trains a separate XY action adapter from trigger-only early-assist labels.
+# At evaluation time use --approach-adapter-mode override_xy so this subpolicy
+# owns lateral motion only in the high-Z/far-XY gate.
+dataset: datasets/ur5e_full/high_start/hard/correction/image_correction_2k_high_start_hard_wrist_pose_control_state_early_approach_assist_trigger.npz
+output: checkpoints/ur5e_full/high_start/hard/approach_adapter/approach_adapter_trigger_2k_xy_override.pt
+metadata_output: results/ur5e_full/high_start/hard/approach_adapter/training_metadata_approach_adapter_trigger_2k_xy_override.json
+epochs: 20
+batch_size: 128
+learning_rate: 0.0001
+validation_split: 0.10
+seed: 651500
+device: cpu
+hidden_dim: 128
+phase: early_approach_assist
+trigger_only: true
+xy_only: true
+target_source: raw_action
+target_scale: 1.0

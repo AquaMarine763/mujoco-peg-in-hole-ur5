@@ -12,6 +12,11 @@ from peg_in_hole_mujoco.guarded_policy import (
     RealGuardStateProvider,
 )
 from peg_in_hole_mujoco.image_preprocess import ImagePreprocessConfig, preprocess_camera_image
+from peg_in_hole_mujoco.approach_adapter import (
+    ApproachAdapterConfig,
+    ApproachAdapterNet,
+    ApproachAdapterPolicy,
+)
 from peg_in_hole_mujoco.oracle_controller import (
     OracleControllerConfig,
     OracleMode,
@@ -50,6 +55,9 @@ __all__ = [
     "ActionExecutor",
     "ActionTransformer",
     "ActionTransformResult",
+    "ApproachAdapterConfig",
+    "ApproachAdapterNet",
+    "ApproachAdapterPolicy",
     "DryRunUR5ActionExecutor",
     "GuardStateProvider",
     "GuardScenarioFilter",

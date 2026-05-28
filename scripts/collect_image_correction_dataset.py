@@ -11,6 +11,7 @@ import numpy as np
 from stable_baselines3 import A2C, PPO, SAC
 
 from peg_in_hole_mujoco import OracleControllerConfig, PegInHoleMujocoEnv, oracle_action
+from peg_in_hole_mujoco.approach_adapter import ApproachAdapterPolicy
 from peg_in_hole_mujoco.sim_config import parse_args_with_config
 
 
@@ -130,7 +131,7 @@ VECTOR_DIAGNOSTIC_KEYS = (
     "joint_target_qpos",
     "joint_qpos_after_action",
 )
-DATASET_SCHEMA_VERSION = "image_correction_v8_crop_source"
+DATASET_SCHEMA_VERSION = "image_correction_v10_rollout_approach_adapter"
 
 
 def parse_args() -> argparse.Namespace:
@@ -199,6 +200,8 @@ def parse_args() -> argparse.Namespace:
             "insert_settle_failure_window",
             "balanced_v4b_window",
             "balanced_v4b_failure_window",
+            "early_approach_assist_window",
+            "early_approach_assist_failure_window",
             "approach_window",
             "approach_failure_window",
             "fixture_wall_window",
@@ -361,6 +364,54 @@ def parse_args() -> argparse.Namespace:
         choices=["correction_norm", "dist_xy", "steps_to_end"],
         default="correction_norm",
         help="How to rank approach-window samples within an episode.",
+    )
+    parser.add_argument(
+        "--early-approach-assist-labels",
+        action="store_true",
+        help=(
+            "Use v50-style high-start far-XY assist labels so the policy learns "
+            "to recenter at a safe approach height before normal guarded insertion."
+        ),
+    )
+    parser.add_argument("--early-approach-assist-trigger-xy", type=float, default=0.100)
+    parser.add_argument("--early-approach-assist-release-xy", type=float, default=0.060)
+    parser.add_argument("--early-approach-assist-min-z", type=float, default=0.120)
+    parser.add_argument("--early-approach-assist-max-z", type=float, default=0.270)
+    parser.add_argument("--early-approach-assist-target-height", type=float, default=0.140)
+    parser.add_argument("--early-approach-assist-max-xy-action", type=float, default=0.008)
+    parser.add_argument("--early-approach-assist-max-up-action", type=float, default=0.005)
+    parser.add_argument("--early-approach-assist-max-down-action", type=float, default=0.0035)
+    parser.add_argument(
+        "--early-approach-assist-window-mode",
+        choices=["release_band", "trigger_only"],
+        default="release_band",
+        help=(
+            "release_band keeps all states down to release_xy; trigger_only only "
+            "keeps states beyond trigger_xy to avoid conflicting with normal approach."
+        ),
+    )
+    parser.add_argument(
+        "--rollout-approach-adapter",
+        type=Path,
+        default=None,
+        help="Optional approach adapter checkpoint to apply during data-collection rollouts.",
+    )
+    parser.add_argument("--rollout-approach-adapter-enabled", action="store_true")
+    parser.add_argument("--rollout-approach-adapter-trigger-xy", type=float, default=0.100)
+    parser.add_argument("--rollout-approach-adapter-min-z", type=float, default=0.120)
+    parser.add_argument("--rollout-approach-adapter-max-z", type=float, default=0.270)
+    parser.add_argument("--rollout-approach-adapter-max-xy-residual", type=float, default=0.003)
+    parser.add_argument("--rollout-approach-adapter-max-z-residual", type=float, default=0.0)
+    parser.add_argument("--rollout-approach-adapter-scale", type=float, default=1.0)
+    parser.add_argument(
+        "--rollout-approach-adapter-mode",
+        choices=["residual", "override_xy"],
+        default="override_xy",
+    )
+    parser.add_argument(
+        "--rollout-approach-adapter-apply-z",
+        action="store_true",
+        help="Also apply the rollout adapter Z residual. Default keeps Z from the base policy.",
     )
     parser.add_argument(
         "--fixture-wall-correction-labels",
@@ -563,6 +614,78 @@ def action_cosine(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.dot(a, b) / (a_norm * b_norm))
 
 
+def rollout_approach_adapter_gate(args: argparse.Namespace, info: dict[str, Any]) -> bool:
+    tip = np.asarray(info["peg_tip_pos"], dtype=np.float64)
+    target = np.asarray(info["target_pos"], dtype=np.float64)
+    z_above_target = float(tip[2] - target[2])
+    return bool(
+        args.rollout_approach_adapter_enabled
+        and float(info["dist_xy"]) >= args.rollout_approach_adapter_trigger_xy
+        and args.rollout_approach_adapter_min_z
+        <= z_above_target
+        <= args.rollout_approach_adapter_max_z
+    )
+
+
+def limit_xy_vector(vector: np.ndarray, max_norm: float) -> np.ndarray:
+    limited = np.asarray(vector, dtype=np.float64).copy()
+    if max_norm <= 0.0:
+        limited[:2] = 0.0
+        return limited
+    norm = float(np.linalg.norm(limited[:2]))
+    if norm > max_norm:
+        limited[:2] *= max_norm / norm
+    return limited
+
+
+def apply_rollout_approach_adapter(
+    *,
+    adapter: ApproachAdapterPolicy | None,
+    args: argparse.Namespace,
+    obs: Any,
+    info: dict[str, Any],
+    base_policy_action: np.ndarray,
+    action_low: np.ndarray,
+    action_high: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, bool]:
+    if adapter is None or not rollout_approach_adapter_gate(args, info):
+        return base_policy_action, np.zeros(3, dtype=np.float32), False
+    if not isinstance(obs, dict):
+        raise ValueError("rollout approach adapter requires dict observations.")
+    residual = adapter.predict(obs).astype(np.float64)
+    residual *= float(args.rollout_approach_adapter_scale)
+    residual = limit_xy_vector(residual, args.rollout_approach_adapter_max_xy_residual)
+    base_action = np.asarray(base_policy_action, dtype=np.float64).reshape(3)
+    if args.rollout_approach_adapter_mode == "override_xy":
+        adapted = base_action.copy()
+        adapted[:2] = residual[:2]
+        if args.rollout_approach_adapter_apply_z:
+            adapted[2] = float(
+                np.clip(
+                    residual[2],
+                    -args.rollout_approach_adapter_max_z_residual,
+                    args.rollout_approach_adapter_max_z_residual,
+                )
+            )
+    else:
+        if args.rollout_approach_adapter_apply_z:
+            residual[2] = float(
+                np.clip(
+                    residual[2],
+                    -args.rollout_approach_adapter_max_z_residual,
+                    args.rollout_approach_adapter_max_z_residual,
+                )
+            )
+        else:
+            residual[2] = 0.0
+        adapted = base_action + residual
+    if not args.rollout_approach_adapter_apply_z:
+        adapted[2] = base_action[2]
+    adapted = np.clip(adapted, action_low, action_high)
+    modification = adapted - base_action
+    return adapted.astype(np.float32), modification.astype(np.float32), True
+
+
 def recovery_phase(
     *,
     dist_xy: float,
@@ -653,6 +776,39 @@ def is_approach_window(
         and args.approach_window_z_min
         <= z_above_target
         <= args.approach_window_z_max
+    )
+
+
+def is_early_approach_assist_window(
+    *,
+    dist_xy: float,
+    z_above_target: float,
+    args: argparse.Namespace,
+) -> bool:
+    min_xy = (
+        args.early_approach_assist_trigger_xy
+        if args.early_approach_assist_window_mode == "trigger_only"
+        else args.early_approach_assist_release_xy
+    )
+    return bool(
+        dist_xy >= min_xy
+        and args.early_approach_assist_min_z
+        <= z_above_target
+        <= args.early_approach_assist_max_z
+    )
+
+
+def is_early_approach_assist_trigger_window(
+    *,
+    dist_xy: float,
+    z_above_target: float,
+    args: argparse.Namespace,
+) -> bool:
+    return bool(
+        dist_xy >= args.early_approach_assist_trigger_xy
+        and args.early_approach_assist_min_z
+        <= z_above_target
+        <= args.early_approach_assist_max_z
     )
 
 
@@ -883,6 +1039,34 @@ def approach_recenter_corrective_action(
         args=args,
         max_down_action=args.approach_correction_max_down_action,
     )
+
+
+def early_approach_assist_corrective_action(
+    env: PegInHoleMujocoEnv,
+    info: dict[str, Any],
+    *,
+    args: argparse.Namespace,
+) -> np.ndarray:
+    tip = np.asarray(info["peg_tip_pos"], dtype=np.float64)
+    target = np.asarray(info["target_pos"], dtype=np.float64)
+    applied_action = np.asarray(info.get("applied_action", np.zeros(3)), dtype=np.float64)
+    control_tip = tip + float(args.guarded_prediction_steps) * applied_action
+    desired = np.asarray(
+        [
+            target[0],
+            target[1],
+            target[2] + args.early_approach_assist_target_height,
+        ],
+        dtype=np.float64,
+    )
+    action = float(args.oracle_action_gain) * (desired - control_tip)
+    action = limit_xy_action(action, args.early_approach_assist_max_xy_action)
+    action = limit_z_action(
+        action,
+        max_down_action=args.early_approach_assist_max_down_action,
+        max_up_action=args.early_approach_assist_max_up_action,
+    )
+    return np.clip(action, env.action_space.low, env.action_space.high).astype(np.float32)
 
 
 def fixture_wall_precontact_corrective_action(
@@ -1135,6 +1319,17 @@ def corrective_action_for_state(
             alignment_stable_steps=alignment_stable_steps,
             ever_within_insert_xy=ever_within_insert_xy,
         )
+    if args.early_approach_assist_labels and is_early_approach_assist_window(
+        dist_xy=dist_xy,
+        z_above_target=z_above_target,
+        args=args,
+    ):
+        return (
+            early_approach_assist_corrective_action(env, info, args=args).astype(np.float64),
+            "early_approach_assist",
+            False,
+            True,
+        )
     if args.approach_correction_labels and is_approach_window(
         dist_xy=dist_xy,
         z_above_target=z_above_target,
@@ -1266,6 +1461,14 @@ def should_keep_sample(sample: dict[str, Any], args: argparse.Namespace) -> bool
         if args.selection == "balanced_v4b_failure_window":
             return bool(in_balanced_window and sample["failure_window"])
         return in_balanced_window
+    if args.selection in (
+        "early_approach_assist_window",
+        "early_approach_assist_failure_window",
+    ):
+        in_early_approach_assist_window = bool(sample["early_approach_assist_window"])
+        if args.selection == "early_approach_assist_failure_window":
+            return bool(in_early_approach_assist_window and sample["failure_window"])
+        return in_early_approach_assist_window
     if args.selection in ("approach_window", "approach_failure_window"):
         in_approach_window = bool(sample["approach_window"])
         if args.selection == "approach_failure_window":
@@ -1373,8 +1576,19 @@ def make_sample(
     ever_within_insert_xy: bool = False,
     drift_after_alignment: bool = False,
     descent_should_block: bool = False,
+    base_policy_action: np.ndarray | None = None,
+    rollout_approach_adapter_residual: np.ndarray | None = None,
+    rollout_approach_adapter_active: bool = False,
 ) -> dict[str, Any]:
     policy_action = np.asarray(policy_action, dtype=np.float64).reshape(3)
+    if base_policy_action is None:
+        base_policy_action = policy_action
+    base_policy_action = np.asarray(base_policy_action, dtype=np.float64).reshape(3)
+    adapter_residual = (
+        np.zeros(3, dtype=np.float64)
+        if rollout_approach_adapter_residual is None
+        else np.asarray(rollout_approach_adapter_residual, dtype=np.float64).reshape(3)
+    )
     corrective_action = np.asarray(corrective_action, dtype=np.float64).reshape(3)
     correction = corrective_action - policy_action
     tip = np.asarray(info["peg_tip_pos"], dtype=np.float64)
@@ -1405,6 +1619,16 @@ def make_sample(
     balanced_v4b_window = (
         dist_xy <= args.balanced_v4b_window_xy
         and z_above_target <= args.balanced_v4b_window_z_max
+    )
+    early_approach_assist_window = is_early_approach_assist_window(
+        dist_xy=dist_xy,
+        z_above_target=z_above_target,
+        args=args,
+    )
+    early_approach_assist_trigger_window = is_early_approach_assist_trigger_window(
+        dist_xy=dist_xy,
+        z_above_target=z_above_target,
+        args=args,
     )
     approach_window = is_approach_window(
         dist_xy=dist_xy,
@@ -1441,6 +1665,9 @@ def make_sample(
         "action": (corrective_action / env.action_scale).astype(np.float32),
         "policy_raw_action": policy_action.astype(np.float32),
         "policy_action": (policy_action / env.action_scale).astype(np.float32),
+        "rollout_base_policy_raw_action": base_policy_action.astype(np.float32),
+        "rollout_approach_adapter_residual": adapter_residual.astype(np.float32),
+        "rollout_approach_adapter_active": bool(rollout_approach_adapter_active),
         "correction_raw_action": correction.astype(np.float32),
         "target_pos": target.astype(np.float32),
         "peg_tip_pos": tip.astype(np.float32),
@@ -1459,6 +1686,10 @@ def make_sample(
         "insert_drift_window": bool(insert_drift_window),
         "insert_settle_window": bool(insert_settle_window),
         "balanced_v4b_window": bool(balanced_v4b_window),
+        "early_approach_assist_window": bool(early_approach_assist_window),
+        "early_approach_assist_trigger_window": bool(
+            early_approach_assist_trigger_window
+        ),
         "approach_window": bool(approach_window),
         "fixture_wall_window": bool(fixture_wall_window),
         "alignment_stable_steps": int(alignment_stable_steps),
@@ -1683,6 +1914,7 @@ def run_episode(
     env: PegInHoleMujocoEnv,
     model: Any,
     oracle_config: OracleControllerConfig,
+    rollout_adapter: ApproachAdapterPolicy | None,
     *,
     args: argparse.Namespace,
     tier: ClearanceTier,
@@ -1709,7 +1941,20 @@ def run_episode(
             or current_dist_xy <= args.guarded_insert_xy_tolerance
         )
         policy_action, _ = model.predict(obs, deterministic=True)
-        policy_action = np.asarray(policy_action, dtype=np.float64).reshape(3)
+        base_policy_action = np.asarray(policy_action, dtype=np.float64).reshape(3)
+        (
+            policy_action,
+            adapter_residual,
+            adapter_active,
+        ) = apply_rollout_approach_adapter(
+            adapter=rollout_adapter,
+            args=args,
+            obs=obs,
+            info=info,
+            base_policy_action=base_policy_action,
+            action_low=np.asarray(env.action_space.low, dtype=np.float64),
+            action_high=np.asarray(env.action_space.high, dtype=np.float64),
+        )
         (
             corrective_action,
             phase_override,
@@ -1734,6 +1979,9 @@ def run_episode(
             scenario=scenario,
             episode_id=episode_id,
             seed=seed,
+            base_policy_action=base_policy_action,
+            rollout_approach_adapter_residual=adapter_residual,
+            rollout_approach_adapter_active=adapter_active,
             phase_override=phase_override,
             alignment_stable_steps=alignment_stable_steps,
             ever_within_insert_xy=ever_within_insert_xy,
@@ -1977,8 +2225,11 @@ def select_episode_samples(rows: list[dict[str, Any]], args: argparse.Namespace)
         if selected:
             return selected
 
-    if args.approach_correction_labels or args.selection.startswith("approach"):
+    if args.early_approach_assist_labels or args.selection.startswith(
+        "early_approach_assist"
+    ):
         grouped: dict[str, list[dict[str, Any]]] = {
+            "early_approach_assist": [],
             "approach_recenter": [],
             "realign": [],
             "progress_insert": [],
@@ -2012,6 +2263,65 @@ def select_episode_samples(rows: list[dict[str, Any]], args: argparse.Namespace)
 
         selected: list[dict[str, Any]] = []
         phases = (
+            "early_approach_assist",
+            "approach_recenter",
+            "realign",
+            "progress_insert",
+            "slow_insert",
+            "hover_recenter",
+            "block_down",
+            "unjam_lift",
+            "hold",
+        )
+        while len(selected) < args.max_samples_per_episode:
+            added = False
+            for phase in phases:
+                phase_samples = grouped.get(phase, [])
+                if phase_samples and len(selected) < args.max_samples_per_episode:
+                    selected.append(phase_samples.pop(0))
+                    added = True
+            if not added:
+                break
+        if selected:
+            return selected
+
+    if args.approach_correction_labels or args.selection.startswith("approach"):
+        grouped: dict[str, list[dict[str, Any]]] = {
+            "early_approach_assist": [],
+            "approach_recenter": [],
+            "realign": [],
+            "progress_insert": [],
+            "slow_insert": [],
+            "hover_recenter": [],
+            "block_down": [],
+            "unjam_lift": [],
+            "hold": [],
+        }
+        for sample in candidates:
+            grouped.setdefault(str(sample["recovery_phase"]), []).append(sample)
+        for phase_samples in grouped.values():
+            if args.approach_sample_sort_key == "dist_xy":
+                phase_samples.sort(
+                    key=lambda item: (
+                        float(item["dist_xy"]),
+                        float(item["correction_norm"]),
+                    ),
+                    reverse=True,
+                )
+            elif args.approach_sample_sort_key == "steps_to_end":
+                phase_samples.sort(
+                    key=lambda item: (
+                        -float(item["steps_to_end"]),
+                        float(item["correction_norm"]),
+                    ),
+                    reverse=True,
+                )
+            else:
+                phase_samples.sort(key=lambda item: float(item["correction_norm"]), reverse=True)
+
+        selected: list[dict[str, Any]] = []
+        phases = (
+            "early_approach_assist",
             "approach_recenter",
             "realign",
             "progress_insert",
@@ -2121,6 +2431,8 @@ def append_samples(
             "raw_action",
             "policy_action",
             "policy_raw_action",
+            "rollout_base_policy_raw_action",
+            "rollout_approach_adapter_residual",
             "correction_raw_action",
             "target_pos",
             "peg_tip_pos",
@@ -2140,6 +2452,8 @@ def append_samples(
             "insert_drift_window",
             "insert_settle_window",
             "balanced_v4b_window",
+            "early_approach_assist_window",
+            "early_approach_assist_trigger_window",
             "approach_window",
             "fixture_wall_window",
             "alignment_stable_steps",
@@ -2161,6 +2475,7 @@ def append_samples(
             "opposed_actions",
             "policy_down_or_oracle_up",
             "policy_down_oracle_less_down",
+            "rollout_approach_adapter_active",
             "final_step",
             "steps_to_end",
             "failure_window",
@@ -2187,6 +2502,9 @@ def empty_buffers() -> dict[str, list[Any]]:
         "raw_action",
         "policy_action",
         "policy_raw_action",
+        "rollout_base_policy_raw_action",
+        "rollout_approach_adapter_residual",
+        "rollout_approach_adapter_active",
         "correction_raw_action",
         "target_pos",
         "peg_tip_pos",
@@ -2203,6 +2521,8 @@ def empty_buffers() -> dict[str, list[Any]]:
         "insert_drift_window",
         "insert_settle_window",
         "balanced_v4b_window",
+        "early_approach_assist_window",
+        "early_approach_assist_trigger_window",
         "approach_window",
         "fixture_wall_window",
         "alignment_stable_steps",
@@ -2270,6 +2590,18 @@ def build_arrays(
         "raw_actions": np.asarray(buffers["raw_action"], dtype=np.float32),
         "policy_actions": np.asarray(buffers["policy_action"], dtype=np.float32),
         "policy_raw_actions": np.asarray(buffers["policy_raw_action"], dtype=np.float32),
+        "rollout_base_policy_raw_actions": np.asarray(
+            buffers["rollout_base_policy_raw_action"],
+            dtype=np.float32,
+        ),
+        "rollout_approach_adapter_residuals": np.asarray(
+            buffers["rollout_approach_adapter_residual"],
+            dtype=np.float32,
+        ),
+        "rollout_approach_adapter_active": np.asarray(
+            buffers["rollout_approach_adapter_active"],
+            dtype=np.bool_,
+        ),
         "correction_raw_actions": np.asarray(buffers["correction_raw_action"], dtype=np.float32),
         "target_pos": np.asarray(buffers["target_pos"], dtype=np.float32),
         "peg_tip_pos": np.asarray(buffers["peg_tip_pos"], dtype=np.float32),
@@ -2299,6 +2631,14 @@ def build_arrays(
         ),
         "balanced_v4b_window": np.asarray(
             buffers["balanced_v4b_window"],
+            dtype=np.bool_,
+        ),
+        "early_approach_assist_window": np.asarray(
+            buffers["early_approach_assist_window"],
+            dtype=np.bool_,
+        ),
+        "early_approach_assist_trigger_window": np.asarray(
+            buffers["early_approach_assist_trigger_window"],
             dtype=np.bool_,
         ),
         "approach_window": np.asarray(buffers["approach_window"], dtype=np.bool_),
@@ -2492,6 +2832,56 @@ def main() -> None:
         raise ValueError("--approach-correction-target-height must be positive.")
     if args.approach_correction_max_down_action < 0.0:
         raise ValueError("--approach-correction-max-down-action cannot be negative.")
+    if args.early_approach_assist_trigger_xy <= 0.0:
+        raise ValueError("--early-approach-assist-trigger-xy must be positive.")
+    if args.early_approach_assist_release_xy <= 0.0:
+        raise ValueError("--early-approach-assist-release-xy must be positive.")
+    if args.early_approach_assist_release_xy >= args.early_approach_assist_trigger_xy:
+        raise ValueError(
+            "--early-approach-assist-release-xy must be less than "
+            "--early-approach-assist-trigger-xy."
+        )
+    if args.early_approach_assist_min_z < 0.0:
+        raise ValueError("--early-approach-assist-min-z cannot be negative.")
+    if args.early_approach_assist_max_z <= args.early_approach_assist_min_z:
+        raise ValueError(
+            "--early-approach-assist-max-z must exceed --early-approach-assist-min-z."
+        )
+    if args.early_approach_assist_target_height <= 0.0:
+        raise ValueError("--early-approach-assist-target-height must be positive.")
+    if args.early_approach_assist_max_xy_action <= 0.0:
+        raise ValueError("--early-approach-assist-max-xy-action must be positive.")
+    if args.early_approach_assist_max_up_action <= 0.0:
+        raise ValueError("--early-approach-assist-max-up-action must be positive.")
+    if args.early_approach_assist_max_down_action < 0.0:
+        raise ValueError("--early-approach-assist-max-down-action cannot be negative.")
+    if args.rollout_approach_adapter_enabled:
+        if args.rollout_approach_adapter is None:
+            raise ValueError(
+                "--rollout-approach-adapter-enabled requires --rollout-approach-adapter."
+            )
+        if not args.include_near_hole_crop:
+            raise ValueError(
+                "--rollout-approach-adapter-enabled requires --include-near-hole-crop."
+            )
+        if not args.include_control_state:
+            raise ValueError(
+                "--rollout-approach-adapter-enabled requires --include-control-state."
+            )
+    if args.rollout_approach_adapter_trigger_xy <= 0.0:
+        raise ValueError("--rollout-approach-adapter-trigger-xy must be positive.")
+    if args.rollout_approach_adapter_min_z < 0.0:
+        raise ValueError("--rollout-approach-adapter-min-z cannot be negative.")
+    if args.rollout_approach_adapter_max_z <= args.rollout_approach_adapter_min_z:
+        raise ValueError(
+            "--rollout-approach-adapter-max-z must exceed --rollout-approach-adapter-min-z."
+        )
+    if args.rollout_approach_adapter_max_xy_residual < 0.0:
+        raise ValueError("--rollout-approach-adapter-max-xy-residual cannot be negative.")
+    if args.rollout_approach_adapter_max_z_residual < 0.0:
+        raise ValueError("--rollout-approach-adapter-max-z-residual cannot be negative.")
+    if args.rollout_approach_adapter_scale < 0.0:
+        raise ValueError("--rollout-approach-adapter-scale cannot be negative.")
     if args.fixture_wall_window_xy_min < 0.0:
         raise ValueError("--fixture-wall-window-xy-min cannot be negative.")
     if args.fixture_wall_window_xy_max <= args.fixture_wall_window_xy_min:
@@ -2579,6 +2969,12 @@ def main() -> None:
         else int(np.ceil(args.samples / len(configs)))
     )
     oracle_config = make_oracle_config(args)
+    rollout_adapter = (
+        ApproachAdapterPolicy.load(args.rollout_approach_adapter, device=args.device)
+        if args.rollout_approach_adapter_enabled
+        and args.rollout_approach_adapter is not None
+        else None
+    )
     buffers = empty_buffers()
     episode_summaries: list[dict[str, Any]] = []
     config_summaries: list[dict[str, Any]] = []
@@ -2603,6 +2999,7 @@ def main() -> None:
                     env,
                     model,
                     oracle_config,
+                    rollout_adapter,
                     args=args,
                     tier=tier,
                     scenario=scenario,
@@ -2807,6 +3204,40 @@ def main() -> None:
         "approach_correction_target_height": args.approach_correction_target_height,
         "approach_correction_max_down_action": args.approach_correction_max_down_action,
         "approach_sample_sort_key": args.approach_sample_sort_key,
+        "early_approach_assist_labels": args.early_approach_assist_labels,
+        "early_approach_assist_trigger_xy": args.early_approach_assist_trigger_xy,
+        "early_approach_assist_release_xy": args.early_approach_assist_release_xy,
+        "early_approach_assist_min_z": args.early_approach_assist_min_z,
+        "early_approach_assist_max_z": args.early_approach_assist_max_z,
+        "early_approach_assist_target_height": args.early_approach_assist_target_height,
+        "early_approach_assist_max_xy_action": (
+            args.early_approach_assist_max_xy_action
+        ),
+        "early_approach_assist_max_up_action": (
+            args.early_approach_assist_max_up_action
+        ),
+        "early_approach_assist_max_down_action": (
+            args.early_approach_assist_max_down_action
+        ),
+        "early_approach_assist_window_mode": args.early_approach_assist_window_mode,
+        "rollout_approach_adapter_enabled": args.rollout_approach_adapter_enabled,
+        "rollout_approach_adapter": (
+            str(args.rollout_approach_adapter)
+            if args.rollout_approach_adapter is not None
+            else None
+        ),
+        "rollout_approach_adapter_trigger_xy": args.rollout_approach_adapter_trigger_xy,
+        "rollout_approach_adapter_min_z": args.rollout_approach_adapter_min_z,
+        "rollout_approach_adapter_max_z": args.rollout_approach_adapter_max_z,
+        "rollout_approach_adapter_max_xy_residual": (
+            args.rollout_approach_adapter_max_xy_residual
+        ),
+        "rollout_approach_adapter_max_z_residual": (
+            args.rollout_approach_adapter_max_z_residual
+        ),
+        "rollout_approach_adapter_scale": args.rollout_approach_adapter_scale,
+        "rollout_approach_adapter_mode": args.rollout_approach_adapter_mode,
+        "rollout_approach_adapter_apply_z": args.rollout_approach_adapter_apply_z,
         "fixture_wall_correction_labels": args.fixture_wall_correction_labels,
         "fixture_wall_window_xy_min": args.fixture_wall_window_xy_min,
         "fixture_wall_window_xy_max": args.fixture_wall_window_xy_max,
@@ -2830,6 +3261,7 @@ def main() -> None:
             "hole_clearance": summarize_float_array(arrays["hole_clearance"]),
             "geometry_name": summarize_text_array(arrays["geometry_name"]),
             "peg_shape": summarize_text_array(arrays["peg_shape"]),
+            "recovery_phase": summarize_text_array(arrays["recovery_phase"]),
             "control_action_delay": summarize_float_array(
                 arrays["control_action_delay"].astype(np.float32)
             ),
@@ -2854,6 +3286,16 @@ def main() -> None:
             else 0.0,
             "balanced_v4b_window_rate": float(np.mean(arrays["balanced_v4b_window"]))
             if arrays["balanced_v4b_window"].size
+            else 0.0,
+            "early_approach_assist_window_rate": float(
+                np.mean(arrays["early_approach_assist_window"])
+            )
+            if arrays["early_approach_assist_window"].size
+            else 0.0,
+            "early_approach_assist_trigger_window_rate": float(
+                np.mean(arrays["early_approach_assist_trigger_window"])
+            )
+            if arrays["early_approach_assist_trigger_window"].size
             else 0.0,
             "approach_window_rate": float(np.mean(arrays["approach_window"]))
             if arrays["approach_window"].size

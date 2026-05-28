@@ -1,0 +1,18 @@
+# Gated high-start approach adapter.
+#
+# Trains a separate XY residual adapter from trigger-only early-assist labels.
+# This does not modify the base SAC policy checkpoint.
+dataset: datasets/ur5e_full/high_start/hard/correction/image_correction_2k_high_start_hard_wrist_pose_control_state_early_approach_assist_trigger.npz
+output: checkpoints/ur5e_full/high_start/hard/approach_adapter/approach_adapter_trigger_2k_xy.pt
+metadata_output: results/ur5e_full/high_start/hard/approach_adapter/training_metadata_approach_adapter_trigger_2k_xy.json
+epochs: 20
+batch_size: 128
+learning_rate: 0.0001
+validation_split: 0.10
+seed: 651000
+device: cpu
+hidden_dim: 128
+phase: early_approach_assist
+trigger_only: true
+xy_only: true
+target_scale: 1.0

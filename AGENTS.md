@@ -1,6 +1,6 @@
 # Agent Working Notes
 
-Last updated: 2026-05-26
+Last updated: 2026-05-28
 
 This file records the standing workflow, user preferences, safety rules, and project constraints for future Codex work in this repository. Read this file before making non-trivial changes.
 
@@ -413,6 +413,27 @@ The current focus is:
     - promoted config: `configs/sim/ur5e_full/eval_multi_geometry_early_approach_assist_gate_10ep.yaml`
     - v50 gate reached `120/120` success, `0` collision, `0` timeout on seed `643000`, crop-source range `[80,96]`, profiles `single/round_square/square_square/mixed_basic`, offsets `[-18,0]`, `[+12,0]`, `[+24,0]`
     - next work should reduce dependence on deploy-time assist by improving learned high-start far-XY approach behavior
+  - early approach assist BC pilot status:
+    - `scripts/collect_image_correction_dataset.py` now supports `early_approach_assist_labels`, `early_approach_assist_window`, and `early_approach_assist_failure_window`
+    - it also supports `early_approach_assist_window_mode`; use `trigger_only` for the recommended data path
+    - collection/pretrain configs are `collect_high_start_hard_wrist_pose_control_state_early_approach_assist_2k.yaml` and `pretrain_high_start_hard_wrist_pose_control_state_early_approach_assist_trigger_2k_w05_e1.yaml`
+    - v51 pilot outputs are outside the repo at `D:\peg-in-hole-6yh\v51_early_approach_learning`
+    - 512-sample pilot trained cleanly but regressed unassisted `round_square seed643000` from baseline `9/10` to `8/10` at both crop offsets `[+12,0]` and `[+24,0]`; do not promote the v51 512 checkpoint
+    - v52 trigger-only 5% replay avoids the collision regression and matches baseline `9/10` at `[+12,0]` and `[+24,0]`, but with early assist enabled the mean assist steps remain `30.2`
+    - do not promote v52 as a model milestone either; next learner-side work should use a gated approach adapter or explicit approach subpolicy instead of more broad monolithic BC scans
+  - gated approach adapter smoke status:
+    - module `peg_in_hole_mujoco/approach_adapter.py` and script `scripts/train_approach_adapter.py` are in place
+    - eval wiring now supports `--approach-adapter` with `residual` and `override_xy` modes
+    - 512-sample residual and override pilots were both trained from trigger-only data
+    - neither variant beat the no-assist `round_square +12` baseline; residual mode was clearly worse in episode length, override mode was closer but still only `9/10`
+    - v2 adapter support now exists for `cam_image + near_hole_crop + control_state`; config `train_approach_adapter_trigger_2k_full_crop_xy_override.yaml` trains it
+    - 512-sample v2 full+crop override smoke also did not beat baseline: `8/10` with `max_xy=0.005`, `9/10` with `max_xy=0.003` on `round_square +12`, and `9/10` on `+24`
+    - collector now supports adapter-rollout DAgger via `--rollout-approach-adapter*`; datasets record rollout adapter active/residual/base-policy fields
+    - targeted DAgger showed the real issue: the adapter can push opposite the oracle on its own visited states, so collect adapter-induced failures instead of only static trigger windows
+    - v6 full+crop mixed wide-XY + targeted DAgger adapter plus lower eval gate `--approach-adapter-trigger-xy 0.06 --approach-adapter-release-xy 0.03` reached `10/10` on `round_square` seed `643000` for crop offsets `[-18,0]`, `[+12,0]`, and `[+24,0]` without v50 early assist
+    - v6 also reached `10/10` for the `+12` crop-offset smoke on `single`, `round_square`, `square_square`, and `mixed_basic`, with zero collision and zero timeout
+    - v6 seed643000 full profile/offset matrix passed: `120/120`, zero collision, zero timeout across `single`, `round_square`, `square_square`, `mixed_basic` and offsets `[-18,0]`, `[+12,0]`, `[+24,0]`
+    - do not promote v6 yet; checkpoint is a local smoke/targeted-data artifact outside Git, and the next validation should be new-seed matrix testing before any tag
 
 ## Editing Workflow
 

@@ -7250,3 +7250,225 @@ offsets: [-18,0], [+12,0], [+24,0]
 total: 120/120 success, 0 collision, 0 timeout
 summary: D:\peg-in-hole-6yh\v50_early_approach_assist_gate\summary_seed643000_12x10_clean.csv
 ```
+
+## Early Approach Assist BC Pilot
+
+Collect the planned 2k trigger-only early-assist correction dataset:
+
+```powershell
+python scripts\collect_image_correction_dataset.py `
+  --config configs\sim\ur5e_full\collect_high_start_hard_wrist_pose_control_state_early_approach_assist_2k.yaml
+```
+
+The 512-sample v52 trigger-only pilot used for the safer training check:
+
+```powershell
+python scripts\collect_image_correction_dataset.py `
+  --config configs\sim\ur5e_full\collect_high_start_hard_wrist_pose_control_state_early_approach_assist_2k.yaml `
+  --samples 512 `
+  --samples-per-config 512 `
+  --max-episodes-per-config 120 `
+  --output D:\peg-in-hole-6yh\v51_early_approach_learning\image_correction_512_high_start_hard_wrist_pose_control_state_early_approach_assist_trigger_only.npz
+```
+
+Train the 2k-configured trigger-only 5% model:
+
+```powershell
+python scripts\pretrain_image_actor_bc_weighted.py `
+  --config configs\sim\ur5e_full\pretrain_high_start_hard_wrist_pose_control_state_early_approach_assist_trigger_2k_w05_e1.yaml
+```
+
+Known v51/v52 512-sample pilot result:
+
+```text
+v51 release-band / 10%:
+  dataset: 512 samples, all early_approach_assist
+  training: epoch=1 train_loss=0.280255 val_loss=0.196000
+  candidate: D:\peg-in-hole-6yh\v51_early_approach_learning\sac_image_bc_v51_early_approach_assist_512_w10_e1.zip
+  no early assist [+12,0]: 8/10, 1 collision, 1 timeout
+  no early assist [+24,0]: 8/10, 1 collision, 1 timeout
+
+v52 trigger-only / 5%:
+  dataset: 512 samples, all early_approach_assist, dist_xy >= 0.10
+  training: epoch=1 train_loss=0.197861 val_loss=0.163761
+  candidate: D:\peg-in-hole-6yh\v51_early_approach_learning\sac_image_bc_v52_early_approach_assist_trigger512_w05_e1.zip
+  no early assist [+12,0]: 9/10, 0 collision, 1 timeout
+  no early assist [+24,0]: 9/10, 0 collision, 1 timeout
+  with early assist [+12,0]: 10/10, mean early-assist steps 30.2
+
+round_square seed643000, crop-source [80,96]:
+  original stable no-assist baseline was 9/10 at both [+12,0] and [+24,0]
+```
+
+Interpretation: keep the data path and prefer trigger-only/5% if continuing
+BC, but do not promote either 512-sample BC checkpoint. v52 avoids regression
+but still does not reduce early-assist dependency.
+
+## Gated Approach Adapter
+
+Train an XY residual adapter from trigger-only labels:
+
+```powershell
+python scripts\train_approach_adapter.py `
+  --config configs\sim\ur5e_full\train_approach_adapter_trigger_2k_xy.yaml
+```
+
+Train the preferred override-XY adapter:
+
+```powershell
+python scripts\train_approach_adapter.py `
+  --config configs\sim\ur5e_full\train_approach_adapter_trigger_2k_xy_override.yaml
+```
+
+Train the full-image + crop override-XY adapter:
+
+```powershell
+python scripts\train_approach_adapter.py `
+  --config configs\sim\ur5e_full\train_approach_adapter_trigger_2k_full_crop_xy_override.yaml
+```
+
+512-sample override smoke used in the current pilot:
+
+```powershell
+python scripts\train_approach_adapter.py `
+  --config configs\sim\ur5e_full\train_approach_adapter_trigger_2k_xy_override.yaml `
+  --dataset D:\peg-in-hole-6yh\v51_early_approach_learning\image_correction_512_high_start_hard_wrist_pose_control_state_early_approach_assist_trigger_only.npz `
+  --output D:\peg-in-hole-6yh\v51_early_approach_learning\approach_adapter_trigger512_xy_override.pt `
+  --metadata-output D:\peg-in-hole-6yh\v51_early_approach_learning\training_metadata_approach_adapter_trigger512_xy_override.json
+```
+
+512-sample full+crop override smoke:
+
+```powershell
+python scripts\train_approach_adapter.py `
+  --config configs\sim\ur5e_full\train_approach_adapter_trigger_2k_full_crop_xy_override.yaml `
+  --dataset D:\peg-in-hole-6yh\v51_early_approach_learning\image_correction_512_high_start_hard_wrist_pose_control_state_early_approach_assist_trigger_only.npz `
+  --output D:\peg-in-hole-6yh\v51_early_approach_learning\approach_adapter_v2_fullcrop_trigger512_xy_override.pt `
+  --metadata-output D:\peg-in-hole-6yh\v51_early_approach_learning\training_metadata_approach_adapter_v2_fullcrop_trigger512_xy_override.json
+```
+
+Collect adapter-rollout DAgger correction data:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v51_early_approach_learning"
+
+python scripts\collect_image_correction_dataset.py `
+  --config configs\sim\ur5e_full\collect_high_start_hard_wrist_pose_control_state_early_approach_assist_2k.yaml `
+  --samples 96 `
+  --samples-per-config 96 `
+  --max-episodes-per-config 8 `
+  --seed 643009 `
+  --near-hole-crop-offset 12 0 `
+  --rollout-approach-adapter "$out\approach_adapter_v5_fullcrop_mix_wide_dagger_xy_override.pt" `
+  --rollout-approach-adapter-enabled `
+  --rollout-approach-adapter-mode override_xy `
+  --rollout-approach-adapter-max-xy-residual 0.003 `
+  --output "$out\image_correction_96_dagger_rollout_adapter_v5_p12_seed643009_smoke.npz"
+```
+
+Train the current mixed wide-XY + DAgger smoke adapter:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v51_early_approach_learning"
+
+python scripts\train_approach_adapter.py `
+  --config configs\sim\ur5e_full\train_approach_adapter_trigger_2k_full_crop_xy_override.yaml `
+  --dataset "$out\image_correction_512_high_start_hard_wrist_pose_control_state_early_approach_assist_trigger_only.npz" `
+  --extra-datasets `
+    "$out\image_correction_256_high_start_hard_wrist_pose_control_state_early_approach_assist_trigger_wide_xy_smoke.npz" `
+    "$out\image_correction_64_dagger_rollout_adapter_v2_p12_seed643000_smoke.npz" `
+    "$out\image_correction_64_dagger_rollout_adapter_v2_p12_seed643000_smoke.npz" `
+    "$out\image_correction_96_dagger_rollout_adapter_v5_p12_seed643009_smoke.npz" `
+    "$out\image_correction_96_dagger_rollout_adapter_v5_p12_seed643009_smoke.npz" `
+    "$out\image_correction_96_dagger_rollout_adapter_v5_p12_seed643009_smoke.npz" `
+  --output "$out\approach_adapter_v6_fullcrop_mix_targeted_dagger_xy_override.pt" `
+  --metadata-output "$out\training_metadata_approach_adapter_v6_fullcrop_mix_targeted_dagger_xy_override.json" `
+  --epochs 30 `
+  --batch-size 128 `
+  --learning-rate 0.0001
+```
+
+Evaluate base policy plus adapter without v50 early assist:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v51_early_approach_learning"
+
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml `
+  --model checkpoints\ur5e_full\high_start\hard\correction\sac_image_bc_wrist_pose_control_state_insert_drift_2k_w10_e1.zip `
+  --geometry-profile round_square `
+  --episodes 10 `
+  --seed 643000 `
+  --near-hole-crop-source-size-range 80 96 `
+  --near-hole-crop-offset 12 0 `
+  --approach-adapter D:\peg-in-hole-6yh\v51_early_approach_learning\approach_adapter_trigger512_xy_override.pt `
+  --approach-adapter-enabled `
+  --approach-adapter-mode override_xy `
+  --approach-adapter-max-xy-residual 0.005 `
+  --output-csv "$out\eval_adapter_trigger512_override_r005_noassist_round_square_p12_seed643000_10ep.csv" `
+  --output-md "$out\eval_adapter_trigger512_override_r005_noassist_round_square_p12_seed643000_10ep.md" `
+  --episode-output-csv "$out\eval_adapter_trigger512_override_r005_noassist_round_square_p12_seed643000_10ep_episodes.csv" `
+  --step-output-csv "$out\eval_adapter_trigger512_override_r005_noassist_round_square_p12_seed643000_10ep_failure_steps.csv"
+```
+
+Evaluate the current v6 DAgger adapter with the lower handoff gate:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v51_early_approach_learning"
+
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml `
+  --model checkpoints\ur5e_full\high_start\hard\correction\sac_image_bc_wrist_pose_control_state_insert_drift_2k_w10_e1.zip `
+  --geometry-profile round_square `
+  --episodes 10 `
+  --seed 643000 `
+  --near-hole-crop-source-size-range 80 96 `
+  --near-hole-crop-offset 12 0 `
+  --approach-adapter "$out\approach_adapter_v6_fullcrop_mix_targeted_dagger_xy_override.pt" `
+  --approach-adapter-enabled `
+  --approach-adapter-trigger-xy 0.06 `
+  --approach-adapter-release-xy 0.03 `
+  --approach-adapter-mode override_xy `
+  --approach-adapter-max-xy-residual 0.003 `
+  --output-csv "$out\eval_adapter_v6_fullcrop_mix_targeted_dagger_override_r003_gate006_noassist_round_square_p12_seed643000_10ep.csv" `
+  --output-md "$out\eval_adapter_v6_fullcrop_mix_targeted_dagger_override_r003_gate006_noassist_round_square_p12_seed643000_10ep.md" `
+  --episode-output-csv "$out\eval_adapter_v6_fullcrop_mix_targeted_dagger_override_r003_gate006_noassist_round_square_p12_seed643000_10ep_episodes.csv" `
+  --step-output-csv "$out\eval_adapter_v6_fullcrop_mix_targeted_dagger_override_r003_gate006_noassist_round_square_p12_seed643000_10ep_failure_steps.csv"
+```
+
+Known adapter smoke result:
+
+```text
+residual adapter:
+  no-assist round_square +12 seed643000: 9/10, 0 collision, 1 timeout
+  mean adapter steps: 210.1
+
+override-XY adapter:
+  no-assist round_square +12 seed643000: 9/10, 0 collision, 1 timeout
+  mean adapter steps: 113.9
+  failed final XY improved only about 0.2278 m -> 0.2153 m
+
+override-XY adapter + v50 early assist:
+  round_square +12 seed643000: 10/10
+  mean early-assist steps: 30.2, unchanged from v50
+
+full+crop override-XY v2 adapter:
+  no-assist round_square +12 seed643000, max XY 0.005: 8/10, 0 collision, 2 timeouts
+  no-assist round_square +12 seed643000, max XY 0.003: 9/10, 0 collision, 1 timeout
+  no-assist round_square +24 seed643000, max XY 0.003: 9/10, 0 collision, 1 timeout
+  with v50 early assist at +12, max XY 0.003: 10/10
+
+full+crop mixed wide-XY + targeted DAgger v6 adapter:
+  gate 0.10, no-assist round_square +12 seed643000: 9/10, final failed XY about 0.098 m
+  gate 0.06, no-assist round_square -18/+12/+24 seed643000: 10/10 each
+  gate 0.06, no-assist +12 profile smoke seed643000:
+    single/round_square/square_square/mixed_basic all 10/10, zero collision, zero timeout
+  gate 0.06, full no-assist profile/offset matrix seed643000:
+    120/120, zero collision, zero timeout
+    profiles: single/round_square/square_square/mixed_basic
+    crop offsets: [-18,0], [+12,0], [+24,0]
+```
+
+Interpretation: adapter infrastructure works, but the 512-sample adapter is not
+a promoted milestone. v6 passed the seed643000 profile/offset matrix, but still
+needs new-seed validation before promotion/tagging.

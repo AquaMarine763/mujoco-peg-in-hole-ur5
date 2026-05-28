@@ -1,6 +1,6 @@
 # Project Plan And Status
 
-Last updated: 2026-05-26
+Last updated: 2026-05-28
 
 This file records the current project status, known metrics, and next planned steps. Keep it current when a milestone changes.
 
@@ -3206,6 +3206,133 @@ Interpretation:
   - Tag this as the v50 early-assist milestone.
   - Next technical branch should return to learned approach improvement: collect/weight high-start far-XY approach data and test whether the policy can reduce early-assist usage, rather than expanding deploy-time assist first.
   - Keep the longer-term learner route open: train an approach-specific visual curriculum so the policy itself closes far XY error, instead of relying entirely on deploy-time assist.
+
+### 2026-05-27 Early Approach Assist BC Pilot
+
+- Added v51 data plumbing in `scripts/collect_image_correction_dataset.py`.
+  - New selection modes: `early_approach_assist_window` and `early_approach_assist_failure_window`.
+  - New label switch: `early_approach_assist_labels`.
+  - The label commands v50-style high-start lateral recentering toward the hole center at a safe approach height.
+  - Dataset schema at that point was `image_correction_v9_early_approach_assist`; later adapter-rollout DAgger support moved it to `image_correction_v10_rollout_approach_adapter`.
+- Added configs:
+  - `configs/sim/ur5e_full/collect_high_start_hard_wrist_pose_control_state_early_approach_assist_2k.yaml`
+  - `configs/sim/ur5e_full/pretrain_high_start_hard_wrist_pose_control_state_early_approach_assist_2k_w10_e1.yaml`
+- Pilot outputs are outside the repo:
+  - `D:\peg-in-hole-6yh\v51_early_approach_learning`
+  - smoke: `32` samples, all `early_approach_assist`
+  - pilot dataset: `512` samples from `22` hard episodes, all `early_approach_assist`
+  - XY range: `0.060-0.145 m`; Z-above-target range: `0.137-0.238 m`
+  - trigger-window rate: `0.561`; window rate: `1.000`
+- Trained one 1-epoch pilot:
+  - `D:\peg-in-hole-6yh\v51_early_approach_learning\sac_image_bc_v51_early_approach_assist_512_w10_e1.zip`
+  - train loss `0.280255`, val loss `0.196000`
+- Evaluation on the exposed `round_square`, seed `643000`, crop-source range `[80,96]`:
+  - no early assist, `[+12,0]`: `8/10`, `1` collision, `1` timeout
+  - no early assist, `[+24,0]`: `8/10`, `1` collision, `1` timeout
+  - with early assist, `[+12,0]`: `10/10`, mean early-assist steps `30.2`
+- Interpretation:
+  - Do not promote the v51 512-sample BC checkpoint.
+  - The current naive BC mixing did not reduce deploy-time early-assist usage and regressed the unassisted policy.
+  - The likely issue is label conflict/distribution shift: broad release-band assist labels teach strong lateral correction in states where the existing policy/guard handoff was already delicate.
+- Next recommendation:
+  - Keep the data plumbing and configs.
+  - Before scaling to full 2k, narrow the learner update: either train a separate approach head/gated adapter, or collect stricter trigger-only samples (`dist_xy >= 0.10`) and lower the replay weight below `10%`.
+  - Promotion remains v50 early assist, not v51 BC.
+
+### 2026-05-27 Trigger-Only Early Assist BC Pilot
+
+- Added `early_approach_assist_window_mode`.
+  - `release_band`: keeps states down to release XY.
+  - `trigger_only`: keeps only states beyond trigger XY, currently `dist_xy >= 0.10`.
+- Updated the recommended v52 configs to trigger-only data and 5% replay:
+  - collection: `configs/sim/ur5e_full/collect_high_start_hard_wrist_pose_control_state_early_approach_assist_2k.yaml`
+  - pretrain: `configs/sim/ur5e_full/pretrain_high_start_hard_wrist_pose_control_state_early_approach_assist_trigger_2k_w05_e1.yaml`
+- Pilot outputs are in `D:\peg-in-hole-6yh\v51_early_approach_learning`.
+  - dataset: `image_correction_512_high_start_hard_wrist_pose_control_state_early_approach_assist_trigger_only.npz`
+  - `512` samples from `47` hard episodes, all `early_approach_assist`
+  - XY range: `0.100-0.156 m`; Z-above-target range: `0.136-0.238 m`
+  - trigger-window rate: `1.000`
+- Trained one 1-epoch 5% pilot:
+  - checkpoint: `sac_image_bc_v52_early_approach_assist_trigger512_w05_e1.zip`
+  - train loss `0.197861`, val loss `0.163761`
+- Evaluation on `round_square`, seed `643000`, crop-source range `[80,96]`:
+  - no early assist, `[+12,0]`: `9/10`, `0` collision, `1` timeout
+  - no early assist, `[+24,0]`: `9/10`, `0` collision, `1` timeout
+  - with early assist, `[+12,0]`: `10/10`, mean early-assist steps `30.2`
+- Interpretation:
+  - v52 trigger-only avoids the v51 collision regression, but still only matches the original no-assist baseline and does not reduce early-assist usage.
+  - Do not promote v52 as a new model milestone yet.
+  - The remaining timeout is still high-Z, far-XY policy drift before normal guard activation; BC labels alone are too weak or too indirect to change that behavior with the current monolithic policy.
+- Next recommendation:
+  - Keep v50 early assist as the promoted deployment guard.
+  - For learner-side improvement, stop broad monolithic BC scans and implement a gated approach adapter or explicit approach subpolicy that only owns the high-Z/far-XY region.
+
+### 2026-05-27 Gated Approach Adapter Smoke
+
+- Added a separate approach adapter path instead of continuing to modify the SAC actor.
+  - Module: `peg_in_hole_mujoco/approach_adapter.py`
+  - Training script: `scripts/train_approach_adapter.py`
+  - Eval integration: `scripts/eval_guarded_policy.py`
+  - Configs:
+    - `configs/sim/ur5e_full/train_approach_adapter_trigger_2k_xy.yaml`
+    - `configs/sim/ur5e_full/train_approach_adapter_trigger_2k_xy_override.yaml`
+    - `configs/sim/ur5e_full/train_approach_adapter_trigger_2k_full_crop_xy_override.yaml`
+- The adapter consumes `near_hole_crop + control_state` and is gated to high-Z/far-XY states.
+  - Default eval gate: `dist_xy >= 0.10`, `z_above_target = 0.12-0.27`.
+  - Safe default is XY-only: Z stays owned by the base policy unless `--approach-adapter-apply-z` is explicitly set.
+  - Eval supports `residual` mode and `override_xy` mode.
+  - v2 adapter checkpoints can optionally consume `cam_image + near_hole_crop + control_state`; v1 crop-only checkpoints still load.
+- Smoke outputs are in `D:\peg-in-hole-6yh\v51_early_approach_learning`.
+  - residual adapter: `approach_adapter_trigger512_xy.pt`
+  - override XY adapter: `approach_adapter_trigger512_xy_override.pt`
+- Residual adapter pilot:
+  - trained on 512 trigger-only samples, target `correction_raw_actions`, XY-only
+  - final train/val loss: `0.00005535 / 0.00005381`
+  - no-assist `round_square +12`, seed `643000`: `9/10`, `0` collision, `1` timeout
+  - mean adapter steps: `210.1`
+  - result: not useful; residual saturates actions but does not fix the far-XY timeout.
+- Override-XY adapter pilot:
+  - trained on 512 trigger-only samples, target `raw_actions`, XY-only
+  - final train/val loss: `0.00002237 / 0.00003713`
+  - no-assist `round_square +12`, seed `643000`: `9/10`, `0` collision, `1` timeout
+  - mean adapter steps: `113.9`
+  - failed episode final XY improved only modestly, about `0.2278 m -> 0.2153 m`.
+  - with v50 early assist enabled: `10/10`, but mean early-assist steps stayed `30.2`; adapter steps were only `11.2`.
+- Full+crop override-XY v2 pilot:
+  - trained on the same 512 trigger-only samples, target `raw_actions`, XY-only
+  - output: `D:\peg-in-hole-6yh\v51_early_approach_learning\approach_adapter_v2_fullcrop_trigger512_xy_override.pt`
+  - final train/val loss: `0.00004401 / 0.00005041`
+  - no-assist `round_square +12`, residual limit `0.005`: `8/10`, `0` collision, `2` timeouts; adapter was active too long (`289.4` mean steps)
+  - no-assist `round_square +12`, residual limit `0.003`: `9/10`, `0` collision, `1` timeout
+  - no-assist `round_square +24`, residual limit `0.003`: `9/10`, `0` collision, `1` timeout
+  - with v50 early assist enabled at `+12`, residual limit `0.003`: `10/10`, mean early-assist steps `30.2`, mean adapter steps `11.2`
+- DAgger-style adapter follow-up:
+  - `scripts/collect_image_correction_dataset.py` now supports an optional rollout adapter via `--rollout-approach-adapter*`.
+  - This lets the collector visit states induced by the current adapter, then label those states with the guarded/oracle corrective action.
+  - Wide-XY smoke data expanded trigger-only coverage from old max `dist_xy=0.156 m` to about `0.202 m`.
+  - Targeted adapter-rollout DAgger smoke on `round_square +12` found the expected failure mode: rollout adapter actions were often opposite the oracle/target direction, while oracle labels remained well aligned.
+  - v6 full+crop mixed adapter was trained from original 512 trigger-only data plus wide-XY and targeted DAgger samples, with DAgger samples repeated for weight.
+  - v6 with the original `dist_xy >= 0.10` adapter gate still timed out once, but the failure changed from far drift (`~0.18 m`) to just below the gate (`~0.098 m`), showing the adapter had corrected most of the approach error.
+  - Lowering the adapter gate to `dist_xy >= 0.06` fixed the handoff gap:
+    - no-assist `round_square -18`, seed `643000`, crop-source `[80,96]`: `10/10`, `0` collision, `0` timeout
+    - no-assist `round_square +12`, seed `643000`, crop-source `[80,96]`: `10/10`, `0` collision, `0` timeout
+    - no-assist `round_square +24`, seed `643000`, crop-source `[80,96]`: `10/10`, `0` collision, `0` timeout
+    - no-assist `+12` crop-offset profile smoke, seed `643000`: `single=10/10`, `round_square=10/10`, `square_square=10/10`, `mixed_basic=10/10`, all zero collision and zero timeout
+    - full no-assist profile/offset matrix, seed `643000`, crop-source `[80,96]`, offsets `[-18,0]`, `[+12,0]`, `[+24,0]`: `120/120`, `0` collision, `0` timeout
+      - mean adapter steps ranged from `72.6` to `102.6`
+      - mean episode steps ranged from `224.9` to `256.6`
+  - v6 output: `D:\peg-in-hole-6yh\v51_early_approach_learning\approach_adapter_v6_fullcrop_mix_targeted_dagger_xy_override.pt`
+- Interpretation:
+  - The code path is now in place, but the 512-sample adapter is not a promoted learner milestone.
+  - `override_xy` is the better adapter formulation, but current data/inputs are insufficient to replace early assist.
+  - Adding full camera features alone did not fix the unassisted far-XY timeout; targeted DAgger plus a lower handoff gate was needed.
+  - The failure likely still reflects visual observability and distribution shift: the high-start crop/control-state pair does not reliably encode the direction needed to correct a 20+ cm drift once rollout leaves the data manifold.
+- Next recommendation:
+  - Keep the adapter infrastructure.
+  - Do not scale residual mode.
+  - v6 is now a candidate, but not yet a promoted tag because it is trained from small local smoke/targeted datasets and the checkpoint is outside Git.
+  - Next validation should use new seeds, not only seed `643000`: run at least `seed644000/645000`, 10 episodes/profile, with offsets `[-18,0]`, `[+12,0]`, `[+24,0]`.
+  - If the new-seed matrix passes, collect a larger adapter-rollout DAgger dataset and train a non-smoke v7 adapter; compare it against v50 early assist and an explicit visual-servo target estimator.
 
 ## Key Commands
 

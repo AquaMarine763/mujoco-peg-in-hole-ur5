@@ -1,0 +1,109 @@
+# v52 trigger-only early-approach-assist correction data.
+#
+# Converts the promoted v50 deploy-time early approach assist into BC labels.
+# The goal is to teach the learned visual policy to recenter high-start far-XY
+# states before the normal guarded final insertion stack has to take over.
+# This config uses trigger_only mode because the broader release-band pilot
+# preserved 10/10 with deployment assist but regressed unassisted behavior.
+model_path: assets/ur5e_full/ur5e_peg_in_hole_full.xml
+model: checkpoints/ur5e_full/high_start/hard/correction/sac_image_bc_wrist_pose_control_state_insert_drift_2k_w10_e1.zip
+output: datasets/ur5e_full/high_start/hard/correction/image_correction_2k_high_start_hard_wrist_pose_control_state_early_approach_assist_trigger.npz
+samples: 2048
+samples_per_config: 2048
+max_episodes_per_config: 420
+device: cpu
+seed: 647000
+compressed: true
+scenario_preset: hard
+tier_preset: narrow
+geometry_profile: mixed_basic
+geometry_hole_half_size_range: [0.0145, 0.019]
+geometry_peg_radius_range: [0.0118, 0.0135]
+geometry_square_peg_half_size_range: [0.0110, 0.0135]
+geometry_mixed_square_probability: 0.5
+geometry_hole_center_xy_jitter: [0.004, 0.004]
+geometry_fixture_height_jitter: 0.002
+geometry_table_height_jitter: 0.002
+hard_control_scale_range: [0.65, 1.00]
+hard_control_noise_std_range: [0.00025, 0.0008]
+hard_control_delay_range: [3, 4]
+hard_control_filter_alpha_range: [0.35, 0.55]
+nominal_actuator_kp_multiplier: 3.0
+selection: early_approach_assist_window
+episode_outcome_filter: any
+keep_success_episodes: true
+failure_window_steps: 1000
+near_hole_xy: 0.120
+near_hole_z: 0.160
+min_correction_norm: 0.0005
+max_samples_per_episode: 24
+image_width: 100
+image_height: 100
+include_near_hole_crop: true
+near_hole_crop_size: 64
+near_hole_crop_source_size_range: [80, 96]
+near_hole_crop_offset: [-18, 0]
+include_control_state: true
+image_frame_stack: 1
+wrist_camera_pos_offset: [-0.04, -0.04, 0.0]
+wrist_camera_rot_offset_deg: [0.0, 0.0, 0.0]
+wrist_camera_fovy: 100.0
+max_steps: 1000
+action_scale: 0.005
+initialization_mode: target_relative_high_start
+initial_tip_z_above_range: [0.15, 0.25]
+initial_tip_xy_offset_range: [0.08, 0.16]
+initial_tip_xy_angle_range_deg: [0.0, 360.0]
+initial_ik_max_attempts: 30
+ik_control_mode: pose
+ik_orientation_weight: 0.03
+ik_posture_weight: 0.01
+ik_step_limit: 0.06
+ik_max_iterations: 64
+success_xy_tolerance: 0.005
+success_z_tolerance: 0.01
+approach_xy_tolerance: 0.02
+approach_height: 0.12
+staged_xy_weight: 2.0
+staged_z_weight: 1.0
+success_bonus: 120.0
+collision_penalty: 300.0
+timeout_penalty: 10.0
+progress_reward_scale: 20.0
+distance_reward_scale: 2.0
+action_penalty_scale: 0.002
+action_alignment_scale: 2.0
+oracle_mode: guarded_two_stage
+oracle_action_gain: 1.0
+guarded_align_xy_tolerance: 0.020
+guarded_insert_xy_tolerance: 0.005
+guarded_retract_xy_tolerance: 0.012
+guarded_preinsert_height: 0.0
+guarded_max_xy_action: 0.008
+guarded_max_down_action: 0.0035
+guarded_max_up_action: 0.005
+guarded_prediction_steps: 0.0
+contact_recovery_xy_tolerance: 0.005
+contact_recovery_z_max: 0.050
+contact_recovery_lift_height: 0.060
+contact_recovery_lift_z_tolerance: 0.010
+contact_recovery_max_down_action: 0.001
+early_approach_assist_labels: true
+early_approach_assist_trigger_xy: 0.10
+early_approach_assist_release_xy: 0.06
+early_approach_assist_min_z: 0.12
+early_approach_assist_max_z: 0.27
+early_approach_assist_target_height: 0.14
+early_approach_assist_max_xy_action: 0.008
+early_approach_assist_max_up_action: 0.005
+early_approach_assist_max_down_action: 0.0035
+early_approach_assist_window_mode: trigger_only
+approach_sample_sort_key: dist_xy
+recovery_branch_rollout: false
+recovery_branch_from_near_hole: false
+recovery_branch_max_starts_per_episode: 3
+recovery_branch_max_steps: 90
+recovery_branch_stride: 2
+recovery_branch_stop_on_success: true
+recovery_branch_clear_control_history: true
+recovery_branch_synthetic_stages: false

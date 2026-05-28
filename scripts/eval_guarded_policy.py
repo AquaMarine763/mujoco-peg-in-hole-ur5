@@ -8,8 +8,10 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import torch
 from stable_baselines3 import A2C, PPO, SAC
 
+from peg_in_hole_mujoco.approach_adapter import ApproachAdapterPolicy
 from peg_in_hole_mujoco import (
     GuardedPolicyConfig,
     GuardedPolicyController,
@@ -240,6 +242,13 @@ STEP_TRACE_FIELDNAMES = [
     "guard_final_servo_contact_reinsert_orient_tip_lock_active",
     "guard_final_servo_contact_reinsert_orient_tip_lock_drift_xy",
     "guard_final_servo_near_miss_steps",
+    "approach_adapter_active",
+    "approach_adapter_residual_x",
+    "approach_adapter_residual_y",
+    "approach_adapter_residual_z",
+    "base_policy_action_x",
+    "base_policy_action_y",
+    "base_policy_action_z",
     "policy_action_x",
     "policy_action_y",
     "policy_action_z",
@@ -343,6 +352,26 @@ def build_parser(
         choices=["normal", "zero", "noise", "shuffle"],
         default="normal",
         help="Corrupt only the control_state observation key before policy inference.",
+    )
+    parser.add_argument("--approach-adapter", type=Path, default=None)
+    parser.add_argument("--approach-adapter-enabled", action="store_true")
+    parser.add_argument("--approach-adapter-trigger-xy", type=float, default=0.100)
+    parser.add_argument("--approach-adapter-release-xy", type=float, default=0.060)
+    parser.add_argument("--approach-adapter-min-z", type=float, default=0.120)
+    parser.add_argument("--approach-adapter-max-z", type=float, default=0.270)
+    parser.add_argument("--approach-adapter-max-xy-residual", type=float, default=0.003)
+    parser.add_argument("--approach-adapter-max-z-residual", type=float, default=0.0)
+    parser.add_argument("--approach-adapter-scale", type=float, default=1.0)
+    parser.add_argument(
+        "--approach-adapter-mode",
+        choices=["residual", "override_xy"],
+        default="residual",
+        help="Add adapter output as a residual or let it own XY in the gated region.",
+    )
+    parser.add_argument(
+        "--approach-adapter-apply-z",
+        action="store_true",
+        help="Also apply the adapter Z residual. By default only XY residuals are used.",
     )
     parser.add_argument(
         "--guard-scenario-filter",
@@ -1264,6 +1293,86 @@ def policy_observation(
     )
 
 
+def approach_adapter_gate(args: argparse.Namespace, info: dict[str, Any]) -> bool:
+    tip = np.asarray(info["peg_tip_pos"], dtype=np.float64)
+    target = np.asarray(info["target_pos"], dtype=np.float64)
+    z_above_target = float(tip[2] - target[2])
+    dist_xy = float(info["dist_xy"])
+    return bool(
+        args.approach_adapter_enabled
+        and dist_xy >= args.approach_adapter_trigger_xy
+        and args.approach_adapter_min_z
+        <= z_above_target
+        <= args.approach_adapter_max_z
+    )
+
+
+def limit_xy_vector(vector: np.ndarray, max_norm: float) -> np.ndarray:
+    limited = np.asarray(vector, dtype=np.float64).copy()
+    if max_norm <= 0.0:
+        limited[:2] = 0.0
+        return limited
+    norm = float(np.linalg.norm(limited[:2]))
+    if norm > max_norm:
+        limited[:2] *= max_norm / norm
+    return limited
+
+
+def apply_approach_adapter(
+    *,
+    adapter: ApproachAdapterPolicy | None,
+    args: argparse.Namespace,
+    obs: Any,
+    info: dict[str, Any],
+    policy_action: np.ndarray,
+    action_low: np.ndarray,
+    action_high: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, bool]:
+    if adapter is None or not approach_adapter_gate(args, info):
+        return policy_action, np.zeros(3, dtype=np.float32), False
+    if not isinstance(obs, dict):
+        raise ValueError("approach adapter requires dict observations.")
+    residual = adapter.predict(obs).astype(np.float64)
+    residual *= float(args.approach_adapter_scale)
+    residual = limit_xy_vector(residual, args.approach_adapter_max_xy_residual)
+    base_action = np.asarray(policy_action, dtype=np.float64)
+    if args.approach_adapter_mode == "override_xy":
+        adapted = base_action.copy()
+        adapted[:2] = residual[:2]
+        if args.approach_adapter_apply_z:
+            adapted[2] = float(
+                np.clip(
+                    residual[2],
+                    -args.approach_adapter_max_z_residual,
+                    args.approach_adapter_max_z_residual,
+                )
+            )
+        modification = adapted - base_action
+    else:
+        if args.approach_adapter_apply_z:
+            residual[2] = float(
+                np.clip(
+                    residual[2],
+                    -args.approach_adapter_max_z_residual,
+                    args.approach_adapter_max_z_residual,
+                )
+            )
+        else:
+            residual[2] = 0.0
+        adapted = base_action + residual
+        modification = residual
+    if not args.approach_adapter_apply_z:
+        adapted[2] = base_action[2]
+        modification[2] = 0.0
+    adapted = np.clip(
+        adapted,
+        action_low,
+        action_high,
+    )
+    modification = adapted - base_action
+    return adapted.astype(np.float32), modification.astype(np.float32), True
+
+
 def shuffled_image_observation(
     obs: Any,
     *,
@@ -1381,6 +1490,9 @@ def build_step_trace_row(
     guard_enabled: bool,
     guarded: bool,
     step_index: int,
+    base_policy_action: np.ndarray | None = None,
+    approach_adapter_residual: np.ndarray | None = None,
+    approach_adapter_active: bool = False,
 ) -> dict[str, Any]:
     pre_tip = np.asarray(pre_info["peg_tip_pos"], dtype=np.float64)
     pre_target = np.asarray(pre_info["target_pos"], dtype=np.float64)
@@ -1393,6 +1505,16 @@ def build_step_trace_row(
     pre_z_above_target = float(pre_tip[2] - pre_target[2])
     post_z_above_target = float(post_tip[2] - post_target[2])
     step_guard = step is not None
+    base_policy = (
+        np.asarray(policy_action, dtype=np.float64)
+        if base_policy_action is None
+        else np.asarray(base_policy_action, dtype=np.float64)
+    )
+    adapter_residual = (
+        np.zeros(3, dtype=np.float64)
+        if approach_adapter_residual is None
+        else np.asarray(approach_adapter_residual, dtype=np.float64)
+    )
     row: dict[str, Any] = {
         "scenario": scenario.name,
         "level": scenario.level,
@@ -1629,6 +1751,9 @@ def build_step_trace_row(
         "guard_final_servo_near_miss_steps": (
             int(step.guard_final_servo_near_miss_steps) if step_guard else 0
         ),
+        "approach_adapter_active": bool(approach_adapter_active),
+        **vector3_columns("approach_adapter_residual", adapter_residual),
+        **vector3_columns("base_policy_action", base_policy),
         **vector3_columns("policy_action", policy_action),
         **maybe_vector3_columns("guarded_action", None if step is None or step.guarded_action is None else step.guarded_action),
         **vector3_columns("final_action", final_action),
@@ -1798,6 +1923,11 @@ def evaluate_scenario(
         if args.control_mode == "guard_only"
         else AGENTS[args.agent].load(args.model, env=env, device=args.device)
     )
+    approach_adapter = (
+        ApproachAdapterPolicy.load(args.approach_adapter, device=args.device)
+        if args.approach_adapter_enabled and args.approach_adapter is not None
+        else None
+    )
     guarded_controller = GuardedPolicyController(make_guarded_config(args))
     guard_state_provider = MujocoGuardStateProvider(env)
     guard_enabled = (
@@ -1843,6 +1973,8 @@ def evaluate_scenario(
     approach_recenter_triggers: list[float] = []
     approach_recenter_releases: list[float] = []
     approach_recenter_blocked_steps: list[float] = []
+    approach_adapter_episodes = 0
+    approach_adapter_steps: list[float] = []
     early_approach_assist_episodes = 0
     early_approach_assist_steps: list[float] = []
     early_approach_assist_triggers: list[float] = []
@@ -1897,6 +2029,7 @@ def evaluate_scenario(
             episode_approach_recenter_triggers = 0
             episode_approach_recenter_releases = 0
             episode_approach_recenter_blocked_steps = 0
+            episode_approach_adapter_steps = 0
             episode_early_approach_assist_steps = 0
             episode_early_approach_assist_triggers = 0
             episode_early_approach_assist_releases = 0
@@ -1923,6 +2056,9 @@ def evaluate_scenario(
                 if args.control_mode == "guard_only":
                     state = guard_state_provider.state_from_info(pre_info)
                     policy_action = np.zeros(3, dtype=np.float32)
+                    base_policy_action = policy_action.copy()
+                    approach_adapter_residual = np.zeros(3, dtype=np.float32)
+                    approach_adapter_active = False
                     action = oracle_action_from_state(
                         peg_tip_pos=state.peg_tip_pos,
                         target_pos=state.target_pos,
@@ -1946,6 +2082,20 @@ def evaluate_scenario(
                         control_state_shuffle_bank=control_state_shuffle_bank,
                     )
                     policy_action, _ = model.predict(model_obs, deterministic=True)
+                    base_policy_action = np.asarray(policy_action, dtype=np.float32).reshape(3)
+                    (
+                        policy_action,
+                        approach_adapter_residual,
+                        approach_adapter_active,
+                    ) = apply_approach_adapter(
+                        adapter=approach_adapter,
+                        args=args,
+                        obs=model_obs,
+                        info=pre_info,
+                        policy_action=base_policy_action,
+                        action_low=np.asarray(env.action_space.low, dtype=np.float64),
+                        action_high=np.asarray(env.action_space.high, dtype=np.float64),
+                    )
                     if args.control_mode == "policy":
                         action = policy_action
                         guarded = False
@@ -1961,6 +2111,7 @@ def evaluate_scenario(
                         action = step.action
                         guarded = step.guarded
                 episode_guard_steps += int(guarded)
+                episode_approach_adapter_steps += int(approach_adapter_active)
                 if step is not None:
                     episode_retry_steps += int(step.guard_retry_active)
                     episode_retry_triggers += int(step.guard_retry_triggered)
@@ -2070,6 +2221,9 @@ def evaluate_scenario(
                             post_info=info,
                             policy_action=policy_action,
                             final_action=np.asarray(action, dtype=np.float32),
+                            base_policy_action=base_policy_action,
+                            approach_adapter_residual=approach_adapter_residual,
+                            approach_adapter_active=approach_adapter_active,
                             step=step,
                             guard_enabled=guard_enabled,
                             guarded=guarded,
@@ -2110,6 +2264,7 @@ def evaluate_scenario(
                 episode_approach_recenter_steps > 0
                 or episode_approach_recenter_triggers > 0
             )
+            approach_adapter_episodes += int(episode_approach_adapter_steps > 0)
             early_approach_assist_episodes += int(
                 episode_early_approach_assist_steps > 0
                 or episode_early_approach_assist_triggers > 0
@@ -2148,6 +2303,7 @@ def evaluate_scenario(
             approach_recenter_triggers.append(float(episode_approach_recenter_triggers))
             approach_recenter_releases.append(float(episode_approach_recenter_releases))
             approach_recenter_blocked_steps.append(float(episode_approach_recenter_blocked_steps))
+            approach_adapter_steps.append(float(episode_approach_adapter_steps))
             early_approach_assist_steps.append(
                 float(episode_early_approach_assist_steps)
             )
@@ -2234,6 +2390,10 @@ def evaluate_scenario(
                     "approach_recenter_blocked_steps": (
                         episode_approach_recenter_blocked_steps
                     ),
+                    "approach_adapter_steps": episode_approach_adapter_steps,
+                    "approach_adapter_step_fraction": (
+                        episode_approach_adapter_steps / max(step_count, 1)
+                    ),
                     "early_approach_assist_steps": episode_early_approach_assist_steps,
                     "early_approach_assist_triggers": (
                         episode_early_approach_assist_triggers
@@ -2306,6 +2466,7 @@ def evaluate_scenario(
     mean_fixture_clearance_steps = mean(fixture_clearance_steps)
     mean_fixture_clearance_realign_steps = mean(fixture_clearance_realign_steps)
     mean_preinsert_recenter_steps = mean(preinsert_recenter_steps)
+    mean_approach_adapter_steps = mean(approach_adapter_steps)
     mean_early_approach_assist_steps = mean(early_approach_assist_steps)
     mean_stateful_recovery_steps = mean(stateful_recovery_steps)
     mean_final_servo_steps = mean(final_servo_steps)
@@ -2367,6 +2528,14 @@ def evaluate_scenario(
         "mean_approach_recenter_releases": mean(approach_recenter_releases),
         "mean_approach_recenter_blocked_steps": mean(approach_recenter_blocked_steps),
         "approach_recenter_episode_rate": approach_recenter_episodes / args.episodes,
+        "approach_adapter_enabled": bool(
+            args.approach_adapter_enabled and args.approach_adapter is not None
+        ),
+        "mean_approach_adapter_steps": mean_approach_adapter_steps,
+        "mean_approach_adapter_fraction": (
+            mean_approach_adapter_steps / max(mean_steps, 1e-9)
+        ),
+        "approach_adapter_episode_rate": approach_adapter_episodes / args.episodes,
         "mean_early_approach_assist_steps": mean_early_approach_assist_steps,
         "mean_early_approach_assist_fraction": (
             mean_early_approach_assist_steps / max(mean_steps, 1e-9)
@@ -2447,6 +2616,9 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Image ablation: `{args.image_ablation}`",
         f"- Image ablation target: `{args.image_ablation_target}`",
         f"- Control-state ablation: `{args.control_state_ablation}`",
+        f"- Approach adapter: `{args.approach_adapter}` enabled `{args.approach_adapter_enabled}`",
+        f"- Approach adapter XY/Z gate: `{args.approach_adapter_trigger_xy}->{args.approach_adapter_release_xy}/{args.approach_adapter_min_z}-{args.approach_adapter_max_z}`",
+        f"- Approach adapter mode/residual limit/scale/apply Z: `{args.approach_adapter_mode}/{args.approach_adapter_max_xy_residual}/{args.approach_adapter_max_z_residual}/{args.approach_adapter_scale}/{args.approach_adapter_apply_z}`",
         f"- Episodes per scenario: `{args.episodes}`",
         f"- Seed: `{args.seed}`",
         f"- Frame skip: `{args.frame_skip}`",
@@ -2536,8 +2708,8 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Contact recovery XY/Z/lift/Z tol/max down: `{args.contact_recovery_xy_tolerance}/{args.contact_recovery_z_max}/{args.contact_recovery_lift_height}/{args.contact_recovery_lift_z_tolerance}/{args.contact_recovery_max_down_action}`",
         f"- Timeout progress XY/Z/max down: `{args.timeout_progress_xy_tolerance}/{args.timeout_progress_z_max}/{args.timeout_progress_max_down_action}`",
         "",
-        "| Scenario | Level | Mode | Image | Image target | Control state | Guard | Success | Collision | Timeout | Mean return | Mean steps | Guard steps | Retry steps | Latch steps | Hover steps | Near limited | Fixture steps | Fixture realign | Preinsert | Approach rec | Early approach | Stateful rec | Final servo | Final servo descend | Final XY | Final Z |",
-        "| --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Scenario | Level | Mode | Image | Image target | Control state | Guard | Success | Collision | Timeout | Mean return | Mean steps | Guard steps | Retry steps | Latch steps | Hover steps | Near limited | Fixture steps | Fixture realign | Preinsert | Approach rec | Adapter | Early approach | Stateful rec | Final servo | Final servo descend | Final XY | Final Z |",
+        "| --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for row in rows:
         lines.append(
@@ -2552,6 +2724,7 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
             "{mean_fixture_clearance_realign_steps:.1f} ({mean_fixture_clearance_realign_fraction:.2f}) | "
             "{mean_preinsert_recenter_steps:.1f} ({mean_preinsert_recenter_fraction:.2f}, trig {mean_preinsert_recenter_triggers:.2f}, rel {mean_preinsert_recenter_releases:.2f}) | "
             "{mean_approach_recenter_steps:.1f} ({mean_approach_recenter_fraction:.2f}, trig {mean_approach_recenter_triggers:.2f}, rel {mean_approach_recenter_releases:.2f}) | "
+            "{mean_approach_adapter_steps:.1f} ({mean_approach_adapter_fraction:.2f}) | "
             "{mean_early_approach_assist_steps:.1f} ({mean_early_approach_assist_fraction:.2f}, trig {mean_early_approach_assist_triggers:.2f}, rel {mean_early_approach_assist_releases:.2f}) | "
             "{mean_stateful_recovery_steps:.1f} ({mean_stateful_recovery_fraction:.2f}, trig {mean_stateful_recovery_triggers:.2f}, rel {mean_stateful_recovery_releases:.2f}) | "
             "{mean_final_servo_steps:.1f} ({mean_final_servo_step_fraction:.2f}, trig {mean_final_servo_triggers:.2f}, rec {mean_final_servo_recovery_triggers:.2f}) | "
@@ -2585,6 +2758,31 @@ def main() -> None:
             raise ValueError("--control-state-ablation requires --observation-mode image.")
         if not args.include_control_state:
             raise ValueError("--control-state-ablation requires --include-control-state.")
+    if args.approach_adapter_enabled:
+        if args.approach_adapter is None:
+            raise ValueError("--approach-adapter-enabled requires --approach-adapter.")
+        if args.observation_mode != "image":
+            raise ValueError("--approach-adapter-enabled requires image observations.")
+        if not args.include_near_hole_crop:
+            raise ValueError("--approach-adapter-enabled requires --include-near-hole-crop.")
+        if not args.include_control_state:
+            raise ValueError("--approach-adapter-enabled requires --include-control-state.")
+    if args.approach_adapter_trigger_xy <= 0.0:
+        raise ValueError("--approach-adapter-trigger-xy must be positive.")
+    if args.approach_adapter_release_xy <= 0.0:
+        raise ValueError("--approach-adapter-release-xy must be positive.")
+    if args.approach_adapter_release_xy >= args.approach_adapter_trigger_xy:
+        raise ValueError("--approach-adapter-release-xy must be less than trigger XY.")
+    if args.approach_adapter_min_z < 0.0:
+        raise ValueError("--approach-adapter-min-z cannot be negative.")
+    if args.approach_adapter_max_z <= args.approach_adapter_min_z:
+        raise ValueError("--approach-adapter-max-z must exceed min Z.")
+    if args.approach_adapter_max_xy_residual < 0.0:
+        raise ValueError("--approach-adapter-max-xy-residual cannot be negative.")
+    if args.approach_adapter_max_z_residual < 0.0:
+        raise ValueError("--approach-adapter-max-z-residual cannot be negative.")
+    if args.approach_adapter_scale < 0.0:
+        raise ValueError("--approach-adapter-scale cannot be negative.")
     validate_ordered_pair("--initial-tip-z-above-range", args.initial_tip_z_above_range, min_value=0.0)
     validate_ordered_pair("--initial-tip-xy-offset-range", args.initial_tip_xy_offset_range, min_value=0.0)
     validate_ordered_pair("--geometry-hole-half-size-range", args.geometry_hole_half_size_range, min_value=0.0)
@@ -3112,6 +3310,7 @@ def main() -> None:
             "fixture_realign={mean_fixture_clearance_realign_steps:.1f} "
             "preinsert={mean_preinsert_recenter_steps:.1f} "
             "approach={mean_approach_recenter_steps:.1f} "
+            "adapter={mean_approach_adapter_steps:.1f} "
             "early_approach={mean_early_approach_assist_steps:.1f} "
             "stateful_recovery={mean_stateful_recovery_steps:.1f} "
             "final_servo={mean_final_servo_steps:.1f} "
