@@ -379,6 +379,12 @@ def build_parser(
         default=0,
         help="Maximum consecutive latched adapter steps. 0 disables the step cap.",
     )
+    parser.add_argument(
+        "--approach-adapter-episode-max-steps",
+        type=int,
+        default=0,
+        help="Maximum total adapter-active steps per episode. 0 disables the episode budget.",
+    )
     parser.add_argument("--approach-adapter-max-xy-residual", type=float, default=0.003)
     parser.add_argument("--approach-adapter-max-z-residual", type=float, default=0.0)
     parser.add_argument("--approach-adapter-scale", type=float, default=1.0)
@@ -1319,12 +1325,18 @@ def approach_adapter_gate(
     *,
     latched: bool = False,
     latch_steps: int = 0,
+    episode_steps: int = 0,
 ) -> bool:
     tip = np.asarray(info["peg_tip_pos"], dtype=np.float64)
     target = np.asarray(info["target_pos"], dtype=np.float64)
     z_above_target = float(tip[2] - target[2])
     dist_xy = float(info["dist_xy"])
     if not args.approach_adapter_enabled:
+        return False
+    if (
+        args.approach_adapter_episode_max_steps > 0
+        and episode_steps >= args.approach_adapter_episode_max_steps
+    ):
         return False
     if args.approach_adapter_latch_enabled and latched:
         latched_min_z = (
@@ -1373,12 +1385,14 @@ def apply_approach_adapter(
     action_high: np.ndarray,
     latched: bool = False,
     latch_steps: int = 0,
+    episode_steps: int = 0,
 ) -> tuple[np.ndarray, np.ndarray, bool]:
     if adapter is None or not approach_adapter_gate(
         args,
         info,
         latched=latched,
         latch_steps=latch_steps,
+        episode_steps=episode_steps,
     ):
         return policy_action, np.zeros(3, dtype=np.float32), False
     if not isinstance(obs, dict):
@@ -2150,6 +2164,7 @@ def evaluate_scenario(
                         action_high=np.asarray(env.action_space.high, dtype=np.float64),
                         latched=approach_adapter_latched,
                         latch_steps=approach_adapter_latch_steps,
+                        episode_steps=episode_approach_adapter_steps,
                     )
                     if args.approach_adapter_latch_enabled:
                         if approach_adapter_active:
@@ -2680,7 +2695,7 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Control-state ablation: `{args.control_state_ablation}`",
         f"- Approach adapter: `{args.approach_adapter}` enabled `{args.approach_adapter_enabled}`",
         f"- Approach adapter XY/Z gate: `{args.approach_adapter_trigger_xy}->{args.approach_adapter_release_xy}/{args.approach_adapter_min_z}-{args.approach_adapter_max_z}`",
-        f"- Approach adapter latch/min-z/max steps: `{args.approach_adapter_latch_enabled}/{args.approach_adapter_latched_min_z}/{args.approach_adapter_max_steps}`",
+        f"- Approach adapter latch/min-z/max consecutive/episode steps: `{args.approach_adapter_latch_enabled}/{args.approach_adapter_latched_min_z}/{args.approach_adapter_max_steps}/{args.approach_adapter_episode_max_steps}`",
         f"- Approach adapter mode/residual limit/scale/apply Z: `{args.approach_adapter_mode}/{args.approach_adapter_max_xy_residual}/{args.approach_adapter_max_z_residual}/{args.approach_adapter_scale}/{args.approach_adapter_apply_z}`",
         f"- Episodes per scenario: `{args.episodes}`",
         f"- Seed: `{args.seed}`",
@@ -2849,6 +2864,8 @@ def main() -> None:
             )
     if args.approach_adapter_max_steps < 0:
         raise ValueError("--approach-adapter-max-steps cannot be negative.")
+    if args.approach_adapter_episode_max_steps < 0:
+        raise ValueError("--approach-adapter-episode-max-steps cannot be negative.")
     if args.approach_adapter_max_xy_residual < 0.0:
         raise ValueError("--approach-adapter-max-xy-residual cannot be negative.")
     if args.approach_adapter_max_z_residual < 0.0:

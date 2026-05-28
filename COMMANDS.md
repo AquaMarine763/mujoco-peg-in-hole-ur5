@@ -7561,7 +7561,53 @@ seed645000: 120/120, zero collision, zero timeout
 combined: 360/360
 ```
 
-Interpretation: this is now the strongest learner-side approach-adapter
-candidate, but it is not tagged yet because the v8 checkpoint is local and has
-not been packaged. Next run fresh seeds and then decide whether to publish the
-checkpoint as a release asset.
+Fresh-seed follow-up:
+
+```text
+latch220 original:
+  seed646000: 120/120, zero collision, zero timeout
+  seed647000: 116/120, zero collision, 4 timeouts
+
+latch220 + --guard-final-servo-start-z 0.100:
+  seed646000: 120/120, zero collision, zero timeout
+  seed647000: 120/120, zero collision, zero timeout
+  combined fresh-seed result: 240/240
+```
+
+Interpretation: the best current recipe is v8 latch220 plus earlier final-servo
+handoff at 100 mm. The seed647 regression was not a collision or low-Z wedging
+failure; the m18 episode reached final servo too late. The optional
+`--approach-adapter-episode-max-steps` knob exists to prevent immediate adapter
+re-latching, but the promoted probe is `--guard-final-servo-start-z 0.100`.
+
+Single-run template for the current strongest probe:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v76_adapter_v8_latch220_finalstart100_seed646_regression"
+$adapter = "D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"
+
+python scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml `
+  --model checkpoints\ur5e_full\high_start\hard\correction\sac_image_bc_wrist_pose_control_state_insert_drift_2k_w10_e1.zip `
+  --geometry-profile mixed_basic `
+  --episodes 10 `
+  --seed 646000 `
+  --near-hole-crop-source-size-range 80 96 `
+  --near-hole-crop-offset -18 0 `
+  --guard-final-servo-start-z 0.100 `
+  --approach-adapter $adapter `
+  --approach-adapter-enabled `
+  --approach-adapter-trigger-xy 0.06 `
+  --approach-adapter-release-xy 0.03 `
+  --approach-adapter-min-z 0.12 `
+  --approach-adapter-max-z 0.27 `
+  --approach-adapter-latch-enabled `
+  --approach-adapter-latched-min-z 0.08 `
+  --approach-adapter-max-steps 220 `
+  --approach-adapter-mode override_xy `
+  --approach-adapter-max-xy-residual 0.003 `
+  --output-csv "$out\eval_adapter_v8_latch220_finalstart100_mixed_basic_m18_seed646000_10ep.csv" `
+  --output-md "$out\eval_adapter_v8_latch220_finalstart100_mixed_basic_m18_seed646000_10ep.md" `
+  --episode-output-csv "$out\eval_adapter_v8_latch220_finalstart100_mixed_basic_m18_seed646000_10ep_episodes.csv" `
+  --step-output-csv "$out\eval_adapter_v8_latch220_finalstart100_mixed_basic_m18_seed646000_10ep_failure_steps.csv"
+```

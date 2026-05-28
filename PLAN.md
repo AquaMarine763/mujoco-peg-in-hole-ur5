@@ -3375,8 +3375,10 @@ Interpretation:
     - `--approach-adapter-latch-enabled`
     - `--approach-adapter-latched-min-z`
     - `--approach-adapter-max-steps`
+    - `--approach-adapter-episode-max-steps`
   - Default behavior is unchanged.
   - With latch enabled, the adapter still must first activate in the normal high-Z gate, then it may continue until `release_xy`, `latched_min_z`, or the consecutive step cap.
+  - The episode step cap is also default-off; it prevents pathological immediate re-latching after the consecutive cap is exhausted.
 - Motivation:
   - v8 without latch still timed out on seed645 episode `645009`.
   - The adapter exited at about `90 mm` XY because `z_above_target` slipped just below `0.12 m`; then the base policy drifted back out to about `164 mm` XY.
@@ -3406,11 +3408,24 @@ Interpretation:
   - seed `645000`, same matrix: `120/120`, `0` collision, `0` timeout
   - combined: `360/360`, `0` collision, `0` timeout
   - mean adapter steps by seed were roughly `146`, `157`, and `152`.
+- Fresh-seed follow-up:
+  - seed `646000` with the same latch220 setting: `120/120`, `0` collision, `0` timeout.
+  - seed `647000` with the same latch220 setting: `116/120`, `0` collision, `4` timeout.
+  - The four seed647 failures were all `m18` crop-offset episode `647008`. They were not contact/collision failures; the adapter could consume `440` steps through immediate re-latching, and final-servo handoff then happened too late.
+  - `--approach-adapter-episode-max-steps 220` fixed `single_m18` and `round_square_m18` on seed647, but still left `square_square_m18` and `mixed_basic_m18` at `9/10`; this is useful as a safety knob, but it is not the promoted recipe.
+  - A direct adapter down-bias probe was discarded: it reduced adapter steps but caused high-tilt/recovery timeouts.
+- Current stronger eval recipe:
+  - Keep v8 latch220 adapter settings.
+  - Add `--guard-final-servo-start-z 0.100` so final servo takes over at `100 mm` above target instead of `70 mm`.
+  - seed `646000`, 12 profile/offset runs, 10 episodes each: `120/120`, `0` collision, `0` timeout.
+  - seed `647000`, same matrix: `120/120`, `0` collision, `0` timeout.
+  - combined fresh-seed result for this recipe: `240/240`, `0` collision, `0` timeout.
 - Interpretation:
   - This is the first learner-side approach-adapter path that matches the v50 early-assist matrix on the tested seeds without enabling v50 early assist.
   - The mechanism is not pure policy-only insertion; the guarded final-servo stack still performs final insertion.
+  - The stronger fresh-seed recipe is adapter plus earlier final-servo handoff, not adapter-only learning.
   - Do not tag yet unless checkpoint packaging is decided. The adapter checkpoint is local and outside Git.
-  - Next validation should run one or two fresh seeds beyond `643000-645000`, then package the v8 checkpoint or publish it as a release asset if it remains stable.
+  - Next validation should either rerun earlier seeds `643000-645000` with `guard_final_servo_start_z=0.100` or run one more fresh seed, then package the v8 checkpoint or publish it as a release asset if it remains stable.
 
 ## Key Commands
 

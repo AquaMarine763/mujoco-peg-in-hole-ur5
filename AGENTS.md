@@ -442,11 +442,13 @@ The current focus is:
     - v7 is not promoted: under the original conservative eval gate it reached only `9/10` on each targeted seed645 condition tested (`single +12`, `single +24`, `round_square +24`, `square_square +24`, `mixed_basic +24`), all zero collision but still one timeout each
     - next adapter work should scale targeted DAgger across profiles and crop offsets and include seed644 preservation cases; do not keep scanning fixed min-z/max-xy thresholds
     - adapter v8 balanced DAgger is trained at `D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt` from the old v6/v7 recipe plus 8 balanced seed645 timeout datasets
-    - `scripts/eval_guarded_policy.py` now supports default-off latched adapter gating with `--approach-adapter-latch-enabled`, `--approach-adapter-latched-min-z`, and `--approach-adapter-max-steps`
+    - `scripts/eval_guarded_policy.py` now supports default-off latched adapter gating with `--approach-adapter-latch-enabled`, `--approach-adapter-latched-min-z`, `--approach-adapter-max-steps`, and `--approach-adapter-episode-max-steps`
     - v8 without latch still mostly reached only `9/10` on the targeted seed645 failure cases, so the key improvement is the bounded latch, not just more DAgger data
     - current adapter v8 latched candidate uses activation `min_z=0.12`, latched `min_z=0.08`, `max_steps=220`, `trigger/release=0.06/0.03`, `override_xy`, and `max_xy_residual=0.003`
     - v8 latched candidate passed full 12-run profile/offset matrices on seeds `643000`, `644000`, and `645000`: combined `360/360`, zero collision, zero timeout
-    - do not tag yet; checkpoint is local and outside Git. Next validation should use fresh seeds beyond `643000-645000`, then decide whether to package the checkpoint as a release asset
+    - fresh seed `646000` also passed with the original latch220 recipe, but seed `647000` regressed to `116/120`, all `m18` timeouts from episode `647008`
+    - the current stronger probe keeps v8 latch220 and adds `--guard-final-servo-start-z 0.100`; it passed seed `646000` and seed `647000` full matrices: combined `240/240`, zero collision, zero timeout
+    - do not tag yet; checkpoint is local and outside Git. Next validation should rerun earlier seeds with the 100 mm final-servo handoff or run another fresh seed, then decide whether to package the checkpoint as a release asset
 
 ## Editing Workflow
 
