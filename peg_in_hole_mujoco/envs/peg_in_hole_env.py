@@ -29,7 +29,18 @@ from peg_in_hole_mujoco.paths import resolve_model_path
 ObservationMode = Literal["image", "state"]
 InitializationMode = Literal["fixed", "target_relative_high_start"]
 IkControlMode = Literal["position", "pose", "pose_tip_priority"]
-GeometryProfile = Literal["single", "round_square", "square_square", "mixed_basic"]
+GeometryProfile = Literal[
+    "single",
+    "round_round",
+    "round_square",
+    "square_square",
+    "hex_hex",
+    "triangle_triangle",
+    "slot_slot",
+    "rectangular_key",
+    "mixed_basic",
+    "mixed_same_shape",
+]
 DomainRandomizationLevel = Literal[
     "none",
     "visual",
@@ -57,10 +68,24 @@ INITIALIZATION_MODES = (
 
 GEOMETRY_PROFILES = (
     "single",
+    "round_round",
     "round_square",
     "square_square",
+    "hex_hex",
+    "triangle_triangle",
+    "slot_slot",
+    "rectangular_key",
     "mixed_basic",
+    "mixed_same_shape",
 )
+
+PRIMARY_HOLE_WALL_NAMES = ("hole_north", "hole_south", "hole_east", "hole_west")
+OPTIONAL_HOLE_WALL_NAMES = tuple(f"hole_aux_{index}" for index in range(8))
+ALL_HOLE_WALL_NAMES = PRIMARY_HOLE_WALL_NAMES + OPTIONAL_HOLE_WALL_NAMES
+POLYGONAL_PEG_MESH_NAMES = {
+    "hex": "peg_hex_mesh",
+    "triangle": "peg_triangle_mesh",
+}
 
 
 @dataclass(frozen=True)
@@ -71,6 +96,9 @@ class GeometrySpec:
     hole_half_size: float
     peg_radius: float
     peg_half_extents: tuple[float, float, float] | None = None
+    hole_half_extents: tuple[float, float] | None = None
+    hole_polygon_sides: int | None = None
+    peg_mesh_name: str | None = None
 
     @property
     def hole_clearance(self) -> float:
@@ -125,10 +153,7 @@ class PegInHoleMujocoEnv(gym.Env):
         "floor",
         "table_top",
         "hole_plate",
-        "hole_north",
-        "hole_south",
-        "hole_east",
-        "hole_west",
+        *ALL_HOLE_WALL_NAMES,
     }
     CONTROL_STATE_DIM = 10
 
@@ -434,10 +459,24 @@ class PegInHoleMujocoEnv(gym.Env):
             raise RuntimeError("hole_body must be a mocap body.")
         self.table_geom_id = self._geom_id("table_top")
         self.peg_geom_id = self._geom_id("peg_geom")
-        self.hole_wall_geom_ids = {
-            name: self._geom_id(name)
-            for name in ("hole_north", "hole_south", "hole_east", "hole_west")
-        }
+        self.hole_wall_geom_ids = {}
+        for name in ALL_HOLE_WALL_NAMES:
+            geom_id = self._maybe_named_id(mujoco.mjtObj.mjOBJ_GEOM, name)
+            if geom_id is not None:
+                self.hole_wall_geom_ids[name] = geom_id
+        missing_primary_walls = [
+            name for name in PRIMARY_HOLE_WALL_NAMES if name not in self.hole_wall_geom_ids
+        ]
+        if missing_primary_walls:
+            raise RuntimeError(
+                "MuJoCo model is missing required hole wall geoms: "
+                + ", ".join(missing_primary_walls)
+            )
+        self.peg_mesh_ids = {}
+        for shape, mesh_name in POLYGONAL_PEG_MESH_NAMES.items():
+            mesh_id = self._maybe_named_id(mujoco.mjtObj.mjOBJ_MESH, mesh_name)
+            if mesh_id is not None:
+                self.peg_mesh_ids[shape] = mesh_id
         self.contact_geom_ids = np.asarray(
             [
                 self.table_geom_id,
@@ -453,11 +492,21 @@ class PegInHoleMujocoEnv(gym.Env):
         self.base_geom_pos = self.model.geom_pos.copy()
         self.base_geom_size = self.model.geom_size.copy()
         self.base_geom_type = self.model.geom_type.copy()
+        self.base_geom_dataid = self.model.geom_dataid.copy()
         self.base_geom_quat = self.model.geom_quat.copy()
+        self.base_geom_rbound = self.model.geom_rbound.copy()
+        self.base_geom_contype = self.model.geom_contype.copy()
+        self.base_geom_conaffinity = self.model.geom_conaffinity.copy()
         self.base_geom_friction = self.model.geom_friction.copy()
         self.base_geom_solref = self.model.geom_solref.copy()
         self.base_geom_solimp = self.model.geom_solimp.copy()
         self.base_site_pos = self.model.site_pos.copy()
+        reference_wall_id = self.hole_wall_geom_ids["hole_north"]
+        self.active_hole_wall_contype = int(self.base_geom_contype[reference_wall_id])
+        self.active_hole_wall_conaffinity = int(
+            self.base_geom_conaffinity[reference_wall_id]
+        )
+        self.active_hole_wall_rgba = self.base_geom_rgba[reference_wall_id].copy()
         self.base_hole_half_size = self._infer_base_hole_half_size()
         self.base_peg_radius = float(self.base_geom_size[self.peg_geom_id, 0])
         self.base_peg_half_length = self._infer_base_peg_half_length()
@@ -750,6 +799,12 @@ class PegInHoleMujocoEnv(gym.Env):
             raise RuntimeError(f"MuJoCo object not found: {name}")
         return int(obj_id)
 
+    def _maybe_named_id(self, obj_type: mujoco.mjtObj, name: str) -> int | None:
+        obj_id = mujoco.mj_name2id(self.model, obj_type, name)
+        if obj_id < 0:
+            return None
+        return int(obj_id)
+
     def _infer_base_hole_half_size(self) -> float:
         north_id = self.hole_wall_geom_ids["hole_north"]
         east_id = self.hole_wall_geom_ids["hole_east"]
@@ -782,13 +837,18 @@ class PegInHoleMujocoEnv(gym.Env):
         hole_half_size: float,
         peg_radius: float,
         peg_half_extents: tuple[float, float, float] | None = None,
+        hole_half_extents: tuple[float, float] | None = None,
+        hole_polygon_sides: int | None = None,
+        peg_mesh_name: str | None = None,
     ) -> GeometrySpec:
-        if peg_shape == "square" and peg_half_extents is None:
+        if peg_shape in ("square", "slot", "rectangular_key") and peg_half_extents is None:
             peg_half_extents = (
                 float(peg_radius),
                 float(peg_radius),
                 float(self.base_peg_half_length),
             )
+        if hole_half_extents is None and hole_shape in ("square", "slot", "rectangular_key"):
+            hole_half_extents = (float(hole_half_size), float(hole_half_size))
         return GeometrySpec(
             name=name,
             peg_shape=peg_shape,
@@ -796,6 +856,9 @@ class PegInHoleMujocoEnv(gym.Env):
             hole_half_size=float(hole_half_size),
             peg_radius=float(peg_radius),
             peg_half_extents=peg_half_extents,
+            hole_half_extents=hole_half_extents,
+            hole_polygon_sides=hole_polygon_sides,
+            peg_mesh_name=peg_mesh_name,
         )
 
     def _sample_geometry_spec(self, *, randomize_sizes: bool) -> GeometrySpec:
@@ -805,6 +868,19 @@ class PegInHoleMujocoEnv(gym.Env):
                 "square_square"
                 if self.np_random.random() < self.geometry_mixed_square_probability
                 else "round_square"
+            )
+        elif profile == "mixed_same_shape":
+            profile = str(
+                self.np_random.choice(
+                    [
+                        "round_round",
+                        "square_square",
+                        "hex_hex",
+                        "triangle_triangle",
+                        "slot_slot",
+                        "rectangular_key",
+                    ]
+                )
             )
 
         hole_half_size = (
@@ -822,6 +898,12 @@ class PegInHoleMujocoEnv(gym.Env):
             if randomize_sizes
             else min(self.base_peg_radius, self.base_hole_half_size * 0.8)
         )
+        slot_peg_half_short = square_peg_half_size
+        slot_peg_half_long = slot_peg_half_short * 2.2
+        key_peg_half_short = square_peg_half_size
+        key_peg_half_long = key_peg_half_short * 1.55
+        slot_hole_half_extents = (hole_half_size * 2.2, hole_half_size)
+        key_hole_half_extents = (hole_half_size * 1.55, hole_half_size)
 
         if profile in ("single", "round_square"):
             return self._make_geometry_spec(
@@ -831,6 +913,15 @@ class PegInHoleMujocoEnv(gym.Env):
                 hole_half_size=hole_half_size,
                 peg_radius=round_peg_radius,
             )
+        if profile == "round_round":
+            return self._make_geometry_spec(
+                name="round_round",
+                peg_shape="round",
+                hole_shape="round",
+                hole_half_size=hole_half_size,
+                peg_radius=round_peg_radius,
+                hole_polygon_sides=12,
+            )
         if profile == "square_square":
             return self._make_geometry_spec(
                 name="square_square",
@@ -838,6 +929,54 @@ class PegInHoleMujocoEnv(gym.Env):
                 hole_shape="square",
                 hole_half_size=hole_half_size,
                 peg_radius=square_peg_half_size,
+            )
+        if profile == "hex_hex":
+            return self._make_geometry_spec(
+                name="hex_hex",
+                peg_shape="hex",
+                hole_shape="hex",
+                hole_half_size=hole_half_size,
+                peg_radius=self.base_peg_radius,
+                hole_polygon_sides=6,
+                peg_mesh_name=POLYGONAL_PEG_MESH_NAMES["hex"],
+            )
+        if profile == "triangle_triangle":
+            return self._make_geometry_spec(
+                name="triangle_triangle",
+                peg_shape="triangle",
+                hole_shape="triangle",
+                hole_half_size=hole_half_size,
+                peg_radius=self.base_peg_radius,
+                hole_polygon_sides=3,
+                peg_mesh_name=POLYGONAL_PEG_MESH_NAMES["triangle"],
+            )
+        if profile == "slot_slot":
+            return self._make_geometry_spec(
+                name="slot_slot",
+                peg_shape="slot",
+                hole_shape="slot",
+                hole_half_size=hole_half_size,
+                peg_radius=slot_peg_half_short,
+                peg_half_extents=(
+                    slot_peg_half_long,
+                    slot_peg_half_short,
+                    float(self.base_peg_half_length),
+                ),
+                hole_half_extents=slot_hole_half_extents,
+            )
+        if profile == "rectangular_key":
+            return self._make_geometry_spec(
+                name="rectangular_key_rectangular_key",
+                peg_shape="rectangular_key",
+                hole_shape="rectangular_key",
+                hole_half_size=hole_half_size,
+                peg_radius=key_peg_half_short,
+                peg_half_extents=(
+                    key_peg_half_long,
+                    key_peg_half_short,
+                    float(self.base_peg_half_length),
+                ),
+                hole_half_extents=key_hole_half_extents,
             )
         raise ValueError(f"unsupported geometry profile: {profile}")
 
@@ -847,17 +986,44 @@ class PegInHoleMujocoEnv(gym.Env):
 
         if spec.peg_shape == "round":
             self.model.geom_type[self.peg_geom_id] = self.base_geom_type[self.peg_geom_id]
+            self.model.geom_dataid[self.peg_geom_id] = self.base_geom_dataid[self.peg_geom_id]
             self.model.geom_size[self.peg_geom_id] = self.base_geom_size[self.peg_geom_id]
             self.model.geom_size[self.peg_geom_id, 0] = spec.peg_radius
+            self.model.geom_rbound[self.peg_geom_id] = max(
+                self.base_geom_rbound[self.peg_geom_id],
+                float(np.hypot(spec.peg_radius, self.base_peg_half_length)),
+            )
             return
 
-        if spec.peg_shape == "square":
+        if spec.peg_shape in ("square", "slot", "rectangular_key"):
             if spec.peg_half_extents is None:
-                raise ValueError("square peg geometry requires peg_half_extents.")
+                raise ValueError(f"{spec.peg_shape} peg geometry requires peg_half_extents.")
             self.model.geom_type[self.peg_geom_id] = int(mujoco.mjtGeom.mjGEOM_BOX)
+            self.model.geom_dataid[self.peg_geom_id] = -1
             self.model.geom_size[self.peg_geom_id] = np.asarray(
                 spec.peg_half_extents,
                 dtype=np.float64,
+            )
+            hx, hy, hz = (float(v) for v in spec.peg_half_extents)
+            self.model.geom_rbound[self.peg_geom_id] = max(
+                self.base_geom_rbound[self.peg_geom_id],
+                float(np.sqrt(hx * hx + hy * hy + hz * hz)),
+            )
+            return
+
+        if spec.peg_shape in POLYGONAL_PEG_MESH_NAMES:
+            mesh_id = self.peg_mesh_ids.get(spec.peg_shape)
+            if mesh_id is None:
+                raise RuntimeError(
+                    f"MuJoCo model is missing mesh asset for {spec.peg_shape} peg: "
+                    f"{POLYGONAL_PEG_MESH_NAMES[spec.peg_shape]}"
+                )
+            self.model.geom_type[self.peg_geom_id] = int(mujoco.mjtGeom.mjGEOM_MESH)
+            self.model.geom_dataid[self.peg_geom_id] = mesh_id
+            self.model.geom_size[self.peg_geom_id] = self.base_geom_size[self.peg_geom_id]
+            self.model.geom_rbound[self.peg_geom_id] = max(
+                self.base_geom_rbound[self.peg_geom_id],
+                float(np.hypot(0.026, self.base_peg_half_length)),
             )
             return
 
@@ -871,9 +1037,6 @@ class PegInHoleMujocoEnv(gym.Env):
         fixture_height_offset: float,
         table_height_offset: float,
     ) -> None:
-        if spec.hole_shape != "square":
-            raise ValueError(f"unsupported hole shape: {spec.hole_shape}")
-
         self.current_geometry_spec = spec
         self.current_hole_half_size = spec.hole_half_size
         self.current_peg_radius = spec.peg_radius
@@ -891,7 +1054,7 @@ class PegInHoleMujocoEnv(gym.Env):
         self.model.geom_pos[self.table_geom_id] = table_pos
 
         self._apply_peg_geometry(spec)
-        self._set_hole_opening_geometry(self.current_hole_center_offset, spec.hole_half_size)
+        self._set_hole_opening_geometry(spec, self.current_hole_center_offset)
 
         target_offset = np.asarray(
             [
@@ -1104,8 +1267,9 @@ class PegInHoleMujocoEnv(gym.Env):
         hole_color = self.np_random.uniform(0.25, 0.85, size=3)
         table_color = self.np_random.uniform(0.15, 0.55, size=3)
         peg_color = self.np_random.uniform(0.1, 0.9, size=3)
-        for name in ("hole_plate", "hole_north", "hole_south", "hole_east", "hole_west"):
-            self.model.geom_rgba[self._geom_id(name), :3] = hole_color
+        self.model.geom_rgba[self._geom_id("hole_plate"), :3] = hole_color
+        for geom_id in self.hole_wall_geom_ids.values():
+            self.model.geom_rgba[geom_id, :3] = hole_color
         self.model.geom_rgba[self._geom_id("table_top"), :3] = table_color
         self.model.geom_rgba[self._geom_id("peg_geom"), :3] = peg_color
         self.model.light_diffuse[:, :3] = self.np_random.uniform(0.45, 1.05, size=(self.model.nlight, 3))
@@ -1136,7 +1300,11 @@ class PegInHoleMujocoEnv(gym.Env):
         self.model.geom_pos[:] = self.base_geom_pos
         self.model.geom_size[:] = self.base_geom_size
         self.model.geom_type[:] = self.base_geom_type
+        self.model.geom_dataid[:] = self.base_geom_dataid
         self.model.geom_quat[:] = self.base_geom_quat
+        self.model.geom_rbound[:] = self.base_geom_rbound
+        self.model.geom_contype[:] = self.base_geom_contype
+        self.model.geom_conaffinity[:] = self.base_geom_conaffinity
         self.model.geom_friction[:] = self.base_geom_friction
         self.model.geom_solref[:] = self.base_geom_solref
         self.model.geom_solimp[:] = self.base_geom_solimp
@@ -1297,37 +1465,176 @@ class PegInHoleMujocoEnv(gym.Env):
             table_height_offset=table_height_offset,
         )
 
-    def _set_hole_opening_geometry(
+    @staticmethod
+    def _yaw_quat(yaw: float) -> np.ndarray:
+        half_yaw = 0.5 * float(yaw)
+        return np.asarray([np.cos(half_yaw), 0.0, 0.0, np.sin(half_yaw)], dtype=np.float64)
+
+    def _set_hole_wall_active(self, geom_id: int, active: bool) -> None:
+        if active:
+            self.model.geom_contype[geom_id] = self.active_hole_wall_contype
+            self.model.geom_conaffinity[geom_id] = self.active_hole_wall_conaffinity
+            self.model.geom_rgba[geom_id] = self.active_hole_wall_rgba
+        else:
+            self.model.geom_contype[geom_id] = 0
+            self.model.geom_conaffinity[geom_id] = 0
+            self.model.geom_rgba[geom_id, 3] = 0.0
+
+    def _deactivate_hole_wall(self, name: str) -> None:
+        geom_id = self.hole_wall_geom_ids[name]
+        self._set_hole_wall_active(geom_id, False)
+        self.model.geom_pos[geom_id] = np.asarray([0.0, 0.0, -1.0], dtype=np.float64)
+        self.model.geom_quat[geom_id] = np.asarray([1.0, 0.0, 0.0, 0.0], dtype=np.float64)
+        self.model.geom_size[geom_id] = np.asarray([0.001, 0.001, 0.001], dtype=np.float64)
+        self.model.geom_rbound[geom_id] = 0.002
+
+    def _set_hole_wall_box(
+        self,
+        name: str,
+        center_xy: np.ndarray,
+        *,
+        yaw: float,
+        half_length: float,
+    ) -> None:
+        geom_id = self.hole_wall_geom_ids[name]
+        reference_id = self.hole_wall_geom_ids["hole_north"]
+        half_thickness = float(self.base_geom_size[reference_id, 1])
+        half_height = float(self.base_geom_size[reference_id, 2])
+        z_pos = float(self.base_geom_pos[reference_id, 2])
+
+        self.model.geom_type[geom_id] = int(mujoco.mjtGeom.mjGEOM_BOX)
+        self.model.geom_dataid[geom_id] = -1
+        self.model.geom_pos[geom_id] = np.asarray(
+            [float(center_xy[0]), float(center_xy[1]), z_pos],
+            dtype=np.float64,
+        )
+        self.model.geom_quat[geom_id] = self._yaw_quat(yaw)
+        self.model.geom_size[geom_id] = np.asarray(
+            [max(float(half_length), 0.001), half_thickness, half_height],
+            dtype=np.float64,
+        )
+        self.model.geom_rbound[geom_id] = max(
+            self.base_geom_rbound[geom_id],
+            float(np.sqrt((max(float(half_length), 0.001) ** 2) + half_thickness**2 + half_height**2)),
+        )
+        self._set_hole_wall_active(geom_id, True)
+
+    def _set_rectangular_hole_geometry(
         self,
         center_xy: np.ndarray,
-        half_size: float,
+        half_extents: tuple[float, float],
+    ) -> set[str]:
+        center_x, center_y = (float(center_xy[0]), float(center_xy[1]))
+        half_x, half_y = (float(half_extents[0]), float(half_extents[1]))
+        reference_id = self.hole_wall_geom_ids["hole_north"]
+        wall_thickness = float(self.base_geom_size[reference_id, 1])
+        used = {"hole_north", "hole_south", "hole_east", "hole_west"}
+
+        self._set_hole_wall_box(
+            "hole_north",
+            np.asarray([center_x, center_y + half_y + wall_thickness], dtype=np.float64),
+            yaw=0.0,
+            half_length=half_x + wall_thickness,
+        )
+        self._set_hole_wall_box(
+            "hole_south",
+            np.asarray([center_x, center_y - half_y - wall_thickness], dtype=np.float64),
+            yaw=0.0,
+            half_length=half_x + wall_thickness,
+        )
+        self._set_hole_wall_box(
+            "hole_east",
+            np.asarray([center_x + half_x + wall_thickness, center_y], dtype=np.float64),
+            yaw=0.5 * np.pi,
+            half_length=half_y + wall_thickness,
+        )
+        self._set_hole_wall_box(
+            "hole_west",
+            np.asarray([center_x - half_x - wall_thickness, center_y], dtype=np.float64),
+            yaw=0.5 * np.pi,
+            half_length=half_y + wall_thickness,
+        )
+        return used
+
+    def _set_polygon_hole_geometry(
+        self,
+        center_xy: np.ndarray,
+        *,
+        apothem: float,
+        sides: int,
+    ) -> set[str]:
+        available_names = list(self.hole_wall_geom_ids)
+        if sides > len(available_names):
+            raise RuntimeError(
+                f"{sides}-sided hole requires at least {sides} wall geoms; "
+                f"model only provides {len(available_names)}."
+            )
+        reference_id = self.hole_wall_geom_ids["hole_north"]
+        wall_thickness = float(self.base_geom_size[reference_id, 1])
+        radius = float(apothem) / np.cos(np.pi / float(sides))
+        vertices = []
+        for index in range(sides):
+            angle = 0.5 * np.pi + np.pi / float(sides) + 2.0 * np.pi * index / float(sides)
+            vertices.append(
+                np.asarray(
+                    [
+                        float(center_xy[0]) + radius * np.cos(angle),
+                        float(center_xy[1]) + radius * np.sin(angle),
+                    ],
+                    dtype=np.float64,
+                )
+            )
+
+        used: set[str] = set()
+        for index in range(sides):
+            wall_name = available_names[index]
+            start = vertices[index]
+            end = vertices[(index + 1) % sides]
+            edge = end - start
+            edge_length = float(np.linalg.norm(edge))
+            if edge_length <= 1e-9:
+                continue
+            outward = np.asarray([edge[1], -edge[0]], dtype=np.float64) / edge_length
+            center = 0.5 * (start + end) + outward * wall_thickness
+            yaw = float(np.arctan2(edge[1], edge[0]))
+            self._set_hole_wall_box(
+                wall_name,
+                center,
+                yaw=yaw,
+                half_length=0.5 * edge_length + wall_thickness,
+            )
+            used.add(wall_name)
+        return used
+
+    def _set_hole_opening_geometry(
+        self,
+        spec: GeometrySpec,
+        center_xy: np.ndarray,
     ) -> None:
-        center_x, center_y = center_xy
-        north_id = self.hole_wall_geom_ids["hole_north"]
-        south_id = self.hole_wall_geom_ids["hole_south"]
-        east_id = self.hole_wall_geom_ids["hole_east"]
-        west_id = self.hole_wall_geom_ids["hole_west"]
+        if spec.hole_shape == "square":
+            used = self._set_rectangular_hole_geometry(
+                center_xy,
+                spec.hole_half_extents or (spec.hole_half_size, spec.hole_half_size),
+            )
+        elif spec.hole_shape in ("slot", "rectangular_key"):
+            if spec.hole_half_extents is None:
+                raise ValueError(f"{spec.hole_shape} hole requires hole_half_extents.")
+            used = self._set_rectangular_hole_geometry(center_xy, spec.hole_half_extents)
+        elif spec.hole_shape in ("round", "hex", "triangle"):
+            sides = spec.hole_polygon_sides
+            if sides is None:
+                raise ValueError(f"{spec.hole_shape} hole requires hole_polygon_sides.")
+            used = self._set_polygon_hole_geometry(
+                center_xy,
+                apothem=spec.hole_half_size,
+                sides=sides,
+            )
+        else:
+            raise ValueError(f"unsupported hole shape: {spec.hole_shape}")
 
-        north_pos = self.base_geom_pos[north_id].copy()
-        south_pos = self.base_geom_pos[south_id].copy()
-        east_pos = self.base_geom_pos[east_id].copy()
-        west_pos = self.base_geom_pos[west_id].copy()
-
-        north_pos[0] = center_x
-        north_pos[1] = center_y + half_size + self.base_geom_size[north_id, 1]
-        south_pos[0] = center_x
-        south_pos[1] = center_y - half_size - self.base_geom_size[south_id, 1]
-        east_pos[0] = center_x + half_size + self.base_geom_size[east_id, 0]
-        east_pos[1] = center_y
-        west_pos[0] = center_x - half_size - self.base_geom_size[west_id, 0]
-        west_pos[1] = center_y
-
-        self.model.geom_pos[north_id] = north_pos
-        self.model.geom_pos[south_id] = south_pos
-        self.model.geom_pos[east_id] = east_pos
-        self.model.geom_pos[west_id] = west_pos
-        self.model.geom_size[east_id, 1] = half_size
-        self.model.geom_size[west_id, 1] = half_size
+        for name in self.hole_wall_geom_ids:
+            if name not in used:
+                self._deactivate_hole_wall(name)
 
         site_pos = self.base_site_pos[self.hole_site_id].copy()
         site_pos[:2] = center_xy
@@ -1508,7 +1815,7 @@ class PegInHoleMujocoEnv(gym.Env):
 
     def _square_peg_orientation_metrics(self, data: mujoco.MjData) -> dict[str, float]:
         spec = self.current_geometry_spec
-        if spec.peg_shape != "square" or spec.peg_half_extents is None:
+        if spec.peg_shape not in ("square", "slot", "rectangular_key") or spec.peg_half_extents is None:
             return {
                 "square_peg_raw_yaw_deg": np.nan,
                 "square_peg_yaw_error_deg": np.nan,
@@ -1893,14 +2200,8 @@ class PegInHoleMujocoEnv(gym.Env):
         return pairs
 
     def _peg_hole_contact_metrics(self) -> dict[str, Any]:
-        contact_names = (
-            "hole_plate",
-            "hole_north",
-            "hole_south",
-            "hole_east",
-            "hole_west",
-        )
-        wall_names = ("hole_north", "hole_south", "hole_east", "hole_west")
+        wall_names = tuple(self.hole_wall_geom_ids)
+        contact_names = ("hole_plate", *wall_names)
         counts = {name: 0 for name in contact_names}
         pairs: list[str] = []
         dists: list[float] = []
@@ -1925,7 +2226,7 @@ class PegInHoleMujocoEnv(gym.Env):
         wall_count = sum(counts[name] for name in wall_names)
         plate_count = counts["hole_plate"]
         contact_count = wall_count + plate_count
-        return {
+        metrics = {
             "peg_hole_contact_count": contact_count,
             "peg_hole_contact_pairs": ";".join(pairs[:8]),
             "peg_hole_contact_wall_count": wall_count,
@@ -1937,9 +2238,13 @@ class PegInHoleMujocoEnv(gym.Env):
             "peg_hole_contact_hole_south": counts["hole_south"],
             "peg_hole_contact_hole_east": counts["hole_east"],
             "peg_hole_contact_hole_west": counts["hole_west"],
+            "peg_hole_contact_hole_aux_total": sum(
+                counts[name] for name in wall_names if name.startswith("hole_aux_")
+            ),
             "peg_hole_contact_min_dist": min(dists) if dists else np.nan,
             "peg_hole_contact_max_dist": max(dists) if dists else np.nan,
         }
+        return metrics
 
     def _geom_name(self, geom_id: int) -> str:
         return mujoco.mj_id2name(self.model, mujoco.mjtObj.mjOBJ_GEOM, geom_id) or ""
@@ -2158,6 +2463,16 @@ class PegInHoleMujocoEnv(gym.Env):
                 np.asarray(self.current_geometry_spec.peg_half_extents, dtype=np.float32)
                 if self.current_geometry_spec.peg_half_extents is not None
                 else np.zeros(3, dtype=np.float32)
+            ),
+            "hole_half_extents": (
+                np.asarray(self.current_geometry_spec.hole_half_extents, dtype=np.float32)
+                if self.current_geometry_spec.hole_half_extents is not None
+                else np.zeros(2, dtype=np.float32)
+            ),
+            "hole_polygon_sides": (
+                int(self.current_geometry_spec.hole_polygon_sides)
+                if self.current_geometry_spec.hole_polygon_sides is not None
+                else 0
             ),
             **square_peg_metrics,
             "contact_friction_multiplier": self.current_contact_friction_multiplier,

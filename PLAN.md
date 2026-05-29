@@ -13,7 +13,7 @@ The current branch is now split into two tracks:
 - `feature/control-state-observation`: the stabilized single-geometry high-start controller baseline.
 - `feature/multi-geometry`: the active candidate branch for geometry generalization.
 
-The immediate objective on `feature/multi-geometry` is to keep the single-geometry baseline intact while adding a conservative multi-geometry scaffold. Runtime geometry selection (`single`, `round_square`, `square_square`, `mixed_basic`) is working. The current near-term focus is making single-policy, single-controller high-start insertion stable across those profiles before collecting larger multi-geometry training datasets.
+The immediate objective on `feature/multi-geometry` is to keep the single-geometry baseline intact while adding a conservative multi-geometry scaffold. Legacy runtime geometry selection (`single`, `round_square`, `square_square`, `mixed_basic`) is working, and the new same-shape scaffold now adds `round_round`, `hex_hex`, `triangle_triangle`, `slot_slot`, `rectangular_key`, and `mixed_same_shape`. The current near-term focus is making single-policy, single-controller high-start insertion stable across the same-shape profiles before collecting larger multi-geometry training datasets.
 
 ## Current Branch And Remote
 
@@ -30,7 +30,9 @@ The immediate objective on `feature/multi-geometry` is to keep the single-geomet
 Implemented so far:
 
 - `PegInHoleMujocoEnv` now accepts `geometry_profile`.
-- The env can sample/apply `single`, `round_square`, `square_square`, and `mixed_basic`.
+- The env can sample/apply legacy profiles `single`, `round_square`, `square_square`, and `mixed_basic`.
+- Same-shape profiles are scaffolded: `round_round`, `hex_hex`, `triangle_triangle`, `slot_slot`, `rectangular_key`, and `mixed_same_shape`.
+- The full, adapter, and lightweight XMLs now include polygonal peg mesh assets for `hex`/`triangle` and default-off auxiliary hole wall geoms for polygonal openings.
 - Runtime peg geometry switching is working on the full UR5e XML.
 - `scripts\train_sac.py`, `scripts\demo_policy.py`, `scripts\eval_guarded_policy.py`, and `scripts\run_policy_inference.py` accept the new geometry args.
 - `scripts\collect_image_expert_dataset.py`, `scripts\collect_image_correction_dataset.py`, `scripts\pretrain_image_actor_bc.py`, and `scripts\pretrain_image_actor_bc_weighted.py` now accept the new geometry args.
@@ -43,6 +45,11 @@ Implemented so far:
   - sampled geometry: `square_square`
   - `1/1` success on the 1-episode guarded smoke
   - this confirms runtime peg shape switching is working on the full UR5e XML
+- Same-shape scaffold smoke:
+  - reset/render/step smoke passed for `round_round`, `hex_hex`, `triangle_triangle`, `slot_slot`, `rectangular_key`, and `mixed_same_shape`.
+  - v0.7.4 guarded recipe 1ep/profile smoke on seed `880000`: `round_round=1/1`, `hex_hex=0/1 timeout`, `triangle_triangle=0/1 timeout`, `slot_slot=1/1`, `rectangular_key=1/1`.
+  - result directory: `D:\peg-in-hole-6yh\v80_same_shape_geometry_scaffold_smoke`.
+  - interpretation: the scaffold is runnable, but `hex_hex` and `triangle_triangle` need targeted baseline/easy-curriculum work before they should enter large mixed training.
 - Small matrix result:
   - `mixed_basic`, 8 episodes, seed `612000`: `0.750/0.000/0.250`
   - `round_square`, 8 episodes, seed `612000`: `0.875/0.000/0.125`

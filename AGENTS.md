@@ -59,11 +59,14 @@ The current focus is:
   - current full UR5e guarded blend: `1.0`
 - Multi-geometry status:
   - `PegInHoleMujocoEnv` now supports `geometry_profile`.
-  - Supported profiles are `single`, `round_square`, `square_square`, and `mixed_basic`.
+  - Legacy supported profiles are `single`, `round_square`, `square_square`, and `mixed_basic`.
+  - Same-shape scaffold profiles are `round_round`, `hex_hex`, `triangle_triangle`, `slot_slot`, `rectangular_key`, and `mixed_same_shape`.
+  - XML task assets now include default-off auxiliary hole walls and hex/triangle peg mesh assets. The new profile scaffold is runnable, but `hex_hex` and `triangle_triangle` are not solved yet.
   - Keep `single` as the default path unless an experiment explicitly overrides it.
   - This branch is now the active candidate for geometry generalization, while the stabilized single-geometry controller work remains a useful baseline.
   - Expert/correction dataset collection and BC pretraining scripts accept the same geometry args.
   - Dataset files now record `geometry_profile`, `geometry_name`, `peg_shape`, and `hole_shape`; use those arrays to debug multi-geometry balance.
+  - Same-shape v0.7.4 guarded recipe 1ep/profile smoke on seed `880000`: `round_round=1/1`, `hex_hex=0/1 timeout`, `triangle_triangle=0/1 timeout`, `slot_slot=1/1`, `rectangular_key=1/1`. Result directory: `D:\peg-in-hole-6yh\v80_same_shape_geometry_scaffold_smoke`.
   - Baseline strictstable49 20ep profile check before split-servo recovery: `single=0.95`, `round_square=0.95`, `square_square=0.85`, `mixed_basic=0.95`, all with zero collisions. Treat `square_square` final insertion stability as the first multi-geometry bottleneck.
   - Direct multi-geometry expert collection is not ready for 50k scaling: staged oracle had 0 success in a 1k pilot, guarded-two-stage oracle reached only 1 success / 1 collision in a 512-sample pilot. Prefer policy-visited correction data or a guarded-deployment teacher before large collection.
   - Policy-visited correction data path is now validated for multi-geometry. `square_square` and `mixed_basic` insert-settle smoke configs collect clean timeout-window samples and record geometry labels correctly.

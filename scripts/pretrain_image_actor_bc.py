@@ -70,7 +70,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--geometry-peg-radius-range", nargs=2, type=float, default=(0.0115, 0.0125))
     parser.add_argument(
         "--geometry-profile",
-        choices=["single", "round_square", "square_square", "mixed_basic"],
+        choices=[
+            "single",
+            "round_round",
+            "round_square",
+            "square_square",
+            "hex_hex",
+            "triangle_triangle",
+            "slot_slot",
+            "rectangular_key",
+            "mixed_basic",
+            "mixed_same_shape",
+        ],
         default="single",
     )
     parser.add_argument("--geometry-square-peg-half-size-range", nargs=2, type=float, default=(0.0105, 0.0125))
