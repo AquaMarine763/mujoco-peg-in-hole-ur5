@@ -1,6 +1,6 @@
 # Project Plan And Status
 
-Last updated: 2026-05-28
+Last updated: 2026-05-29
 
 This file records the current project status, known metrics, and next planned steps. Keep it current when a milestone changes.
 
@@ -21,8 +21,9 @@ The immediate objective on `feature/multi-geometry` is to keep the single-geomet
 - Base candidate branch: `feature/multi-geometry`
 - Remote: `https://github.com/AquaMarine763/mujoco-peg-in-hole-ur5.git`
 - Latest local single-geometry milestone: `v0.6.50-single-geometry` / `4a0f65f Promote strict single-geometry high-start baseline`
-- Latest pushed multi-geometry milestone: `v0.7.0-multi-geometry-split-servo`
+- Latest pushed multi-geometry milestone: `v0.7.4-v8-adapter-finalstart100`
 - Latest local multi-geometry boundary milestone: `v0.7.2-early-final-servo-boundary`
+- Latest promoted contact-aware approach milestone: `v0.7.4-v8-adapter-finalstart100`
 
 ## Multi-Geometry Branch Status
 
@@ -3435,8 +3436,8 @@ Interpretation:
   - This is the first learner-side approach-adapter path that matches the v50 early-assist matrix on the tested seeds without enabling v50 early assist.
   - The mechanism is not pure policy-only insertion; the guarded final-servo stack still performs final insertion.
   - The stronger fresh-seed recipe is adapter plus earlier final-servo handoff, not adapter-only learning.
-  - The controller/eval recipe is now strong enough for a candidate tag.
-  - Next step should tag the code+artifact recipe and optionally mirror the checkpoint as a GitHub release asset.
+  - The code+artifact recipe is promoted as `v0.7.4-v8-adapter-finalstart100`.
+  - Optional follow-up: mirror the checkpoint as a GitHub release asset if GitHub asset distribution becomes preferable to keeping the compact adapter in the repository.
 
 ## Key Commands
 

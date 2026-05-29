@@ -7523,6 +7523,11 @@ profiles and crop offsets.
 
 Current adapter v8 latched-gate candidate:
 
+Promoted tag for the current packaged recipe: `v0.7.4-v8-adapter-finalstart100`.
+This tag corresponds to v8 latch220 plus `--guard-final-servo-start-z 0.100`;
+the full five-seed profile/offset matrix passed `600/600` with zero collision
+and zero timeout.
+
 ```powershell
 $out = "D:\peg-in-hole-6yh\v64_adapter_latch_probe"
 $adapter = "D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"
