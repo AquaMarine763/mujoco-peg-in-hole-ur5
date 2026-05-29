@@ -7681,3 +7681,50 @@ python scripts\eval_guarded_policy.py `
   --episode-output-csv "$out\eval_adapter_v8_latch220_finalstart100_mixed_basic_m18_seed646000_10ep_episodes.csv" `
   --step-output-csv "$out\eval_adapter_v8_latch220_finalstart100_mixed_basic_m18_seed646000_10ep_failure_steps.csv"
 ```
+
+## Same-Shape Geometry Scaffold Smoke
+
+Current fixed same-shape scaffold result:
+
+- Result directory: `D:\peg-in-hole-6yh\v91_same_shape_geometry_fixed_smoke`
+- Seed: `880000`
+- Profiles: `round_round=1/1`, `hex_hex=1/1`, `triangle_triangle=1/1`, `slot_slot=1/1`, `rectangular_key=1/1`
+- Collision/timeout: `0/0` for all five 1-episode smoke runs
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v91_same_shape_geometry_fixed_smoke"
+$adapter = "assets\approach_adapters\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"
+if (-not (Test-Path $adapter)) {
+  $adapter = "D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"
+}
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($profile in "hex_hex","triangle_triangle","round_round","slot_slot","rectangular_key") {
+  python -B scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml `
+    --episodes 1 `
+    --seed 880000 `
+    --geometry-profile $profile `
+    --approach-adapter $adapter `
+    --approach-adapter-enabled `
+    --approach-adapter-trigger-xy 0.06 `
+    --approach-adapter-release-xy 0.03 `
+    --approach-adapter-min-z 0.12 `
+    --approach-adapter-max-z 0.27 `
+    --approach-adapter-latch-enabled `
+    --approach-adapter-latched-min-z 0.08 `
+    --approach-adapter-max-steps 220 `
+    --approach-adapter-mode override_xy `
+    --approach-adapter-max-xy-residual 0.003 `
+    --guard-final-servo-start-z 0.100 `
+    --output-csv "$out\eval_${profile}_1ep.csv" `
+    --output-md "$out\eval_${profile}_1ep.md" `
+    --episode-output-csv "$out\eval_${profile}_1ep_episodes.csv" `
+    --step-output-csv "$out\eval_${profile}_1ep_steps.csv"
+}
+```
+
+Notes:
+
+- `triangle_triangle` currently uses a scaffold/easy-curriculum hole floor of `2.2 * peg_radius`.
+- The next validation should be a multi-seed same-shape matrix before collecting large balanced same-shape datasets.

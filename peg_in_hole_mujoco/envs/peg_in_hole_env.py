@@ -86,6 +86,7 @@ POLYGONAL_PEG_MESH_NAMES = {
     "hex": "peg_hex_mesh",
     "triangle": "peg_triangle_mesh",
 }
+TRIANGLE_HOLE_HALF_SIZE_FLOOR_MULTIPLIER = 2.2
 
 
 @dataclass(frozen=True)
@@ -941,11 +942,15 @@ class PegInHoleMujocoEnv(gym.Env):
                 peg_mesh_name=POLYGONAL_PEG_MESH_NAMES["hex"],
             )
         if profile == "triangle_triangle":
+            triangle_hole_half_size = max(
+                hole_half_size,
+                self.base_peg_radius * TRIANGLE_HOLE_HALF_SIZE_FLOOR_MULTIPLIER,
+            )
             return self._make_geometry_spec(
                 name="triangle_triangle",
                 peg_shape="triangle",
                 hole_shape="triangle",
-                hole_half_size=hole_half_size,
+                hole_half_size=triangle_hole_half_size,
                 peg_radius=self.base_peg_radius,
                 hole_polygon_sides=3,
                 peg_mesh_name=POLYGONAL_PEG_MESH_NAMES["triangle"],
@@ -1601,7 +1606,7 @@ class PegInHoleMujocoEnv(gym.Env):
                 wall_name,
                 center,
                 yaw=yaw,
-                half_length=0.5 * edge_length + wall_thickness,
+                half_length=0.5 * edge_length,
             )
             used.add(wall_name)
         return used

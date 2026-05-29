@@ -2621,7 +2621,13 @@ class GuardedPolicyController:
     ) -> bool:
         if not self.config.guard_final_servo_square_fast_settle_enabled:
             return False
-        if state.peg_shape != "square":
+        if state.peg_shape not in (
+            "square",
+            "hex",
+            "triangle",
+            "slot",
+            "rectangular_key",
+        ):
             return False
         if (
             dist_xy > self.config.guard_final_servo_square_fast_settle_xy_max

@@ -1,6 +1,6 @@
 # Project Plan And Status
 
-Last updated: 2026-05-29
+Last updated: 2026-05-30
 
 This file records the current project status, known metrics, and next planned steps. Keep it current when a milestone changes.
 
@@ -32,7 +32,8 @@ Implemented so far:
 - `PegInHoleMujocoEnv` now accepts `geometry_profile`.
 - The env can sample/apply legacy profiles `single`, `round_square`, `square_square`, and `mixed_basic`.
 - Same-shape profiles are scaffolded: `round_round`, `hex_hex`, `triangle_triangle`, `slot_slot`, `rectangular_key`, and `mixed_same_shape`.
-- The full, adapter, and lightweight XMLs now include polygonal peg mesh assets for `hex`/`triangle` and default-off auxiliary hole wall geoms for polygonal openings.
+- The full, adapter, and lightweight XMLs now include polygonal peg mesh assets for `hex`/`triangle` and default-off auxiliary hole wall geoms for polygonal openings. Polygon peg meshes are scaled to a `12 mm` outer radius and centered around the original peg geom origin so the mesh tip matches the `peg_tip` site.
+- `triangle_triangle` currently uses an easy-curriculum hole floor of `2.2 * peg_radius` because the first box-wall triangular-hole scaffold is too tight under the legacy `14.5 - 19 mm` hole range. Treat this as a scaffold setting to tighten later after a better triangular-hole/chamfer model.
 - Runtime peg geometry switching is working on the full UR5e XML.
 - `scripts\train_sac.py`, `scripts\demo_policy.py`, `scripts\eval_guarded_policy.py`, and `scripts\run_policy_inference.py` accept the new geometry args.
 - `scripts\collect_image_expert_dataset.py`, `scripts\collect_image_correction_dataset.py`, `scripts\pretrain_image_actor_bc.py`, and `scripts\pretrain_image_actor_bc_weighted.py` now accept the new geometry args.
@@ -47,9 +48,10 @@ Implemented so far:
   - this confirms runtime peg shape switching is working on the full UR5e XML
 - Same-shape scaffold smoke:
   - reset/render/step smoke passed for `round_round`, `hex_hex`, `triangle_triangle`, `slot_slot`, `rectangular_key`, and `mixed_same_shape`.
-  - v0.7.4 guarded recipe 1ep/profile smoke on seed `880000`: `round_round=1/1`, `hex_hex=0/1 timeout`, `triangle_triangle=0/1 timeout`, `slot_slot=1/1`, `rectangular_key=1/1`.
-  - result directory: `D:\peg-in-hole-6yh\v80_same_shape_geometry_scaffold_smoke`.
-  - interpretation: the scaffold is runnable, but `hex_hex` and `triangle_triangle` need targeted baseline/easy-curriculum work before they should enter large mixed training.
+  - v0.7.4 guarded recipe 1ep/profile smoke before geometry fixes on seed `880000`: `round_round=1/1`, `hex_hex=0/1 timeout`, `triangle_triangle=0/1 timeout`, `slot_slot=1/1`, `rectangular_key=1/1`. Result directory: `D:\peg-in-hole-6yh\v80_same_shape_geometry_scaffold_smoke`.
+  - current fixed scaffold smoke on seed `880000`: `round_round=1/1`, `hex_hex=1/1`, `triangle_triangle=1/1`, `slot_slot=1/1`, `rectangular_key=1/1`, all zero collision and zero timeout.
+  - result directory: `D:\peg-in-hole-6yh\v91_same_shape_geometry_fixed_smoke`.
+  - interpretation: the same-shape scaffold is now runnable through the current guarded v8 adapter recipe. Do not treat this as solved generalization yet; next work should run multi-seed matrices and then collect balanced same-shape data.
 - Small matrix result:
   - `mixed_basic`, 8 episodes, seed `612000`: `0.750/0.000/0.250`
   - `round_square`, 8 episodes, seed `612000`: `0.875/0.000/0.125`

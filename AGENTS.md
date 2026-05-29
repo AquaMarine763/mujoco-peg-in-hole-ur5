@@ -1,6 +1,6 @@
 # Agent Working Notes
 
-Last updated: 2026-05-28
+Last updated: 2026-05-30
 
 This file records the standing workflow, user preferences, safety rules, and project constraints for future Codex work in this repository. Read this file before making non-trivial changes.
 
@@ -61,12 +61,13 @@ The current focus is:
   - `PegInHoleMujocoEnv` now supports `geometry_profile`.
   - Legacy supported profiles are `single`, `round_square`, `square_square`, and `mixed_basic`.
   - Same-shape scaffold profiles are `round_round`, `hex_hex`, `triangle_triangle`, `slot_slot`, `rectangular_key`, and `mixed_same_shape`.
-  - XML task assets now include default-off auxiliary hole walls and hex/triangle peg mesh assets. The new profile scaffold is runnable, but `hex_hex` and `triangle_triangle` are not solved yet.
+  - XML task assets now include default-off auxiliary hole walls and hex/triangle peg mesh assets. Polygonal peg meshes are centered on the original peg geom origin and scaled to a `12 mm` outer radius.
+  - `triangle_triangle` has a temporary easy-curriculum hole floor of `2.2 * peg_radius`; keep this until a better triangular-hole/chamfer model lets us tighten the legacy small-hole range.
   - Keep `single` as the default path unless an experiment explicitly overrides it.
   - This branch is now the active candidate for geometry generalization, while the stabilized single-geometry controller work remains a useful baseline.
   - Expert/correction dataset collection and BC pretraining scripts accept the same geometry args.
   - Dataset files now record `geometry_profile`, `geometry_name`, `peg_shape`, and `hole_shape`; use those arrays to debug multi-geometry balance.
-  - Same-shape v0.7.4 guarded recipe 1ep/profile smoke on seed `880000`: `round_round=1/1`, `hex_hex=0/1 timeout`, `triangle_triangle=0/1 timeout`, `slot_slot=1/1`, `rectangular_key=1/1`. Result directory: `D:\peg-in-hole-6yh\v80_same_shape_geometry_scaffold_smoke`.
+  - Same-shape v0.7.4 guarded recipe 1ep/profile smoke on seed `880000` after geometry fixes: `round_round=1/1`, `hex_hex=1/1`, `triangle_triangle=1/1`, `slot_slot=1/1`, `rectangular_key=1/1`, all zero collision and zero timeout. Result directory: `D:\peg-in-hole-6yh\v91_same_shape_geometry_fixed_smoke`.
   - Baseline strictstable49 20ep profile check before split-servo recovery: `single=0.95`, `round_square=0.95`, `square_square=0.85`, `mixed_basic=0.95`, all with zero collisions. Treat `square_square` final insertion stability as the first multi-geometry bottleneck.
   - Direct multi-geometry expert collection is not ready for 50k scaling: staged oracle had 0 success in a 1k pilot, guarded-two-stage oracle reached only 1 success / 1 collision in a 512-sample pilot. Prefer policy-visited correction data or a guarded-deployment teacher before large collection.
   - Policy-visited correction data path is now validated for multi-geometry. `square_square` and `mixed_basic` insert-settle smoke configs collect clean timeout-window samples and record geometry labels correctly.
