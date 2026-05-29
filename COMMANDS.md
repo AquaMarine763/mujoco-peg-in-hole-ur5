@@ -7586,20 +7586,21 @@ re-latching, but the promoted probe is `--guard-final-servo-start-z 0.100`.
 Adapter artifact for this recipe:
 
 ```text
-local path: D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt
+repo path: assets\approach_adapters\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt
+source local path: D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt
 size: 341061 bytes
 SHA256: 0788831FBC94E344865A35ACD96408C40D72D50521D2C668D86570F640EE53EB
 ```
 
-Packaging note: copying this checkpoint into the repo was blocked by the local
-Windows ACL on 2026-05-29. The next reproducibility step is to publish this file
-as a GitHub release asset or add it to the repo once the ACL issue is resolved.
+Packaging note: direct filesystem copy into `assets` was blocked by the local
+Windows ACL on 2026-05-29, so the artifact was added through Git object/index
+plumbing instead.
 
 Single-run template for the current strongest probe:
 
 ```powershell
 $out = "D:\peg-in-hole-6yh\v76_adapter_v8_latch220_finalstart100_seed646_regression"
-$adapter = "D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"
+$adapter = "assets\approach_adapters\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"
 
 python scripts\eval_guarded_policy.py `
   --config configs\sim\ur5e_full\eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml `

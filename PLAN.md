@@ -3425,16 +3425,17 @@ Interpretation:
   - combined result for this recipe: `600/600`, `0` collision, `0` timeout.
   - result directories: `D:\peg-in-hole-6yh\v77_adapter_v8_latch220_finalstart100_seed643_regression`, `D:\peg-in-hole-6yh\v78_adapter_v8_latch220_finalstart100_seed644_regression`, `D:\peg-in-hole-6yh\v79_adapter_v8_latch220_finalstart100_seed645_regression`, `D:\peg-in-hole-6yh\v76_adapter_v8_latch220_finalstart100_seed646_regression`, `D:\peg-in-hole-6yh\v74_adapter_v8_latch220_finalstart100_m18_seed647_probe`, and `D:\peg-in-hole-6yh\v75_adapter_v8_latch220_finalstart100_seed647_p12p24`.
 - Adapter artifact:
+  - repo path: `assets\approach_adapters\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt`
   - local checkpoint: `D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt`
   - size: `341061` bytes
   - SHA256: `0788831FBC94E344865A35ACD96408C40D72D50521D2C668D86570F640EE53EB`
-  - packaging into the repo was attempted on 2026-05-29 but blocked by the local Windows ACL when creating/copying into `assets`.
+  - packaging note: direct filesystem copy into `assets` was blocked by the local Windows ACL, so the artifact was added through Git object/index plumbing instead.
 - Interpretation:
   - This is the first learner-side approach-adapter path that matches the v50 early-assist matrix on the tested seeds without enabling v50 early assist.
   - The mechanism is not pure policy-only insertion; the guarded final-servo stack still performs final insertion.
   - The stronger fresh-seed recipe is adapter plus earlier final-servo handoff, not adapter-only learning.
-  - The controller/eval recipe is now strong enough for a candidate tag, but reproducibility still requires packaging the adapter checkpoint as a repo file or GitHub release asset.
-  - Next step should package/publish the adapter artifact, then tag the code+artifact recipe.
+  - The controller/eval recipe is now strong enough for a candidate tag.
+  - Next step should tag the code+artifact recipe and optionally mirror the checkpoint as a GitHub release asset.
 
 ## Key Commands
 
