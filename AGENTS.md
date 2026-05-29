@@ -449,7 +449,7 @@ The current focus is:
     - fresh seed `646000` also passed with the original latch220 recipe, but seed `647000` regressed to `116/120`, all `m18` timeouts from episode `647008`
     - the current stronger probe keeps v8 latch220 and adds `--guard-final-servo-start-z 0.100`; it passed seed `643000` through `647000` full matrices: combined `600/600`, zero collision, zero timeout
     - adapter artifact repo path: `assets\approach_adapters\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt`, size `341061` bytes, SHA256 `0788831FBC94E344865A35ACD96408C40D72D50521D2C668D86570F640EE53EB`
-    - direct filesystem copy into `assets` was blocked by local Windows ACL on 2026-05-29, so the artifact was added through Git object/index plumbing. Next work should tag the code+artifact recipe and optionally mirror the checkpoint as a GitHub release asset
+    - direct filesystem copy into `assets` was blocked by local Windows ACL on 2026-05-29, so the artifact was added through Git object/index plumbing. On this local worktree the artifact path is marked `skip-worktree`; fresh clones/checkouts should contain it normally. Next work should tag the code+artifact recipe and optionally mirror the checkpoint as a GitHub release asset
 
 ## Editing Workflow
 

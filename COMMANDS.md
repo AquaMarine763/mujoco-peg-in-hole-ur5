@@ -7601,6 +7601,9 @@ Single-run template for the current strongest probe:
 ```powershell
 $out = "D:\peg-in-hole-6yh\v76_adapter_v8_latch220_finalstart100_seed646_regression"
 $adapter = "assets\approach_adapters\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"
+if (-not (Test-Path $adapter)) {
+  $adapter = "D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"
+}
 
 python scripts\eval_guarded_policy.py `
   --config configs\sim\ur5e_full\eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml `

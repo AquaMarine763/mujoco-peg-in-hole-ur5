@@ -3430,6 +3430,7 @@ Interpretation:
   - size: `341061` bytes
   - SHA256: `0788831FBC94E344865A35ACD96408C40D72D50521D2C668D86570F640EE53EB`
   - packaging note: direct filesystem copy into `assets` was blocked by the local Windows ACL, so the artifact was added through Git object/index plumbing instead.
+  - current local worktree note: this machine keeps the artifact path marked `skip-worktree` because the file cannot be materialized under `assets`; fresh clones/checkouts should contain the repo-path file normally.
 - Interpretation:
   - This is the first learner-side approach-adapter path that matches the v50 early-assist matrix on the tested seeds without enabling v50 early assist.
   - The mechanism is not pure policy-only insertion; the guarded final-servo stack still performs final insertion.
