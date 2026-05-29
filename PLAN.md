@@ -3417,15 +3417,24 @@ Interpretation:
 - Current stronger eval recipe:
   - Keep v8 latch220 adapter settings.
   - Add `--guard-final-servo-start-z 0.100` so final servo takes over at `100 mm` above target instead of `70 mm`.
+  - seed `643000`, 12 profile/offset runs, 10 episodes each: `120/120`, `0` collision, `0` timeout.
+  - seed `644000`, same matrix: `120/120`, `0` collision, `0` timeout.
+  - seed `645000`, same matrix: `120/120`, `0` collision, `0` timeout.
   - seed `646000`, 12 profile/offset runs, 10 episodes each: `120/120`, `0` collision, `0` timeout.
   - seed `647000`, same matrix: `120/120`, `0` collision, `0` timeout.
-  - combined fresh-seed result for this recipe: `240/240`, `0` collision, `0` timeout.
+  - combined result for this recipe: `600/600`, `0` collision, `0` timeout.
+  - result directories: `D:\peg-in-hole-6yh\v77_adapter_v8_latch220_finalstart100_seed643_regression`, `D:\peg-in-hole-6yh\v78_adapter_v8_latch220_finalstart100_seed644_regression`, `D:\peg-in-hole-6yh\v79_adapter_v8_latch220_finalstart100_seed645_regression`, `D:\peg-in-hole-6yh\v76_adapter_v8_latch220_finalstart100_seed646_regression`, `D:\peg-in-hole-6yh\v74_adapter_v8_latch220_finalstart100_m18_seed647_probe`, and `D:\peg-in-hole-6yh\v75_adapter_v8_latch220_finalstart100_seed647_p12p24`.
+- Adapter artifact:
+  - local checkpoint: `D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt`
+  - size: `341061` bytes
+  - SHA256: `0788831FBC94E344865A35ACD96408C40D72D50521D2C668D86570F640EE53EB`
+  - packaging into the repo was attempted on 2026-05-29 but blocked by the local Windows ACL when creating/copying into `assets`.
 - Interpretation:
   - This is the first learner-side approach-adapter path that matches the v50 early-assist matrix on the tested seeds without enabling v50 early assist.
   - The mechanism is not pure policy-only insertion; the guarded final-servo stack still performs final insertion.
   - The stronger fresh-seed recipe is adapter plus earlier final-servo handoff, not adapter-only learning.
-  - Do not tag yet unless checkpoint packaging is decided. The adapter checkpoint is local and outside Git.
-  - Next validation should either rerun earlier seeds `643000-645000` with `guard_final_servo_start_z=0.100` or run one more fresh seed, then package the v8 checkpoint or publish it as a release asset if it remains stable.
+  - The controller/eval recipe is now strong enough for a candidate tag, but reproducibility still requires packaging the adapter checkpoint as a repo file or GitHub release asset.
+  - Next step should package/publish the adapter artifact, then tag the code+artifact recipe.
 
 ## Key Commands
 

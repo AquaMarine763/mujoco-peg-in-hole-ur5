@@ -7569,9 +7569,12 @@ latch220 original:
   seed647000: 116/120, zero collision, 4 timeouts
 
 latch220 + --guard-final-servo-start-z 0.100:
+  seed643000: 120/120, zero collision, zero timeout
+  seed644000: 120/120, zero collision, zero timeout
+  seed645000: 120/120, zero collision, zero timeout
   seed646000: 120/120, zero collision, zero timeout
   seed647000: 120/120, zero collision, zero timeout
-  combined fresh-seed result: 240/240
+  combined result: 600/600
 ```
 
 Interpretation: the best current recipe is v8 latch220 plus earlier final-servo
@@ -7579,6 +7582,18 @@ handoff at 100 mm. The seed647 regression was not a collision or low-Z wedging
 failure; the m18 episode reached final servo too late. The optional
 `--approach-adapter-episode-max-steps` knob exists to prevent immediate adapter
 re-latching, but the promoted probe is `--guard-final-servo-start-z 0.100`.
+
+Adapter artifact for this recipe:
+
+```text
+local path: D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt
+size: 341061 bytes
+SHA256: 0788831FBC94E344865A35ACD96408C40D72D50521D2C668D86570F640EE53EB
+```
+
+Packaging note: copying this checkpoint into the repo was blocked by the local
+Windows ACL on 2026-05-29. The next reproducibility step is to publish this file
+as a GitHub release asset or add it to the repo once the ACL issue is resolved.
 
 Single-run template for the current strongest probe:
 
