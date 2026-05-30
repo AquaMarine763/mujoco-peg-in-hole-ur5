@@ -971,7 +971,7 @@ class PegInHoleMujocoEnv(gym.Env):
             )
         if profile == "rectangular_key":
             return self._make_geometry_spec(
-                name="rectangular_key_rectangular_key",
+                name="rectangular_key",
                 peg_shape="rectangular_key",
                 hole_shape="rectangular_key",
                 hole_half_size=hole_half_size,

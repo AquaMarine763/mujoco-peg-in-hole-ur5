@@ -7691,6 +7691,13 @@ Current fixed same-shape scaffold result:
 - Profiles: `round_round=1/1`, `hex_hex=1/1`, `triangle_triangle=1/1`, `slot_slot=1/1`, `rectangular_key=1/1`
 - Collision/timeout: `0/0` for all five 1-episode smoke runs
 
+Follow-up small matrix:
+
+- Result directory: `D:\peg-in-hole-6yh\v92_same_shape_matrix10_seed881000`
+- Fixed profiles, seed `881000`: `round_round=10/10`, `hex_hex=10/10`, `triangle_triangle=10/10`, `slot_slot=10/10`, `rectangular_key=10/10`
+- Mixed sampler, seed `882000`: `mixed_same_shape=20/20`
+- Collision/timeout: `0/0` for all runs
+
 ```powershell
 $out = "D:\peg-in-hole-6yh\v91_same_shape_geometry_fixed_smoke"
 $adapter = "assets\approach_adapters\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"

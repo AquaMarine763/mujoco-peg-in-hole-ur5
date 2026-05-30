@@ -51,7 +51,10 @@ Implemented so far:
   - v0.7.4 guarded recipe 1ep/profile smoke before geometry fixes on seed `880000`: `round_round=1/1`, `hex_hex=0/1 timeout`, `triangle_triangle=0/1 timeout`, `slot_slot=1/1`, `rectangular_key=1/1`. Result directory: `D:\peg-in-hole-6yh\v80_same_shape_geometry_scaffold_smoke`.
   - current fixed scaffold smoke on seed `880000`: `round_round=1/1`, `hex_hex=1/1`, `triangle_triangle=1/1`, `slot_slot=1/1`, `rectangular_key=1/1`, all zero collision and zero timeout.
   - result directory: `D:\peg-in-hole-6yh\v91_same_shape_geometry_fixed_smoke`.
-  - interpretation: the same-shape scaffold is now runnable through the current guarded v8 adapter recipe. Do not treat this as solved generalization yet; next work should run multi-seed matrices and then collect balanced same-shape data.
+  - follow-up 10ep/profile matrix on seed `881000`: `round_round=10/10`, `hex_hex=10/10`, `triangle_triangle=10/10`, `slot_slot=10/10`, `rectangular_key=10/10`, all zero collision and zero timeout.
+  - mixed sampler check on seed `882000`: `mixed_same_shape=20/20`, zero collision and zero timeout.
+  - result directory: `D:\peg-in-hole-6yh\v92_same_shape_matrix10_seed881000`.
+  - interpretation: the same-shape scaffold is now runnable through the current guarded v8 adapter recipe. Do not treat this as solved generalization yet; next work should run broader multi-seed matrices and then collect balanced same-shape data.
 - Small matrix result:
   - `mixed_basic`, 8 episodes, seed `612000`: `0.750/0.000/0.250`
   - `round_square`, 8 episodes, seed `612000`: `0.875/0.000/0.125`
