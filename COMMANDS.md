@@ -7698,6 +7698,13 @@ Follow-up small matrix:
 - Mixed sampler, seed `882000`: `mixed_same_shape=20/20`
 - Collision/timeout: `0/0` for all runs
 
+Broader fixed-profile matrix:
+
+- Result directory: `D:\peg-in-hole-6yh\v93_same_shape_multiseed_3x10_seed883_885`
+- Seeds `883000`, `884000`, `885000`, 10 episodes/profile/seed
+- Combined result: `150/150`, zero collision, zero timeout
+- Per-profile result: `round_round=30/30`, `hex_hex=30/30`, `triangle_triangle=30/30`, `slot_slot=30/30`, `rectangular_key=30/30`
+
 ```powershell
 $out = "D:\peg-in-hole-6yh\v91_same_shape_geometry_fixed_smoke"
 $adapter = "assets\approach_adapters\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"

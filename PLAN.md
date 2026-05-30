@@ -54,7 +54,9 @@ Implemented so far:
   - follow-up 10ep/profile matrix on seed `881000`: `round_round=10/10`, `hex_hex=10/10`, `triangle_triangle=10/10`, `slot_slot=10/10`, `rectangular_key=10/10`, all zero collision and zero timeout.
   - mixed sampler check on seed `882000`: `mixed_same_shape=20/20`, zero collision and zero timeout.
   - result directory: `D:\peg-in-hole-6yh\v92_same_shape_matrix10_seed881000`.
-  - interpretation: the same-shape scaffold is now runnable through the current guarded v8 adapter recipe. Do not treat this as solved generalization yet; next work should run broader multi-seed matrices and then collect balanced same-shape data.
+  - broader fixed-profile matrix on seeds `883000`, `884000`, and `885000`, 10 episodes/profile/seed: combined `150/150`, zero collision, zero timeout. Each fixed profile reached `30/30`; max episode length was `667` steps.
+  - result directory: `D:\peg-in-hole-6yh\v93_same_shape_multiseed_3x10_seed883_885`.
+  - interpretation: the same-shape scaffold is stable enough under the current guarded v8 adapter recipe to move from smoke testing to balanced same-shape data collection. Do not treat this as final multi-geometry generalization; the next data stage should still keep per-shape balance and keep the temporary easy `triangle_triangle` hole floor visible.
 - Small matrix result:
   - `mixed_basic`, 8 episodes, seed `612000`: `0.750/0.000/0.250`
   - `round_square`, 8 episodes, seed `612000`: `0.875/0.000/0.125`
