@@ -7756,6 +7756,71 @@ python -B scripts\inspect_image_correction_dataset.py `
   --output-csv "$out\inspect_same_shape_640.csv"
 ```
 
+Guarded-deployment same-shape approach-window smoke:
+
+- Script: `scripts\collect_guarded_image_correction_dataset.py`
+- Config: `configs\sim\ur5e_full\collect_guarded_same_shape_approach_smoke.yaml`
+- Result directory: `D:\peg-in-hole-6yh\v95_guarded_same_shape_approach_smoke`
+- Merged smoke dataset: `image_correction_160_same_shape_guarded_approach_smoke.npz`
+- Result: `160/160` samples came from successful guarded episodes, five profiles balanced at `32` each, `approach_window_rate=1.000`, all phase `approach_recenter`
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v95_guarded_same_shape_approach_smoke"
+$adapter = "assets\approach_adapters\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"
+if (-not (Test-Path $adapter)) {
+  $adapter = "D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"
+}
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+$profiles = @(
+  @("round_round", 887000),
+  @("hex_hex", 887100),
+  @("triangle_triangle", 887200),
+  @("slot_slot", 887300),
+  @("rectangular_key", 887400)
+)
+
+foreach ($item in $profiles) {
+  $profile = $item[0]
+  $seed = $item[1]
+  python -B scripts\collect_guarded_image_correction_dataset.py `
+    --config configs\sim\ur5e_full\collect_guarded_same_shape_approach_smoke.yaml `
+    --geometry-profile $profile `
+    --seed $seed `
+    --approach-adapter $adapter `
+    --output "$out\image_correction_32_${profile}_guarded_approach_smoke.npz"
+}
+
+python -B scripts\merge_image_expert_datasets.py `
+  --inputs `
+    "$out\image_correction_32_round_round_guarded_approach_smoke.npz" `
+    "$out\image_correction_32_hex_hex_guarded_approach_smoke.npz" `
+    "$out\image_correction_32_triangle_triangle_guarded_approach_smoke.npz" `
+    "$out\image_correction_32_slot_slot_guarded_approach_smoke.npz" `
+    "$out\image_correction_32_rectangular_key_guarded_approach_smoke.npz" `
+  --output "$out\image_correction_160_same_shape_guarded_approach_smoke.npz" `
+  --compressed
+
+python -B scripts\inspect_image_correction_dataset.py `
+  --dataset "$out\image_correction_160_same_shape_guarded_approach_smoke.npz" `
+  --output-md "$out\inspect_same_shape_guarded_160.md" `
+  --output-csv "$out\inspect_same_shape_guarded_160.csv"
+```
+
+Next scale-up template, after the smoke passes:
+
+```powershell
+python -B scripts\collect_guarded_image_correction_dataset.py `
+  --config configs\sim\ur5e_full\collect_guarded_same_shape_approach_smoke.yaml `
+  --geometry-profile hex_hex `
+  --samples 1024 `
+  --samples-per-config 1024 `
+  --max-episodes-per-config 160 `
+  --seed 889100 `
+  --approach-adapter $adapter `
+  --output D:\peg-in-hole-6yh\v96_guarded_same_shape_approach_1k\image_correction_1024_hex_hex_guarded_approach.npz
+```
+
 ```powershell
 $out = "D:\peg-in-hole-6yh\v91_same_shape_geometry_fixed_smoke"
 $adapter = "assets\approach_adapters\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"

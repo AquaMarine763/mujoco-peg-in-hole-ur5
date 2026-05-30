@@ -65,6 +65,18 @@ Implemented so far:
     - label distribution: `approach_window_rate=1.000`, `descent_should_block_rate=1.000`, all samples phase `approach_recenter`
     - rollout outcome: sample-level episode outcomes were `48` success, `416` collision, `176` timeout; this reflects the collector rollout using the learned policy plus rollout adapter, not the full guarded deployment stack used in v93 eval
     - interpretation: v94 validates same-shape image/control-state schema and balanced approach labels, but it is not a production success-trajectory dataset. Before scaling to 50k, add a guarded-deployment rollout teacher path to the collector or collect from eval guarded traces.
+  - guarded-deployment same-shape approach collector:
+    - new script: `scripts\collect_guarded_image_correction_dataset.py`
+    - new config: `configs\sim\ur5e_full\collect_guarded_same_shape_approach_smoke.yaml`
+    - purpose: collect correction NPZ samples from the same guarded deployment stack used by eval, rather than from raw policy/adapter rollout
+    - smoke result directory: `D:\peg-in-hole-6yh\v95_guarded_same_shape_approach_smoke`
+    - 32-sample/profile smoke with local v8 adapter override:
+      - `round_round`, `hex_hex`, `triangle_triangle`, `slot_slot`, and `rectangular_key` each collected `32` samples from `2` successful episodes
+      - each shard had `success=1.000`, `collision=0.000`, `timeout=0.000`
+    - merged smoke dataset: `image_correction_160_same_shape_guarded_approach_smoke.npz`
+    - merged inspection: five shapes balanced at `32` samples each, all `160` samples from success episodes, `approach_window_rate=1.000`, `descent_should_block_rate=1.000`, all phase `approach_recenter`
+    - config smoke with `guard_final_servo_start_z=0.100`: `config_smoke_round_round_8.npz` collected `8` samples from `1/1` successful episode
+    - interpretation: this fixes the main v94 weakness. The next data step can scale guarded same-shape collection to a larger balanced pilot, starting around `512` to `1024` samples/profile before considering 50k.
 - Small matrix result:
   - `mixed_basic`, 8 episodes, seed `612000`: `0.750/0.000/0.250`
   - `round_square`, 8 episodes, seed `612000`: `0.875/0.000/0.125`
