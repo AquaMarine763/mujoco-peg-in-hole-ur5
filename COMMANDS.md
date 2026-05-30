@@ -7705,6 +7705,57 @@ Broader fixed-profile matrix:
 - Combined result: `150/150`, zero collision, zero timeout
 - Per-profile result: `round_round=30/30`, `hex_hex=30/30`, `triangle_triangle=30/30`, `slot_slot=30/30`, `rectangular_key=30/30`
 
+Balanced same-shape approach-window DAgger smoke:
+
+- Result directory: `D:\peg-in-hole-6yh\v94_same_shape_approach_dagger_smoke`
+- Merged dataset: `image_correction_640_same_shape_approach_dagger_smoke.npz`
+- Samples: `640`, with `128` each for `round_round`, `hex_hex`, `triangle_triangle`, `slot_slot`, and `rectangular_key`
+- Label check: `approach_window_rate=1.000`, `descent_should_block_rate=1.000`, all samples `approach_recenter`
+- Rollout outcome caveat: collection rollout is learned policy plus rollout adapter, not full guarded deployment; the merged smoke had only `48/640` samples from success episodes and many later-episode collisions. Use this as schema/label smoke only, not as a production expert dataset.
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v94_same_shape_approach_dagger_smoke"
+$adapter = "assets\approach_adapters\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"
+if (-not (Test-Path $adapter)) {
+  $adapter = "D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"
+}
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+$profiles = @(
+  @("round_round", 886000),
+  @("hex_hex", 886100),
+  @("triangle_triangle", 886200),
+  @("slot_slot", 886300),
+  @("rectangular_key", 886400)
+)
+
+foreach ($item in $profiles) {
+  $profile = $item[0]
+  $seed = $item[1]
+  python -B scripts\collect_image_correction_dataset.py `
+    --config configs\sim\ur5e_full\collect_multi_geometry_same_shape_approach_dagger_smoke.yaml `
+    --geometry-profile $profile `
+    --seed $seed `
+    --rollout-approach-adapter $adapter `
+    --output "$out\image_correction_128_${profile}_approach_dagger_smoke.npz"
+}
+
+python -B scripts\merge_image_expert_datasets.py `
+  --inputs `
+    "$out\image_correction_128_round_round_approach_dagger_smoke.npz" `
+    "$out\image_correction_128_hex_hex_approach_dagger_smoke.npz" `
+    "$out\image_correction_128_triangle_triangle_approach_dagger_smoke.npz" `
+    "$out\image_correction_128_slot_slot_approach_dagger_smoke.npz" `
+    "$out\image_correction_128_rectangular_key_approach_dagger_smoke.npz" `
+  --output "$out\image_correction_640_same_shape_approach_dagger_smoke.npz" `
+  --compressed
+
+python -B scripts\inspect_image_correction_dataset.py `
+  --dataset "$out\image_correction_640_same_shape_approach_dagger_smoke.npz" `
+  --output-md "$out\inspect_same_shape_640.md" `
+  --output-csv "$out\inspect_same_shape_640.csv"
+```
+
 ```powershell
 $out = "D:\peg-in-hole-6yh\v91_same_shape_geometry_fixed_smoke"
 $adapter = "assets\approach_adapters\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"
@@ -7741,4 +7792,4 @@ foreach ($profile in "hex_hex","triangle_triangle","round_round","slot_slot","re
 Notes:
 
 - `triangle_triangle` currently uses a scaffold/easy-curriculum hole floor of `2.2 * peg_radius`.
-- The next validation should be a multi-seed same-shape matrix before collecting large balanced same-shape datasets.
+- The next implementation step before large balanced same-shape datasets is a guarded-deployment rollout teacher path, or an eval-trace-derived collector, so collection rollouts match the stable v93 guarded recipe.

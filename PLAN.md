@@ -57,6 +57,14 @@ Implemented so far:
   - broader fixed-profile matrix on seeds `883000`, `884000`, and `885000`, 10 episodes/profile/seed: combined `150/150`, zero collision, zero timeout. Each fixed profile reached `30/30`; max episode length was `667` steps.
   - result directory: `D:\peg-in-hole-6yh\v93_same_shape_multiseed_3x10_seed883_885`.
   - interpretation: the same-shape scaffold is stable enough under the current guarded v8 adapter recipe to move from smoke testing to balanced same-shape data collection. Do not treat this as final multi-geometry generalization; the next data stage should still keep per-shape balance and keep the temporary easy `triangle_triangle` hole floor visible.
+  - balanced same-shape approach-window DAgger smoke:
+    - config: `configs\sim\ur5e_full\collect_multi_geometry_same_shape_approach_dagger_smoke.yaml`
+    - result directory: `D:\peg-in-hole-6yh\v94_same_shape_approach_dagger_smoke`
+    - merged dataset: `image_correction_640_same_shape_approach_dagger_smoke.npz`
+    - samples: `640`, with `128` each for `round_round`, `hex_hex`, `triangle_triangle`, `slot_slot`, and `rectangular_key`
+    - label distribution: `approach_window_rate=1.000`, `descent_should_block_rate=1.000`, all samples phase `approach_recenter`
+    - rollout outcome: sample-level episode outcomes were `48` success, `416` collision, `176` timeout; this reflects the collector rollout using the learned policy plus rollout adapter, not the full guarded deployment stack used in v93 eval
+    - interpretation: v94 validates same-shape image/control-state schema and balanced approach labels, but it is not a production success-trajectory dataset. Before scaling to 50k, add a guarded-deployment rollout teacher path to the collector or collect from eval guarded traces.
 - Small matrix result:
   - `mixed_basic`, 8 episodes, seed `612000`: `0.750/0.000/0.250`
   - `round_square`, 8 episodes, seed `612000`: `0.875/0.000/0.125`
