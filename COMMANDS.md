@@ -7807,18 +7807,121 @@ python -B scripts\inspect_image_correction_dataset.py `
   --output-csv "$out\inspect_same_shape_guarded_160.csv"
 ```
 
-Next scale-up template, after the smoke passes:
+Guarded-deployment same-shape 512/profile pilot:
+
+- Result directory: `D:\peg-in-hole-6yh\v96_guarded_same_shape_approach_512`
+- Merged dataset: `image_correction_2560_same_shape_guarded_approach.npz`
+- Result: `2560/2560` samples came from successful guarded episodes, five profiles balanced at `512` each, `approach_window_rate=1.000`, `descent_should_block_rate=1.000`, all phase `approach_recenter`, zero collision and zero timeout.
 
 ```powershell
-python -B scripts\collect_guarded_image_correction_dataset.py `
-  --config configs\sim\ur5e_full\collect_guarded_same_shape_approach_smoke.yaml `
-  --geometry-profile hex_hex `
-  --samples 1024 `
-  --samples-per-config 1024 `
-  --max-episodes-per-config 160 `
-  --seed 889100 `
+$out = "D:\peg-in-hole-6yh\v96_guarded_same_shape_approach_512"
+$adapter = "assets\approach_adapters\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"
+if (-not (Test-Path $adapter)) {
+  $adapter = "D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"
+}
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+$profiles = @(
+  @("round_round", 889000),
+  @("hex_hex", 889100),
+  @("triangle_triangle", 889200),
+  @("slot_slot", 889300),
+  @("rectangular_key", 889400)
+)
+
+foreach ($item in $profiles) {
+  $profile = $item[0]
+  $seed = $item[1]
+  python -B scripts\collect_guarded_image_correction_dataset.py `
+    --config configs\sim\ur5e_full\collect_guarded_same_shape_approach_smoke.yaml `
+    --geometry-profile $profile `
+    --samples 512 `
+    --samples-per-config 512 `
+    --max-episodes-per-config 160 `
+    --seed $seed `
+    --approach-adapter $adapter `
+    --output "$out\image_correction_512_${profile}_guarded_approach.npz"
+}
+
+python -B scripts\merge_image_expert_datasets.py `
+  --inputs `
+    "$out\image_correction_512_round_round_guarded_approach.npz" `
+    "$out\image_correction_512_hex_hex_guarded_approach.npz" `
+    "$out\image_correction_512_triangle_triangle_guarded_approach.npz" `
+    "$out\image_correction_512_slot_slot_guarded_approach.npz" `
+    "$out\image_correction_512_rectangular_key_guarded_approach.npz" `
+  --output "$out\image_correction_2560_same_shape_guarded_approach.npz" `
+  --compressed
+
+python -B scripts\inspect_image_correction_dataset.py `
+  --dataset "$out\image_correction_2560_same_shape_guarded_approach.npz" `
+  --output-md "$out\inspect_same_shape_guarded_2560.md" `
+  --output-csv "$out\inspect_same_shape_guarded_2560.csv"
+```
+
+Same-shape adapter candidate from v96 plus v8 preservation data:
+
+- Output directory: `D:\peg-in-hole-6yh\v98_same_shape_adapter_mixed_preserve`
+- Adapter: `approach_adapter_same_shape_v96_plus_v8data_fullcrop_xy_override.pt`
+- Training result: `30` epochs, final validation loss about `2.07e-6`
+- Important gate: use `--approach-adapter-episode-max-steps 220`; without it the candidate can repeatedly re-latch and timeout before final-servo handoff.
+- Current smoke result with the episode cap: `mixed_same_shape seed890700 = 20/20`, fixed same-shape seed891500 matrix `50/50`, and v99 mixed seeds `891700/892700/893700 = 60/60`, zero collision and zero timeout.
+- Shared v100 comparison against promoted v8: v8 also passed seeds `891700/892700/893700 = 60/60`, with slightly lower mean steps (`251.8` vs `255.4`). Do not promote v98 yet.
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v98_same_shape_adapter_mixed_preserve"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+$v96 = "D:\peg-in-hole-6yh\v96_guarded_same_shape_approach_512\image_correction_2560_same_shape_guarded_approach.npz"
+$v8meta = Get-Content -Raw -Path "D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\training_metadata_approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.json" | ConvertFrom-Json
+$extraDatasets = @($v8meta.dataset) + @($v8meta.extra_datasets)
+
+python -B scripts\train_approach_adapter.py `
+  --dataset $v96 `
+  --extra-datasets $extraDatasets `
+  --output "$out\approach_adapter_same_shape_v96_plus_v8data_fullcrop_xy_override.pt" `
+  --metadata-output "$out\training_metadata_approach_adapter_same_shape_v96_plus_v8data_fullcrop_xy_override.json" `
+  --epochs 30 `
+  --batch-size 128 `
+  --learning-rate 0.0001 `
+  --validation-split 0.10 `
+  --seed 891000 `
+  --device cpu `
+  --hidden-dim 128 `
+  --phase= `
+  --xy-only `
+  --use-full-image `
+  --target-source raw_action `
+  --target-scale 1.0
+```
+
+Evaluate the v98 candidate with bounded adapter ownership:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v98_same_shape_adapter_mixed_preserve"
+$adapter = "$out\approach_adapter_same_shape_v96_plus_v8data_fullcrop_xy_override.pt"
+
+python -B scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml `
+  --episodes 20 `
+  --seed 890700 `
+  --geometry-profile mixed_same_shape `
   --approach-adapter $adapter `
-  --output D:\peg-in-hole-6yh\v96_guarded_same_shape_approach_1k\image_correction_1024_hex_hex_guarded_approach.npz
+  --approach-adapter-enabled `
+  --approach-adapter-trigger-xy 0.06 `
+  --approach-adapter-release-xy 0.03 `
+  --approach-adapter-min-z 0.12 `
+  --approach-adapter-max-z 0.27 `
+  --approach-adapter-latch-enabled `
+  --approach-adapter-latched-min-z 0.08 `
+  --approach-adapter-max-steps 220 `
+  --approach-adapter-episode-max-steps 220 `
+  --approach-adapter-mode override_xy `
+  --approach-adapter-max-xy-residual 0.003 `
+  --guard-final-servo-start-z 0.100 `
+  --output-csv "$out\eval_v98_epmax220_mixed_same_shape_20ep_seed890700.csv" `
+  --output-md "$out\eval_v98_epmax220_mixed_same_shape_20ep_seed890700.md" `
+  --episode-output-csv "$out\eval_v98_epmax220_mixed_same_shape_20ep_seed890700_episodes.csv" `
+  --step-output-csv "$out\eval_v98_epmax220_mixed_same_shape_20ep_seed890700_steps.csv"
 ```
 
 ```powershell
