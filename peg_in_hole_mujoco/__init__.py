@@ -17,6 +17,11 @@ from peg_in_hole_mujoco.approach_adapter import (
     ApproachAdapterNet,
     ApproachAdapterPolicy,
 )
+from peg_in_hole_mujoco.final_insert_adapter import (
+    FinalInsertAdapterConfig,
+    FinalInsertAdapterNet,
+    FinalInsertAdapterPolicy,
+)
 from peg_in_hole_mujoco.oracle_controller import (
     OracleControllerConfig,
     OracleMode,
@@ -59,6 +64,9 @@ __all__ = [
     "ApproachAdapterNet",
     "ApproachAdapterPolicy",
     "DryRunUR5ActionExecutor",
+    "FinalInsertAdapterConfig",
+    "FinalInsertAdapterNet",
+    "FinalInsertAdapterPolicy",
     "GuardStateProvider",
     "GuardScenarioFilter",
     "GuardedDeploymentState",

@@ -303,6 +303,35 @@ python -B scripts\build_final_insert_stuck_dataset.py `
   --output-npz "$out\square_square_v102_v108_timeout_stuck_states.npz"
 ```
 
+Train the v110 low-dimensional final-insert adapter pilot from that stuck-state
+dataset. Use `episode` split as the conservative cross-trace check and `random`
+split only as a label-fitting sanity check.
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v110_final_insert_adapter_pilot"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+python -B scripts\train_final_insert_adapter.py `
+  --dataset D:\peg-in-hole-6yh\v109_final_insert_stuck_dataset\square_square_v102_v108_timeout_stuck_states.npz `
+  --output "$out\final_insert_adapter_episode_split.pt" `
+  --epochs 250 `
+  --batch-size 32 `
+  --learning-rate 0.0003 `
+  --split-mode episode `
+  --validation-split 0.33 `
+  --log-interval 50
+
+python -B scripts\train_final_insert_adapter.py `
+  --dataset D:\peg-in-hole-6yh\v109_final_insert_stuck_dataset\square_square_v102_v108_timeout_stuck_states.npz `
+  --output "$out\final_insert_adapter_random_split.pt" `
+  --epochs 250 `
+  --batch-size 32 `
+  --learning-rate 0.0003 `
+  --split-mode random `
+  --validation-split 0.20 `
+  --log-interval 50
+```
+
 Experimental square-aware final-servo recovery check:
 
 ```powershell
