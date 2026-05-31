@@ -7868,6 +7868,12 @@ Same-shape adapter candidate from v96 plus v8 preservation data:
 - Current smoke result with the episode cap: `mixed_same_shape seed890700 = 20/20`, fixed same-shape seed891500 matrix `50/50`, and v99 mixed seeds `891700/892700/893700 = 60/60`, zero collision and zero timeout.
 - Shared v100 comparison against promoted v8: v8 also passed seeds `891700/892700/893700 = 60/60`, with slightly lower mean steps (`251.8` vs `255.4`). Do not promote v98 yet.
 
+Promoted-v8 same-shape stress checkpoints:
+
+- v101 default mixed same-shape 100ep: `D:\peg-in-hole-6yh\v101_v8_same_shape_mixed_100ep`, seed `894700`, `100/100`, zero collision and zero timeout.
+- v102 narrow-clearance fixed-profile stress: `D:\peg-in-hole-6yh\v102_v8_same_shape_narrow_clearance_profile10`, `58/60`, zero collision, two square-square timeouts. Other five fixed profiles were `10/10`.
+- v103 narrow-square simple control probes: final-servo orientation weight `0.12` regressed to `7/10` with one collision; square-fast-settle tilt max `8 deg` stayed at `9/10`. Do not promote either probe.
+
 ```powershell
 $out = "D:\peg-in-hole-6yh\v98_same_shape_adapter_mixed_preserve"
 New-Item -ItemType Directory -Force -Path $out | Out-Null
