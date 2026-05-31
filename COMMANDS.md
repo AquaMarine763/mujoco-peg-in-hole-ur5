@@ -618,6 +618,89 @@ python -B scripts\train_final_insert_adapter.py `
 
 Smoke result: final train/validation MAE `1.5812 mm / 1.6381 mm`.
 
+Train the v118 phase-aware final-insert adapter pilots:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v118_phase_aware_final_insert_adapter_pilot"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+python -B scripts\train_final_insert_adapter.py `
+  --dataset D:\peg-in-hole-6yh\v117_phase_aware_final_insert_probe\phase_aware_final_insert.npz `
+  --output "$out\final_insert_adapter_phase_aware_episode_split_e150.pt" `
+  --metadata-output "$out\training_metadata_phase_aware_episode_split_e150.json" `
+  --epochs 150 `
+  --batch-size 64 `
+  --learning-rate 0.0003 `
+  --balance-label-phases `
+  --split-mode episode `
+  --validation-split 0.33 `
+  --seed 918000 `
+  --device cpu
+
+python -B scripts\train_final_insert_adapter.py `
+  --dataset D:\peg-in-hole-6yh\v117_phase_aware_final_insert_probe\phase_aware_final_insert.npz `
+  --output "$out\final_insert_adapter_phase_aware_alldata_e150.pt" `
+  --metadata-output "$out\training_metadata_phase_aware_alldata_e150.json" `
+  --epochs 150 `
+  --batch-size 64 `
+  --learning-rate 0.0003 `
+  --balance-label-phases `
+  --split-mode random `
+  --validation-split 0.0 `
+  --seed 918100 `
+  --device cpu
+```
+
+Current v118 diagnostic eval setting. It is not promoted; it only ties the
+previous best targeted diagnostic at `39/40`, zero collision:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v118_phase_aware_final_insert_adapter_eval"
+$adapter = "D:\peg-in-hole-6yh\v118_phase_aware_final_insert_adapter_pilot\final_insert_adapter_phase_aware_alldata_e150.pt"
+$approach = "D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($seed in 895700,895800,895900,896000) {
+  python -B scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml `
+    --episodes 10 `
+    --seed $seed `
+    --geometry-profile square_square `
+    --geometry-hole-half-size-range 0.0140 0.0160 `
+    --geometry-peg-radius-range 0.0128 0.0135 `
+    --geometry-square-peg-half-size-range 0.0122 0.0135 `
+    --approach-adapter $approach `
+    --approach-adapter-enabled `
+    --approach-adapter-trigger-xy 0.06 `
+    --approach-adapter-release-xy 0.03 `
+    --approach-adapter-min-z 0.12 `
+    --approach-adapter-max-z 0.27 `
+    --approach-adapter-latch-enabled `
+    --approach-adapter-latched-min-z 0.08 `
+    --approach-adapter-max-steps 220 `
+    --approach-adapter-mode override_xy `
+    --approach-adapter-max-xy-residual 0.003 `
+    --guard-final-servo-start-z 0.100 `
+    --final-insert-adapter $adapter `
+    --final-insert-adapter-enabled `
+    --final-insert-adapter-mode override `
+    --final-insert-adapter-max-xy 0.020 `
+    --final-insert-adapter-min-z 0.005 `
+    --final-insert-adapter-max-z 0.075 `
+    --final-insert-adapter-min-stall-steps 15 `
+    --no-final-insert-adapter-wall-contact-required `
+    --final-insert-adapter-max-xy-action 0.0012 `
+    --final-insert-adapter-max-up-action 0.005 `
+    --final-insert-adapter-max-down-action 0.0008 `
+    --final-insert-adapter-max-consecutive-steps 40 `
+    --final-insert-adapter-cooldown-steps 80 `
+    --output-csv "$out\eval_phase_aware_full_override_burst40_cd80_nowall_seed$seed`_10ep.csv" `
+    --output-md "$out\eval_phase_aware_full_override_burst40_cd80_nowall_seed$seed`_10ep.md" `
+    --episode-output-csv "$out\eval_phase_aware_full_override_burst40_cd80_nowall_seed$seed`_10ep_episodes.csv" `
+    --step-output-csv "$out\eval_phase_aware_full_override_burst40_cd80_nowall_seed$seed`_10ep_steps.csv"
+}
+```
+
 Experimental square-aware final-servo recovery check:
 
 ```powershell

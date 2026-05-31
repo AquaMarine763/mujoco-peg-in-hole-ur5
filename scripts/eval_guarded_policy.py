@@ -451,6 +451,18 @@ def build_parser(
     parser.add_argument("--final-insert-adapter-max-xy-action", type=float, default=0.002)
     parser.add_argument("--final-insert-adapter-max-up-action", type=float, default=0.0025)
     parser.add_argument("--final-insert-adapter-max-down-action", type=float, default=0.0008)
+    parser.add_argument(
+        "--final-insert-adapter-max-consecutive-steps",
+        type=int,
+        default=0,
+        help="Default 0 keeps the adapter unlimited. Positive values bound one continuous takeover burst.",
+    )
+    parser.add_argument(
+        "--final-insert-adapter-cooldown-steps",
+        type=int,
+        default=0,
+        help="Steps to keep the adapter inactive after a bounded takeover burst.",
+    )
     parser.add_argument("--final-insert-adapter-lift-pulse-enabled", action="store_true")
     parser.add_argument("--final-insert-adapter-lift-pulse-active-steps", type=int, default=80)
     parser.add_argument("--final-insert-adapter-lift-pulse-stall-steps", type=int, default=80)
@@ -1837,8 +1849,20 @@ def apply_final_insert_adapter(
     action_high: np.ndarray,
     z_progress_window: float,
     xy_progress_window: float,
+    active_streak: int,
+    cooldown_remaining: int,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, bool, str]:
     active, reason = final_insert_adapter_gate(args=args, info=info, step=step)
+    if active and cooldown_remaining > 0:
+        active = False
+        reason = "cooldown"
+    if (
+        active
+        and args.final_insert_adapter_max_consecutive_steps > 0
+        and active_streak >= args.final_insert_adapter_max_consecutive_steps
+    ):
+        active = False
+        reason = "max_consecutive"
     if adapter is None or not active or step is None:
         zeros = np.zeros(3, dtype=np.float32)
         return np.asarray(action, dtype=np.float32), zeros, zeros, False, reason
@@ -2771,6 +2795,7 @@ def evaluate_scenario(
             approach_adapter_latch_steps = 0
             final_insert_progress_history: list[tuple[float, float]] = []
             final_insert_adapter_active_streak = 0
+            final_insert_adapter_cooldown_remaining = 0
             final_insert_adapter_lift_pulse_remaining = 0
             final_insert_adapter_last_lift_pulse_step = -10**9
             final_insert_macro_recovery_state = FinalInsertMacroRecoveryState()
@@ -2884,9 +2909,22 @@ def evaluate_scenario(
                     action_high=np.asarray(env.action_space.high, dtype=np.float64),
                     z_progress_window=final_insert_z_progress,
                     xy_progress_window=final_insert_xy_progress,
+                    active_streak=final_insert_adapter_active_streak,
+                    cooldown_remaining=final_insert_adapter_cooldown_remaining,
                 )
+                if final_insert_adapter_cooldown_remaining > 0:
+                    final_insert_adapter_cooldown_remaining -= 1
                 if final_insert_adapter_active:
                     final_insert_adapter_active_streak += 1
+                    if (
+                        args.final_insert_adapter_max_consecutive_steps > 0
+                        and final_insert_adapter_active_streak
+                        >= args.final_insert_adapter_max_consecutive_steps
+                    ):
+                        final_insert_adapter_cooldown_remaining = max(
+                            final_insert_adapter_cooldown_remaining,
+                            args.final_insert_adapter_cooldown_steps,
+                        )
                 else:
                     final_insert_adapter_active_streak = 0
                     final_insert_adapter_lift_pulse_remaining = 0
@@ -3545,6 +3583,7 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Final insert adapter phase/geometry/contact required: `{args.final_insert_adapter_phase}/{args.final_insert_adapter_geometry_name}/{args.final_insert_adapter_wall_contact_required}`",
         f"- Final insert adapter XY/Z/min phase/min stall gate: `{args.final_insert_adapter_max_xy}/{args.final_insert_adapter_min_z}-{args.final_insert_adapter_max_z}/{args.final_insert_adapter_min_phase_steps}/{args.final_insert_adapter_min_stall_steps}`",
         f"- Final insert adapter action caps XY/up/down/window: `{args.final_insert_adapter_max_xy_action}/{args.final_insert_adapter_max_up_action}/{args.final_insert_adapter_max_down_action}/{args.final_insert_adapter_progress_window_steps}`",
+        f"- Final insert adapter max consecutive/cooldown steps: `{args.final_insert_adapter_max_consecutive_steps}/{args.final_insert_adapter_cooldown_steps}`",
         f"- Final insert adapter lift pulse enabled/active/stall/steps/period/Z: `{args.final_insert_adapter_lift_pulse_enabled}/{args.final_insert_adapter_lift_pulse_active_steps}/{args.final_insert_adapter_lift_pulse_stall_steps}/{args.final_insert_adapter_lift_pulse_steps}/{args.final_insert_adapter_lift_pulse_period_steps}/{args.final_insert_adapter_lift_pulse_z_action}`",
         f"- Final insert macro recovery enabled/phase/geometry/contact: `{args.final_insert_macro_recovery_enabled}/{args.final_insert_macro_recovery_phase}/{args.final_insert_macro_recovery_geometry_name}/{args.final_insert_macro_recovery_wall_contact_required}`",
         f"- Final insert macro recovery gate XY/Z/active/stall/attempts: `{args.final_insert_macro_recovery_max_xy}/{args.final_insert_macro_recovery_min_z}-{args.final_insert_macro_recovery_max_z}/{args.final_insert_macro_recovery_min_active_steps}/{args.final_insert_macro_recovery_min_stall_steps}/{args.final_insert_macro_recovery_max_attempts}`",
@@ -3746,6 +3785,10 @@ def main() -> None:
         raise ValueError("--final-insert-adapter-max-up-action cannot be negative.")
     if args.final_insert_adapter_max_down_action < 0.0:
         raise ValueError("--final-insert-adapter-max-down-action cannot be negative.")
+    if args.final_insert_adapter_max_consecutive_steps < 0:
+        raise ValueError("--final-insert-adapter-max-consecutive-steps cannot be negative.")
+    if args.final_insert_adapter_cooldown_steps < 0:
+        raise ValueError("--final-insert-adapter-cooldown-steps cannot be negative.")
     if args.final_insert_adapter_lift_pulse_active_steps <= 0:
         raise ValueError("--final-insert-adapter-lift-pulse-active-steps must be positive.")
     if args.final_insert_adapter_lift_pulse_stall_steps <= 0:
