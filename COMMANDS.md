@@ -562,6 +562,16 @@ foreach ($seed in 895700,895800,895900,896000) {
 }
 ```
 
+Classify macro-recovery failures from the generated episode/step CSVs:
+
+```powershell
+$episodes = Get-ChildItem D:\peg-in-hole-6yh\v116_final_insert_macro_recovery_abort_probe\eval_macro_abort_square_square_10ep_seed*_episodes.csv | ForEach-Object { $_.FullName }
+python -B scripts\analyze_final_insert_macro_recovery.py `
+  --episode-csv $episodes `
+  --output-csv D:\peg-in-hole-6yh\v116_final_insert_macro_recovery_abort_probe\macro_failure_summary.csv `
+  --output-md D:\peg-in-hole-6yh\v116_final_insert_macro_recovery_abort_probe\macro_failure_summary.md
+```
+
 Experimental square-aware final-servo recovery check:
 
 ```powershell
