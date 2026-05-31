@@ -12,6 +12,7 @@ import torch
 from stable_baselines3 import A2C, PPO, SAC
 
 from peg_in_hole_mujoco.approach_adapter import ApproachAdapterPolicy
+from peg_in_hole_mujoco.final_insert_adapter import FinalInsertAdapterPolicy
 from peg_in_hole_mujoco import (
     GuardedPolicyConfig,
     GuardedPolicyController,
@@ -246,6 +247,14 @@ STEP_TRACE_FIELDNAMES = [
     "approach_adapter_residual_x",
     "approach_adapter_residual_y",
     "approach_adapter_residual_z",
+    "final_insert_adapter_active",
+    "final_insert_adapter_reason",
+    "final_insert_adapter_raw_action_x",
+    "final_insert_adapter_raw_action_y",
+    "final_insert_adapter_raw_action_z",
+    "final_insert_adapter_action_x",
+    "final_insert_adapter_action_y",
+    "final_insert_adapter_action_z",
     "base_policy_action_x",
     "base_policy_action_y",
     "base_policy_action_z",
@@ -398,6 +407,44 @@ def build_parser(
         "--approach-adapter-apply-z",
         action="store_true",
         help="Also apply the adapter Z residual. By default only XY residuals are used.",
+    )
+    parser.add_argument("--final-insert-adapter", type=Path, default=None)
+    parser.add_argument("--final-insert-adapter-enabled", action="store_true")
+    parser.add_argument(
+        "--final-insert-adapter-mode",
+        choices=["override", "override_xy", "residual"],
+        default="override",
+        help="Use the adapter as the full final action, XY override on guarded action, or residual on guarded action.",
+    )
+    parser.add_argument(
+        "--final-insert-adapter-phase",
+        default="square_fast_settle",
+        help="Guard final-servo phase where the final-insert adapter may run. Use 'any' to disable phase filtering.",
+    )
+    parser.add_argument(
+        "--final-insert-adapter-geometry-name",
+        default="square_square",
+        help="Geometry name where the final-insert adapter may run. Use 'any' to disable geometry filtering.",
+    )
+    parser.add_argument("--final-insert-adapter-max-xy", type=float, default=0.008)
+    parser.add_argument("--final-insert-adapter-min-z", type=float, default=0.020)
+    parser.add_argument("--final-insert-adapter-max-z", type=float, default=0.055)
+    parser.add_argument("--final-insert-adapter-min-phase-steps", type=int, default=0)
+    parser.add_argument("--final-insert-adapter-min-stall-steps", type=int, default=0)
+    parser.add_argument(
+        "--final-insert-adapter-wall-contact-required",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Require current peg-hole wall contact before applying the adapter.",
+    )
+    parser.add_argument("--final-insert-adapter-max-xy-action", type=float, default=0.002)
+    parser.add_argument("--final-insert-adapter-max-up-action", type=float, default=0.0025)
+    parser.add_argument("--final-insert-adapter-max-down-action", type=float, default=0.0008)
+    parser.add_argument(
+        "--final-insert-adapter-progress-window-steps",
+        type=int,
+        default=20,
+        help="Pre-step history window used to compute adapter progress features.",
     )
     parser.add_argument(
         "--guard-scenario-filter",
@@ -1517,6 +1564,171 @@ def apply_approach_adapter(
     return adapted.astype(np.float32), modification.astype(np.float32), True
 
 
+def final_insert_progress_features(
+    history: list[tuple[float, float]],
+    window_steps: int,
+) -> tuple[float, float]:
+    if len(history) <= 1:
+        return 0.0, 0.0
+    current_dist_xy, current_z = history[-1]
+    start_index = max(0, len(history) - 1 - window_steps)
+    previous_dist_xy, previous_z = history[start_index]
+    return float(previous_z - current_z), float(previous_dist_xy - current_dist_xy)
+
+
+def final_insert_adapter_gate(
+    *,
+    args: argparse.Namespace,
+    info: dict[str, Any],
+    step: GuardedPolicyStep | None,
+) -> tuple[bool, str]:
+    if not args.final_insert_adapter_enabled:
+        return False, "disabled"
+    if step is None:
+        return False, "no_guard_step"
+    if not bool(step.guard_final_servo_active):
+        return False, "not_final_servo"
+    phase = str(step.guard_final_servo_phase)
+    if args.final_insert_adapter_phase != "any" and phase != args.final_insert_adapter_phase:
+        return False, f"phase:{phase}"
+    geometry_name = str(info.get("geometry_name", ""))
+    if (
+        args.final_insert_adapter_geometry_name != "any"
+        and geometry_name != args.final_insert_adapter_geometry_name
+    ):
+        return False, f"geometry:{geometry_name}"
+    tip = np.asarray(info["peg_tip_pos"], dtype=np.float64)
+    target = np.asarray(info["target_pos"], dtype=np.float64)
+    z_above_target = float(tip[2] - target[2])
+    dist_xy = float(info["dist_xy"])
+    if dist_xy > args.final_insert_adapter_max_xy:
+        return False, "xy_outside"
+    if not (
+        args.final_insert_adapter_min_z
+        <= z_above_target
+        <= args.final_insert_adapter_max_z
+    ):
+        return False, "z_outside"
+    if step.guard_final_servo_phase_steps < args.final_insert_adapter_min_phase_steps:
+        return False, "phase_steps"
+    if step.guard_final_servo_stall_steps < args.final_insert_adapter_min_stall_steps:
+        return False, "stall_steps"
+    wall_count = int(info.get("peg_hole_contact_wall_count", 0))
+    if args.final_insert_adapter_wall_contact_required and wall_count <= 0:
+        return False, "no_wall_contact"
+    return True, "wall_contact" if wall_count > 0 else "near_final_insert"
+
+
+def final_insert_adapter_feature_dict(
+    *,
+    info: dict[str, Any],
+    step: GuardedPolicyStep,
+    z_progress_window: float,
+    xy_progress_window: float,
+) -> dict[str, float]:
+    tip = np.asarray(info["peg_tip_pos"], dtype=np.float64)
+    target = np.asarray(info["target_pos"], dtype=np.float64)
+    rel = target - tip
+    z_above_target = float(tip[2] - target[2])
+    return {
+        "rel_x": float(rel[0]),
+        "rel_y": float(rel[1]),
+        "z_above_target": z_above_target,
+        "dist_xy": float(info["dist_xy"]),
+        "dist_z": float(info["dist_z"]),
+        "peg_tilt_angle_deg": float(info.get("peg_tilt_angle_deg", 0.0)),
+        "square_peg_yaw_error_deg": float(info.get("square_peg_yaw_error_deg", 0.0)),
+        "square_peg_topdown_clearance_margin": float(
+            info.get("square_peg_topdown_clearance_margin", 0.0)
+        ),
+        "square_peg_tilted_clearance_margin": float(
+            info.get("square_peg_tilted_clearance_margin", 0.0)
+        ),
+        "peg_hole_contact_wall_count": float(
+            int(info.get("peg_hole_contact_wall_count", 0))
+        ),
+        "peg_hole_contact_plate_count": float(
+            int(info.get("peg_hole_contact_plate_count", 0))
+        ),
+        "wall_north": float(int(info.get("peg_hole_contact_hole_north", 0)) > 0),
+        "wall_south": float(int(info.get("peg_hole_contact_hole_south", 0)) > 0),
+        "wall_east": float(int(info.get("peg_hole_contact_hole_east", 0)) > 0),
+        "wall_west": float(int(info.get("peg_hole_contact_hole_west", 0)) > 0),
+        "z_progress_window": float(z_progress_window),
+        "xy_progress_window": float(xy_progress_window),
+        "guard_final_servo_phase_steps": float(step.guard_final_servo_phase_steps),
+        "guard_final_servo_stall_steps": float(step.guard_final_servo_stall_steps),
+    }
+
+
+def clip_final_insert_adapter_action(
+    *,
+    action: np.ndarray,
+    args: argparse.Namespace,
+    action_low: np.ndarray,
+    action_high: np.ndarray,
+) -> np.ndarray:
+    clipped = np.asarray(action, dtype=np.float64).copy().reshape(3)
+    clipped = limit_xy_vector(clipped, args.final_insert_adapter_max_xy_action)
+    clipped[2] = float(
+        np.clip(
+            clipped[2],
+            -args.final_insert_adapter_max_down_action,
+            args.final_insert_adapter_max_up_action,
+        )
+    )
+    return np.clip(clipped, action_low, action_high).astype(np.float32)
+
+
+def apply_final_insert_adapter(
+    *,
+    adapter: FinalInsertAdapterPolicy | None,
+    args: argparse.Namespace,
+    info: dict[str, Any],
+    step: GuardedPolicyStep | None,
+    action: np.ndarray,
+    action_low: np.ndarray,
+    action_high: np.ndarray,
+    z_progress_window: float,
+    xy_progress_window: float,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, bool, str]:
+    active, reason = final_insert_adapter_gate(args=args, info=info, step=step)
+    if adapter is None or not active or step is None:
+        zeros = np.zeros(3, dtype=np.float32)
+        return np.asarray(action, dtype=np.float32), zeros, zeros, False, reason
+    features = final_insert_adapter_feature_dict(
+        info=info,
+        step=step,
+        z_progress_window=z_progress_window,
+        xy_progress_window=xy_progress_window,
+    )
+    raw_action = adapter.predict(features).reshape(3)
+    clipped_adapter_action = clip_final_insert_adapter_action(
+        action=raw_action,
+        args=args,
+        action_low=action_low,
+        action_high=action_high,
+    )
+    base_action = np.asarray(action, dtype=np.float64).reshape(3)
+    if args.final_insert_adapter_mode == "override":
+        final_action = clipped_adapter_action
+    elif args.final_insert_adapter_mode == "override_xy":
+        final_action = base_action.copy()
+        final_action[:2] = clipped_adapter_action[:2]
+        final_action = np.clip(final_action, action_low, action_high)
+    elif args.final_insert_adapter_mode == "residual":
+        final_action = np.clip(base_action + clipped_adapter_action, action_low, action_high)
+    else:
+        raise ValueError(f"Unknown final insert adapter mode: {args.final_insert_adapter_mode}")
+    return (
+        final_action.astype(np.float32),
+        raw_action.astype(np.float32),
+        clipped_adapter_action.astype(np.float32),
+        True,
+        reason,
+    )
+
+
 def shuffled_image_observation(
     obs: Any,
     *,
@@ -1637,6 +1849,10 @@ def build_step_trace_row(
     base_policy_action: np.ndarray | None = None,
     approach_adapter_residual: np.ndarray | None = None,
     approach_adapter_active: bool = False,
+    final_insert_adapter_raw_action: np.ndarray | None = None,
+    final_insert_adapter_action: np.ndarray | None = None,
+    final_insert_adapter_active: bool = False,
+    final_insert_adapter_reason: str = "inactive",
 ) -> dict[str, Any]:
     pre_tip = np.asarray(pre_info["peg_tip_pos"], dtype=np.float64)
     pre_target = np.asarray(pre_info["target_pos"], dtype=np.float64)
@@ -1658,6 +1874,16 @@ def build_step_trace_row(
         np.zeros(3, dtype=np.float64)
         if approach_adapter_residual is None
         else np.asarray(approach_adapter_residual, dtype=np.float64)
+    )
+    final_insert_raw = (
+        np.zeros(3, dtype=np.float64)
+        if final_insert_adapter_raw_action is None
+        else np.asarray(final_insert_adapter_raw_action, dtype=np.float64)
+    )
+    final_insert_action = (
+        np.zeros(3, dtype=np.float64)
+        if final_insert_adapter_action is None
+        else np.asarray(final_insert_adapter_action, dtype=np.float64)
     )
     row: dict[str, Any] = {
         "scenario": scenario.name,
@@ -1897,6 +2123,10 @@ def build_step_trace_row(
         ),
         "approach_adapter_active": bool(approach_adapter_active),
         **vector3_columns("approach_adapter_residual", adapter_residual),
+        "final_insert_adapter_active": bool(final_insert_adapter_active),
+        "final_insert_adapter_reason": str(final_insert_adapter_reason),
+        **vector3_columns("final_insert_adapter_raw_action", final_insert_raw),
+        **vector3_columns("final_insert_adapter_action", final_insert_action),
         **vector3_columns("base_policy_action", base_policy),
         **vector3_columns("policy_action", policy_action),
         **maybe_vector3_columns("guarded_action", None if step is None or step.guarded_action is None else step.guarded_action),
@@ -2072,6 +2302,11 @@ def evaluate_scenario(
         if args.approach_adapter_enabled and args.approach_adapter is not None
         else None
     )
+    final_insert_adapter = (
+        FinalInsertAdapterPolicy.load(args.final_insert_adapter, device=args.device)
+        if args.final_insert_adapter_enabled and args.final_insert_adapter is not None
+        else None
+    )
     guarded_controller = GuardedPolicyController(make_guarded_config(args))
     guard_state_provider = MujocoGuardStateProvider(env)
     guard_enabled = (
@@ -2119,6 +2354,8 @@ def evaluate_scenario(
     approach_recenter_blocked_steps: list[float] = []
     approach_adapter_episodes = 0
     approach_adapter_steps: list[float] = []
+    final_insert_adapter_episodes = 0
+    final_insert_adapter_steps: list[float] = []
     early_approach_assist_episodes = 0
     early_approach_assist_steps: list[float] = []
     early_approach_assist_triggers: list[float] = []
@@ -2174,6 +2411,7 @@ def evaluate_scenario(
             episode_approach_recenter_releases = 0
             episode_approach_recenter_blocked_steps = 0
             episode_approach_adapter_steps = 0
+            episode_final_insert_adapter_steps = 0
             episode_early_approach_assist_steps = 0
             episode_early_approach_assist_triggers = 0
             episode_early_approach_assist_releases = 0
@@ -2197,8 +2435,26 @@ def evaluate_scenario(
             near_xy_steps = 0
             approach_adapter_latched = False
             approach_adapter_latch_steps = 0
+            final_insert_progress_history: list[tuple[float, float]] = []
             while True:
                 pre_info = {key: value for key, value in info.items()}
+                pre_tip = np.asarray(pre_info["peg_tip_pos"], dtype=np.float64)
+                pre_target = np.asarray(pre_info["target_pos"], dtype=np.float64)
+                pre_z_above_target = float(pre_tip[2] - pre_target[2])
+                final_insert_progress_history.append(
+                    (float(pre_info["dist_xy"]), pre_z_above_target)
+                )
+                (
+                    final_insert_z_progress,
+                    final_insert_xy_progress,
+                ) = final_insert_progress_features(
+                    final_insert_progress_history,
+                    args.final_insert_adapter_progress_window_steps,
+                )
+                final_insert_adapter_raw_action = np.zeros(3, dtype=np.float32)
+                final_insert_adapter_action = np.zeros(3, dtype=np.float32)
+                final_insert_adapter_active = False
+                final_insert_adapter_reason = "inactive"
                 if args.control_mode == "guard_only":
                     state = guard_state_provider.state_from_info(pre_info)
                     policy_action = np.zeros(3, dtype=np.float32)
@@ -2266,8 +2522,26 @@ def evaluate_scenario(
                         )
                         action = step.action
                         guarded = step.guarded
+                (
+                    action,
+                    final_insert_adapter_raw_action,
+                    final_insert_adapter_action,
+                    final_insert_adapter_active,
+                    final_insert_adapter_reason,
+                ) = apply_final_insert_adapter(
+                    adapter=final_insert_adapter,
+                    args=args,
+                    info=pre_info,
+                    step=step,
+                    action=np.asarray(action, dtype=np.float32),
+                    action_low=np.asarray(env.action_space.low, dtype=np.float64),
+                    action_high=np.asarray(env.action_space.high, dtype=np.float64),
+                    z_progress_window=final_insert_z_progress,
+                    xy_progress_window=final_insert_xy_progress,
+                )
                 episode_guard_steps += int(guarded)
                 episode_approach_adapter_steps += int(approach_adapter_active)
+                episode_final_insert_adapter_steps += int(final_insert_adapter_active)
                 if step is not None:
                     episode_retry_steps += int(step.guard_retry_active)
                     episode_retry_triggers += int(step.guard_retry_triggered)
@@ -2380,6 +2654,12 @@ def evaluate_scenario(
                             base_policy_action=base_policy_action,
                             approach_adapter_residual=approach_adapter_residual,
                             approach_adapter_active=approach_adapter_active,
+                            final_insert_adapter_raw_action=(
+                                final_insert_adapter_raw_action
+                            ),
+                            final_insert_adapter_action=final_insert_adapter_action,
+                            final_insert_adapter_active=final_insert_adapter_active,
+                            final_insert_adapter_reason=final_insert_adapter_reason,
                             step=step,
                             guard_enabled=guard_enabled,
                             guarded=guarded,
@@ -2421,6 +2701,7 @@ def evaluate_scenario(
                 or episode_approach_recenter_triggers > 0
             )
             approach_adapter_episodes += int(episode_approach_adapter_steps > 0)
+            final_insert_adapter_episodes += int(episode_final_insert_adapter_steps > 0)
             early_approach_assist_episodes += int(
                 episode_early_approach_assist_steps > 0
                 or episode_early_approach_assist_triggers > 0
@@ -2460,6 +2741,7 @@ def evaluate_scenario(
             approach_recenter_releases.append(float(episode_approach_recenter_releases))
             approach_recenter_blocked_steps.append(float(episode_approach_recenter_blocked_steps))
             approach_adapter_steps.append(float(episode_approach_adapter_steps))
+            final_insert_adapter_steps.append(float(episode_final_insert_adapter_steps))
             early_approach_assist_steps.append(
                 float(episode_early_approach_assist_steps)
             )
@@ -2550,6 +2832,10 @@ def evaluate_scenario(
                     "approach_adapter_step_fraction": (
                         episode_approach_adapter_steps / max(step_count, 1)
                     ),
+                    "final_insert_adapter_steps": episode_final_insert_adapter_steps,
+                    "final_insert_adapter_step_fraction": (
+                        episode_final_insert_adapter_steps / max(step_count, 1)
+                    ),
                     "early_approach_assist_steps": episode_early_approach_assist_steps,
                     "early_approach_assist_triggers": (
                         episode_early_approach_assist_triggers
@@ -2623,6 +2909,7 @@ def evaluate_scenario(
     mean_fixture_clearance_realign_steps = mean(fixture_clearance_realign_steps)
     mean_preinsert_recenter_steps = mean(preinsert_recenter_steps)
     mean_approach_adapter_steps = mean(approach_adapter_steps)
+    mean_final_insert_adapter_steps = mean(final_insert_adapter_steps)
     mean_early_approach_assist_steps = mean(early_approach_assist_steps)
     mean_stateful_recovery_steps = mean(stateful_recovery_steps)
     mean_final_servo_steps = mean(final_servo_steps)
@@ -2692,6 +2979,16 @@ def evaluate_scenario(
             mean_approach_adapter_steps / max(mean_steps, 1e-9)
         ),
         "approach_adapter_episode_rate": approach_adapter_episodes / args.episodes,
+        "final_insert_adapter_enabled": bool(
+            args.final_insert_adapter_enabled and args.final_insert_adapter is not None
+        ),
+        "mean_final_insert_adapter_steps": mean_final_insert_adapter_steps,
+        "mean_final_insert_adapter_fraction": (
+            mean_final_insert_adapter_steps / max(mean_steps, 1e-9)
+        ),
+        "final_insert_adapter_episode_rate": (
+            final_insert_adapter_episodes / args.episodes
+        ),
         "mean_early_approach_assist_steps": mean_early_approach_assist_steps,
         "mean_early_approach_assist_fraction": (
             mean_early_approach_assist_steps / max(mean_steps, 1e-9)
@@ -2776,6 +3073,10 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Approach adapter XY/Z gate: `{args.approach_adapter_trigger_xy}->{args.approach_adapter_release_xy}/{args.approach_adapter_min_z}-{args.approach_adapter_max_z}`",
         f"- Approach adapter latch/min-z/max consecutive/episode steps: `{args.approach_adapter_latch_enabled}/{args.approach_adapter_latched_min_z}/{args.approach_adapter_max_steps}/{args.approach_adapter_episode_max_steps}`",
         f"- Approach adapter mode/residual limit/scale/apply Z: `{args.approach_adapter_mode}/{args.approach_adapter_max_xy_residual}/{args.approach_adapter_max_z_residual}/{args.approach_adapter_scale}/{args.approach_adapter_apply_z}`",
+        f"- Final insert adapter: `{args.final_insert_adapter}` enabled `{args.final_insert_adapter_enabled}` mode `{args.final_insert_adapter_mode}`",
+        f"- Final insert adapter phase/geometry/contact required: `{args.final_insert_adapter_phase}/{args.final_insert_adapter_geometry_name}/{args.final_insert_adapter_wall_contact_required}`",
+        f"- Final insert adapter XY/Z/min phase/min stall gate: `{args.final_insert_adapter_max_xy}/{args.final_insert_adapter_min_z}-{args.final_insert_adapter_max_z}/{args.final_insert_adapter_min_phase_steps}/{args.final_insert_adapter_min_stall_steps}`",
+        f"- Final insert adapter action caps XY/up/down/window: `{args.final_insert_adapter_max_xy_action}/{args.final_insert_adapter_max_up_action}/{args.final_insert_adapter_max_down_action}/{args.final_insert_adapter_progress_window_steps}`",
         f"- Episodes per scenario: `{args.episodes}`",
         f"- Seed: `{args.seed}`",
         f"- Frame skip: `{args.frame_skip}`",
@@ -2865,8 +3166,8 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Contact recovery XY/Z/lift/Z tol/max down: `{args.contact_recovery_xy_tolerance}/{args.contact_recovery_z_max}/{args.contact_recovery_lift_height}/{args.contact_recovery_lift_z_tolerance}/{args.contact_recovery_max_down_action}`",
         f"- Timeout progress XY/Z/max down: `{args.timeout_progress_xy_tolerance}/{args.timeout_progress_z_max}/{args.timeout_progress_max_down_action}`",
         "",
-        "| Scenario | Level | Mode | Image | Image target | Control state | Guard | Success | Collision | Timeout | Mean return | Mean steps | Guard steps | Retry steps | Latch steps | Hover steps | Near limited | Fixture steps | Fixture realign | Preinsert | Approach rec | Adapter | Early approach | Stateful rec | Final servo | Final servo descend | Final XY | Final Z |",
-        "| --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Scenario | Level | Mode | Image | Image target | Control state | Guard | Success | Collision | Timeout | Mean return | Mean steps | Guard steps | Retry steps | Latch steps | Hover steps | Near limited | Fixture steps | Fixture realign | Preinsert | Approach rec | Adapter | Final insert adapter | Early approach | Stateful rec | Final servo | Final servo descend | Final XY | Final Z |",
+        "| --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for row in rows:
         lines.append(
@@ -2882,6 +3183,7 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
             "{mean_preinsert_recenter_steps:.1f} ({mean_preinsert_recenter_fraction:.2f}, trig {mean_preinsert_recenter_triggers:.2f}, rel {mean_preinsert_recenter_releases:.2f}) | "
             "{mean_approach_recenter_steps:.1f} ({mean_approach_recenter_fraction:.2f}, trig {mean_approach_recenter_triggers:.2f}, rel {mean_approach_recenter_releases:.2f}) | "
             "{mean_approach_adapter_steps:.1f} ({mean_approach_adapter_fraction:.2f}) | "
+            "{mean_final_insert_adapter_steps:.1f} ({mean_final_insert_adapter_fraction:.2f}) | "
             "{mean_early_approach_assist_steps:.1f} ({mean_early_approach_assist_fraction:.2f}, trig {mean_early_approach_assist_triggers:.2f}, rel {mean_early_approach_assist_releases:.2f}) | "
             "{mean_stateful_recovery_steps:.1f} ({mean_stateful_recovery_fraction:.2f}, trig {mean_stateful_recovery_triggers:.2f}, rel {mean_stateful_recovery_releases:.2f}) | "
             "{mean_final_servo_steps:.1f} ({mean_final_servo_step_fraction:.2f}, trig {mean_final_servo_triggers:.2f}, rec {mean_final_servo_recovery_triggers:.2f}) | "
@@ -2951,6 +3253,26 @@ def main() -> None:
         raise ValueError("--approach-adapter-max-z-residual cannot be negative.")
     if args.approach_adapter_scale < 0.0:
         raise ValueError("--approach-adapter-scale cannot be negative.")
+    if args.final_insert_adapter_enabled and args.final_insert_adapter is None:
+        raise ValueError("--final-insert-adapter-enabled requires --final-insert-adapter.")
+    if args.final_insert_adapter_max_xy <= 0.0:
+        raise ValueError("--final-insert-adapter-max-xy must be positive.")
+    if args.final_insert_adapter_min_z < 0.0:
+        raise ValueError("--final-insert-adapter-min-z cannot be negative.")
+    if args.final_insert_adapter_max_z <= args.final_insert_adapter_min_z:
+        raise ValueError("--final-insert-adapter-max-z must exceed min Z.")
+    if args.final_insert_adapter_min_phase_steps < 0:
+        raise ValueError("--final-insert-adapter-min-phase-steps cannot be negative.")
+    if args.final_insert_adapter_min_stall_steps < 0:
+        raise ValueError("--final-insert-adapter-min-stall-steps cannot be negative.")
+    if args.final_insert_adapter_max_xy_action < 0.0:
+        raise ValueError("--final-insert-adapter-max-xy-action cannot be negative.")
+    if args.final_insert_adapter_max_up_action < 0.0:
+        raise ValueError("--final-insert-adapter-max-up-action cannot be negative.")
+    if args.final_insert_adapter_max_down_action < 0.0:
+        raise ValueError("--final-insert-adapter-max-down-action cannot be negative.")
+    if args.final_insert_adapter_progress_window_steps <= 0:
+        raise ValueError("--final-insert-adapter-progress-window-steps must be positive.")
     validate_ordered_pair("--initial-tip-z-above-range", args.initial_tip_z_above_range, min_value=0.0)
     validate_ordered_pair("--initial-tip-xy-offset-range", args.initial_tip_xy_offset_range, min_value=0.0)
     validate_ordered_pair("--geometry-hole-half-size-range", args.geometry_hole_half_size_range, min_value=0.0)

@@ -395,6 +395,53 @@ python -B scripts\train_final_insert_adapter.py `
   --log-interval 25
 ```
 
+Evaluate the v112 default-off final-insert adapter hook. This is diagnostic only;
+the best tested setting keeps guarded final-servo Z and only overrides XY after
+at least 15 stalled final-servo steps.
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v112_final_insert_adapter_eval_stall_gate"
+$adapter = "D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"
+$fi = "D:\peg-in-hole-6yh\v111_final_insert_adapter_pilot\final_insert_adapter_combined_episode_split_contact_micro_e100.pt"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($seed in 895700,895800,895900,896000) {
+  python -B scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml `
+    --episodes 10 `
+    --seed $seed `
+    --geometry-profile square_square `
+    --geometry-hole-half-size-range 0.0140 0.0160 `
+    --geometry-peg-radius-range 0.0128 0.0135 `
+    --geometry-square-peg-half-size-range 0.0122 0.0135 `
+    --approach-adapter $adapter `
+    --approach-adapter-enabled `
+    --approach-adapter-trigger-xy 0.06 `
+    --approach-adapter-release-xy 0.03 `
+    --approach-adapter-min-z 0.12 `
+    --approach-adapter-max-z 0.27 `
+    --approach-adapter-latch-enabled `
+    --approach-adapter-latched-min-z 0.08 `
+    --approach-adapter-max-steps 220 `
+    --approach-adapter-mode override_xy `
+    --approach-adapter-max-xy-residual 0.003 `
+    --guard-final-servo-start-z 0.100 `
+    --final-insert-adapter $fi `
+    --final-insert-adapter-enabled `
+    --final-insert-adapter-mode override_xy `
+    --final-insert-adapter-max-xy-action 0.0012 `
+    --final-insert-adapter-min-stall-steps 15 `
+    --output-csv "$out\eval_fi_xyonly_stall15_square_square_10ep_seed$seed.csv" `
+    --output-md "$out\eval_fi_xyonly_stall15_square_square_10ep_seed$seed.md" `
+    --episode-output-csv "$out\eval_fi_xyonly_stall15_square_square_10ep_seed$seed`_episodes.csv" `
+    --step-output-csv "$out\eval_fi_xyonly_stall15_square_square_10ep_seed$seed`_steps.csv"
+}
+```
+
+Known v112 targeted result: `39/40`, zero collision, one timeout. Comparable
+baseline is `37/40`, zero collision, three timeouts. Do not promote it as default
+runtime behavior until it passes broader fresh-seed narrow-square checks.
+
 Experimental square-aware final-servo recovery check:
 
 ```powershell
