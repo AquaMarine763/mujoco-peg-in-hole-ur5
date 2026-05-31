@@ -373,6 +373,22 @@ class GuardedPolicyConfig:
     guard_final_servo_square_fast_settle_max_xy_action: float = 0.008
     guard_final_servo_square_fast_settle_max_down_action: float = 0.0020
     guard_final_servo_square_fast_settle_contact_unjam_enabled: bool = False
+    guard_final_servo_square_tilt_reinsert_enabled: bool = False
+    guard_final_servo_square_tilt_reinsert_wall_steps: int = 4
+    guard_final_servo_square_tilt_reinsert_stall_steps: int = 16
+    guard_final_servo_square_tilt_reinsert_tilt_deg: float = 9.0
+    guard_final_servo_square_tilt_reinsert_margin_threshold: float = -0.003
+    guard_final_servo_square_tilt_reinsert_xy_max: float = 0.008
+    guard_final_servo_square_tilt_reinsert_z_min: float = 0.012
+    guard_final_servo_square_tilt_reinsert_z_max: float = 0.060
+    guard_final_servo_square_tilt_reinsert_lift_height: float = 0.010
+    guard_final_servo_square_tilt_reinsert_release_xy: float = 0.0048
+    guard_final_servo_square_tilt_reinsert_release_tilt_deg: float = 8.0
+    guard_final_servo_square_tilt_reinsert_stable_steps: int = 3
+    guard_final_servo_square_tilt_reinsert_max_steps: int = 40
+    guard_final_servo_square_tilt_reinsert_max_attempts: int = 2
+    guard_final_servo_square_tilt_reinsert_max_xy_action: float = 0.003
+    guard_final_servo_square_tilt_reinsert_max_up_action: float = 0.0025
     oracle: OracleControllerConfig = field(
         default_factory=lambda: OracleControllerConfig(mode="guarded_two_stage")
     )
@@ -975,6 +991,82 @@ class GuardedPolicyConfig:
             raise ValueError(
                 "guard_final_servo_square_fast_settle_max_down_action cannot be negative."
             )
+        if self.guard_final_servo_square_tilt_reinsert_wall_steps <= 0:
+            raise ValueError(
+                "guard_final_servo_square_tilt_reinsert_wall_steps must be positive."
+            )
+        if self.guard_final_servo_square_tilt_reinsert_stall_steps < 0:
+            raise ValueError(
+                "guard_final_servo_square_tilt_reinsert_stall_steps cannot be negative."
+            )
+        if self.guard_final_servo_square_tilt_reinsert_tilt_deg <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_tilt_reinsert_tilt_deg must be positive."
+            )
+        if self.guard_final_servo_square_tilt_reinsert_margin_threshold > 0.0:
+            raise ValueError(
+                "guard_final_servo_square_tilt_reinsert_margin_threshold must be <= 0."
+            )
+        if self.guard_final_servo_square_tilt_reinsert_xy_max <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_tilt_reinsert_xy_max must be positive."
+            )
+        if self.guard_final_servo_square_tilt_reinsert_z_min < 0.0:
+            raise ValueError(
+                "guard_final_servo_square_tilt_reinsert_z_min cannot be negative."
+            )
+        if self.guard_final_servo_square_tilt_reinsert_z_max <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_tilt_reinsert_z_max must be positive."
+            )
+        if (
+            self.guard_final_servo_square_tilt_reinsert_z_min
+            > self.guard_final_servo_square_tilt_reinsert_z_max
+        ):
+            raise ValueError(
+                "guard_final_servo_square_tilt_reinsert_z_min must be <= "
+                "guard_final_servo_square_tilt_reinsert_z_max."
+            )
+        if self.guard_final_servo_square_tilt_reinsert_lift_height <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_tilt_reinsert_lift_height must be positive."
+            )
+        if self.guard_final_servo_square_tilt_reinsert_release_xy <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_tilt_reinsert_release_xy must be positive."
+            )
+        if (
+            self.guard_final_servo_square_tilt_reinsert_release_xy
+            > self.guard_final_servo_square_tilt_reinsert_xy_max
+        ):
+            raise ValueError(
+                "guard_final_servo_square_tilt_reinsert_release_xy must be <= "
+                "guard_final_servo_square_tilt_reinsert_xy_max."
+            )
+        if self.guard_final_servo_square_tilt_reinsert_release_tilt_deg <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_tilt_reinsert_release_tilt_deg must be positive."
+            )
+        if self.guard_final_servo_square_tilt_reinsert_stable_steps <= 0:
+            raise ValueError(
+                "guard_final_servo_square_tilt_reinsert_stable_steps must be positive."
+            )
+        if self.guard_final_servo_square_tilt_reinsert_max_steps <= 0:
+            raise ValueError(
+                "guard_final_servo_square_tilt_reinsert_max_steps must be positive."
+            )
+        if self.guard_final_servo_square_tilt_reinsert_max_attempts < 0:
+            raise ValueError(
+                "guard_final_servo_square_tilt_reinsert_max_attempts cannot be negative."
+            )
+        if self.guard_final_servo_square_tilt_reinsert_max_xy_action <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_tilt_reinsert_max_xy_action must be positive."
+            )
+        if self.guard_final_servo_square_tilt_reinsert_max_up_action <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_tilt_reinsert_max_up_action must be positive."
+            )
         if self.oracle.mode not in (
             "guarded_two_stage",
             "high_start_two_phase",
@@ -1124,6 +1216,8 @@ class GuardedPolicyController:
         self.guard_final_servo_recovery_target_z_above = 0.0
         self.guard_final_servo_exhausted = False
         self.guard_final_servo_square_recovery_tilt_steps = 0
+        self.guard_final_servo_square_tilt_reinsert_wall_steps = 0
+        self.guard_final_servo_square_tilt_reinsert_attempts = 0
         self.guard_final_servo_contact_unjam_wall_steps = 0
         self.guard_final_servo_contact_unjam_relief_xy = np.zeros(2, dtype=np.float64)
         self.guard_final_servo_near_miss_steps = 0
@@ -1178,6 +1272,8 @@ class GuardedPolicyController:
         self.guard_final_servo_recovery_target_z_above = 0.0
         self.guard_final_servo_exhausted = False
         self.guard_final_servo_square_recovery_tilt_steps = 0
+        self.guard_final_servo_square_tilt_reinsert_wall_steps = 0
+        self.guard_final_servo_square_tilt_reinsert_attempts = 0
         self.guard_final_servo_contact_unjam_wall_steps = 0
         self.guard_final_servo_contact_unjam_relief_xy = np.zeros(2, dtype=np.float64)
         self.guard_final_servo_near_miss_steps = 0
@@ -1915,6 +2011,8 @@ class GuardedPolicyController:
         self.guard_final_servo_recovery_start_z_above = 0.0
         self.guard_final_servo_recovery_target_z_above = 0.0
         self.guard_final_servo_square_recovery_tilt_steps = 0
+        self.guard_final_servo_square_tilt_reinsert_wall_steps = 0
+        self.guard_final_servo_square_tilt_reinsert_attempts = 0
         self.guard_final_servo_contact_unjam_wall_steps = 0
         self.guard_final_servo_contact_unjam_relief_xy = np.zeros(2, dtype=np.float64)
         self.guard_final_servo_near_miss_steps = 0
@@ -1946,6 +2044,8 @@ class GuardedPolicyController:
             self.guard_final_servo_low_recenter_best_dist_xy = float("inf")
         if not phase.startswith("square_recover"):
             self.guard_final_servo_square_recovery_tilt_steps = 0
+        if not phase.startswith("square_tilt_reinsert"):
+            self.guard_final_servo_square_tilt_reinsert_wall_steps = 0
         if not phase.startswith("contact_unjam"):
             self.guard_final_servo_contact_unjam_wall_steps = 0
         if phase != "near_miss_descend":
@@ -2509,6 +2609,26 @@ class GuardedPolicyController:
         self._set_final_servo_phase("square_fast_settle")
         return True
 
+    def _start_final_servo_square_tilt_reinsert(self, z_above_target: float) -> bool:
+        if (
+            self.guard_final_servo_square_tilt_reinsert_attempts
+            >= self.config.guard_final_servo_square_tilt_reinsert_max_attempts
+        ):
+            return False
+        self.guard_final_servo_square_tilt_reinsert_attempts += 1
+        self.guard_final_servo_stable_steps = 0
+        self.guard_final_servo_stall_steps = 0
+        self.guard_final_servo_square_tilt_reinsert_wall_steps = 0
+        self.guard_final_servo_best_z_above = float("inf")
+        self.guard_final_servo_recovery_start_z_above = z_above_target
+        self.guard_final_servo_recovery_target_z_above = min(
+            z_above_target
+            + self.config.guard_final_servo_square_tilt_reinsert_lift_height,
+            self.config.guard_final_servo_square_tilt_reinsert_z_max,
+        )
+        self._set_final_servo_phase("square_tilt_reinsert_lift")
+        return True
+
     def _final_servo_square_recovery_phase_active(self) -> bool:
         return self.guard_final_servo_phase.startswith("square_recover")
 
@@ -2577,6 +2697,73 @@ class GuardedPolicyController:
         return (
             self.guard_final_servo_contact_unjam_wall_steps
             >= self.config.guard_final_servo_contact_unjam_wall_steps
+        )
+
+    def _square_tilt_reinsert_bad_pose(self, state: GuardedDeploymentState) -> bool:
+        tilt = state.peg_tilt_angle_deg
+        tilted = tilt is not None and np.isfinite(tilt) and (
+            tilt >= self.config.guard_final_servo_square_tilt_reinsert_tilt_deg
+        )
+        margin = state.square_peg_tilted_clearance_margin
+        negative_margin = margin is not None and np.isfinite(margin) and (
+            margin <= self.config.guard_final_servo_square_tilt_reinsert_margin_threshold
+        )
+        return tilted or negative_margin
+
+    def _square_tilt_reinsert_ready(self, state: GuardedDeploymentState) -> bool:
+        tilt = state.peg_tilt_angle_deg
+        return (
+            tilt is None
+            or not np.isfinite(tilt)
+            or tilt <= self.config.guard_final_servo_square_tilt_reinsert_release_tilt_deg
+        )
+
+    def _square_tilt_reinsert_condition(
+        self,
+        state: GuardedDeploymentState,
+        dist_xy: float,
+        z_above_target: float,
+    ) -> bool:
+        if not self.config.guard_final_servo_square_tilt_reinsert_enabled:
+            self.guard_final_servo_square_tilt_reinsert_wall_steps = 0
+            return False
+        if state.peg_shape != "square":
+            self.guard_final_servo_square_tilt_reinsert_wall_steps = 0
+            return False
+        if self.guard_final_servo_phase != "square_fast_settle":
+            self.guard_final_servo_square_tilt_reinsert_wall_steps = 0
+            return False
+        if (
+            self.guard_final_servo_square_tilt_reinsert_attempts
+            >= self.config.guard_final_servo_square_tilt_reinsert_max_attempts
+        ):
+            self.guard_final_servo_square_tilt_reinsert_wall_steps = 0
+            return False
+        if (
+            dist_xy > self.config.guard_final_servo_square_tilt_reinsert_xy_max
+            or z_above_target
+            < self.config.guard_final_servo_square_tilt_reinsert_z_min
+            or z_above_target
+            > self.config.guard_final_servo_square_tilt_reinsert_z_max
+        ):
+            self.guard_final_servo_square_tilt_reinsert_wall_steps = 0
+            return False
+        if (
+            self.guard_final_servo_stall_steps
+            < self.config.guard_final_servo_square_tilt_reinsert_stall_steps
+        ):
+            self.guard_final_servo_square_tilt_reinsert_wall_steps = 0
+            return False
+        if (
+            state.peg_hole_contact_wall_count > 0
+            and self._square_tilt_reinsert_bad_pose(state)
+        ):
+            self.guard_final_servo_square_tilt_reinsert_wall_steps += 1
+        else:
+            self.guard_final_servo_square_tilt_reinsert_wall_steps = 0
+        return (
+            self.guard_final_servo_square_tilt_reinsert_wall_steps
+            >= self.config.guard_final_servo_square_tilt_reinsert_wall_steps
         )
 
     def _near_miss_condition(
@@ -2856,6 +3043,7 @@ class GuardedPolicyController:
                 self.guard_final_servo_stable_steps = 0
                 self.guard_final_servo_stall_steps = 0
                 self.guard_final_servo_best_z_above = z_above_target
+                self.guard_final_servo_square_tilt_reinsert_attempts = 0
                 self._set_final_servo_phase("align_hover")
                 triggered = True
             else:
@@ -3180,7 +3368,11 @@ class GuardedPolicyController:
                     )
 
         elif self.guard_final_servo_phase == "square_fast_settle":
-            if self._contact_unjam_condition(state, dist_xy, z_above_target):
+            if self._square_tilt_reinsert_condition(state, dist_xy, z_above_target):
+                recovery_triggered = self._start_final_servo_square_tilt_reinsert(
+                    z_above_target,
+                )
+            elif self._contact_unjam_condition(state, dist_xy, z_above_target):
                 recovery_triggered = self._start_final_servo_contact_unjam(
                     state,
                     z_above_target,
@@ -3200,6 +3392,45 @@ class GuardedPolicyController:
                 self.guard_final_servo_stall_steps = 0
             else:
                 self.guard_final_servo_stall_steps += 1
+
+        elif self.guard_final_servo_phase == "square_tilt_reinsert_lift":
+            target_z = self.guard_final_servo_recovery_target_z_above
+            lifted_enough = z_above_target >= (
+                target_z
+                - 2.0
+                * self.config.guard_final_servo_square_tilt_reinsert_max_up_action
+            )
+            timed_out = (
+                self.guard_final_servo_phase_steps
+                >= self.config.guard_final_servo_square_tilt_reinsert_max_steps
+            )
+            if lifted_enough:
+                self.guard_final_servo_stable_steps = 0
+                self._set_final_servo_phase("square_tilt_reinsert_recenter")
+            elif timed_out:
+                self.guard_final_servo_stable_steps = 0
+                self._set_final_servo_phase("square_tilt_reinsert_recenter")
+
+        elif self.guard_final_servo_phase == "square_tilt_reinsert_recenter":
+            ready = (
+                dist_xy
+                <= self.config.guard_final_servo_square_tilt_reinsert_release_xy
+                and self._square_tilt_reinsert_ready(state)
+            )
+            if ready:
+                self.guard_final_servo_stable_steps += 1
+                if (
+                    self.guard_final_servo_stable_steps
+                    >= self.config.guard_final_servo_square_tilt_reinsert_stable_steps
+                ):
+                    self._start_final_servo_square_fast_settle(z_above_target)
+            else:
+                self.guard_final_servo_stable_steps = 0
+                if (
+                    self.guard_final_servo_phase_steps
+                    >= self.config.guard_final_servo_square_tilt_reinsert_max_steps
+                ):
+                    self._start_final_servo_square_fast_settle(z_above_target)
 
         elif self.guard_final_servo_phase == "near_miss_descend":
             if self._contact_unjam_condition(state, dist_xy, z_above_target):
@@ -3634,6 +3865,40 @@ class GuardedPolicyController:
             max_down_action = 0.0
             max_up_action = (
                 self.config.guard_final_servo_contact_reinsert_high_reapproach_max_up_action
+            )
+            down_blocked = True
+        elif phase == "square_tilt_reinsert_lift":
+            desired = np.asarray(
+                [
+                    target[0],
+                    target[1],
+                    target[2] + self.guard_final_servo_recovery_target_z_above,
+                ],
+                dtype=np.float64,
+            )
+            max_xy_action = (
+                self.config.guard_final_servo_square_tilt_reinsert_max_xy_action
+            )
+            max_down_action = 0.0
+            max_up_action = (
+                self.config.guard_final_servo_square_tilt_reinsert_max_up_action
+            )
+            down_blocked = True
+        elif phase == "square_tilt_reinsert_recenter":
+            desired = np.asarray(
+                [
+                    target[0],
+                    target[1],
+                    target[2] + self.guard_final_servo_recovery_target_z_above,
+                ],
+                dtype=np.float64,
+            )
+            max_xy_action = (
+                self.config.guard_final_servo_square_tilt_reinsert_max_xy_action
+            )
+            max_down_action = 0.0
+            max_up_action = (
+                self.config.guard_final_servo_square_tilt_reinsert_max_up_action
             )
             down_blocked = True
         elif phase == "recover_lift":

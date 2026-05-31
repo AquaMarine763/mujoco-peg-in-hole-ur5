@@ -7874,6 +7874,7 @@ Promoted-v8 same-shape stress checkpoints:
 - v102 narrow-clearance fixed-profile stress: `D:\peg-in-hole-6yh\v102_v8_same_shape_narrow_clearance_profile10`, `58/60`, zero collision, two square-square timeouts. Other five fixed profiles were `10/10`.
 - v103 narrow-square simple control probes: final-servo orientation weight `0.12` regressed to `7/10` with one collision; square-fast-settle tilt max `8 deg` stayed at `9/10`. Do not promote either probe.
 - v104 square-fast-settle contact-unjam hook is default-off and diagnostic only. Seed `895700` narrow square-square probe regressed to `7/10`, zero collision and three timeouts, so do not promote it.
+- v105-v108 square-tilt-reinsert hook is also default-off and diagnostic only. It did not beat the `9/10` base repeat: the corrected v108 default probe was `8/10` with one collision and one timeout. Do not promote it.
 
 Narrow square-square contact-unjam diagnostic:
 

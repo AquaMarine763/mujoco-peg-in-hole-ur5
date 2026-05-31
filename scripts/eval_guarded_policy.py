@@ -723,6 +723,22 @@ def build_parser(
     parser.add_argument("--guard-final-servo-square-fast-settle-max-xy-action", type=float, default=0.008)
     parser.add_argument("--guard-final-servo-square-fast-settle-max-down-action", type=float, default=0.0020)
     parser.add_argument("--guard-final-servo-square-fast-settle-contact-unjam-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-tilt-reinsert-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-tilt-reinsert-wall-steps", type=int, default=4)
+    parser.add_argument("--guard-final-servo-square-tilt-reinsert-stall-steps", type=int, default=16)
+    parser.add_argument("--guard-final-servo-square-tilt-reinsert-tilt-deg", type=float, default=9.0)
+    parser.add_argument("--guard-final-servo-square-tilt-reinsert-margin-threshold", type=float, default=-0.003)
+    parser.add_argument("--guard-final-servo-square-tilt-reinsert-xy-max", type=float, default=0.008)
+    parser.add_argument("--guard-final-servo-square-tilt-reinsert-z-min", type=float, default=0.012)
+    parser.add_argument("--guard-final-servo-square-tilt-reinsert-z-max", type=float, default=0.060)
+    parser.add_argument("--guard-final-servo-square-tilt-reinsert-lift-height", type=float, default=0.010)
+    parser.add_argument("--guard-final-servo-square-tilt-reinsert-release-xy", type=float, default=0.0048)
+    parser.add_argument("--guard-final-servo-square-tilt-reinsert-release-tilt-deg", type=float, default=8.0)
+    parser.add_argument("--guard-final-servo-square-tilt-reinsert-stable-steps", type=int, default=3)
+    parser.add_argument("--guard-final-servo-square-tilt-reinsert-max-steps", type=int, default=40)
+    parser.add_argument("--guard-final-servo-square-tilt-reinsert-max-attempts", type=int, default=2)
+    parser.add_argument("--guard-final-servo-square-tilt-reinsert-max-xy-action", type=float, default=0.003)
+    parser.add_argument("--guard-final-servo-square-tilt-reinsert-max-up-action", type=float, default=0.0025)
     parser.add_argument(
         "--guarded-oracle-mode",
         choices=[
@@ -1223,6 +1239,54 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         ),
         guard_final_servo_square_fast_settle_contact_unjam_enabled=(
             args.guard_final_servo_square_fast_settle_contact_unjam_enabled
+        ),
+        guard_final_servo_square_tilt_reinsert_enabled=(
+            args.guard_final_servo_square_tilt_reinsert_enabled
+        ),
+        guard_final_servo_square_tilt_reinsert_wall_steps=(
+            args.guard_final_servo_square_tilt_reinsert_wall_steps
+        ),
+        guard_final_servo_square_tilt_reinsert_stall_steps=(
+            args.guard_final_servo_square_tilt_reinsert_stall_steps
+        ),
+        guard_final_servo_square_tilt_reinsert_tilt_deg=(
+            args.guard_final_servo_square_tilt_reinsert_tilt_deg
+        ),
+        guard_final_servo_square_tilt_reinsert_margin_threshold=(
+            args.guard_final_servo_square_tilt_reinsert_margin_threshold
+        ),
+        guard_final_servo_square_tilt_reinsert_xy_max=(
+            args.guard_final_servo_square_tilt_reinsert_xy_max
+        ),
+        guard_final_servo_square_tilt_reinsert_z_min=(
+            args.guard_final_servo_square_tilt_reinsert_z_min
+        ),
+        guard_final_servo_square_tilt_reinsert_z_max=(
+            args.guard_final_servo_square_tilt_reinsert_z_max
+        ),
+        guard_final_servo_square_tilt_reinsert_lift_height=(
+            args.guard_final_servo_square_tilt_reinsert_lift_height
+        ),
+        guard_final_servo_square_tilt_reinsert_release_xy=(
+            args.guard_final_servo_square_tilt_reinsert_release_xy
+        ),
+        guard_final_servo_square_tilt_reinsert_release_tilt_deg=(
+            args.guard_final_servo_square_tilt_reinsert_release_tilt_deg
+        ),
+        guard_final_servo_square_tilt_reinsert_stable_steps=(
+            args.guard_final_servo_square_tilt_reinsert_stable_steps
+        ),
+        guard_final_servo_square_tilt_reinsert_max_steps=(
+            args.guard_final_servo_square_tilt_reinsert_max_steps
+        ),
+        guard_final_servo_square_tilt_reinsert_max_attempts=(
+            args.guard_final_servo_square_tilt_reinsert_max_attempts
+        ),
+        guard_final_servo_square_tilt_reinsert_max_xy_action=(
+            args.guard_final_servo_square_tilt_reinsert_max_xy_action
+        ),
+        guard_final_servo_square_tilt_reinsert_max_up_action=(
+            args.guard_final_servo_square_tilt_reinsert_max_up_action
         ),
         oracle=OracleControllerConfig(
             mode=args.guarded_oracle_mode,
@@ -3371,6 +3435,40 @@ def main() -> None:
         raise ValueError("--guard-final-servo-square-fast-settle-max-xy-action must be positive.")
     if args.guard_final_servo_square_fast_settle_max_down_action < 0.0:
         raise ValueError("--guard-final-servo-square-fast-settle-max-down-action cannot be negative.")
+    if args.guard_final_servo_square_tilt_reinsert_wall_steps <= 0:
+        raise ValueError("--guard-final-servo-square-tilt-reinsert-wall-steps must be positive.")
+    if args.guard_final_servo_square_tilt_reinsert_stall_steps < 0:
+        raise ValueError("--guard-final-servo-square-tilt-reinsert-stall-steps cannot be negative.")
+    if args.guard_final_servo_square_tilt_reinsert_tilt_deg <= 0.0:
+        raise ValueError("--guard-final-servo-square-tilt-reinsert-tilt-deg must be positive.")
+    if args.guard_final_servo_square_tilt_reinsert_margin_threshold > 0.0:
+        raise ValueError("--guard-final-servo-square-tilt-reinsert-margin-threshold must be <= 0.")
+    if args.guard_final_servo_square_tilt_reinsert_xy_max <= 0.0:
+        raise ValueError("--guard-final-servo-square-tilt-reinsert-xy-max must be positive.")
+    if args.guard_final_servo_square_tilt_reinsert_z_min < 0.0:
+        raise ValueError("--guard-final-servo-square-tilt-reinsert-z-min cannot be negative.")
+    if args.guard_final_servo_square_tilt_reinsert_z_max <= 0.0:
+        raise ValueError("--guard-final-servo-square-tilt-reinsert-z-max must be positive.")
+    if args.guard_final_servo_square_tilt_reinsert_z_min > args.guard_final_servo_square_tilt_reinsert_z_max:
+        raise ValueError("--guard-final-servo-square-tilt-reinsert-z-min must be <= z-max.")
+    if args.guard_final_servo_square_tilt_reinsert_lift_height <= 0.0:
+        raise ValueError("--guard-final-servo-square-tilt-reinsert-lift-height must be positive.")
+    if args.guard_final_servo_square_tilt_reinsert_release_xy <= 0.0:
+        raise ValueError("--guard-final-servo-square-tilt-reinsert-release-xy must be positive.")
+    if args.guard_final_servo_square_tilt_reinsert_release_xy > args.guard_final_servo_square_tilt_reinsert_xy_max:
+        raise ValueError("--guard-final-servo-square-tilt-reinsert-release-xy must be <= xy-max.")
+    if args.guard_final_servo_square_tilt_reinsert_release_tilt_deg <= 0.0:
+        raise ValueError("--guard-final-servo-square-tilt-reinsert-release-tilt-deg must be positive.")
+    if args.guard_final_servo_square_tilt_reinsert_stable_steps <= 0:
+        raise ValueError("--guard-final-servo-square-tilt-reinsert-stable-steps must be positive.")
+    if args.guard_final_servo_square_tilt_reinsert_max_steps <= 0:
+        raise ValueError("--guard-final-servo-square-tilt-reinsert-max-steps must be positive.")
+    if args.guard_final_servo_square_tilt_reinsert_max_attempts < 0:
+        raise ValueError("--guard-final-servo-square-tilt-reinsert-max-attempts cannot be negative.")
+    if args.guard_final_servo_square_tilt_reinsert_max_xy_action <= 0.0:
+        raise ValueError("--guard-final-servo-square-tilt-reinsert-max-xy-action must be positive.")
+    if args.guard_final_servo_square_tilt_reinsert_max_up_action <= 0.0:
+        raise ValueError("--guard-final-servo-square-tilt-reinsert-max-up-action must be positive.")
     if args.guarded_lift_before_lateral_xy_tolerance <= 0.0:
         raise ValueError("--guarded-lift-before-lateral-xy-tolerance must be positive.")
     if args.guarded_lift_before_lateral_z_margin < 0.0:
