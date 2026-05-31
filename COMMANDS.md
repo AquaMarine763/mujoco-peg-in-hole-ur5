@@ -572,6 +572,52 @@ python -B scripts\analyze_final_insert_macro_recovery.py `
   --output-md D:\peg-in-hole-6yh\v116_final_insert_macro_recovery_abort_probe\macro_failure_summary.md
 ```
 
+Build the phase-aware final-insert teacher dataset from v115/v116 diagnostic
+traces. This keeps the final-insert adapter NPZ schema and adds
+`failure_classification` plus `teacher_phase` arrays:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v117_phase_aware_final_insert_probe"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+$traceDirs = @(
+  "D:\peg-in-hole-6yh\v115_final_insert_macro_recovery_probe",
+  "D:\peg-in-hole-6yh\v116_final_insert_macro_recovery_abort_probe"
+)
+$episodes = Get-ChildItem $traceDirs -Filter "*_episodes.csv" |
+  Sort-Object FullName |
+  ForEach-Object { $_.FullName }
+
+python -B scripts\build_phase_aware_final_insert_dataset.py `
+  --episode-csv $episodes `
+  --output-csv "$out\phase_aware_final_insert.csv" `
+  --output-md "$out\phase_aware_final_insert.md" `
+  --output-npz "$out\phase_aware_final_insert.npz"
+```
+
+Smoke result: `899` samples from `9` trace episodes, with failure split
+`macro_not_triggered_timeout=144`,
+`macro_triggered_timeout_stuck_high_z=576`,
+`macro_triggered_timeout_diverged=121`,
+`macro_triggered_collision_diverged=58`.
+
+Trainer compatibility smoke only, not a promoted model:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v117_phase_aware_final_insert_probe"
+python -B scripts\train_final_insert_adapter.py `
+  --dataset "$out\phase_aware_final_insert.npz" `
+  --output "$out\final_insert_adapter_phase_aware_smoke_e2.pt" `
+  --metadata-output "$out\training_metadata_phase_aware_smoke_e2.json" `
+  --epochs 2 `
+  --batch-size 64 `
+  --learning-rate 0.0003 `
+  --balance-label-phases `
+  --seed 917000 `
+  --device cpu
+```
+
+Smoke result: final train/validation MAE `1.5812 mm / 1.6381 mm`.
+
 Experimental square-aware final-servo recovery check:
 
 ```powershell
