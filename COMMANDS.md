@@ -286,6 +286,23 @@ python scripts\analyze_insert_contact_trace.py `
   --output-csv results\ur5e_full\multi_geometry\contact_insert_diag\summary_release_band.csv
 ```
 
+Extract narrow square-square final-insert stuck states from guarded step traces.
+This is the current v109 offline entry point for a later final-insert adapter;
+it does not change runtime controller behavior.
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v109_final_insert_stuck_dataset"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+python -B scripts\build_final_insert_stuck_dataset.py `
+  --input `
+    D:\peg-in-hole-6yh\v102_v8_same_shape_narrow_clearance_profile10\eval_v8_narrow_square_square_10ep_seed895700_steps.csv `
+    D:\peg-in-hole-6yh\v108_square_tilt_reinsert_fixed_default_probe\eval_square_square_10ep_seed895700_steps.csv `
+  --output-csv "$out\square_square_v102_v108_timeout_stuck_states.csv" `
+  --output-md "$out\square_square_v102_v108_timeout_stuck_states.md" `
+  --output-npz "$out\square_square_v102_v108_timeout_stuck_states.npz"
+```
+
 Experimental square-aware final-servo recovery check:
 
 ```powershell
