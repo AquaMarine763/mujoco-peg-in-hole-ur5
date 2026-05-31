@@ -255,6 +255,8 @@ STEP_TRACE_FIELDNAMES = [
     "final_insert_adapter_action_x",
     "final_insert_adapter_action_y",
     "final_insert_adapter_action_z",
+    "final_insert_adapter_lift_pulse_active",
+    "final_insert_adapter_lift_pulse_steps_remaining",
     "base_policy_action_x",
     "base_policy_action_y",
     "base_policy_action_z",
@@ -440,6 +442,12 @@ def build_parser(
     parser.add_argument("--final-insert-adapter-max-xy-action", type=float, default=0.002)
     parser.add_argument("--final-insert-adapter-max-up-action", type=float, default=0.0025)
     parser.add_argument("--final-insert-adapter-max-down-action", type=float, default=0.0008)
+    parser.add_argument("--final-insert-adapter-lift-pulse-enabled", action="store_true")
+    parser.add_argument("--final-insert-adapter-lift-pulse-active-steps", type=int, default=80)
+    parser.add_argument("--final-insert-adapter-lift-pulse-stall-steps", type=int, default=80)
+    parser.add_argument("--final-insert-adapter-lift-pulse-steps", type=int, default=10)
+    parser.add_argument("--final-insert-adapter-lift-pulse-period-steps", type=int, default=120)
+    parser.add_argument("--final-insert-adapter-lift-pulse-z-action", type=float, default=0.0015)
     parser.add_argument(
         "--final-insert-adapter-progress-window-steps",
         type=int,
@@ -1729,6 +1737,62 @@ def apply_final_insert_adapter(
     )
 
 
+def maybe_apply_final_insert_lift_pulse(
+    *,
+    args: argparse.Namespace,
+    action: np.ndarray,
+    step: GuardedPolicyStep | None,
+    step_index: int,
+    adapter_active: bool,
+    active_streak: int,
+    pulse_steps_remaining: int,
+    last_pulse_step: int,
+    action_low: np.ndarray,
+    action_high: np.ndarray,
+) -> tuple[np.ndarray, int, int, bool]:
+    if (
+        not args.final_insert_adapter_lift_pulse_enabled
+        or not adapter_active
+        or step is None
+    ):
+        return np.asarray(action, dtype=np.float32), 0, last_pulse_step, False
+
+    remaining = int(pulse_steps_remaining)
+    if remaining <= 0:
+        enough_active_steps = (
+            active_streak >= args.final_insert_adapter_lift_pulse_active_steps
+        )
+        enough_stall_steps = (
+            step.guard_final_servo_stall_steps
+            >= args.final_insert_adapter_lift_pulse_stall_steps
+        )
+        period_elapsed = (
+            step_index - last_pulse_step
+            >= args.final_insert_adapter_lift_pulse_period_steps
+        )
+        if enough_active_steps and enough_stall_steps and period_elapsed:
+            remaining = args.final_insert_adapter_lift_pulse_steps
+            last_pulse_step = step_index
+
+    if remaining <= 0:
+        return np.asarray(action, dtype=np.float32), 0, last_pulse_step, False
+
+    pulsed_action = np.asarray(action, dtype=np.float64).copy().reshape(3)
+    pulsed_action[2] = float(
+        np.clip(
+            args.final_insert_adapter_lift_pulse_z_action,
+            action_low[2],
+            action_high[2],
+        )
+    )
+    return (
+        np.clip(pulsed_action, action_low, action_high).astype(np.float32),
+        remaining - 1,
+        last_pulse_step,
+        True,
+    )
+
+
 def shuffled_image_observation(
     obs: Any,
     *,
@@ -1853,6 +1917,8 @@ def build_step_trace_row(
     final_insert_adapter_action: np.ndarray | None = None,
     final_insert_adapter_active: bool = False,
     final_insert_adapter_reason: str = "inactive",
+    final_insert_adapter_lift_pulse_active: bool = False,
+    final_insert_adapter_lift_pulse_steps_remaining: int = 0,
 ) -> dict[str, Any]:
     pre_tip = np.asarray(pre_info["peg_tip_pos"], dtype=np.float64)
     pre_target = np.asarray(pre_info["target_pos"], dtype=np.float64)
@@ -2127,6 +2193,12 @@ def build_step_trace_row(
         "final_insert_adapter_reason": str(final_insert_adapter_reason),
         **vector3_columns("final_insert_adapter_raw_action", final_insert_raw),
         **vector3_columns("final_insert_adapter_action", final_insert_action),
+        "final_insert_adapter_lift_pulse_active": bool(
+            final_insert_adapter_lift_pulse_active
+        ),
+        "final_insert_adapter_lift_pulse_steps_remaining": int(
+            final_insert_adapter_lift_pulse_steps_remaining
+        ),
         **vector3_columns("base_policy_action", base_policy),
         **vector3_columns("policy_action", policy_action),
         **maybe_vector3_columns("guarded_action", None if step is None or step.guarded_action is None else step.guarded_action),
@@ -2356,6 +2428,7 @@ def evaluate_scenario(
     approach_adapter_steps: list[float] = []
     final_insert_adapter_episodes = 0
     final_insert_adapter_steps: list[float] = []
+    final_insert_adapter_lift_pulse_steps: list[float] = []
     early_approach_assist_episodes = 0
     early_approach_assist_steps: list[float] = []
     early_approach_assist_triggers: list[float] = []
@@ -2412,6 +2485,7 @@ def evaluate_scenario(
             episode_approach_recenter_blocked_steps = 0
             episode_approach_adapter_steps = 0
             episode_final_insert_adapter_steps = 0
+            episode_final_insert_adapter_lift_pulse_steps = 0
             episode_early_approach_assist_steps = 0
             episode_early_approach_assist_triggers = 0
             episode_early_approach_assist_releases = 0
@@ -2436,6 +2510,9 @@ def evaluate_scenario(
             approach_adapter_latched = False
             approach_adapter_latch_steps = 0
             final_insert_progress_history: list[tuple[float, float]] = []
+            final_insert_adapter_active_streak = 0
+            final_insert_adapter_lift_pulse_remaining = 0
+            final_insert_adapter_last_lift_pulse_step = -10**9
             while True:
                 pre_info = {key: value for key, value in info.items()}
                 pre_tip = np.asarray(pre_info["peg_tip_pos"], dtype=np.float64)
@@ -2455,6 +2532,7 @@ def evaluate_scenario(
                 final_insert_adapter_action = np.zeros(3, dtype=np.float32)
                 final_insert_adapter_active = False
                 final_insert_adapter_reason = "inactive"
+                final_insert_adapter_lift_pulse_active = False
                 if args.control_mode == "guard_only":
                     state = guard_state_provider.state_from_info(pre_info)
                     policy_action = np.zeros(3, dtype=np.float32)
@@ -2539,9 +2617,34 @@ def evaluate_scenario(
                     z_progress_window=final_insert_z_progress,
                     xy_progress_window=final_insert_xy_progress,
                 )
+                if final_insert_adapter_active:
+                    final_insert_adapter_active_streak += 1
+                else:
+                    final_insert_adapter_active_streak = 0
+                    final_insert_adapter_lift_pulse_remaining = 0
+                (
+                    action,
+                    final_insert_adapter_lift_pulse_remaining,
+                    final_insert_adapter_last_lift_pulse_step,
+                    final_insert_adapter_lift_pulse_active,
+                ) = maybe_apply_final_insert_lift_pulse(
+                    args=args,
+                    action=np.asarray(action, dtype=np.float32),
+                    step=step,
+                    step_index=int(pre_info["step_count"]),
+                    adapter_active=final_insert_adapter_active,
+                    active_streak=final_insert_adapter_active_streak,
+                    pulse_steps_remaining=final_insert_adapter_lift_pulse_remaining,
+                    last_pulse_step=final_insert_adapter_last_lift_pulse_step,
+                    action_low=np.asarray(env.action_space.low, dtype=np.float64),
+                    action_high=np.asarray(env.action_space.high, dtype=np.float64),
+                )
                 episode_guard_steps += int(guarded)
                 episode_approach_adapter_steps += int(approach_adapter_active)
                 episode_final_insert_adapter_steps += int(final_insert_adapter_active)
+                episode_final_insert_adapter_lift_pulse_steps += int(
+                    final_insert_adapter_lift_pulse_active
+                )
                 if step is not None:
                     episode_retry_steps += int(step.guard_retry_active)
                     episode_retry_triggers += int(step.guard_retry_triggered)
@@ -2660,6 +2763,12 @@ def evaluate_scenario(
                             final_insert_adapter_action=final_insert_adapter_action,
                             final_insert_adapter_active=final_insert_adapter_active,
                             final_insert_adapter_reason=final_insert_adapter_reason,
+                            final_insert_adapter_lift_pulse_active=(
+                                final_insert_adapter_lift_pulse_active
+                            ),
+                            final_insert_adapter_lift_pulse_steps_remaining=(
+                                final_insert_adapter_lift_pulse_remaining
+                            ),
                             step=step,
                             guard_enabled=guard_enabled,
                             guarded=guarded,
@@ -2742,6 +2851,9 @@ def evaluate_scenario(
             approach_recenter_blocked_steps.append(float(episode_approach_recenter_blocked_steps))
             approach_adapter_steps.append(float(episode_approach_adapter_steps))
             final_insert_adapter_steps.append(float(episode_final_insert_adapter_steps))
+            final_insert_adapter_lift_pulse_steps.append(
+                float(episode_final_insert_adapter_lift_pulse_steps)
+            )
             early_approach_assist_steps.append(
                 float(episode_early_approach_assist_steps)
             )
@@ -2836,6 +2948,9 @@ def evaluate_scenario(
                     "final_insert_adapter_step_fraction": (
                         episode_final_insert_adapter_steps / max(step_count, 1)
                     ),
+                    "final_insert_adapter_lift_pulse_steps": (
+                        episode_final_insert_adapter_lift_pulse_steps
+                    ),
                     "early_approach_assist_steps": episode_early_approach_assist_steps,
                     "early_approach_assist_triggers": (
                         episode_early_approach_assist_triggers
@@ -2910,6 +3025,9 @@ def evaluate_scenario(
     mean_preinsert_recenter_steps = mean(preinsert_recenter_steps)
     mean_approach_adapter_steps = mean(approach_adapter_steps)
     mean_final_insert_adapter_steps = mean(final_insert_adapter_steps)
+    mean_final_insert_adapter_lift_pulse_steps = mean(
+        final_insert_adapter_lift_pulse_steps
+    )
     mean_early_approach_assist_steps = mean(early_approach_assist_steps)
     mean_stateful_recovery_steps = mean(stateful_recovery_steps)
     mean_final_servo_steps = mean(final_servo_steps)
@@ -2985,6 +3103,9 @@ def evaluate_scenario(
         "mean_final_insert_adapter_steps": mean_final_insert_adapter_steps,
         "mean_final_insert_adapter_fraction": (
             mean_final_insert_adapter_steps / max(mean_steps, 1e-9)
+        ),
+        "mean_final_insert_adapter_lift_pulse_steps": (
+            mean_final_insert_adapter_lift_pulse_steps
         ),
         "final_insert_adapter_episode_rate": (
             final_insert_adapter_episodes / args.episodes
@@ -3077,6 +3198,7 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Final insert adapter phase/geometry/contact required: `{args.final_insert_adapter_phase}/{args.final_insert_adapter_geometry_name}/{args.final_insert_adapter_wall_contact_required}`",
         f"- Final insert adapter XY/Z/min phase/min stall gate: `{args.final_insert_adapter_max_xy}/{args.final_insert_adapter_min_z}-{args.final_insert_adapter_max_z}/{args.final_insert_adapter_min_phase_steps}/{args.final_insert_adapter_min_stall_steps}`",
         f"- Final insert adapter action caps XY/up/down/window: `{args.final_insert_adapter_max_xy_action}/{args.final_insert_adapter_max_up_action}/{args.final_insert_adapter_max_down_action}/{args.final_insert_adapter_progress_window_steps}`",
+        f"- Final insert adapter lift pulse enabled/active/stall/steps/period/Z: `{args.final_insert_adapter_lift_pulse_enabled}/{args.final_insert_adapter_lift_pulse_active_steps}/{args.final_insert_adapter_lift_pulse_stall_steps}/{args.final_insert_adapter_lift_pulse_steps}/{args.final_insert_adapter_lift_pulse_period_steps}/{args.final_insert_adapter_lift_pulse_z_action}`",
         f"- Episodes per scenario: `{args.episodes}`",
         f"- Seed: `{args.seed}`",
         f"- Frame skip: `{args.frame_skip}`",
@@ -3166,8 +3288,8 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Contact recovery XY/Z/lift/Z tol/max down: `{args.contact_recovery_xy_tolerance}/{args.contact_recovery_z_max}/{args.contact_recovery_lift_height}/{args.contact_recovery_lift_z_tolerance}/{args.contact_recovery_max_down_action}`",
         f"- Timeout progress XY/Z/max down: `{args.timeout_progress_xy_tolerance}/{args.timeout_progress_z_max}/{args.timeout_progress_max_down_action}`",
         "",
-        "| Scenario | Level | Mode | Image | Image target | Control state | Guard | Success | Collision | Timeout | Mean return | Mean steps | Guard steps | Retry steps | Latch steps | Hover steps | Near limited | Fixture steps | Fixture realign | Preinsert | Approach rec | Adapter | Final insert adapter | Early approach | Stateful rec | Final servo | Final servo descend | Final XY | Final Z |",
-        "| --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Scenario | Level | Mode | Image | Image target | Control state | Guard | Success | Collision | Timeout | Mean return | Mean steps | Guard steps | Retry steps | Latch steps | Hover steps | Near limited | Fixture steps | Fixture realign | Preinsert | Approach rec | Adapter | Final insert adapter | Final insert pulse | Early approach | Stateful rec | Final servo | Final servo descend | Final XY | Final Z |",
+        "| --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for row in rows:
         lines.append(
@@ -3184,6 +3306,7 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
             "{mean_approach_recenter_steps:.1f} ({mean_approach_recenter_fraction:.2f}, trig {mean_approach_recenter_triggers:.2f}, rel {mean_approach_recenter_releases:.2f}) | "
             "{mean_approach_adapter_steps:.1f} ({mean_approach_adapter_fraction:.2f}) | "
             "{mean_final_insert_adapter_steps:.1f} ({mean_final_insert_adapter_fraction:.2f}) | "
+            "{mean_final_insert_adapter_lift_pulse_steps:.1f} | "
             "{mean_early_approach_assist_steps:.1f} ({mean_early_approach_assist_fraction:.2f}, trig {mean_early_approach_assist_triggers:.2f}, rel {mean_early_approach_assist_releases:.2f}) | "
             "{mean_stateful_recovery_steps:.1f} ({mean_stateful_recovery_fraction:.2f}, trig {mean_stateful_recovery_triggers:.2f}, rel {mean_stateful_recovery_releases:.2f}) | "
             "{mean_final_servo_steps:.1f} ({mean_final_servo_step_fraction:.2f}, trig {mean_final_servo_triggers:.2f}, rec {mean_final_servo_recovery_triggers:.2f}) | "
@@ -3271,6 +3394,16 @@ def main() -> None:
         raise ValueError("--final-insert-adapter-max-up-action cannot be negative.")
     if args.final_insert_adapter_max_down_action < 0.0:
         raise ValueError("--final-insert-adapter-max-down-action cannot be negative.")
+    if args.final_insert_adapter_lift_pulse_active_steps <= 0:
+        raise ValueError("--final-insert-adapter-lift-pulse-active-steps must be positive.")
+    if args.final_insert_adapter_lift_pulse_stall_steps <= 0:
+        raise ValueError("--final-insert-adapter-lift-pulse-stall-steps must be positive.")
+    if args.final_insert_adapter_lift_pulse_steps <= 0:
+        raise ValueError("--final-insert-adapter-lift-pulse-steps must be positive.")
+    if args.final_insert_adapter_lift_pulse_period_steps <= 0:
+        raise ValueError("--final-insert-adapter-lift-pulse-period-steps must be positive.")
+    if args.final_insert_adapter_lift_pulse_z_action <= 0.0:
+        raise ValueError("--final-insert-adapter-lift-pulse-z-action must be positive.")
     if args.final_insert_adapter_progress_window_steps <= 0:
         raise ValueError("--final-insert-adapter-progress-window-steps must be positive.")
     validate_ordered_pair("--initial-tip-z-above-range", args.initial_tip_z_above_range, min_value=0.0)

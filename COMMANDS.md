@@ -442,6 +442,78 @@ Known v112 targeted result: `39/40`, zero collision, one timeout. Comparable
 baseline is `37/40`, zero collision, three timeouts. Do not promote it as default
 runtime behavior until it passes broader fresh-seed narrow-square checks.
 
+Build and train the v113 closed-loop final-insert adapter dataset. This adds the
+v112 adapter-visited `895803` timeout trace back into the stuck-state dataset.
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v113_final_insert_adapter_closed_loop"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+python -B scripts\build_final_insert_stuck_dataset.py `
+  --input `
+    D:\peg-in-hole-6yh\v102_v8_same_shape_narrow_clearance_profile10\eval_v8_narrow_square_square_10ep_seed895700_steps.csv `
+    D:\peg-in-hole-6yh\v108_square_tilt_reinsert_fixed_default_probe\eval_square_square_10ep_seed895700_steps.csv `
+    D:\peg-in-hole-6yh\v111_fresh_square_stuck_traces\eval_v8_narrow_square_square_10ep_seed895800_steps.csv `
+    D:\peg-in-hole-6yh\v111_fresh_square_stuck_traces\eval_v8_narrow_square_square_10ep_seed895900_steps.csv `
+    D:\peg-in-hole-6yh\v111_fresh_square_stuck_traces\eval_v8_narrow_square_square_10ep_seed896000_steps.csv `
+    D:\peg-in-hole-6yh\v112_final_insert_adapter_eval_stall_gate\eval_fi_xyonly_stall15_square_square_10ep_seed895800_steps.csv `
+  --output-csv "$out\square_square_v102_v108_v111_v112_closed_loop_stuck_states.csv" `
+  --output-md "$out\square_square_v102_v108_v111_v112_closed_loop_stuck_states.md" `
+  --output-npz "$out\square_square_v102_v108_v111_v112_closed_loop_stuck_states.npz"
+
+python -B scripts\train_final_insert_adapter.py `
+  --dataset "$out\square_square_v102_v108_v111_v112_closed_loop_stuck_states.npz" `
+  --output "$out\final_insert_adapter_closed_loop_episode_split_contact_micro_e100.pt" `
+  --epochs 100 `
+  --batch-size 64 `
+  --learning-rate 0.0003 `
+  --split-mode episode `
+  --validation-split 0.34 `
+  --label-phase contact_lift micro_recenter `
+  --log-interval 25
+```
+
+Known v113 result: the dataset has `575` samples from `7` trace episodes, but
+the trained adapter still leaves `895803` as a timeout under the v112 conservative
+eval gate. Do not promote it.
+
+Optional v114 lift-pulse diagnostic. This is also not promoted; the `40/40`
+active/stall probe triggered pulses but still timed out on `895803`.
+
+```powershell
+python -B scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml `
+  --episodes 10 `
+  --seed 895800 `
+  --geometry-profile square_square `
+  --geometry-hole-half-size-range 0.0140 0.0160 `
+  --geometry-peg-radius-range 0.0128 0.0135 `
+  --geometry-square-peg-half-size-range 0.0122 0.0135 `
+  --approach-adapter D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt `
+  --approach-adapter-enabled `
+  --approach-adapter-trigger-xy 0.06 `
+  --approach-adapter-release-xy 0.03 `
+  --approach-adapter-min-z 0.12 `
+  --approach-adapter-max-z 0.27 `
+  --approach-adapter-latch-enabled `
+  --approach-adapter-latched-min-z 0.08 `
+  --approach-adapter-max-steps 220 `
+  --approach-adapter-mode override_xy `
+  --approach-adapter-max-xy-residual 0.003 `
+  --guard-final-servo-start-z 0.100 `
+  --final-insert-adapter D:\peg-in-hole-6yh\v111_final_insert_adapter_pilot\final_insert_adapter_combined_episode_split_contact_micro_e100.pt `
+  --final-insert-adapter-enabled `
+  --final-insert-adapter-mode override_xy `
+  --final-insert-adapter-max-xy-action 0.0012 `
+  --final-insert-adapter-min-stall-steps 15 `
+  --final-insert-adapter-lift-pulse-enabled `
+  --final-insert-adapter-lift-pulse-active-steps 40 `
+  --final-insert-adapter-lift-pulse-stall-steps 40 `
+  --final-insert-adapter-lift-pulse-steps 10 `
+  --final-insert-adapter-lift-pulse-period-steps 120 `
+  --final-insert-adapter-lift-pulse-z-action 0.0015
+```
+
 Experimental square-aware final-servo recovery check:
 
 ```powershell
