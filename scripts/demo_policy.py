@@ -386,6 +386,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--guard-final-servo-square-fast-settle-max-steps", type=int, default=260)
     parser.add_argument("--guard-final-servo-square-fast-settle-max-xy-action", type=float, default=0.008)
     parser.add_argument("--guard-final-servo-square-fast-settle-max-down-action", type=float, default=0.0020)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-unjam-enabled", action="store_true")
     parser.add_argument(
         "--guarded-oracle-mode",
         choices=[
@@ -833,6 +834,9 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         ),
         guard_final_servo_square_fast_settle_max_down_action=(
             args.guard_final_servo_square_fast_settle_max_down_action
+        ),
+        guard_final_servo_square_fast_settle_contact_unjam_enabled=(
+            args.guard_final_servo_square_fast_settle_contact_unjam_enabled
         ),
         oracle=OracleControllerConfig(
             mode=args.guarded_oracle_mode,

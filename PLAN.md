@@ -1,6 +1,6 @@
 # Project Plan And Status
 
-Last updated: 2026-05-30
+Last updated: 2026-05-31
 
 This file records the current project status, known metrics, and next planned steps. Keep it current when a milestone changes.
 
@@ -88,7 +88,8 @@ Implemented so far:
     - v101 promoted-v8 longer mixed baseline: `D:\peg-in-hole-6yh\v101_v8_same_shape_mixed_100ep`, `mixed_same_shape` seed `894700`, `100/100`, zero collision and zero timeout. Shape split was `round_round=14/14`, `square_square=19/19`, `hex_hex=16/16`, `triangle_triangle=20/20`, `slot_slot=12/12`, `rectangular_key=19/19`; mean steps `273.7`.
     - v102 narrow-clearance fixed-profile stress: `D:\peg-in-hole-6yh\v102_v8_same_shape_narrow_clearance_profile10`, with hole half-size `14-16 mm`, round peg radius `12.8-13.5 mm`, and square/slot/key short half-size `12.2-13.5 mm`. Result: `58/60`, zero collision, two square-square timeouts. Per-profile: `round_round=10/10`, `square_square=8/10`, `hex_hex=10/10`, `triangle_triangle=10/10`, `slot_slot=10/10`, `rectangular_key=10/10`. Both square failures reached sub-mm XY at some point but stalled high around `27-40 mm` Z with high tilt and negative tilted clearance margin.
     - v103 narrow-square control probes: `D:\peg-in-hole-6yh\v103_narrow_square_orientation_probe`. A base repeat was `9/10`; increasing final-servo IK orientation weight to `0.12` regressed to `7/10` with one collision, and tightening square-fast-settle tilt max to `8 deg` stayed at `9/10`. Do not solve the narrow-square gap by simple orientation-weight or tilt-threshold scans.
-    - interpretation: default same-shape scaffold is now stable under promoted v8, but true narrow-clearance generalization is bottlenecked by square-square final insertion/tilt, not visual approach. Next work should target square-specific narrow-clearance insertion curriculum or a more deliberate square contact/tilt recovery strategy.
+    - v104 square-fast-settle contact-unjam hook: added a default-off `guard_final_servo_square_fast_settle_contact_unjam_enabled` switch and eval/demo CLI wiring. The seed `895700` narrow square-square probe regressed to `7/10`, zero collision, three timeouts. The hook triggers, but it tends to spend long stretches in contact reinsert/orient-hold recovery and can worsen timeout.
+    - interpretation: default same-shape scaffold is now stable under promoted v8, but true narrow-clearance generalization is bottlenecked by square-square final insertion/tilt, not visual approach. Do not promote v104. Next work should target a square-specific narrow-clearance insertion curriculum or a more deliberate tilt-aware final-insert controller rather than broad threshold scans.
 - Small matrix result:
   - `mixed_basic`, 8 episodes, seed `612000`: `0.750/0.000/0.250`
   - `round_square`, 8 episodes, seed `612000`: `0.875/0.000/0.125`

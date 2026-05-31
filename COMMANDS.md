@@ -7873,6 +7873,41 @@ Promoted-v8 same-shape stress checkpoints:
 - v101 default mixed same-shape 100ep: `D:\peg-in-hole-6yh\v101_v8_same_shape_mixed_100ep`, seed `894700`, `100/100`, zero collision and zero timeout.
 - v102 narrow-clearance fixed-profile stress: `D:\peg-in-hole-6yh\v102_v8_same_shape_narrow_clearance_profile10`, `58/60`, zero collision, two square-square timeouts. Other five fixed profiles were `10/10`.
 - v103 narrow-square simple control probes: final-servo orientation weight `0.12` regressed to `7/10` with one collision; square-fast-settle tilt max `8 deg` stayed at `9/10`. Do not promote either probe.
+- v104 square-fast-settle contact-unjam hook is default-off and diagnostic only. Seed `895700` narrow square-square probe regressed to `7/10`, zero collision and three timeouts, so do not promote it.
+
+Narrow square-square contact-unjam diagnostic:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v104_square_fast_settle_unjam_probe"
+$adapter = "D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+python -B scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml `
+  --episodes 10 `
+  --seed 895700 `
+  --geometry-profile square_square `
+  --geometry-hole-half-size-range 0.0140 0.0160 `
+  --geometry-peg-radius-range 0.0128 0.0135 `
+  --geometry-square-peg-half-size-range 0.0122 0.0135 `
+  --approach-adapter $adapter `
+  --approach-adapter-enabled `
+  --approach-adapter-trigger-xy 0.06 `
+  --approach-adapter-release-xy 0.03 `
+  --approach-adapter-min-z 0.12 `
+  --approach-adapter-max-z 0.27 `
+  --approach-adapter-latch-enabled `
+  --approach-adapter-latched-min-z 0.08 `
+  --approach-adapter-max-steps 220 `
+  --approach-adapter-mode override_xy `
+  --approach-adapter-max-xy-residual 0.003 `
+  --guard-final-servo-start-z 0.100 `
+  --guard-final-servo-square-fast-settle-contact-unjam-enabled `
+  --output-csv "$out\eval_square_square_10ep_seed895700.csv" `
+  --output-md "$out\eval_square_square_10ep_seed895700.md" `
+  --episode-output-csv "$out\eval_square_square_10ep_seed895700_episodes.csv" `
+  --step-output-csv "$out\eval_square_square_10ep_seed895700_steps.csv"
+```
 
 ```powershell
 $out = "D:\peg-in-hole-6yh\v98_same_shape_adapter_mixed_preserve"

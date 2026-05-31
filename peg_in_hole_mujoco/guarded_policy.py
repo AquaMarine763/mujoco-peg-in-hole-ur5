@@ -372,6 +372,7 @@ class GuardedPolicyConfig:
     guard_final_servo_square_fast_settle_max_steps: int = 260
     guard_final_servo_square_fast_settle_max_xy_action: float = 0.008
     guard_final_servo_square_fast_settle_max_down_action: float = 0.0020
+    guard_final_servo_square_fast_settle_contact_unjam_enabled: bool = False
     oracle: OracleControllerConfig = field(
         default_factory=lambda: OracleControllerConfig(mode="guarded_two_stage")
     )
@@ -2535,19 +2536,30 @@ class GuardedPolicyController:
         if not self._contact_reinsert_enabled_for_state(state):
             self.guard_final_servo_contact_unjam_wall_steps = 0
             return False
-        if self.guard_final_servo_phase not in (
-            "descend",
-            "contact_reinsert_descend",
-            "contact_reinsert_micro_align",
-            "low_recenter",
-            "near_miss_descend",
-            "near_miss_recenter",
+        square_fast_settle_contact_unjam = (
+            self.guard_final_servo_phase == "square_fast_settle"
+            and self.config.guard_final_servo_square_fast_settle_contact_unjam_enabled
+        )
+        if not (
+            self.guard_final_servo_phase
+            in (
+                "descend",
+                "contact_reinsert_descend",
+                "contact_reinsert_micro_align",
+                "low_recenter",
+                "near_miss_descend",
+                "near_miss_recenter",
+            )
+            or square_fast_settle_contact_unjam
         ):
             self.guard_final_servo_contact_unjam_wall_steps = 0
             return False
+        z_max = self.config.guard_final_servo_contact_unjam_z_max
+        if square_fast_settle_contact_unjam:
+            z_max = self.config.guard_final_servo_square_fast_settle_z_max
         if (
             dist_xy > self.config.guard_final_servo_contact_unjam_xy_max
-            or z_above_target > self.config.guard_final_servo_contact_unjam_z_max
+            or z_above_target > z_max
         ):
             self.guard_final_servo_contact_unjam_wall_steps = 0
             return False
@@ -3168,7 +3180,12 @@ class GuardedPolicyController:
                     )
 
         elif self.guard_final_servo_phase == "square_fast_settle":
-            if not self._square_fast_settle_state_ok(state, dist_xy, z_above_target):
+            if self._contact_unjam_condition(state, dist_xy, z_above_target):
+                recovery_triggered = self._start_final_servo_contact_unjam(
+                    state,
+                    z_above_target,
+                )
+            elif not self._square_fast_settle_state_ok(state, dist_xy, z_above_target):
                 recovery_triggered = self._start_final_servo_recovery(z_above_target)
             elif (
                 self.guard_final_servo_phase_steps
