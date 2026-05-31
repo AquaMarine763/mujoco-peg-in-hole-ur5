@@ -514,6 +514,48 @@ python -B scripts\eval_guarded_policy.py `
   --final-insert-adapter-lift-pulse-z-action 0.0015
 ```
 
+Optional v115 final-insert macro recovery diagnostic. This is default-off and
+not promoted. The stronger probe can sometimes free `895803`, but the targeted
+four-seed matrix stayed at `37/40` with one collision.
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v115_final_insert_macro_recovery_probe"
+$adapter = "D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"
+
+foreach ($seed in 895700,895800,895900,896000) {
+  python -B scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml `
+    --episodes 10 `
+    --seed $seed `
+    --geometry-profile square_square `
+    --geometry-hole-half-size-range 0.0140 0.0160 `
+    --geometry-peg-radius-range 0.0128 0.0135 `
+    --geometry-square-peg-half-size-range 0.0122 0.0135 `
+    --approach-adapter $adapter `
+    --approach-adapter-enabled `
+    --approach-adapter-trigger-xy 0.06 `
+    --approach-adapter-release-xy 0.03 `
+    --approach-adapter-min-z 0.12 `
+    --approach-adapter-max-z 0.27 `
+    --approach-adapter-latch-enabled `
+    --approach-adapter-latched-min-z 0.08 `
+    --approach-adapter-max-steps 220 `
+    --approach-adapter-mode override_xy `
+    --approach-adapter-max-xy-residual 0.003 `
+    --guard-final-servo-start-z 0.100 `
+    --final-insert-macro-recovery-enabled `
+    --final-insert-macro-recovery-min-active-steps 40 `
+    --final-insert-macro-recovery-min-stall-steps 40 `
+    --final-insert-macro-recovery-lift-steps 40 `
+    --final-insert-macro-recovery-lift-action 0.005 `
+    --final-insert-macro-recovery-max-xy-action 0.0025 `
+    --output-csv "$out\eval_macro_strong_square_square_10ep_seed$seed.csv" `
+    --output-md "$out\eval_macro_strong_square_square_10ep_seed$seed.md" `
+    --episode-output-csv "$out\eval_macro_strong_square_square_10ep_seed$seed`_episodes.csv" `
+    --step-output-csv "$out\eval_macro_strong_square_square_10ep_seed$seed`_steps.csv"
+}
+```
+
 Experimental square-aware final-servo recovery check:
 
 ```powershell

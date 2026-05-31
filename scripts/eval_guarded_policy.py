@@ -257,6 +257,15 @@ STEP_TRACE_FIELDNAMES = [
     "final_insert_adapter_action_z",
     "final_insert_adapter_lift_pulse_active",
     "final_insert_adapter_lift_pulse_steps_remaining",
+    "final_insert_macro_recovery_active",
+    "final_insert_macro_recovery_triggered",
+    "final_insert_macro_recovery_phase",
+    "final_insert_macro_recovery_reason",
+    "final_insert_macro_recovery_attempt",
+    "final_insert_macro_recovery_steps_remaining",
+    "final_insert_macro_recovery_action_x",
+    "final_insert_macro_recovery_action_y",
+    "final_insert_macro_recovery_action_z",
     "base_policy_action_x",
     "base_policy_action_y",
     "base_policy_action_z",
@@ -454,6 +463,34 @@ def build_parser(
         default=20,
         help="Pre-step history window used to compute adapter progress features.",
     )
+    parser.add_argument("--final-insert-macro-recovery-enabled", action="store_true")
+    parser.add_argument(
+        "--final-insert-macro-recovery-phase",
+        default="square_fast_settle",
+        help="Guard final-servo phase where the macro recovery may trigger. Use 'any' to disable phase filtering.",
+    )
+    parser.add_argument(
+        "--final-insert-macro-recovery-geometry-name",
+        default="square_square",
+        help="Geometry name where the macro recovery may trigger. Use 'any' to disable geometry filtering.",
+    )
+    parser.add_argument("--final-insert-macro-recovery-min-stall-steps", type=int, default=80)
+    parser.add_argument("--final-insert-macro-recovery-min-active-steps", type=int, default=80)
+    parser.add_argument("--final-insert-macro-recovery-min-z", type=float, default=0.025)
+    parser.add_argument("--final-insert-macro-recovery-max-z", type=float, default=0.055)
+    parser.add_argument("--final-insert-macro-recovery-max-xy", type=float, default=0.006)
+    parser.add_argument(
+        "--final-insert-macro-recovery-wall-contact-required",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Require peg-hole wall contact before starting the macro recovery.",
+    )
+    parser.add_argument("--final-insert-macro-recovery-lift-steps", type=int, default=20)
+    parser.add_argument("--final-insert-macro-recovery-align-steps", type=int, default=80)
+    parser.add_argument("--final-insert-macro-recovery-hold-steps", type=int, default=10)
+    parser.add_argument("--final-insert-macro-recovery-lift-action", type=float, default=0.002)
+    parser.add_argument("--final-insert-macro-recovery-max-xy-action", type=float, default=0.0015)
+    parser.add_argument("--final-insert-macro-recovery-max-attempts", type=int, default=2)
     parser.add_argument(
         "--guard-scenario-filter",
         choices=["none", "all", "geometry", "hard"],
@@ -1584,6 +1621,96 @@ def final_insert_progress_features(
     return float(previous_z - current_z), float(previous_dist_xy - current_dist_xy)
 
 
+@dataclass
+class FinalInsertMacroRecoveryState:
+    phase: str = "inactive"
+    phase_steps_remaining: int = 0
+    attempts: int = 0
+    active_streak: int = 0
+
+
+def final_insert_macro_recovery_candidate(
+    *,
+    args: argparse.Namespace,
+    info: dict[str, Any],
+    step: GuardedPolicyStep | None,
+) -> tuple[bool, str]:
+    if not args.final_insert_macro_recovery_enabled:
+        return False, "disabled"
+    if step is None:
+        return False, "no_guard_step"
+    if not bool(step.guard_final_servo_active):
+        return False, "not_final_servo"
+    phase = str(step.guard_final_servo_phase)
+    if (
+        args.final_insert_macro_recovery_phase != "any"
+        and phase != args.final_insert_macro_recovery_phase
+    ):
+        return False, f"phase:{phase}"
+    geometry_name = str(info.get("geometry_name", ""))
+    if (
+        args.final_insert_macro_recovery_geometry_name != "any"
+        and geometry_name != args.final_insert_macro_recovery_geometry_name
+    ):
+        return False, f"geometry:{geometry_name}"
+    tip = np.asarray(info["peg_tip_pos"], dtype=np.float64)
+    target = np.asarray(info["target_pos"], dtype=np.float64)
+    z_above_target = float(tip[2] - target[2])
+    dist_xy = float(info["dist_xy"])
+    if dist_xy > args.final_insert_macro_recovery_max_xy:
+        return False, "xy_outside"
+    if not (
+        args.final_insert_macro_recovery_min_z
+        <= z_above_target
+        <= args.final_insert_macro_recovery_max_z
+    ):
+        return False, "z_outside"
+    return True, "candidate"
+
+
+def final_insert_macro_recovery_action(
+    *,
+    args: argparse.Namespace,
+    info: dict[str, Any],
+    state: FinalInsertMacroRecoveryState,
+    action_low: np.ndarray,
+    action_high: np.ndarray,
+) -> tuple[np.ndarray, bool, str, int, int]:
+    tip = np.asarray(info["peg_tip_pos"], dtype=np.float64)
+    target = np.asarray(info["target_pos"], dtype=np.float64)
+    rel = target - tip
+    phase = state.phase
+    action = np.zeros(3, dtype=np.float64)
+    if phase == "lift":
+        action[2] = float(args.final_insert_macro_recovery_lift_action)
+    elif phase in ("align", "hold"):
+        action[:2] = limit_xy_vector(rel[:2], args.final_insert_macro_recovery_max_xy_action)
+        action[2] = 0.0
+    else:
+        return np.asarray(action, dtype=np.float32), False, phase, state.attempts, 0
+
+    action = np.clip(action, action_low, action_high)
+    state.phase_steps_remaining = max(0, int(state.phase_steps_remaining) - 1)
+    if state.phase_steps_remaining <= 0:
+        if phase == "lift":
+            state.phase = "align"
+            state.phase_steps_remaining = int(args.final_insert_macro_recovery_align_steps)
+        elif phase == "align":
+            state.phase = "hold"
+            state.phase_steps_remaining = int(args.final_insert_macro_recovery_hold_steps)
+        else:
+            state.phase = "inactive"
+            state.phase_steps_remaining = 0
+            state.active_streak = 0
+    return (
+        action.astype(np.float32),
+        True,
+        phase,
+        state.attempts,
+        state.phase_steps_remaining,
+    )
+
+
 def final_insert_adapter_gate(
     *,
     args: argparse.Namespace,
@@ -1793,6 +1920,81 @@ def maybe_apply_final_insert_lift_pulse(
     )
 
 
+def maybe_apply_final_insert_macro_recovery(
+    *,
+    args: argparse.Namespace,
+    action: np.ndarray,
+    info: dict[str, Any],
+    step: GuardedPolicyStep | None,
+    state: FinalInsertMacroRecoveryState,
+    action_low: np.ndarray,
+    action_high: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, bool, bool, str, int, int, str]:
+    base_action = np.asarray(action, dtype=np.float32)
+    recovery_action = np.zeros(3, dtype=np.float32)
+    triggered = False
+    reason = "inactive"
+
+    if state.phase == "inactive":
+        candidate, reason = final_insert_macro_recovery_candidate(
+            args=args,
+            info=info,
+            step=step,
+        )
+        if candidate:
+            state.active_streak += 1
+        else:
+            state.active_streak = 0
+        wall_count = int(info.get("peg_hole_contact_wall_count", 0))
+        enough_contact = (
+            not args.final_insert_macro_recovery_wall_contact_required
+            or wall_count > 0
+        )
+        enough_stall = (
+            step is not None
+            and step.guard_final_servo_stall_steps
+            >= args.final_insert_macro_recovery_min_stall_steps
+        )
+        enough_active = (
+            state.active_streak >= args.final_insert_macro_recovery_min_active_steps
+        )
+        under_attempt_limit = (
+            state.attempts < args.final_insert_macro_recovery_max_attempts
+        )
+        if (
+            candidate
+            and under_attempt_limit
+            and enough_active
+            and enough_stall
+            and enough_contact
+        ):
+            state.attempts += 1
+            state.phase = "lift"
+            state.phase_steps_remaining = int(args.final_insert_macro_recovery_lift_steps)
+            triggered = True
+        else:
+            if candidate and not under_attempt_limit:
+                reason = "max_attempts"
+            elif candidate and not enough_active:
+                reason = "active_steps"
+            elif candidate and not enough_stall:
+                reason = "stall_steps"
+            elif candidate and not enough_contact:
+                reason = "no_wall_contact"
+            return base_action, recovery_action, False, False, "inactive", state.attempts, 0, reason
+
+    recovery_action, active, phase, attempt, remaining = final_insert_macro_recovery_action(
+        args=args,
+        info=info,
+        state=state,
+        action_low=action_low,
+        action_high=action_high,
+    )
+    if not active:
+        return base_action, recovery_action, False, triggered, phase, attempt, remaining, reason
+    return recovery_action, recovery_action, True, triggered, phase, attempt, remaining, reason
+
+
 def shuffled_image_observation(
     obs: Any,
     *,
@@ -1919,6 +2121,13 @@ def build_step_trace_row(
     final_insert_adapter_reason: str = "inactive",
     final_insert_adapter_lift_pulse_active: bool = False,
     final_insert_adapter_lift_pulse_steps_remaining: int = 0,
+    final_insert_macro_recovery_action: np.ndarray | None = None,
+    final_insert_macro_recovery_active: bool = False,
+    final_insert_macro_recovery_triggered: bool = False,
+    final_insert_macro_recovery_phase: str = "inactive",
+    final_insert_macro_recovery_reason: str = "inactive",
+    final_insert_macro_recovery_attempt: int = 0,
+    final_insert_macro_recovery_steps_remaining: int = 0,
 ) -> dict[str, Any]:
     pre_tip = np.asarray(pre_info["peg_tip_pos"], dtype=np.float64)
     pre_target = np.asarray(pre_info["target_pos"], dtype=np.float64)
@@ -1950,6 +2159,11 @@ def build_step_trace_row(
         np.zeros(3, dtype=np.float64)
         if final_insert_adapter_action is None
         else np.asarray(final_insert_adapter_action, dtype=np.float64)
+    )
+    final_insert_macro_action = (
+        np.zeros(3, dtype=np.float64)
+        if final_insert_macro_recovery_action is None
+        else np.asarray(final_insert_macro_recovery_action, dtype=np.float64)
     )
     row: dict[str, Any] = {
         "scenario": scenario.name,
@@ -2199,6 +2413,17 @@ def build_step_trace_row(
         "final_insert_adapter_lift_pulse_steps_remaining": int(
             final_insert_adapter_lift_pulse_steps_remaining
         ),
+        "final_insert_macro_recovery_active": bool(final_insert_macro_recovery_active),
+        "final_insert_macro_recovery_triggered": bool(
+            final_insert_macro_recovery_triggered
+        ),
+        "final_insert_macro_recovery_phase": str(final_insert_macro_recovery_phase),
+        "final_insert_macro_recovery_reason": str(final_insert_macro_recovery_reason),
+        "final_insert_macro_recovery_attempt": int(final_insert_macro_recovery_attempt),
+        "final_insert_macro_recovery_steps_remaining": int(
+            final_insert_macro_recovery_steps_remaining
+        ),
+        **vector3_columns("final_insert_macro_recovery_action", final_insert_macro_action),
         **vector3_columns("base_policy_action", base_policy),
         **vector3_columns("policy_action", policy_action),
         **maybe_vector3_columns("guarded_action", None if step is None or step.guarded_action is None else step.guarded_action),
@@ -2429,6 +2654,9 @@ def evaluate_scenario(
     final_insert_adapter_episodes = 0
     final_insert_adapter_steps: list[float] = []
     final_insert_adapter_lift_pulse_steps: list[float] = []
+    final_insert_macro_recovery_episodes = 0
+    final_insert_macro_recovery_steps: list[float] = []
+    final_insert_macro_recovery_triggers: list[float] = []
     early_approach_assist_episodes = 0
     early_approach_assist_steps: list[float] = []
     early_approach_assist_triggers: list[float] = []
@@ -2486,6 +2714,8 @@ def evaluate_scenario(
             episode_approach_adapter_steps = 0
             episode_final_insert_adapter_steps = 0
             episode_final_insert_adapter_lift_pulse_steps = 0
+            episode_final_insert_macro_recovery_steps = 0
+            episode_final_insert_macro_recovery_triggers = 0
             episode_early_approach_assist_steps = 0
             episode_early_approach_assist_triggers = 0
             episode_early_approach_assist_releases = 0
@@ -2513,6 +2743,7 @@ def evaluate_scenario(
             final_insert_adapter_active_streak = 0
             final_insert_adapter_lift_pulse_remaining = 0
             final_insert_adapter_last_lift_pulse_step = -10**9
+            final_insert_macro_recovery_state = FinalInsertMacroRecoveryState()
             while True:
                 pre_info = {key: value for key, value in info.items()}
                 pre_tip = np.asarray(pre_info["peg_tip_pos"], dtype=np.float64)
@@ -2533,6 +2764,13 @@ def evaluate_scenario(
                 final_insert_adapter_active = False
                 final_insert_adapter_reason = "inactive"
                 final_insert_adapter_lift_pulse_active = False
+                final_insert_macro_recovery_action = np.zeros(3, dtype=np.float32)
+                final_insert_macro_recovery_active = False
+                final_insert_macro_recovery_triggered = False
+                final_insert_macro_recovery_phase = "inactive"
+                final_insert_macro_recovery_reason = "inactive"
+                final_insert_macro_recovery_attempt = 0
+                final_insert_macro_recovery_steps_remaining = 0
                 if args.control_mode == "guard_only":
                     state = guard_state_provider.state_from_info(pre_info)
                     policy_action = np.zeros(3, dtype=np.float32)
@@ -2639,11 +2877,35 @@ def evaluate_scenario(
                     action_low=np.asarray(env.action_space.low, dtype=np.float64),
                     action_high=np.asarray(env.action_space.high, dtype=np.float64),
                 )
+                (
+                    action,
+                    final_insert_macro_recovery_action,
+                    final_insert_macro_recovery_active,
+                    final_insert_macro_recovery_triggered,
+                    final_insert_macro_recovery_phase,
+                    final_insert_macro_recovery_attempt,
+                    final_insert_macro_recovery_steps_remaining,
+                    final_insert_macro_recovery_reason,
+                ) = maybe_apply_final_insert_macro_recovery(
+                    args=args,
+                    action=np.asarray(action, dtype=np.float32),
+                    info=pre_info,
+                    step=step,
+                    state=final_insert_macro_recovery_state,
+                    action_low=np.asarray(env.action_space.low, dtype=np.float64),
+                    action_high=np.asarray(env.action_space.high, dtype=np.float64),
+                )
                 episode_guard_steps += int(guarded)
                 episode_approach_adapter_steps += int(approach_adapter_active)
                 episode_final_insert_adapter_steps += int(final_insert_adapter_active)
                 episode_final_insert_adapter_lift_pulse_steps += int(
                     final_insert_adapter_lift_pulse_active
+                )
+                episode_final_insert_macro_recovery_steps += int(
+                    final_insert_macro_recovery_active
+                )
+                episode_final_insert_macro_recovery_triggers += int(
+                    final_insert_macro_recovery_triggered
                 )
                 if step is not None:
                     episode_retry_steps += int(step.guard_retry_active)
@@ -2769,6 +3031,27 @@ def evaluate_scenario(
                             final_insert_adapter_lift_pulse_steps_remaining=(
                                 final_insert_adapter_lift_pulse_remaining
                             ),
+                            final_insert_macro_recovery_action=(
+                                final_insert_macro_recovery_action
+                            ),
+                            final_insert_macro_recovery_active=(
+                                final_insert_macro_recovery_active
+                            ),
+                            final_insert_macro_recovery_triggered=(
+                                final_insert_macro_recovery_triggered
+                            ),
+                            final_insert_macro_recovery_phase=(
+                                final_insert_macro_recovery_phase
+                            ),
+                            final_insert_macro_recovery_reason=(
+                                final_insert_macro_recovery_reason
+                            ),
+                            final_insert_macro_recovery_attempt=(
+                                final_insert_macro_recovery_attempt
+                            ),
+                            final_insert_macro_recovery_steps_remaining=(
+                                final_insert_macro_recovery_steps_remaining
+                            ),
                             step=step,
                             guard_enabled=guard_enabled,
                             guarded=guarded,
@@ -2811,6 +3094,10 @@ def evaluate_scenario(
             )
             approach_adapter_episodes += int(episode_approach_adapter_steps > 0)
             final_insert_adapter_episodes += int(episode_final_insert_adapter_steps > 0)
+            final_insert_macro_recovery_episodes += int(
+                episode_final_insert_macro_recovery_steps > 0
+                or episode_final_insert_macro_recovery_triggers > 0
+            )
             early_approach_assist_episodes += int(
                 episode_early_approach_assist_steps > 0
                 or episode_early_approach_assist_triggers > 0
@@ -2853,6 +3140,12 @@ def evaluate_scenario(
             final_insert_adapter_steps.append(float(episode_final_insert_adapter_steps))
             final_insert_adapter_lift_pulse_steps.append(
                 float(episode_final_insert_adapter_lift_pulse_steps)
+            )
+            final_insert_macro_recovery_steps.append(
+                float(episode_final_insert_macro_recovery_steps)
+            )
+            final_insert_macro_recovery_triggers.append(
+                float(episode_final_insert_macro_recovery_triggers)
             )
             early_approach_assist_steps.append(
                 float(episode_early_approach_assist_steps)
@@ -2951,6 +3244,12 @@ def evaluate_scenario(
                     "final_insert_adapter_lift_pulse_steps": (
                         episode_final_insert_adapter_lift_pulse_steps
                     ),
+                    "final_insert_macro_recovery_steps": (
+                        episode_final_insert_macro_recovery_steps
+                    ),
+                    "final_insert_macro_recovery_triggers": (
+                        episode_final_insert_macro_recovery_triggers
+                    ),
                     "early_approach_assist_steps": episode_early_approach_assist_steps,
                     "early_approach_assist_triggers": (
                         episode_early_approach_assist_triggers
@@ -3027,6 +3326,9 @@ def evaluate_scenario(
     mean_final_insert_adapter_steps = mean(final_insert_adapter_steps)
     mean_final_insert_adapter_lift_pulse_steps = mean(
         final_insert_adapter_lift_pulse_steps
+    )
+    mean_final_insert_macro_recovery_steps = mean(
+        final_insert_macro_recovery_steps
     )
     mean_early_approach_assist_steps = mean(early_approach_assist_steps)
     mean_stateful_recovery_steps = mean(stateful_recovery_steps)
@@ -3109,6 +3411,21 @@ def evaluate_scenario(
         ),
         "final_insert_adapter_episode_rate": (
             final_insert_adapter_episodes / args.episodes
+        ),
+        "final_insert_macro_recovery_enabled": bool(
+            args.final_insert_macro_recovery_enabled
+        ),
+        "mean_final_insert_macro_recovery_steps": (
+            mean_final_insert_macro_recovery_steps
+        ),
+        "mean_final_insert_macro_recovery_fraction": (
+            mean_final_insert_macro_recovery_steps / max(mean_steps, 1e-9)
+        ),
+        "mean_final_insert_macro_recovery_triggers": mean(
+            final_insert_macro_recovery_triggers
+        ),
+        "final_insert_macro_recovery_episode_rate": (
+            final_insert_macro_recovery_episodes / args.episodes
         ),
         "mean_early_approach_assist_steps": mean_early_approach_assist_steps,
         "mean_early_approach_assist_fraction": (
@@ -3199,6 +3516,9 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Final insert adapter XY/Z/min phase/min stall gate: `{args.final_insert_adapter_max_xy}/{args.final_insert_adapter_min_z}-{args.final_insert_adapter_max_z}/{args.final_insert_adapter_min_phase_steps}/{args.final_insert_adapter_min_stall_steps}`",
         f"- Final insert adapter action caps XY/up/down/window: `{args.final_insert_adapter_max_xy_action}/{args.final_insert_adapter_max_up_action}/{args.final_insert_adapter_max_down_action}/{args.final_insert_adapter_progress_window_steps}`",
         f"- Final insert adapter lift pulse enabled/active/stall/steps/period/Z: `{args.final_insert_adapter_lift_pulse_enabled}/{args.final_insert_adapter_lift_pulse_active_steps}/{args.final_insert_adapter_lift_pulse_stall_steps}/{args.final_insert_adapter_lift_pulse_steps}/{args.final_insert_adapter_lift_pulse_period_steps}/{args.final_insert_adapter_lift_pulse_z_action}`",
+        f"- Final insert macro recovery enabled/phase/geometry/contact: `{args.final_insert_macro_recovery_enabled}/{args.final_insert_macro_recovery_phase}/{args.final_insert_macro_recovery_geometry_name}/{args.final_insert_macro_recovery_wall_contact_required}`",
+        f"- Final insert macro recovery gate XY/Z/active/stall/attempts: `{args.final_insert_macro_recovery_max_xy}/{args.final_insert_macro_recovery_min_z}-{args.final_insert_macro_recovery_max_z}/{args.final_insert_macro_recovery_min_active_steps}/{args.final_insert_macro_recovery_min_stall_steps}/{args.final_insert_macro_recovery_max_attempts}`",
+        f"- Final insert macro recovery lift/align/hold/action caps: `{args.final_insert_macro_recovery_lift_steps}/{args.final_insert_macro_recovery_align_steps}/{args.final_insert_macro_recovery_hold_steps}/{args.final_insert_macro_recovery_lift_action}/{args.final_insert_macro_recovery_max_xy_action}`",
         f"- Episodes per scenario: `{args.episodes}`",
         f"- Seed: `{args.seed}`",
         f"- Frame skip: `{args.frame_skip}`",
@@ -3288,8 +3608,8 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Contact recovery XY/Z/lift/Z tol/max down: `{args.contact_recovery_xy_tolerance}/{args.contact_recovery_z_max}/{args.contact_recovery_lift_height}/{args.contact_recovery_lift_z_tolerance}/{args.contact_recovery_max_down_action}`",
         f"- Timeout progress XY/Z/max down: `{args.timeout_progress_xy_tolerance}/{args.timeout_progress_z_max}/{args.timeout_progress_max_down_action}`",
         "",
-        "| Scenario | Level | Mode | Image | Image target | Control state | Guard | Success | Collision | Timeout | Mean return | Mean steps | Guard steps | Retry steps | Latch steps | Hover steps | Near limited | Fixture steps | Fixture realign | Preinsert | Approach rec | Adapter | Final insert adapter | Final insert pulse | Early approach | Stateful rec | Final servo | Final servo descend | Final XY | Final Z |",
-        "| --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Scenario | Level | Mode | Image | Image target | Control state | Guard | Success | Collision | Timeout | Mean return | Mean steps | Guard steps | Retry steps | Latch steps | Hover steps | Near limited | Fixture steps | Fixture realign | Preinsert | Approach rec | Adapter | Final insert adapter | Final insert pulse | Final insert macro | Early approach | Stateful rec | Final servo | Final servo descend | Final XY | Final Z |",
+        "| --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for row in rows:
         lines.append(
@@ -3307,6 +3627,7 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
             "{mean_approach_adapter_steps:.1f} ({mean_approach_adapter_fraction:.2f}) | "
             "{mean_final_insert_adapter_steps:.1f} ({mean_final_insert_adapter_fraction:.2f}) | "
             "{mean_final_insert_adapter_lift_pulse_steps:.1f} | "
+            "{mean_final_insert_macro_recovery_steps:.1f} ({mean_final_insert_macro_recovery_fraction:.2f}, trig {mean_final_insert_macro_recovery_triggers:.2f}) | "
             "{mean_early_approach_assist_steps:.1f} ({mean_early_approach_assist_fraction:.2f}, trig {mean_early_approach_assist_triggers:.2f}, rel {mean_early_approach_assist_releases:.2f}) | "
             "{mean_stateful_recovery_steps:.1f} ({mean_stateful_recovery_fraction:.2f}, trig {mean_stateful_recovery_triggers:.2f}, rel {mean_stateful_recovery_releases:.2f}) | "
             "{mean_final_servo_steps:.1f} ({mean_final_servo_step_fraction:.2f}, trig {mean_final_servo_triggers:.2f}, rec {mean_final_servo_recovery_triggers:.2f}) | "
@@ -3406,6 +3727,28 @@ def main() -> None:
         raise ValueError("--final-insert-adapter-lift-pulse-z-action must be positive.")
     if args.final_insert_adapter_progress_window_steps <= 0:
         raise ValueError("--final-insert-adapter-progress-window-steps must be positive.")
+    if args.final_insert_macro_recovery_min_stall_steps < 0:
+        raise ValueError("--final-insert-macro-recovery-min-stall-steps cannot be negative.")
+    if args.final_insert_macro_recovery_min_active_steps < 0:
+        raise ValueError("--final-insert-macro-recovery-min-active-steps cannot be negative.")
+    if args.final_insert_macro_recovery_min_z < 0.0:
+        raise ValueError("--final-insert-macro-recovery-min-z cannot be negative.")
+    if args.final_insert_macro_recovery_max_z <= args.final_insert_macro_recovery_min_z:
+        raise ValueError("--final-insert-macro-recovery-max-z must exceed min Z.")
+    if args.final_insert_macro_recovery_max_xy <= 0.0:
+        raise ValueError("--final-insert-macro-recovery-max-xy must be positive.")
+    if args.final_insert_macro_recovery_lift_steps <= 0:
+        raise ValueError("--final-insert-macro-recovery-lift-steps must be positive.")
+    if args.final_insert_macro_recovery_align_steps <= 0:
+        raise ValueError("--final-insert-macro-recovery-align-steps must be positive.")
+    if args.final_insert_macro_recovery_hold_steps <= 0:
+        raise ValueError("--final-insert-macro-recovery-hold-steps must be positive.")
+    if args.final_insert_macro_recovery_lift_action <= 0.0:
+        raise ValueError("--final-insert-macro-recovery-lift-action must be positive.")
+    if args.final_insert_macro_recovery_max_xy_action < 0.0:
+        raise ValueError("--final-insert-macro-recovery-max-xy-action cannot be negative.")
+    if args.final_insert_macro_recovery_max_attempts < 0:
+        raise ValueError("--final-insert-macro-recovery-max-attempts cannot be negative.")
     validate_ordered_pair("--initial-tip-z-above-range", args.initial_tip_z_above_range, min_value=0.0)
     validate_ordered_pair("--initial-tip-xy-offset-range", args.initial_tip_xy_offset_range, min_value=0.0)
     validate_ordered_pair("--geometry-hole-half-size-range", args.geometry_hole_half_size_range, min_value=0.0)
