@@ -491,6 +491,15 @@ def build_parser(
     parser.add_argument("--final-insert-macro-recovery-lift-action", type=float, default=0.002)
     parser.add_argument("--final-insert-macro-recovery-max-xy-action", type=float, default=0.0015)
     parser.add_argument("--final-insert-macro-recovery-max-attempts", type=int, default=2)
+    parser.add_argument("--final-insert-macro-recovery-abort-xy", type=float, default=0.012)
+    parser.add_argument("--final-insert-macro-recovery-abort-lift-steps", type=int, default=20)
+    parser.add_argument("--final-insert-macro-recovery-abort-lift-action", type=float, default=0.005)
+    parser.add_argument(
+        "--final-insert-macro-recovery-abort-when-final-servo-inactive",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Abort the macro recovery with a short lift if final-servo drops out mid-macro.",
+    )
     parser.add_argument(
         "--guard-scenario-filter",
         choices=["none", "all", "geometry", "hard"],
@@ -1683,6 +1692,8 @@ def final_insert_macro_recovery_action(
     action = np.zeros(3, dtype=np.float64)
     if phase == "lift":
         action[2] = float(args.final_insert_macro_recovery_lift_action)
+    elif phase == "abort_lift":
+        action[2] = float(args.final_insert_macro_recovery_abort_lift_action)
     elif phase in ("align", "hold"):
         action[:2] = limit_xy_vector(rel[:2], args.final_insert_macro_recovery_max_xy_action)
         action[2] = 0.0
@@ -1982,6 +1993,25 @@ def maybe_apply_final_insert_macro_recovery(
             elif candidate and not enough_contact:
                 reason = "no_wall_contact"
             return base_action, recovery_action, False, False, "inactive", state.attempts, 0, reason
+    else:
+        dist_xy = float(info["dist_xy"])
+        final_servo_active = step is not None and bool(step.guard_final_servo_active)
+        abort_for_xy = dist_xy > args.final_insert_macro_recovery_abort_xy
+        abort_for_final_servo = (
+            args.final_insert_macro_recovery_abort_when_final_servo_inactive
+            and not final_servo_active
+        )
+        if state.phase != "abort_lift" and (abort_for_xy or abort_for_final_servo):
+            state.phase = "abort_lift"
+            state.phase_steps_remaining = int(
+                args.final_insert_macro_recovery_abort_lift_steps
+            )
+            if abort_for_xy:
+                reason = "abort_xy"
+            else:
+                reason = "abort_final_servo_inactive"
+        elif state.phase != "abort_lift":
+            reason = "active"
 
     recovery_action, active, phase, attempt, remaining = final_insert_macro_recovery_action(
         args=args,
@@ -3519,6 +3549,7 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Final insert macro recovery enabled/phase/geometry/contact: `{args.final_insert_macro_recovery_enabled}/{args.final_insert_macro_recovery_phase}/{args.final_insert_macro_recovery_geometry_name}/{args.final_insert_macro_recovery_wall_contact_required}`",
         f"- Final insert macro recovery gate XY/Z/active/stall/attempts: `{args.final_insert_macro_recovery_max_xy}/{args.final_insert_macro_recovery_min_z}-{args.final_insert_macro_recovery_max_z}/{args.final_insert_macro_recovery_min_active_steps}/{args.final_insert_macro_recovery_min_stall_steps}/{args.final_insert_macro_recovery_max_attempts}`",
         f"- Final insert macro recovery lift/align/hold/action caps: `{args.final_insert_macro_recovery_lift_steps}/{args.final_insert_macro_recovery_align_steps}/{args.final_insert_macro_recovery_hold_steps}/{args.final_insert_macro_recovery_lift_action}/{args.final_insert_macro_recovery_max_xy_action}`",
+        f"- Final insert macro recovery abort XY/lift steps/lift action/final-servo inactive: `{args.final_insert_macro_recovery_abort_xy}/{args.final_insert_macro_recovery_abort_lift_steps}/{args.final_insert_macro_recovery_abort_lift_action}/{args.final_insert_macro_recovery_abort_when_final_servo_inactive}`",
         f"- Episodes per scenario: `{args.episodes}`",
         f"- Seed: `{args.seed}`",
         f"- Frame skip: `{args.frame_skip}`",
@@ -3749,6 +3780,12 @@ def main() -> None:
         raise ValueError("--final-insert-macro-recovery-max-xy-action cannot be negative.")
     if args.final_insert_macro_recovery_max_attempts < 0:
         raise ValueError("--final-insert-macro-recovery-max-attempts cannot be negative.")
+    if args.final_insert_macro_recovery_abort_xy <= 0.0:
+        raise ValueError("--final-insert-macro-recovery-abort-xy must be positive.")
+    if args.final_insert_macro_recovery_abort_lift_steps <= 0:
+        raise ValueError("--final-insert-macro-recovery-abort-lift-steps must be positive.")
+    if args.final_insert_macro_recovery_abort_lift_action <= 0.0:
+        raise ValueError("--final-insert-macro-recovery-abort-lift-action must be positive.")
     validate_ordered_pair("--initial-tip-z-above-range", args.initial_tip_z_above_range, min_value=0.0)
     validate_ordered_pair("--initial-tip-xy-offset-range", args.initial_tip_xy_offset_range, min_value=0.0)
     validate_ordered_pair("--geometry-hole-half-size-range", args.geometry_hole_half_size_range, min_value=0.0)

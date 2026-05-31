@@ -516,7 +516,10 @@ python -B scripts\eval_guarded_policy.py `
 
 Optional v115 final-insert macro recovery diagnostic. This is default-off and
 not promoted. The stronger probe can sometimes free `895803`, but the targeted
-four-seed matrix stayed at `37/40` with one collision.
+four-seed matrix stayed at `37/40` with one collision. The current v116 abort
+safety knobs are enabled by default when macro recovery is enabled; they changed
+the same matrix to `36/40`, zero collision and four timeouts, so they are only a
+diagnostic guardrail.
 
 ```powershell
 $out = "D:\peg-in-hole-6yh\v115_final_insert_macro_recovery_probe"
@@ -549,6 +552,9 @@ foreach ($seed in 895700,895800,895900,896000) {
     --final-insert-macro-recovery-lift-steps 40 `
     --final-insert-macro-recovery-lift-action 0.005 `
     --final-insert-macro-recovery-max-xy-action 0.0025 `
+    --final-insert-macro-recovery-abort-xy 0.012 `
+    --final-insert-macro-recovery-abort-lift-steps 20 `
+    --final-insert-macro-recovery-abort-lift-action 0.005 `
     --output-csv "$out\eval_macro_strong_square_square_10ep_seed$seed.csv" `
     --output-md "$out\eval_macro_strong_square_square_10ep_seed$seed.md" `
     --episode-output-csv "$out\eval_macro_strong_square_square_10ep_seed$seed`_episodes.csv" `
