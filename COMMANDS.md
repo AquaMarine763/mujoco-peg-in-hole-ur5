@@ -973,6 +973,11 @@ Fresh-seed follow-up after v122:
   probes did not improve the bottleneck: `903500` stayed `59/60`,
   `903500` with `max_attempts=2`/`xy_max=0.007` also stayed `59/60`, and
   `904500` stayed `59/60` with no rearm. Do not enable it in the v138 config.
+- v143 raises only `--guard-final-servo-square-fast-settle-contact-max 8` on
+  top of v138. On seeds `903500/904500/905500`, 60 episodes each, it reached
+  `179/180`, zero collision, one remaining square-square timeout (`903557`).
+  A companion `--guard-final-servo-ik-orientation-weight 0.12` probe did not
+  solve that failure, so keep v143 as contact tolerance only.
 - Reproducible config:
   `configs\sim\ur5e_full\eval_multi_geometry_v138_square_tilt_reinsert_lift60_60ep.yaml`.
 - Final-insert adapter artifact is staged at
@@ -998,6 +1003,29 @@ foreach ($seed in 903500,904500,905500) {
     --output-md "$out\eval_v138_mixed_same_shape_60ep_seed$seed.md" `
     --episode-output-csv "$out\eval_v138_mixed_same_shape_60ep_seed$seed`_episodes.csv" `
     --step-output-csv "$out\eval_v138_mixed_same_shape_60ep_seed$seed`_steps.csv" `
+    --step-trace-outcome-filter failure
+}
+```
+
+Run the v143 square-fast-settle contact tolerance probe:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v143_square_contact8_probe"
+$adapter = "D:\peg-in-hole-6yh\v119_final_insert_handoff_adapter_pilot\final_insert_adapter_handoff_alldata_e150.pt"
+$approach = "D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($seed in 903500,904500,905500) {
+  python -B scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_v138_square_tilt_reinsert_lift60_60ep.yaml `
+    --seed $seed `
+    --approach-adapter $approach `
+    --final-insert-adapter $adapter `
+    --guard-final-servo-square-fast-settle-contact-max 8 `
+    --output-csv "$out\eval_square_fast_settle_contact8_mixed_same_shape_60ep_seed$seed.csv" `
+    --output-md "$out\eval_square_fast_settle_contact8_mixed_same_shape_60ep_seed$seed.md" `
+    --episode-output-csv "$out\eval_square_fast_settle_contact8_mixed_same_shape_60ep_seed$seed`_episodes.csv" `
+    --step-output-csv "$out\eval_square_fast_settle_contact8_mixed_same_shape_60ep_seed$seed`_failure_steps.csv" `
     --step-trace-outcome-filter failure
 }
 ```
