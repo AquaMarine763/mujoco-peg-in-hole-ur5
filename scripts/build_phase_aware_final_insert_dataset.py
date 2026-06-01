@@ -142,6 +142,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--teacher-safe-retreat-lift-action-m", type=float, default=0.0060)
     parser.add_argument("--teacher-retreat-max-xy-action-m", type=float, default=0.0012)
     parser.add_argument("--teacher-safe-retreat-max-xy-action-m", type=float, default=0.0008)
+    parser.add_argument(
+        "--handoff-teacher-enabled",
+        action="store_true",
+        help="Relabel aligned/no-wall high-Z states as handoff_descend instead of more retreat-lift.",
+    )
+    parser.add_argument("--handoff-xy-m", type=float, default=0.0020)
+    parser.add_argument("--handoff-min-z-m", type=float, default=0.025)
+    parser.add_argument("--handoff-max-z-m", type=float, default=0.060)
+    parser.add_argument(
+        "--handoff-failure-classification",
+        nargs="*",
+        default=["macro_not_triggered_timeout", "macro_triggered_timeout_stuck_high_z"],
+        help="Failure classes where handoff teacher labels may be generated.",
+    )
     parser.add_argument("--divergence-xy-m", type=float, default=0.012)
     parser.add_argument("--near-xy-m", type=float, default=0.008)
     parser.add_argument("--stuck-z-m", type=float, default=0.025)
@@ -260,6 +274,35 @@ def retreat_recenter_action(
     return limit_xy(action, max_xy_action_m)
 
 
+def handoff_descend_action(row: dict[str, str], *, max_down_action_m: float) -> np.ndarray:
+    tip = row_vector(row, "post_peg_tip")
+    target = row_vector(row, "post_target")
+    rel = target - tip
+    action = np.asarray([rel[0], rel[1], -max_down_action_m], dtype=np.float64)
+    return limit_xy(action, max_norm=0.0)
+
+
+def should_label_handoff(
+    row: dict[str, str],
+    *,
+    failure_classification: str,
+    args: argparse.Namespace,
+) -> bool:
+    if not args.handoff_teacher_enabled:
+        return False
+    allowed_classes = {name.strip() for name in args.handoff_failure_classification}
+    if failure_classification not in allowed_classes:
+        return False
+    if to_int(row, "peg_hole_contact_wall_count") > 0:
+        return False
+    post_xy = to_float(row, "post_dist_xy")
+    post_z = to_float(row, "post_z_above_target")
+    return (
+        post_xy <= args.handoff_xy_m
+        and args.handoff_min_z_m <= post_z <= args.handoff_max_z_m
+    )
+
+
 def teacher_label(
     row: dict[str, str],
     *,
@@ -283,6 +326,17 @@ def teacher_label(
     high_tilt = to_float(row, "peg_tilt_angle_deg") >= args.tilt_deg
     bad_margin = to_float(row, "square_peg_tilted_clearance_margin") <= args.tilted_margin_m
     progress_stall = "progress_stall" in stuck_reason
+
+    if should_label_handoff(
+        row,
+        failure_classification=failure_classification,
+        args=args,
+    ):
+        action = handoff_descend_action(
+            row,
+            max_down_action_m=args.label_max_down_action_m,
+        )
+        return "handoff_descend", f"{failure_classification}_handoff_descend", action
 
     if failure_classification in (
         "macro_triggered_collision_diverged",

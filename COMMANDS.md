@@ -701,6 +701,117 @@ foreach ($seed in 895700,895800,895900,896000) {
 }
 ```
 
+Build and evaluate the v119 handoff/stop teacher. This is diagnostic only; the
+best current v119 probe reaches `39/40`, zero collision, and still leaves
+`896007`.
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v119_final_insert_handoff_teacher_probe"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+$traceDirs = @(
+  "D:\peg-in-hole-6yh\v115_final_insert_macro_recovery_probe",
+  "D:\peg-in-hole-6yh\v116_final_insert_macro_recovery_abort_probe"
+)
+$episodes = Get-ChildItem $traceDirs -Filter "*_episodes.csv" |
+  Sort-Object FullName |
+  ForEach-Object { $_.FullName }
+
+python -B scripts\build_phase_aware_final_insert_dataset.py `
+  --episode-csv $episodes `
+  --handoff-teacher-enabled `
+  --handoff-xy-m 0.002 `
+  --handoff-min-z-m 0.025 `
+  --handoff-max-z-m 0.060 `
+  --output-csv "$out\phase_aware_handoff_final_insert.csv" `
+  --output-md "$out\phase_aware_handoff_final_insert.md" `
+  --output-npz "$out\phase_aware_handoff_final_insert.npz"
+```
+
+Train v119 adapters:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v119_final_insert_handoff_adapter_pilot"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+python -B scripts\train_final_insert_adapter.py `
+  --dataset D:\peg-in-hole-6yh\v119_final_insert_handoff_teacher_probe\phase_aware_handoff_final_insert.npz `
+  --output "$out\final_insert_adapter_handoff_episode_split_e150.pt" `
+  --metadata-output "$out\training_metadata_handoff_episode_split_e150.json" `
+  --epochs 150 `
+  --batch-size 64 `
+  --learning-rate 0.0003 `
+  --balance-label-phases `
+  --split-mode episode `
+  --validation-split 0.33 `
+  --seed 919000 `
+  --device cpu
+
+python -B scripts\train_final_insert_adapter.py `
+  --dataset D:\peg-in-hole-6yh\v119_final_insert_handoff_teacher_probe\phase_aware_handoff_final_insert.npz `
+  --output "$out\final_insert_adapter_handoff_alldata_e150.pt" `
+  --metadata-output "$out\training_metadata_handoff_alldata_e150.json" `
+  --epochs 150 `
+  --batch-size 64 `
+  --learning-rate 0.0003 `
+  --balance-label-phases `
+  --split-mode random `
+  --validation-split 0.0 `
+  --seed 919100 `
+  --device cpu
+```
+
+Evaluate the current v119 handoff diagnostic:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v119_final_insert_handoff_adapter_eval"
+$adapter = "D:\peg-in-hole-6yh\v119_final_insert_handoff_adapter_pilot\final_insert_adapter_handoff_alldata_e150.pt"
+$approach = "D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($seed in 895700,895800,895900,896000) {
+  python -B scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml `
+    --episodes 10 `
+    --seed $seed `
+    --geometry-profile square_square `
+    --geometry-hole-half-size-range 0.0140 0.0160 `
+    --geometry-peg-radius-range 0.0128 0.0135 `
+    --geometry-square-peg-half-size-range 0.0122 0.0135 `
+    --approach-adapter $approach `
+    --approach-adapter-enabled `
+    --approach-adapter-trigger-xy 0.06 `
+    --approach-adapter-release-xy 0.03 `
+    --approach-adapter-min-z 0.12 `
+    --approach-adapter-max-z 0.27 `
+    --approach-adapter-latch-enabled `
+    --approach-adapter-latched-min-z 0.08 `
+    --approach-adapter-max-steps 220 `
+    --approach-adapter-mode override_xy `
+    --approach-adapter-max-xy-residual 0.003 `
+    --guard-final-servo-start-z 0.100 `
+    --final-insert-adapter $adapter `
+    --final-insert-adapter-enabled `
+    --final-insert-adapter-mode override `
+    --final-insert-adapter-max-xy 0.020 `
+    --final-insert-adapter-min-z 0.005 `
+    --final-insert-adapter-max-z 0.075 `
+    --final-insert-adapter-min-stall-steps 15 `
+    --no-final-insert-adapter-wall-contact-required `
+    --final-insert-adapter-max-xy-action 0.0012 `
+    --final-insert-adapter-max-up-action 0.005 `
+    --final-insert-adapter-max-down-action 0.0008 `
+    --final-insert-adapter-handoff-on-down-action `
+    --final-insert-adapter-handoff-on-aligned-no-contact `
+    --final-insert-adapter-handoff-xy 0.0048 `
+    --final-insert-adapter-handoff-min-z 0.025 `
+    --final-insert-adapter-handoff-max-z 0.060 `
+    --output-csv "$out\eval_handoff_override_statehandoff0048_nowall_stall15_seed$seed`_10ep.csv" `
+    --output-md "$out\eval_handoff_override_statehandoff0048_nowall_stall15_seed$seed`_10ep.md" `
+    --episode-output-csv "$out\eval_handoff_override_statehandoff0048_nowall_stall15_seed$seed`_10ep_episodes.csv" `
+    --step-output-csv "$out\eval_handoff_override_statehandoff0048_nowall_stall15_seed$seed`_10ep_steps.csv"
+}
+```
+
 Experimental square-aware final-servo recovery check:
 
 ```powershell

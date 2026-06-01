@@ -463,6 +463,25 @@ def build_parser(
         default=0,
         help="Steps to keep the adapter inactive after a bounded takeover burst.",
     )
+    parser.add_argument(
+        "--final-insert-adapter-handoff-on-down-action",
+        action="store_true",
+        help="Treat a predicted downward final-insert adapter action as a handoff signal and keep the guarded action.",
+    )
+    parser.add_argument(
+        "--final-insert-adapter-handoff-on-aligned-no-contact",
+        action="store_true",
+        help="Keep the guarded action when the tip is aligned, high, and not touching a hole wall.",
+    )
+    parser.add_argument("--final-insert-adapter-handoff-xy", type=float, default=0.002)
+    parser.add_argument("--final-insert-adapter-handoff-min-z", type=float, default=0.025)
+    parser.add_argument("--final-insert-adapter-handoff-max-z", type=float, default=0.060)
+    parser.add_argument(
+        "--final-insert-adapter-handoff-z-action-threshold",
+        type=float,
+        default=-0.0001,
+        help="Z-action threshold for handoff-on-down-action. Predictions at or below this value hand control back.",
+    )
     parser.add_argument("--final-insert-adapter-lift-pulse-enabled", action="store_true")
     parser.add_argument("--final-insert-adapter-lift-pulse-active-steps", type=int, default=80)
     parser.add_argument("--final-insert-adapter-lift-pulse-stall-steps", type=int, default=80)
@@ -1863,6 +1882,20 @@ def apply_final_insert_adapter(
     ):
         active = False
         reason = "max_consecutive"
+    if active and args.final_insert_adapter_handoff_on_aligned_no_contact:
+        tip = np.asarray(info["peg_tip_pos"], dtype=np.float64)
+        target = np.asarray(info["target_pos"], dtype=np.float64)
+        z_above_target = float(tip[2] - target[2])
+        wall_count = int(info.get("peg_hole_contact_wall_count", 0))
+        if (
+            wall_count <= 0
+            and float(info["dist_xy"]) <= args.final_insert_adapter_handoff_xy
+            and args.final_insert_adapter_handoff_min_z
+            <= z_above_target
+            <= args.final_insert_adapter_handoff_max_z
+        ):
+            active = False
+            reason = "handoff_state"
     if adapter is None or not active or step is None:
         zeros = np.zeros(3, dtype=np.float32)
         return np.asarray(action, dtype=np.float32), zeros, zeros, False, reason
@@ -1880,6 +1913,18 @@ def apply_final_insert_adapter(
         action_high=action_high,
     )
     base_action = np.asarray(action, dtype=np.float64).reshape(3)
+    if (
+        args.final_insert_adapter_handoff_on_down_action
+        and clipped_adapter_action[2]
+        <= args.final_insert_adapter_handoff_z_action_threshold
+    ):
+        return (
+            np.clip(base_action, action_low, action_high).astype(np.float32),
+            raw_action.astype(np.float32),
+            clipped_adapter_action.astype(np.float32),
+            False,
+            "handoff_prediction",
+        )
     if args.final_insert_adapter_mode == "override":
         final_action = clipped_adapter_action
     elif args.final_insert_adapter_mode == "override_xy":
@@ -3584,6 +3629,8 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Final insert adapter XY/Z/min phase/min stall gate: `{args.final_insert_adapter_max_xy}/{args.final_insert_adapter_min_z}-{args.final_insert_adapter_max_z}/{args.final_insert_adapter_min_phase_steps}/{args.final_insert_adapter_min_stall_steps}`",
         f"- Final insert adapter action caps XY/up/down/window: `{args.final_insert_adapter_max_xy_action}/{args.final_insert_adapter_max_up_action}/{args.final_insert_adapter_max_down_action}/{args.final_insert_adapter_progress_window_steps}`",
         f"- Final insert adapter max consecutive/cooldown steps: `{args.final_insert_adapter_max_consecutive_steps}/{args.final_insert_adapter_cooldown_steps}`",
+        f"- Final insert adapter handoff on down/threshold: `{args.final_insert_adapter_handoff_on_down_action}/{args.final_insert_adapter_handoff_z_action_threshold}`",
+        f"- Final insert adapter handoff aligned/no-contact XY/Z: `{args.final_insert_adapter_handoff_on_aligned_no_contact}/{args.final_insert_adapter_handoff_xy}/{args.final_insert_adapter_handoff_min_z}-{args.final_insert_adapter_handoff_max_z}`",
         f"- Final insert adapter lift pulse enabled/active/stall/steps/period/Z: `{args.final_insert_adapter_lift_pulse_enabled}/{args.final_insert_adapter_lift_pulse_active_steps}/{args.final_insert_adapter_lift_pulse_stall_steps}/{args.final_insert_adapter_lift_pulse_steps}/{args.final_insert_adapter_lift_pulse_period_steps}/{args.final_insert_adapter_lift_pulse_z_action}`",
         f"- Final insert macro recovery enabled/phase/geometry/contact: `{args.final_insert_macro_recovery_enabled}/{args.final_insert_macro_recovery_phase}/{args.final_insert_macro_recovery_geometry_name}/{args.final_insert_macro_recovery_wall_contact_required}`",
         f"- Final insert macro recovery gate XY/Z/active/stall/attempts: `{args.final_insert_macro_recovery_max_xy}/{args.final_insert_macro_recovery_min_z}-{args.final_insert_macro_recovery_max_z}/{args.final_insert_macro_recovery_min_active_steps}/{args.final_insert_macro_recovery_min_stall_steps}/{args.final_insert_macro_recovery_max_attempts}`",
@@ -3789,6 +3836,14 @@ def main() -> None:
         raise ValueError("--final-insert-adapter-max-consecutive-steps cannot be negative.")
     if args.final_insert_adapter_cooldown_steps < 0:
         raise ValueError("--final-insert-adapter-cooldown-steps cannot be negative.")
+    if args.final_insert_adapter_handoff_xy <= 0.0:
+        raise ValueError("--final-insert-adapter-handoff-xy must be positive.")
+    if args.final_insert_adapter_handoff_min_z < 0.0:
+        raise ValueError("--final-insert-adapter-handoff-min-z cannot be negative.")
+    if args.final_insert_adapter_handoff_max_z <= args.final_insert_adapter_handoff_min_z:
+        raise ValueError("--final-insert-adapter-handoff-max-z must exceed min Z.")
+    if args.final_insert_adapter_handoff_z_action_threshold > 0.0:
+        raise ValueError("--final-insert-adapter-handoff-z-action-threshold cannot be positive.")
     if args.final_insert_adapter_lift_pulse_active_steps <= 0:
         raise ValueError("--final-insert-adapter-lift-pulse-active-steps must be positive.")
     if args.final_insert_adapter_lift_pulse_stall_steps <= 0:
