@@ -963,6 +963,10 @@ Fresh-seed follow-up after v122:
   `355/360`, zero collision, five square-square timeouts.
 - v140 retry8 probe on `903500/904500` did not reduce timeout count. Do not
   keep scanning retry budget as the next main line.
+- v141 default-off `--guard-final-servo-square-high-z-descend-enabled` was
+  rejected as a promotion path. Focused seeds `901500/903500/904500` stayed at
+  `59/60`, `59/60`, and regressed to `57/60` with one collision. Do not enable
+  it in the v138 config.
 - Reproducible config:
   `configs\sim\ur5e_full\eval_multi_geometry_v138_square_tilt_reinsert_lift60_60ep.yaml`.
 - Final-insert adapter artifact is staged at

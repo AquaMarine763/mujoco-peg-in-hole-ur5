@@ -379,6 +379,16 @@ class GuardedPolicyConfig:
     guard_final_servo_square_fast_settle_max_xy_action: float = 0.008
     guard_final_servo_square_fast_settle_max_down_action: float = 0.0020
     guard_final_servo_square_fast_settle_contact_unjam_enabled: bool = False
+    guard_final_servo_square_high_z_descend_enabled: bool = False
+    guard_final_servo_square_high_z_descend_stall_steps: int = 18
+    guard_final_servo_square_high_z_descend_xy_max: float = 0.0055
+    guard_final_servo_square_high_z_descend_z_min: float = 0.026
+    guard_final_servo_square_high_z_descend_z_max: float = 0.045
+    guard_final_servo_square_high_z_descend_contact_max: int = 1
+    guard_final_servo_square_high_z_descend_tilt_max_deg: float = 3.0
+    guard_final_servo_square_high_z_descend_margin_min: float = -0.0015
+    guard_final_servo_square_high_z_descend_max_steps: int = 90
+    guard_final_servo_square_high_z_descend_max_down_action: float = 0.0025
     guard_final_servo_square_tilt_reinsert_enabled: bool = False
     guard_final_servo_square_tilt_reinsert_wall_steps: int = 4
     guard_final_servo_square_tilt_reinsert_stall_steps: int = 16
@@ -1009,6 +1019,50 @@ class GuardedPolicyConfig:
         if self.guard_final_servo_square_fast_settle_max_down_action < 0.0:
             raise ValueError(
                 "guard_final_servo_square_fast_settle_max_down_action cannot be negative."
+            )
+        if self.guard_final_servo_square_high_z_descend_stall_steps < 0:
+            raise ValueError(
+                "guard_final_servo_square_high_z_descend_stall_steps cannot be negative."
+            )
+        if self.guard_final_servo_square_high_z_descend_xy_max <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_high_z_descend_xy_max must be positive."
+            )
+        if self.guard_final_servo_square_high_z_descend_z_min < 0.0:
+            raise ValueError(
+                "guard_final_servo_square_high_z_descend_z_min cannot be negative."
+            )
+        if self.guard_final_servo_square_high_z_descend_z_max <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_high_z_descend_z_max must be positive."
+            )
+        if (
+            self.guard_final_servo_square_high_z_descend_z_min
+            > self.guard_final_servo_square_high_z_descend_z_max
+        ):
+            raise ValueError(
+                "guard_final_servo_square_high_z_descend_z_min must be <= "
+                "guard_final_servo_square_high_z_descend_z_max."
+            )
+        if self.guard_final_servo_square_high_z_descend_contact_max < 0:
+            raise ValueError(
+                "guard_final_servo_square_high_z_descend_contact_max cannot be negative."
+            )
+        if self.guard_final_servo_square_high_z_descend_tilt_max_deg <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_high_z_descend_tilt_max_deg must be positive."
+            )
+        if self.guard_final_servo_square_high_z_descend_margin_min > 0.0:
+            raise ValueError(
+                "guard_final_servo_square_high_z_descend_margin_min must be <= 0."
+            )
+        if self.guard_final_servo_square_high_z_descend_max_steps <= 0:
+            raise ValueError(
+                "guard_final_servo_square_high_z_descend_max_steps must be positive."
+            )
+        if self.guard_final_servo_square_high_z_descend_max_down_action < 0.0:
+            raise ValueError(
+                "guard_final_servo_square_high_z_descend_max_down_action cannot be negative."
             )
         if self.guard_final_servo_square_tilt_reinsert_wall_steps <= 0:
             raise ValueError(
@@ -2636,6 +2690,13 @@ class GuardedPolicyController:
         self._set_final_servo_phase("square_fast_settle")
         return True
 
+    def _start_final_servo_square_high_z_descend(self, z_above_target: float) -> bool:
+        self.guard_final_servo_stable_steps = 0
+        self.guard_final_servo_stall_steps = 0
+        self.guard_final_servo_best_z_above = z_above_target
+        self._set_final_servo_phase("square_high_z_descend")
+        return True
+
     def _start_final_servo_square_tilt_reinsert(self, z_above_target: float) -> bool:
         if (
             self.guard_final_servo_square_tilt_reinsert_attempts
@@ -2744,6 +2805,52 @@ class GuardedPolicyController:
             or not np.isfinite(tilt)
             or tilt <= self.config.guard_final_servo_square_tilt_reinsert_release_tilt_deg
         )
+
+    def _square_high_z_descend_low_risk(
+        self,
+        state: GuardedDeploymentState,
+    ) -> bool:
+        contact_count = (
+            state.peg_hole_contact_wall_count + state.peg_hole_contact_plate_count
+        )
+        if contact_count > self.config.guard_final_servo_square_high_z_descend_contact_max:
+            return False
+        tilt = state.peg_tilt_angle_deg
+        if tilt is None or not np.isfinite(tilt):
+            return False
+        if tilt > self.config.guard_final_servo_square_high_z_descend_tilt_max_deg:
+            return False
+        margin = state.square_peg_tilted_clearance_margin
+        if margin is None or not np.isfinite(margin):
+            return False
+        return margin >= self.config.guard_final_servo_square_high_z_descend_margin_min
+
+    def _square_high_z_descend_condition(
+        self,
+        state: GuardedDeploymentState,
+        dist_xy: float,
+        z_above_target: float,
+    ) -> bool:
+        if not self.config.guard_final_servo_square_high_z_descend_enabled:
+            return False
+        if state.peg_shape != "square":
+            return False
+        if self.guard_final_servo_phase != "square_fast_settle":
+            return False
+        if (
+            self.guard_final_servo_stall_steps
+            < self.config.guard_final_servo_square_high_z_descend_stall_steps
+        ):
+            return False
+        if (
+            dist_xy > self.config.guard_final_servo_square_high_z_descend_xy_max
+            or z_above_target
+            < self.config.guard_final_servo_square_high_z_descend_z_min
+            or z_above_target
+            > self.config.guard_final_servo_square_high_z_descend_z_max
+        ):
+            return False
+        return self._square_high_z_descend_low_risk(state)
 
     def _square_tilt_reinsert_condition(
         self,
@@ -3424,6 +3531,12 @@ class GuardedPolicyController:
                 recovery_triggered = self._start_final_servo_square_tilt_reinsert(
                     z_above_target,
                 )
+            elif self._square_high_z_descend_condition(
+                state,
+                dist_xy,
+                z_above_target,
+            ):
+                self._start_final_servo_square_high_z_descend(z_above_target)
             elif self._contact_unjam_condition(state, dist_xy, z_above_target):
                 recovery_triggered = self._start_final_servo_contact_unjam(
                     state,
@@ -3434,6 +3547,23 @@ class GuardedPolicyController:
             elif (
                 self.guard_final_servo_phase_steps
                 >= self.config.guard_final_servo_square_fast_settle_max_steps
+            ):
+                recovery_triggered = self._start_final_servo_recovery(z_above_target)
+            elif z_above_target < (
+                self.guard_final_servo_best_z_above
+                - self.config.guard_final_servo_min_z_progress
+            ):
+                self.guard_final_servo_best_z_above = z_above_target
+                self.guard_final_servo_stall_steps = 0
+            else:
+                self.guard_final_servo_stall_steps += 1
+
+        elif self.guard_final_servo_phase == "square_high_z_descend":
+            if not self._square_high_z_descend_low_risk(state):
+                recovery_triggered = self._start_final_servo_recovery(z_above_target)
+            elif (
+                self.guard_final_servo_phase_steps
+                >= self.config.guard_final_servo_square_high_z_descend_max_steps
             ):
                 recovery_triggered = self._start_final_servo_recovery(z_above_target)
             elif z_above_target < (
@@ -3706,7 +3836,11 @@ class GuardedPolicyController:
         descent_allowed = (
             phase in ("descend", "contact_reinsert_descend")
             and dist_xy <= self.config.guard_final_servo_release_xy
-        ) or phase in ("near_miss_descend", "square_fast_settle")
+        ) or phase in (
+            "near_miss_descend",
+            "square_fast_settle",
+            "square_high_z_descend",
+        )
         down_blocked = False
         max_up_action = self.config.oracle.guarded_max_up_action
 
@@ -3804,6 +3938,21 @@ class GuardedPolicyController:
             max_down_action = (
                 self.config.guard_final_servo_square_fast_settle_max_down_action
             )
+            down_blocked = False
+        elif phase == "square_high_z_descend":
+            desired = np.asarray(
+                [
+                    control_tip[0],
+                    control_tip[1],
+                    target[2],
+                ],
+                dtype=np.float64,
+            )
+            max_xy_action = 0.0
+            max_down_action = (
+                self.config.guard_final_servo_square_high_z_descend_max_down_action
+            )
+            max_up_action = 0.0
             down_blocked = False
         elif phase == "low_recenter":
             desired = np.asarray(
