@@ -967,6 +967,12 @@ Fresh-seed follow-up after v122:
   rejected as a promotion path. Focused seeds `901500/903500/904500` stayed at
   `59/60`, `59/60`, and regressed to `57/60` with one collision. Do not enable
   it in the v138 config.
+- v142 default-off `--guard-final-servo-rearm-enabled` is implemented as a
+  diagnostic only. It can re-enter `align_hover` after final-servo exhaustion
+  only after cooldown plus low-risk XY/Z/contact/tilt/margin checks. Focused
+  probes did not improve the bottleneck: `903500` stayed `59/60`,
+  `903500` with `max_attempts=2`/`xy_max=0.007` also stayed `59/60`, and
+  `904500` stayed `59/60` with no rearm. Do not enable it in the v138 config.
 - Reproducible config:
   `configs\sim\ur5e_full\eval_multi_geometry_v138_square_tilt_reinsert_lift60_60ep.yaml`.
 - Final-insert adapter artifact is staged at
@@ -994,6 +1000,36 @@ foreach ($seed in 903500,904500,905500) {
     --step-output-csv "$out\eval_v138_mixed_same_shape_60ep_seed$seed`_steps.csv" `
     --step-trace-outcome-filter failure
 }
+```
+
+Run the v142 final-servo rearm diagnostic probe:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v142_final_servo_rearm_probe"
+$adapter = "D:\peg-in-hole-6yh\v119_final_insert_handoff_adapter_pilot\final_insert_adapter_handoff_alldata_e150.pt"
+$approach = "D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+python -B scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_multi_geometry_v138_square_tilt_reinsert_lift60_60ep.yaml `
+  --seed 903500 `
+  --approach-adapter $approach `
+  --final-insert-adapter $adapter `
+  --guard-final-servo-rearm-enabled `
+  --guard-final-servo-rearm-cooldown-steps 20 `
+  --guard-final-servo-rearm-stable-steps 3 `
+  --guard-final-servo-rearm-xy-max 0.006 `
+  --guard-final-servo-rearm-z-min 0.020 `
+  --guard-final-servo-rearm-z-max 0.060 `
+  --guard-final-servo-rearm-contact-max 0 `
+  --guard-final-servo-rearm-tilt-max-deg 6.0 `
+  --guard-final-servo-rearm-margin-min -0.001 `
+  --guard-final-servo-rearm-max-attempts 1 `
+  --output-csv "$out\eval_final_servo_rearm_mixed_same_shape_60ep_seed903500.csv" `
+  --output-md "$out\eval_final_servo_rearm_mixed_same_shape_60ep_seed903500.md" `
+  --episode-output-csv "$out\eval_final_servo_rearm_mixed_same_shape_60ep_seed903500_episodes.csv" `
+  --step-output-csv "$out\eval_final_servo_rearm_mixed_same_shape_60ep_seed903500_steps.csv" `
+  --step-trace-outcome-filter failure
 ```
 
 Run the priority-over-fixture fresh mixed-same-shape matrix:

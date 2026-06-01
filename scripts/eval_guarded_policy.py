@@ -225,6 +225,7 @@ STEP_TRACE_FIELDNAMES = [
     "guard_stateful_recovery_down_blocked",
     "guard_final_servo_active",
     "guard_final_servo_triggered",
+    "guard_final_servo_rearmed",
     "guard_final_servo_recovery_triggered",
     "guard_final_servo_exhausted",
     "guard_final_servo_phase",
@@ -234,6 +235,9 @@ STEP_TRACE_FIELDNAMES = [
     "guard_final_servo_low_recenter_stall_steps",
     "guard_final_servo_low_recenter_best_dist_xy",
     "guard_final_servo_retry_count",
+    "guard_final_servo_rearm_attempts",
+    "guard_final_servo_rearm_cooldown_steps",
+    "guard_final_servo_rearm_stable_steps",
     "guard_final_servo_descent_allowed",
     "guard_final_servo_down_blocked",
     "guard_final_servo_square_recovery_active",
@@ -750,6 +754,16 @@ def build_parser(
     parser.add_argument("--guard-final-servo-align-hover-escape-xy", type=float, default=0.006)
     parser.add_argument("--guard-final-servo-align-hover-escape-min-z", type=float, default=0.060)
     parser.add_argument("--guard-final-servo-align-hover-escape-max-z", type=float, default=0.100)
+    parser.add_argument("--guard-final-servo-rearm-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-rearm-cooldown-steps", type=int, default=20)
+    parser.add_argument("--guard-final-servo-rearm-stable-steps", type=int, default=3)
+    parser.add_argument("--guard-final-servo-rearm-xy-max", type=float, default=0.006)
+    parser.add_argument("--guard-final-servo-rearm-z-min", type=float, default=0.020)
+    parser.add_argument("--guard-final-servo-rearm-z-max", type=float, default=0.060)
+    parser.add_argument("--guard-final-servo-rearm-contact-max", type=int, default=0)
+    parser.add_argument("--guard-final-servo-rearm-tilt-max-deg", type=float, default=6.0)
+    parser.add_argument("--guard-final-servo-rearm-margin-min", type=float, default=-0.001)
+    parser.add_argument("--guard-final-servo-rearm-max-attempts", type=int, default=1)
     parser.add_argument(
         "--guard-final-servo-priority-over-fixture-clearance",
         action="store_true",
@@ -1193,6 +1207,26 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         ),
         guard_final_servo_align_hover_escape_max_z=(
             args.guard_final_servo_align_hover_escape_max_z
+        ),
+        guard_final_servo_rearm_enabled=args.guard_final_servo_rearm_enabled,
+        guard_final_servo_rearm_cooldown_steps=(
+            args.guard_final_servo_rearm_cooldown_steps
+        ),
+        guard_final_servo_rearm_stable_steps=(
+            args.guard_final_servo_rearm_stable_steps
+        ),
+        guard_final_servo_rearm_xy_max=args.guard_final_servo_rearm_xy_max,
+        guard_final_servo_rearm_z_min=args.guard_final_servo_rearm_z_min,
+        guard_final_servo_rearm_z_max=args.guard_final_servo_rearm_z_max,
+        guard_final_servo_rearm_contact_max=(
+            args.guard_final_servo_rearm_contact_max
+        ),
+        guard_final_servo_rearm_tilt_max_deg=(
+            args.guard_final_servo_rearm_tilt_max_deg
+        ),
+        guard_final_servo_rearm_margin_min=args.guard_final_servo_rearm_margin_min,
+        guard_final_servo_rearm_max_attempts=(
+            args.guard_final_servo_rearm_max_attempts
         ),
         guard_final_servo_priority_over_fixture_clearance=(
             args.guard_final_servo_priority_over_fixture_clearance
@@ -2510,6 +2544,9 @@ def build_step_trace_row(
         "guard_final_servo_triggered": (
             bool(step.guard_final_servo_triggered) if step_guard else False
         ),
+        "guard_final_servo_rearmed": (
+            bool(step.guard_final_servo_rearmed) if step_guard else False
+        ),
         "guard_final_servo_recovery_triggered": (
             bool(step.guard_final_servo_recovery_triggered) if step_guard else False
         ),
@@ -2539,6 +2576,15 @@ def build_step_trace_row(
         ),
         "guard_final_servo_retry_count": (
             int(step.guard_final_servo_retry_count) if step_guard else 0
+        ),
+        "guard_final_servo_rearm_attempts": (
+            int(step.guard_final_servo_rearm_attempts) if step_guard else 0
+        ),
+        "guard_final_servo_rearm_cooldown_steps": (
+            int(step.guard_final_servo_rearm_cooldown_steps) if step_guard else 0
+        ),
+        "guard_final_servo_rearm_stable_steps": (
+            int(step.guard_final_servo_rearm_stable_steps) if step_guard else 0
         ),
         "guard_final_servo_descent_allowed": (
             bool(step.guard_final_servo_descent_allowed) if step_guard else False
@@ -2840,6 +2886,7 @@ def evaluate_scenario(
     final_servo_episodes = 0
     final_servo_steps: list[float] = []
     final_servo_triggers: list[float] = []
+    final_servo_rearms: list[float] = []
     final_servo_recovery_triggers: list[float] = []
     final_servo_descent_steps: list[float] = []
     final_servo_exhausted_steps: list[float] = []
@@ -2896,6 +2943,7 @@ def evaluate_scenario(
             episode_stateful_recovery_exhausted_steps = 0
             episode_final_servo_steps = 0
             episode_final_servo_triggers = 0
+            episode_final_servo_rearms = 0
             episode_final_servo_recovery_triggers = 0
             episode_final_servo_descent_steps = 0
             episode_final_servo_exhausted_steps = 0
@@ -3160,6 +3208,7 @@ def evaluate_scenario(
                     )
                     episode_final_servo_steps += int(step.guard_final_servo_active)
                     episode_final_servo_triggers += int(step.guard_final_servo_triggered)
+                    episode_final_servo_rearms += int(step.guard_final_servo_rearmed)
                     episode_final_servo_recovery_triggers += int(
                         step.guard_final_servo_recovery_triggered
                     )
@@ -3351,6 +3400,7 @@ def evaluate_scenario(
             )
             final_servo_steps.append(float(episode_final_servo_steps))
             final_servo_triggers.append(float(episode_final_servo_triggers))
+            final_servo_rearms.append(float(episode_final_servo_rearms))
             final_servo_recovery_triggers.append(float(episode_final_servo_recovery_triggers))
             final_servo_descent_steps.append(float(episode_final_servo_descent_steps))
             final_servo_exhausted_steps.append(float(episode_final_servo_exhausted_steps))
@@ -3452,6 +3502,7 @@ def evaluate_scenario(
                     ),
                     "final_servo_steps": episode_final_servo_steps,
                     "final_servo_triggers": episode_final_servo_triggers,
+                    "final_servo_rearms": episode_final_servo_rearms,
                     "final_servo_recovery_triggers": episode_final_servo_recovery_triggers,
                     "final_servo_descent_steps": episode_final_servo_descent_steps,
                     "final_servo_exhausted_steps": episode_final_servo_exhausted_steps,
@@ -3640,6 +3691,7 @@ def evaluate_scenario(
         "mean_final_servo_steps": mean_final_servo_steps,
         "mean_final_servo_step_fraction": mean_final_servo_steps / max(mean_steps, 1e-9),
         "mean_final_servo_triggers": mean(final_servo_triggers),
+        "mean_final_servo_rearms": mean(final_servo_rearms),
         "mean_final_servo_recovery_triggers": mean(final_servo_recovery_triggers),
         "mean_final_servo_descent_steps": mean_final_servo_descent_steps,
         "mean_final_servo_descent_fraction": mean_final_servo_descent_steps / max(mean_final_servo_steps, 1e-9),
@@ -3768,6 +3820,7 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Guard final servo stable/stall/retries: `{args.guard_final_servo_stable_steps}/{args.guard_final_servo_stall_steps}/{args.guard_final_servo_max_retries}`",
         f"- Guard final servo align timeout steps/XY: `{args.guard_final_servo_align_timeout_steps}/{args.guard_final_servo_align_timeout_xy}`",
         f"- Guard final servo align-hover escape enabled/steps/XY/Z: `{args.guard_final_servo_align_hover_escape_enabled}/{args.guard_final_servo_align_hover_escape_steps}/{args.guard_final_servo_align_hover_escape_xy}/{args.guard_final_servo_align_hover_escape_min_z}-{args.guard_final_servo_align_hover_escape_max_z}`",
+        f"- Guard final servo rearm enabled/cooldown/stable/XY/Z/contact/tilt/margin/max attempts: `{args.guard_final_servo_rearm_enabled}/{args.guard_final_servo_rearm_cooldown_steps}/{args.guard_final_servo_rearm_stable_steps}/{args.guard_final_servo_rearm_xy_max}/{args.guard_final_servo_rearm_z_min}-{args.guard_final_servo_rearm_z_max}/{args.guard_final_servo_rearm_contact_max}/{args.guard_final_servo_rearm_tilt_max_deg}/{args.guard_final_servo_rearm_margin_min}/{args.guard_final_servo_rearm_max_attempts}`",
         f"- Guard final servo priority over fixture clearance: `{args.guard_final_servo_priority_over_fixture_clearance}`",
         f"- Guard final servo low recenter enabled/Z/trigger/release/height/steps/max steps/stall: `{args.guard_final_servo_low_recenter_enabled}/{args.guard_final_servo_low_recenter_z_max}/{args.guard_final_servo_low_recenter_trigger_xy}/{args.guard_final_servo_low_recenter_release_xy}/{args.guard_final_servo_low_recenter_height}/{args.guard_final_servo_low_recenter_stable_steps}/{args.guard_final_servo_low_recenter_max_steps}/{args.guard_final_servo_low_recenter_stall_steps}`",
         f"- Guard final servo max XY/down/descend bias/lift/recovery steps: `{args.guard_final_servo_max_xy_action}/{args.guard_final_servo_max_down_action}/{tuple(args.guard_final_servo_descend_xy_bias)}/{args.guard_final_servo_lift_height}/{args.guard_final_servo_max_recovery_steps}`",
@@ -3821,7 +3874,7 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
             "{mean_final_insert_macro_recovery_steps:.1f} ({mean_final_insert_macro_recovery_fraction:.2f}, trig {mean_final_insert_macro_recovery_triggers:.2f}) | "
             "{mean_early_approach_assist_steps:.1f} ({mean_early_approach_assist_fraction:.2f}, trig {mean_early_approach_assist_triggers:.2f}, rel {mean_early_approach_assist_releases:.2f}) | "
             "{mean_stateful_recovery_steps:.1f} ({mean_stateful_recovery_fraction:.2f}, trig {mean_stateful_recovery_triggers:.2f}, rel {mean_stateful_recovery_releases:.2f}) | "
-            "{mean_final_servo_steps:.1f} ({mean_final_servo_step_fraction:.2f}, trig {mean_final_servo_triggers:.2f}, rec {mean_final_servo_recovery_triggers:.2f}) | "
+            "{mean_final_servo_steps:.1f} ({mean_final_servo_step_fraction:.2f}, trig {mean_final_servo_triggers:.2f}, rearm {mean_final_servo_rearms:.2f}, rec {mean_final_servo_recovery_triggers:.2f}) | "
             "{mean_final_servo_descent_steps:.1f} ({mean_final_servo_descent_fraction:.2f}) | {mean_final_dist_xy:.5f} | "
             "{mean_final_dist_z:.5f} |".format(**row)
         )
@@ -4236,6 +4289,24 @@ def main() -> None:
         raise ValueError(
             "--guard-final-servo-align-hover-escape-max-z must exceed min Z."
         )
+    if args.guard_final_servo_rearm_cooldown_steps < 0:
+        raise ValueError("--guard-final-servo-rearm-cooldown-steps cannot be negative.")
+    if args.guard_final_servo_rearm_stable_steps <= 0:
+        raise ValueError("--guard-final-servo-rearm-stable-steps must be positive.")
+    if args.guard_final_servo_rearm_xy_max <= 0.0:
+        raise ValueError("--guard-final-servo-rearm-xy-max must be positive.")
+    if args.guard_final_servo_rearm_z_min < 0.0:
+        raise ValueError("--guard-final-servo-rearm-z-min cannot be negative.")
+    if args.guard_final_servo_rearm_z_max <= args.guard_final_servo_rearm_z_min:
+        raise ValueError("--guard-final-servo-rearm-z-max must exceed z-min.")
+    if args.guard_final_servo_rearm_contact_max < 0:
+        raise ValueError("--guard-final-servo-rearm-contact-max cannot be negative.")
+    if args.guard_final_servo_rearm_tilt_max_deg <= 0.0:
+        raise ValueError("--guard-final-servo-rearm-tilt-max-deg must be positive.")
+    if args.guard_final_servo_rearm_margin_min > 0.0:
+        raise ValueError("--guard-final-servo-rearm-margin-min must be <= 0.")
+    if args.guard_final_servo_rearm_max_attempts < 0:
+        raise ValueError("--guard-final-servo-rearm-max-attempts cannot be negative.")
     if args.guard_final_servo_max_xy_action <= 0.0:
         raise ValueError("--guard-final-servo-max-xy-action must be positive.")
     if args.guard_final_servo_max_down_action < 0.0:

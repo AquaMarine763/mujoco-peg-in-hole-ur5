@@ -292,6 +292,16 @@ class GuardedPolicyConfig:
     guard_final_servo_align_hover_escape_xy: float = 0.006
     guard_final_servo_align_hover_escape_min_z: float = 0.060
     guard_final_servo_align_hover_escape_max_z: float = 0.100
+    guard_final_servo_rearm_enabled: bool = False
+    guard_final_servo_rearm_cooldown_steps: int = 20
+    guard_final_servo_rearm_stable_steps: int = 3
+    guard_final_servo_rearm_xy_max: float = 0.006
+    guard_final_servo_rearm_z_min: float = 0.020
+    guard_final_servo_rearm_z_max: float = 0.060
+    guard_final_servo_rearm_contact_max: int = 0
+    guard_final_servo_rearm_tilt_max_deg: float = 6.0
+    guard_final_servo_rearm_margin_min: float = -0.001
+    guard_final_servo_rearm_max_attempts: int = 1
     guard_final_servo_priority_over_fixture_clearance: bool = False
     guard_final_servo_max_xy_action: float = 0.0025
     guard_final_servo_max_down_action: float = 0.0015
@@ -699,6 +709,24 @@ class GuardedPolicyConfig:
             raise ValueError(
                 "guard_final_servo_align_hover_escape_max_z must exceed min Z."
             )
+        if self.guard_final_servo_rearm_cooldown_steps < 0:
+            raise ValueError("guard_final_servo_rearm_cooldown_steps cannot be negative.")
+        if self.guard_final_servo_rearm_stable_steps <= 0:
+            raise ValueError("guard_final_servo_rearm_stable_steps must be positive.")
+        if self.guard_final_servo_rearm_xy_max <= 0.0:
+            raise ValueError("guard_final_servo_rearm_xy_max must be positive.")
+        if self.guard_final_servo_rearm_z_min < 0.0:
+            raise ValueError("guard_final_servo_rearm_z_min cannot be negative.")
+        if self.guard_final_servo_rearm_z_max <= self.guard_final_servo_rearm_z_min:
+            raise ValueError("guard_final_servo_rearm_z_max must exceed z_min.")
+        if self.guard_final_servo_rearm_contact_max < 0:
+            raise ValueError("guard_final_servo_rearm_contact_max cannot be negative.")
+        if self.guard_final_servo_rearm_tilt_max_deg <= 0.0:
+            raise ValueError("guard_final_servo_rearm_tilt_max_deg must be positive.")
+        if self.guard_final_servo_rearm_margin_min > 0.0:
+            raise ValueError("guard_final_servo_rearm_margin_min must be <= 0.")
+        if self.guard_final_servo_rearm_max_attempts < 0:
+            raise ValueError("guard_final_servo_rearm_max_attempts cannot be negative.")
         if self.guard_final_servo_max_xy_action <= 0.0:
             raise ValueError("guard_final_servo_max_xy_action must be positive.")
         if self.guard_final_servo_max_down_action < 0.0:
@@ -1223,6 +1251,7 @@ class GuardedPolicyStep:
     guard_stateful_recovery_down_blocked: bool = False
     guard_final_servo_active: bool = False
     guard_final_servo_triggered: bool = False
+    guard_final_servo_rearmed: bool = False
     guard_final_servo_recovery_triggered: bool = False
     guard_final_servo_exhausted: bool = False
     guard_final_servo_phase: str = "inactive"
@@ -1232,6 +1261,9 @@ class GuardedPolicyStep:
     guard_final_servo_low_recenter_stall_steps: int = 0
     guard_final_servo_low_recenter_best_dist_xy: float = float("inf")
     guard_final_servo_retry_count: int = 0
+    guard_final_servo_rearm_attempts: int = 0
+    guard_final_servo_rearm_cooldown_steps: int = 0
+    guard_final_servo_rearm_stable_steps: int = 0
     guard_final_servo_descent_allowed: bool = False
     guard_final_servo_down_blocked: bool = False
     guard_final_servo_square_recovery_active: bool = False
@@ -1284,6 +1316,9 @@ class GuardedPolicyController:
         self.guard_final_servo_low_recenter_stall_steps = 0
         self.guard_final_servo_low_recenter_best_dist_xy = float("inf")
         self.guard_final_servo_retry_count = 0
+        self.guard_final_servo_rearm_attempts = 0
+        self.guard_final_servo_rearm_cooldown_steps = 0
+        self.guard_final_servo_rearm_stable_steps = 0
         self.guard_final_servo_best_z_above = float("inf")
         self.guard_final_servo_recovery_start_z_above = 0.0
         self.guard_final_servo_recovery_target_z_above = 0.0
@@ -1340,6 +1375,9 @@ class GuardedPolicyController:
         self.guard_final_servo_low_recenter_stall_steps = 0
         self.guard_final_servo_low_recenter_best_dist_xy = float("inf")
         self.guard_final_servo_retry_count = 0
+        self.guard_final_servo_rearm_attempts = 0
+        self.guard_final_servo_rearm_cooldown_steps = 0
+        self.guard_final_servo_rearm_stable_steps = 0
         self.guard_final_servo_best_z_above = float("inf")
         self.guard_final_servo_recovery_start_z_above = 0.0
         self.guard_final_servo_recovery_target_z_above = 0.0
@@ -1803,9 +1841,13 @@ class GuardedPolicyController:
             self.steps_since_reset += 1
             return result
 
-        final_active, final_triggered, final_recovery_triggered, final_square_triggered = (
-            self._update_final_servo_state(state, dist_xy, z_above_target)
-        )
+        (
+            final_active,
+            final_triggered,
+            final_rearmed,
+            final_recovery_triggered,
+            final_square_triggered,
+        ) = self._update_final_servo_state(state, dist_xy, z_above_target)
         if final_active:
             self._reset_retry()
             self._reset_insert_latch()
@@ -1862,6 +1904,7 @@ class GuardedPolicyController:
                 ),
                 guard_final_servo_active=True,
                 guard_final_servo_triggered=final_triggered,
+                guard_final_servo_rearmed=final_rearmed,
                 guard_final_servo_recovery_triggered=(
                     final_recovery_triggered or final_square_triggered
                 ),
@@ -1877,6 +1920,15 @@ class GuardedPolicyController:
                     self.guard_final_servo_low_recenter_best_dist_xy
                 ),
                 guard_final_servo_retry_count=self.guard_final_servo_retry_count,
+                guard_final_servo_rearm_attempts=(
+                    self.guard_final_servo_rearm_attempts
+                ),
+                guard_final_servo_rearm_cooldown_steps=(
+                    self.guard_final_servo_rearm_cooldown_steps
+                ),
+                guard_final_servo_rearm_stable_steps=(
+                    self.guard_final_servo_rearm_stable_steps
+                ),
                 guard_final_servo_descent_allowed=final_descent_allowed,
                 guard_final_servo_down_blocked=final_down_blocked,
                 guard_final_servo_square_recovery_active=(
@@ -2106,7 +2158,13 @@ class GuardedPolicyController:
         self.guard_final_servo_contact_reinsert_orient_tip_lock_drift_xy = 0.0
         if not keep_exhausted:
             self.guard_final_servo_retry_count = 0
+            self.guard_final_servo_rearm_attempts = 0
+            self.guard_final_servo_rearm_cooldown_steps = 0
+            self.guard_final_servo_rearm_stable_steps = 0
             self.guard_final_servo_exhausted = False
+        else:
+            self.guard_final_servo_rearm_cooldown_steps = 0
+            self.guard_final_servo_rearm_stable_steps = 0
 
     def _reset_retry(self) -> None:
         self.guard_retry_active = False
@@ -3159,16 +3217,104 @@ class GuardedPolicyController:
         self._set_final_servo_phase("contact_reinsert_high_lift")
         return True
 
+    def _final_servo_rearm_low_risk(
+        self,
+        state: GuardedDeploymentState,
+        dist_xy: float,
+        z_above_target: float,
+    ) -> bool:
+        if dist_xy > self.config.guard_final_servo_rearm_xy_max:
+            return False
+        if not (
+            self.config.guard_final_servo_rearm_z_min
+            <= z_above_target
+            <= self.config.guard_final_servo_rearm_z_max
+        ):
+            return False
+
+        contact_count = (
+            state.peg_hole_contact_wall_count + state.peg_hole_contact_plate_count
+        )
+        if contact_count > self.config.guard_final_servo_rearm_contact_max:
+            return False
+
+        tilt = state.peg_tilt_angle_deg
+        if tilt is None or not np.isfinite(tilt):
+            return False
+        if tilt > self.config.guard_final_servo_rearm_tilt_max_deg:
+            return False
+
+        if state.peg_shape == "square":
+            margin = state.square_peg_tilted_clearance_margin
+            if margin is None or not np.isfinite(margin):
+                return False
+            if margin < self.config.guard_final_servo_rearm_margin_min:
+                return False
+
+        return True
+
+    def _maybe_rearm_final_servo(
+        self,
+        state: GuardedDeploymentState,
+        dist_xy: float,
+        z_above_target: float,
+    ) -> bool:
+        if not self.config.guard_final_servo_rearm_enabled:
+            self.guard_final_servo_rearm_stable_steps = 0
+            return False
+
+        self.guard_final_servo_rearm_cooldown_steps += 1
+        if (
+            self.guard_final_servo_rearm_cooldown_steps
+            < self.config.guard_final_servo_rearm_cooldown_steps
+        ):
+            self.guard_final_servo_rearm_stable_steps = 0
+            return False
+
+        if (
+            self.guard_final_servo_rearm_attempts
+            >= self.config.guard_final_servo_rearm_max_attempts
+        ):
+            self.guard_final_servo_rearm_stable_steps = 0
+            return False
+
+        if not self._final_servo_rearm_low_risk(state, dist_xy, z_above_target):
+            self.guard_final_servo_rearm_stable_steps = 0
+            return False
+
+        self.guard_final_servo_rearm_stable_steps += 1
+        if (
+            self.guard_final_servo_rearm_stable_steps
+            < self.config.guard_final_servo_rearm_stable_steps
+        ):
+            return False
+
+        self.guard_final_servo_rearm_attempts += 1
+        self.guard_final_servo_rearm_cooldown_steps = 0
+        self.guard_final_servo_rearm_stable_steps = 0
+        self.guard_final_servo_exhausted = False
+        self.guard_final_servo_retry_count = 0
+        self.guard_final_servo_stable_steps = 0
+        self.guard_final_servo_stall_steps = 0
+        self.guard_final_servo_best_z_above = z_above_target
+        self.guard_final_servo_recovery_start_z_above = 0.0
+        self.guard_final_servo_recovery_target_z_above = 0.0
+        self.guard_final_servo_square_tilt_reinsert_attempts = 0
+        self.guard_final_servo_contact_unjam_relief_xy = np.zeros(2, dtype=np.float64)
+        self._set_final_servo_phase("align_hover")
+        return True
+
     def _update_final_servo_state(
         self,
         state: GuardedDeploymentState,
         dist_xy: float,
         z_above_target: float,
-    ) -> tuple[bool, bool, bool, bool]:
+    ) -> tuple[bool, bool, bool, bool, bool]:
         if not self.config.guard_final_servo_enabled:
             self._reset_final_servo()
-            return False, False, False, False
+            return False, False, False, False, False
 
+        rearmed = False
         if self.guard_final_servo_exhausted:
             outside_start = (
                 dist_xy > self.config.guard_final_servo_start_xy
@@ -3176,10 +3322,12 @@ class GuardedPolicyController:
             )
             if outside_start:
                 self._reset_final_servo()
+            elif self._maybe_rearm_final_servo(state, dist_xy, z_above_target):
+                rearmed = True
             else:
-                return False, False, False, False
+                return False, False, False, False, False
 
-        triggered = False
+        triggered = rearmed
         recovery_triggered = False
         square_recovery_triggered = False
         if self.guard_final_servo_phase == "inactive":
@@ -3196,7 +3344,7 @@ class GuardedPolicyController:
                 self._set_final_servo_phase("align_hover")
                 triggered = True
             else:
-                return False, False, False, False
+                return False, False, False, False, False
 
         if self.guard_final_servo_phase == "align_hover":
             if self._final_servo_align_hover_escape_condition(dist_xy, z_above_target):
@@ -3728,6 +3876,7 @@ class GuardedPolicyController:
                 return (
                     self.guard_final_servo_phase != "inactive",
                     triggered,
+                    rearmed,
                     recovery_triggered,
                     square_recovery_triggered,
                 )
@@ -3738,6 +3887,7 @@ class GuardedPolicyController:
                 return (
                     self.guard_final_servo_phase != "inactive",
                     triggered,
+                    rearmed,
                     recovery_triggered,
                     square_recovery_triggered,
                 )
@@ -3814,6 +3964,7 @@ class GuardedPolicyController:
         return (
             self.guard_final_servo_phase != "inactive",
             triggered,
+            rearmed,
             recovery_triggered,
             square_recovery_triggered,
         )
