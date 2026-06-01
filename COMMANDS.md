@@ -958,10 +958,39 @@ Fresh-seed follow-up after v122:
   (`--guard-final-servo-lift-height 0.060`). Fresh seeds
   `900500/901500/902500`, 60 episodes each, reached `178/180`, zero collision,
   two square-square timeouts. All non-square same-shape profiles were perfect.
+- v139 expanded the same v138 candidate to seeds `903500/904500/905500`:
+  `177/180`, zero collision, three square-square timeouts. Combined v138+v139:
+  `355/360`, zero collision, five square-square timeouts.
+- v140 retry8 probe on `903500/904500` did not reduce timeout count. Do not
+  keep scanning retry budget as the next main line.
+- Reproducible config:
+  `configs\sim\ur5e_full\eval_multi_geometry_v138_square_tilt_reinsert_lift60_60ep.yaml`.
 - Final-insert adapter artifact is staged at
   `assets\final_insert_adapters\final_insert_adapter_handoff_alldata_e150.pt`
   for fresh clones. On this local worktree, `assets` ACLs may still require the
   local path under `D:\peg-in-hole-6yh\v119_final_insert_handoff_adapter_pilot`.
+
+Short v138 config-based eval command for this local worktree:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v139_v138_larger_fresh_mixed_same_shape_60ep"
+$adapter = "D:\peg-in-hole-6yh\v119_final_insert_handoff_adapter_pilot\final_insert_adapter_handoff_alldata_e150.pt"
+$approach = "D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($seed in 903500,904500,905500) {
+  python -B scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_v138_square_tilt_reinsert_lift60_60ep.yaml `
+    --seed $seed `
+    --approach-adapter $approach `
+    --final-insert-adapter $adapter `
+    --output-csv "$out\eval_v138_mixed_same_shape_60ep_seed$seed.csv" `
+    --output-md "$out\eval_v138_mixed_same_shape_60ep_seed$seed.md" `
+    --episode-output-csv "$out\eval_v138_mixed_same_shape_60ep_seed$seed`_episodes.csv" `
+    --step-output-csv "$out\eval_v138_mixed_same_shape_60ep_seed$seed`_steps.csv" `
+    --step-trace-outcome-filter failure
+}
+```
 
 Run the priority-over-fixture fresh mixed-same-shape matrix:
 
