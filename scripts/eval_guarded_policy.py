@@ -750,6 +750,14 @@ def build_parser(
     parser.add_argument("--guard-final-servo-align-hover-escape-xy", type=float, default=0.006)
     parser.add_argument("--guard-final-servo-align-hover-escape-min-z", type=float, default=0.060)
     parser.add_argument("--guard-final-servo-align-hover-escape-max-z", type=float, default=0.100)
+    parser.add_argument(
+        "--guard-final-servo-priority-over-fixture-clearance",
+        action="store_true",
+        help=(
+            "Keep an active final-servo/recovery phase from being preempted by "
+            "fixture-clearance. Default off for diagnostic use."
+        ),
+    )
     parser.add_argument("--guard-final-servo-max-xy-action", type=float, default=0.0025)
     parser.add_argument("--guard-final-servo-max-down-action", type=float, default=0.0015)
     parser.add_argument("--guard-final-servo-low-recenter-enabled", action="store_true")
@@ -1175,6 +1183,9 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         ),
         guard_final_servo_align_hover_escape_max_z=(
             args.guard_final_servo_align_hover_escape_max_z
+        ),
+        guard_final_servo_priority_over_fixture_clearance=(
+            args.guard_final_servo_priority_over_fixture_clearance
         ),
         guard_final_servo_max_xy_action=args.guard_final_servo_max_xy_action,
         guard_final_servo_max_down_action=args.guard_final_servo_max_down_action,
@@ -3717,6 +3728,7 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Guard final servo stable/stall/retries: `{args.guard_final_servo_stable_steps}/{args.guard_final_servo_stall_steps}/{args.guard_final_servo_max_retries}`",
         f"- Guard final servo align timeout steps/XY: `{args.guard_final_servo_align_timeout_steps}/{args.guard_final_servo_align_timeout_xy}`",
         f"- Guard final servo align-hover escape enabled/steps/XY/Z: `{args.guard_final_servo_align_hover_escape_enabled}/{args.guard_final_servo_align_hover_escape_steps}/{args.guard_final_servo_align_hover_escape_xy}/{args.guard_final_servo_align_hover_escape_min_z}-{args.guard_final_servo_align_hover_escape_max_z}`",
+        f"- Guard final servo priority over fixture clearance: `{args.guard_final_servo_priority_over_fixture_clearance}`",
         f"- Guard final servo low recenter enabled/Z/trigger/release/height/steps/max steps/stall: `{args.guard_final_servo_low_recenter_enabled}/{args.guard_final_servo_low_recenter_z_max}/{args.guard_final_servo_low_recenter_trigger_xy}/{args.guard_final_servo_low_recenter_release_xy}/{args.guard_final_servo_low_recenter_height}/{args.guard_final_servo_low_recenter_stable_steps}/{args.guard_final_servo_low_recenter_max_steps}/{args.guard_final_servo_low_recenter_stall_steps}`",
         f"- Guard final servo max XY/down/descend bias/lift/recovery steps: `{args.guard_final_servo_max_xy_action}/{args.guard_final_servo_max_down_action}/{tuple(args.guard_final_servo_descend_xy_bias)}/{args.guard_final_servo_lift_height}/{args.guard_final_servo_max_recovery_steps}`",
         f"- Guard final servo descend bias max clearance: `{args.guard_final_servo_descend_xy_bias_max_clearance}`",

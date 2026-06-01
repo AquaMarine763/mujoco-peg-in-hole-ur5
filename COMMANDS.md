@@ -939,6 +939,142 @@ foreach ($seed in 897500,898500,899500) {
 }
 ```
 
+Fresh-seed follow-up after v122:
+
+- v125 full v122 stack on fresh seeds `900500/901500/902500` reached
+  `175/180`, with `2` collisions and `3` timeouts. All failures were
+  `square_square`; do not promote v122.
+- v127 adds the default-off
+  `--guard-final-servo-priority-over-fixture-clearance` diagnostic. It keeps
+  an active final-servo/recovery phase from being reset by fixture-clearance.
+- v128 priority-over-fixture fresh matrix reached `177/180`, zero collision,
+  three square-square timeouts. Seed split: `900500=60/60`,
+  `901500=60/60`, `902500=57/60`.
+- v129 lowering `--final-insert-adapter-max-up-action` to `0.0020` improved
+  `902500` to `58/60`, zero collision. `0.0010` regressed and introduced one
+  collision. Faster square-fast-settle down action did not beat `58/60`.
+
+Run the priority-over-fixture fresh mixed-same-shape matrix:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v128_priority_fixture_fresh_mixed_same_shape_60ep"
+$adapter = "D:\peg-in-hole-6yh\v119_final_insert_handoff_adapter_pilot\final_insert_adapter_handoff_alldata_e150.pt"
+$approach = "D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($seed in 900500,901500,902500) {
+  python -B scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml `
+    --episodes 60 `
+    --seed $seed `
+    --geometry-profile mixed_same_shape `
+    --geometry-hole-half-size-range 0.0140 0.0160 `
+    --geometry-peg-radius-range 0.0128 0.0135 `
+    --geometry-square-peg-half-size-range 0.0122 0.0135 `
+    --approach-adapter $approach `
+    --approach-adapter-enabled `
+    --approach-adapter-trigger-xy 0.06 `
+    --approach-adapter-release-xy 0.03 `
+    --approach-adapter-min-z 0.12 `
+    --approach-adapter-max-z 0.27 `
+    --approach-adapter-latch-enabled `
+    --approach-adapter-latched-min-z 0.08 `
+    --approach-adapter-max-steps 220 `
+    --approach-adapter-mode override_xy `
+    --approach-adapter-max-xy-residual 0.003 `
+    --guard-final-servo-start-z 0.100 `
+    --guard-final-servo-max-retries 6 `
+    --guard-final-servo-priority-over-fixture-clearance `
+    --guard-final-servo-align-hover-escape-enabled `
+    --guard-final-servo-align-hover-escape-steps 20 `
+    --guard-final-servo-align-hover-escape-xy 0.006 `
+    --guard-final-servo-align-hover-escape-min-z 0.060 `
+    --guard-final-servo-align-hover-escape-max-z 0.100 `
+    --final-insert-adapter $adapter `
+    --final-insert-adapter-enabled `
+    --final-insert-adapter-mode override `
+    --final-insert-adapter-max-xy 0.020 `
+    --final-insert-adapter-min-z 0.005 `
+    --final-insert-adapter-max-z 0.075 `
+    --final-insert-adapter-min-stall-steps 15 `
+    --no-final-insert-adapter-wall-contact-required `
+    --final-insert-adapter-max-xy-action 0.0012 `
+    --final-insert-adapter-max-up-action 0.005 `
+    --final-insert-adapter-max-down-action 0.0008 `
+    --final-insert-adapter-handoff-on-down-action `
+    --final-insert-adapter-handoff-on-aligned-no-contact `
+    --final-insert-adapter-handoff-xy 0.0048 `
+    --final-insert-adapter-handoff-min-z 0.025 `
+    --final-insert-adapter-handoff-max-z 0.060 `
+    --output-csv "$out\eval_priority_fixture_retry6_mixed_same_shape_60ep_seed$seed.csv" `
+    --output-md "$out\eval_priority_fixture_retry6_mixed_same_shape_60ep_seed$seed.md" `
+    --episode-output-csv "$out\eval_priority_fixture_retry6_mixed_same_shape_60ep_seed$seed`_episodes.csv" `
+    --step-output-csv "$out\eval_priority_fixture_retry6_mixed_same_shape_60ep_seed$seed`_steps.csv" `
+    --step-trace-outcome-filter failure
+}
+```
+
+Probe reduced final-insert adapter upward relief on the hardest fresh seed:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v129_priority_fixture_adapter_up_sweep"
+$adapter = "D:\peg-in-hole-6yh\v119_final_insert_handoff_adapter_pilot\final_insert_adapter_handoff_alldata_e150.pt"
+$approach = "D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($up in "0.0020","0.0010") {
+  $label = $up.Replace(".","p")
+  python -B scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml `
+    --episodes 60 `
+    --seed 902500 `
+    --geometry-profile mixed_same_shape `
+    --geometry-hole-half-size-range 0.0140 0.0160 `
+    --geometry-peg-radius-range 0.0128 0.0135 `
+    --geometry-square-peg-half-size-range 0.0122 0.0135 `
+    --approach-adapter $approach `
+    --approach-adapter-enabled `
+    --approach-adapter-trigger-xy 0.06 `
+    --approach-adapter-release-xy 0.03 `
+    --approach-adapter-min-z 0.12 `
+    --approach-adapter-max-z 0.27 `
+    --approach-adapter-latch-enabled `
+    --approach-adapter-latched-min-z 0.08 `
+    --approach-adapter-max-steps 220 `
+    --approach-adapter-mode override_xy `
+    --approach-adapter-max-xy-residual 0.003 `
+    --guard-final-servo-start-z 0.100 `
+    --guard-final-servo-max-retries 6 `
+    --guard-final-servo-priority-over-fixture-clearance `
+    --guard-final-servo-align-hover-escape-enabled `
+    --guard-final-servo-align-hover-escape-steps 20 `
+    --guard-final-servo-align-hover-escape-xy 0.006 `
+    --guard-final-servo-align-hover-escape-min-z 0.060 `
+    --guard-final-servo-align-hover-escape-max-z 0.100 `
+    --final-insert-adapter $adapter `
+    --final-insert-adapter-enabled `
+    --final-insert-adapter-mode override `
+    --final-insert-adapter-max-xy 0.020 `
+    --final-insert-adapter-min-z 0.005 `
+    --final-insert-adapter-max-z 0.075 `
+    --final-insert-adapter-min-stall-steps 15 `
+    --no-final-insert-adapter-wall-contact-required `
+    --final-insert-adapter-max-xy-action 0.0012 `
+    --final-insert-adapter-max-up-action $up `
+    --final-insert-adapter-max-down-action 0.0008 `
+    --final-insert-adapter-handoff-on-down-action `
+    --final-insert-adapter-handoff-on-aligned-no-contact `
+    --final-insert-adapter-handoff-xy 0.0048 `
+    --final-insert-adapter-handoff-min-z 0.025 `
+    --final-insert-adapter-handoff-max-z 0.060 `
+    --output-csv "$out\eval_priority_fixture_up$label`_mixed_same_shape_60ep_seed902500.csv" `
+    --output-md "$out\eval_priority_fixture_up$label`_mixed_same_shape_60ep_seed902500.md" `
+    --episode-output-csv "$out\eval_priority_fixture_up$label`_mixed_same_shape_60ep_seed902500_episodes.csv" `
+    --step-output-csv "$out\eval_priority_fixture_up$label`_mixed_same_shape_60ep_seed902500_steps.csv" `
+    --step-trace-outcome-filter failure
+}
+```
+
 Experimental square-aware final-servo recovery check:
 
 ```powershell

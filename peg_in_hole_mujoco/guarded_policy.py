@@ -292,6 +292,7 @@ class GuardedPolicyConfig:
     guard_final_servo_align_hover_escape_xy: float = 0.006
     guard_final_servo_align_hover_escape_min_z: float = 0.060
     guard_final_servo_align_hover_escape_max_z: float = 0.100
+    guard_final_servo_priority_over_fixture_clearance: bool = False
     guard_final_servo_max_xy_action: float = 0.0025
     guard_final_servo_max_down_action: float = 0.0015
     guard_final_servo_low_recenter_enabled: bool = False
@@ -1383,9 +1384,17 @@ class GuardedPolicyController:
             self.steps_since_reset += 1
             return result
 
-        fixture_active, fixture_triggered, fixture_released = (
-            self._update_fixture_clearance_state(dist_xy, z_above_target)
+        final_servo_has_priority = (
+            self.config.guard_final_servo_priority_over_fixture_clearance
+            and self.guard_final_servo_phase != "inactive"
         )
+        if final_servo_has_priority:
+            self._reset_fixture_clearance()
+            fixture_active, fixture_triggered, fixture_released = False, False, False
+        else:
+            fixture_active, fixture_triggered, fixture_released = (
+                self._update_fixture_clearance_state(dist_xy, z_above_target)
+            )
         if fixture_active:
             self._reset_retry()
             self._reset_insert_latch()

@@ -258,6 +258,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--guard-final-servo-align-hover-escape-xy", type=float, default=0.006)
     parser.add_argument("--guard-final-servo-align-hover-escape-min-z", type=float, default=0.060)
     parser.add_argument("--guard-final-servo-align-hover-escape-max-z", type=float, default=0.100)
+    parser.add_argument(
+        "--guard-final-servo-priority-over-fixture-clearance",
+        action="store_true",
+        help=(
+            "Keep an active final-servo/recovery phase from being preempted by "
+            "fixture-clearance. Default off for diagnostic use."
+        ),
+    )
     parser.add_argument("--guard-final-servo-max-xy-action", type=float, default=0.0025)
     parser.add_argument("--guard-final-servo-max-down-action", type=float, default=0.0015)
     parser.add_argument("--guard-final-servo-low-recenter-enabled", action="store_true")
@@ -588,6 +596,9 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         ),
         guard_final_servo_align_hover_escape_max_z=(
             args.guard_final_servo_align_hover_escape_max_z
+        ),
+        guard_final_servo_priority_over_fixture_clearance=(
+            args.guard_final_servo_priority_over_fixture_clearance
         ),
         guard_final_servo_max_xy_action=args.guard_final_servo_max_xy_action,
         guard_final_servo_max_down_action=args.guard_final_servo_max_down_action,
