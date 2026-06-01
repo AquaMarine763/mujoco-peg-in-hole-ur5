@@ -745,6 +745,11 @@ def build_parser(
     parser.add_argument("--guard-final-servo-release-xy", type=float, default=0.008)
     parser.add_argument("--guard-final-servo-align-timeout-steps", type=int, default=0)
     parser.add_argument("--guard-final-servo-align-timeout-xy", type=float, default=0.0)
+    parser.add_argument("--guard-final-servo-align-hover-escape-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-align-hover-escape-steps", type=int, default=20)
+    parser.add_argument("--guard-final-servo-align-hover-escape-xy", type=float, default=0.006)
+    parser.add_argument("--guard-final-servo-align-hover-escape-min-z", type=float, default=0.060)
+    parser.add_argument("--guard-final-servo-align-hover-escape-max-z", type=float, default=0.100)
     parser.add_argument("--guard-final-servo-max-xy-action", type=float, default=0.0025)
     parser.add_argument("--guard-final-servo-max-down-action", type=float, default=0.0015)
     parser.add_argument("--guard-final-servo-low-recenter-enabled", action="store_true")
@@ -1156,6 +1161,21 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
             args.guard_final_servo_align_timeout_steps
         ),
         guard_final_servo_align_timeout_xy=args.guard_final_servo_align_timeout_xy,
+        guard_final_servo_align_hover_escape_enabled=(
+            args.guard_final_servo_align_hover_escape_enabled
+        ),
+        guard_final_servo_align_hover_escape_steps=(
+            args.guard_final_servo_align_hover_escape_steps
+        ),
+        guard_final_servo_align_hover_escape_xy=(
+            args.guard_final_servo_align_hover_escape_xy
+        ),
+        guard_final_servo_align_hover_escape_min_z=(
+            args.guard_final_servo_align_hover_escape_min_z
+        ),
+        guard_final_servo_align_hover_escape_max_z=(
+            args.guard_final_servo_align_hover_escape_max_z
+        ),
         guard_final_servo_max_xy_action=args.guard_final_servo_max_xy_action,
         guard_final_servo_max_down_action=args.guard_final_servo_max_down_action,
         guard_final_servo_low_recenter_enabled=args.guard_final_servo_low_recenter_enabled,
@@ -3696,6 +3716,7 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Guard final servo hover/stable/descent-start/release: `{args.guard_final_servo_hover_height}/{args.guard_final_servo_stable_xy}/{args.guard_final_servo_descent_start_xy}/{args.guard_final_servo_release_xy}`",
         f"- Guard final servo stable/stall/retries: `{args.guard_final_servo_stable_steps}/{args.guard_final_servo_stall_steps}/{args.guard_final_servo_max_retries}`",
         f"- Guard final servo align timeout steps/XY: `{args.guard_final_servo_align_timeout_steps}/{args.guard_final_servo_align_timeout_xy}`",
+        f"- Guard final servo align-hover escape enabled/steps/XY/Z: `{args.guard_final_servo_align_hover_escape_enabled}/{args.guard_final_servo_align_hover_escape_steps}/{args.guard_final_servo_align_hover_escape_xy}/{args.guard_final_servo_align_hover_escape_min_z}-{args.guard_final_servo_align_hover_escape_max_z}`",
         f"- Guard final servo low recenter enabled/Z/trigger/release/height/steps/max steps/stall: `{args.guard_final_servo_low_recenter_enabled}/{args.guard_final_servo_low_recenter_z_max}/{args.guard_final_servo_low_recenter_trigger_xy}/{args.guard_final_servo_low_recenter_release_xy}/{args.guard_final_servo_low_recenter_height}/{args.guard_final_servo_low_recenter_stable_steps}/{args.guard_final_servo_low_recenter_max_steps}/{args.guard_final_servo_low_recenter_stall_steps}`",
         f"- Guard final servo max XY/down/descend bias/lift/recovery steps: `{args.guard_final_servo_max_xy_action}/{args.guard_final_servo_max_down_action}/{tuple(args.guard_final_servo_descend_xy_bias)}/{args.guard_final_servo_lift_height}/{args.guard_final_servo_max_recovery_steps}`",
         f"- Guard final servo descend bias max clearance: `{args.guard_final_servo_descend_xy_bias_max_clearance}`",
@@ -4149,6 +4170,19 @@ def main() -> None:
         raise ValueError("--guard-final-servo-align-timeout-steps cannot be negative.")
     if args.guard_final_servo_align_timeout_xy < 0.0:
         raise ValueError("--guard-final-servo-align-timeout-xy cannot be negative.")
+    if args.guard_final_servo_align_hover_escape_steps <= 0:
+        raise ValueError("--guard-final-servo-align-hover-escape-steps must be positive.")
+    if args.guard_final_servo_align_hover_escape_xy <= 0.0:
+        raise ValueError("--guard-final-servo-align-hover-escape-xy must be positive.")
+    if args.guard_final_servo_align_hover_escape_min_z < 0.0:
+        raise ValueError("--guard-final-servo-align-hover-escape-min-z cannot be negative.")
+    if (
+        args.guard_final_servo_align_hover_escape_max_z
+        <= args.guard_final_servo_align_hover_escape_min_z
+    ):
+        raise ValueError(
+            "--guard-final-servo-align-hover-escape-max-z must exceed min Z."
+        )
     if args.guard_final_servo_max_xy_action <= 0.0:
         raise ValueError("--guard-final-servo-max-xy-action must be positive.")
     if args.guard_final_servo_max_down_action < 0.0:

@@ -287,6 +287,11 @@ class GuardedPolicyConfig:
     guard_final_servo_release_xy: float = 0.008
     guard_final_servo_align_timeout_steps: int = 0
     guard_final_servo_align_timeout_xy: float = 0.0
+    guard_final_servo_align_hover_escape_enabled: bool = False
+    guard_final_servo_align_hover_escape_steps: int = 20
+    guard_final_servo_align_hover_escape_xy: float = 0.006
+    guard_final_servo_align_hover_escape_min_z: float = 0.060
+    guard_final_servo_align_hover_escape_max_z: float = 0.100
     guard_final_servo_max_xy_action: float = 0.0025
     guard_final_servo_max_down_action: float = 0.0015
     guard_final_servo_low_recenter_enabled: bool = False
@@ -670,6 +675,19 @@ class GuardedPolicyConfig:
             raise ValueError("guard_final_servo_align_timeout_steps cannot be negative.")
         if self.guard_final_servo_align_timeout_xy < 0.0:
             raise ValueError("guard_final_servo_align_timeout_xy cannot be negative.")
+        if self.guard_final_servo_align_hover_escape_steps <= 0:
+            raise ValueError("guard_final_servo_align_hover_escape_steps must be positive.")
+        if self.guard_final_servo_align_hover_escape_xy <= 0.0:
+            raise ValueError("guard_final_servo_align_hover_escape_xy must be positive.")
+        if self.guard_final_servo_align_hover_escape_min_z < 0.0:
+            raise ValueError("guard_final_servo_align_hover_escape_min_z cannot be negative.")
+        if (
+            self.guard_final_servo_align_hover_escape_max_z
+            <= self.guard_final_servo_align_hover_escape_min_z
+        ):
+            raise ValueError(
+                "guard_final_servo_align_hover_escape_max_z must exceed min Z."
+            )
         if self.guard_final_servo_max_xy_action <= 0.0:
             raise ValueError("guard_final_servo_max_xy_action must be positive.")
         if self.guard_final_servo_max_down_action < 0.0:
@@ -2912,6 +2930,21 @@ class GuardedPolicyController:
             and dist_xy > self._final_servo_align_timeout_xy()
         )
 
+    def _final_servo_align_hover_escape_condition(
+        self,
+        dist_xy: float,
+        z_above_target: float,
+    ) -> bool:
+        return (
+            self.config.guard_final_servo_align_hover_escape_enabled
+            and self.guard_final_servo_phase_steps
+            >= self.config.guard_final_servo_align_hover_escape_steps
+            and dist_xy <= self.config.guard_final_servo_align_hover_escape_xy
+            and self.config.guard_final_servo_align_hover_escape_min_z
+            <= z_above_target
+            <= self.config.guard_final_servo_align_hover_escape_max_z
+        )
+
     def _contact_reinsert_orient_ready(
         self,
         state: GuardedDeploymentState,
@@ -3050,7 +3083,12 @@ class GuardedPolicyController:
                 return False, False, False, False
 
         if self.guard_final_servo_phase == "align_hover":
-            if self._final_servo_align_timed_out(dist_xy):
+            if self._final_servo_align_hover_escape_condition(dist_xy, z_above_target):
+                self.guard_final_servo_best_z_above = z_above_target
+                self.guard_final_servo_stall_steps = 0
+                self.guard_final_servo_stable_steps = 0
+                self._set_final_servo_phase("near_miss_descend")
+            elif self._final_servo_align_timed_out(dist_xy):
                 recovery_triggered = self._start_final_servo_recovery(z_above_target)
             elif self._square_fast_settle_condition(state, dist_xy, z_above_target):
                 self._start_final_servo_square_fast_settle(z_above_target)
@@ -3061,7 +3099,12 @@ class GuardedPolicyController:
                 self.guard_final_servo_stable_steps = 0
 
         elif self.guard_final_servo_phase == "stable_confirm":
-            if self._final_servo_align_timed_out(dist_xy):
+            if self._final_servo_align_hover_escape_condition(dist_xy, z_above_target):
+                self.guard_final_servo_best_z_above = z_above_target
+                self.guard_final_servo_stall_steps = 0
+                self.guard_final_servo_stable_steps = 0
+                self._set_final_servo_phase("near_miss_descend")
+            elif self._final_servo_align_timed_out(dist_xy):
                 recovery_triggered = self._start_final_servo_recovery(z_above_target)
             elif self._square_fast_settle_condition(state, dist_xy, z_above_target):
                 self._start_final_servo_square_fast_settle(z_above_target)

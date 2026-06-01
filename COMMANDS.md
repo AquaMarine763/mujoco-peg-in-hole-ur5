@@ -812,6 +812,67 @@ foreach ($seed in 895700,895800,895900,896000) {
 }
 ```
 
+Evaluate the v120 align-hover escape + retry4 diagnostic. This is the current
+targeted square-square narrow-clearance check; it reached `40/40`, zero
+collision and zero timeout on seeds `895700/895800/895900/896000`, but is still
+opt-in until broader same-shape stress passes.
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v120_align_hover_escape_matrix_retry4"
+$adapter = "D:\peg-in-hole-6yh\v119_final_insert_handoff_adapter_pilot\final_insert_adapter_handoff_alldata_e150.pt"
+$approach = "D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($seed in 895700,895800,895900,896000) {
+  python -B scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_early_final_servo_boundary_stress_20ep.yaml `
+    --episodes 10 `
+    --seed $seed `
+    --geometry-profile square_square `
+    --geometry-hole-half-size-range 0.0140 0.0160 `
+    --geometry-peg-radius-range 0.0128 0.0135 `
+    --geometry-square-peg-half-size-range 0.0122 0.0135 `
+    --approach-adapter $approach `
+    --approach-adapter-enabled `
+    --approach-adapter-trigger-xy 0.06 `
+    --approach-adapter-release-xy 0.03 `
+    --approach-adapter-min-z 0.12 `
+    --approach-adapter-max-z 0.27 `
+    --approach-adapter-latch-enabled `
+    --approach-adapter-latched-min-z 0.08 `
+    --approach-adapter-max-steps 220 `
+    --approach-adapter-mode override_xy `
+    --approach-adapter-max-xy-residual 0.003 `
+    --guard-final-servo-start-z 0.100 `
+    --guard-final-servo-max-retries 4 `
+    --guard-final-servo-align-hover-escape-enabled `
+    --guard-final-servo-align-hover-escape-steps 20 `
+    --guard-final-servo-align-hover-escape-xy 0.006 `
+    --guard-final-servo-align-hover-escape-min-z 0.060 `
+    --guard-final-servo-align-hover-escape-max-z 0.100 `
+    --final-insert-adapter $adapter `
+    --final-insert-adapter-enabled `
+    --final-insert-adapter-mode override `
+    --final-insert-adapter-max-xy 0.020 `
+    --final-insert-adapter-min-z 0.005 `
+    --final-insert-adapter-max-z 0.075 `
+    --final-insert-adapter-min-stall-steps 15 `
+    --no-final-insert-adapter-wall-contact-required `
+    --final-insert-adapter-max-xy-action 0.0012 `
+    --final-insert-adapter-max-up-action 0.005 `
+    --final-insert-adapter-max-down-action 0.0008 `
+    --final-insert-adapter-handoff-on-down-action `
+    --final-insert-adapter-handoff-on-aligned-no-contact `
+    --final-insert-adapter-handoff-xy 0.0048 `
+    --final-insert-adapter-handoff-min-z 0.025 `
+    --final-insert-adapter-handoff-max-z 0.060 `
+    --output-csv "$out\eval_handoff_state0048_align_escape_retry4_seed$seed`_10ep.csv" `
+    --output-md "$out\eval_handoff_state0048_align_escape_retry4_seed$seed`_10ep.md" `
+    --episode-output-csv "$out\eval_handoff_state0048_align_escape_retry4_seed$seed`_10ep_episodes.csv" `
+    --step-output-csv "$out\eval_handoff_state0048_align_escape_retry4_seed$seed`_10ep_steps.csv"
+}
+```
+
 Experimental square-aware final-servo recovery check:
 
 ```powershell
