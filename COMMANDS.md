@@ -8845,6 +8845,48 @@ Promoted-v8 same-shape stress checkpoints:
 - v103 narrow-square simple control probes: final-servo orientation weight `0.12` regressed to `7/10` with one collision; square-fast-settle tilt max `8 deg` stayed at `9/10`. Do not promote either probe.
 - v104 square-fast-settle contact-unjam hook is default-off and diagnostic only. Seed `895700` narrow square-square probe regressed to `7/10`, zero collision and three timeouts, so do not promote it.
 - v105-v108 square-tilt-reinsert hook is also default-off and diagnostic only. It did not beat the `9/10` base repeat: the corrected v108 default probe was `8/10` with one collision and one timeout. Do not promote it.
+- v138 remains the reproducible narrow same-shape diagnostic config: `configs\sim\ur5e_full\eval_multi_geometry_v138_square_tilt_reinsert_lift60_60ep.yaml`. Combined v138+v139 result was `355/360`, zero collision, five square-square timeouts.
+- v143 raises only `guard_final_servo_square_fast_settle_contact_max` from `6` to `8` on top of v138. Six-seed validation reached `356/360`, zero collision and four square-square timeouts; non-square same-shape profiles were perfect (`287/287`). Do not promote/tag v143 because it regressed the original v138 seed set from `178/180` to `177/180`.
+- v144 raises square tilt-reinsert max attempts to `4` on top of v143 and is rejected: focused seeds `901500/902500/903500` reached `177/180` with one collision and two timeouts.
+
+Reproduce the v143 contact-tolerance probe:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v143_square_contact8_probe"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($seed in 900500,901500,902500,903500,904500,905500) {
+  python -B scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_v138_square_tilt_reinsert_lift60_60ep.yaml `
+    --seed $seed `
+    --guard-final-servo-square-fast-settle-contact-max 8 `
+    --output-csv "$out\eval_v143_contact8_seed$seed.csv" `
+    --output-md "$out\eval_v143_contact8_seed$seed.md" `
+    --episode-output-csv "$out\eval_v143_contact8_seed$seed`_episodes.csv" `
+    --step-output-csv "$out\eval_v143_contact8_seed$seed`_steps.csv" `
+    --step-trace-outcome-filter failure
+}
+```
+
+Reproduce the rejected v144 tilt-reinsert-attempt probe:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v144_contact8_tilt4_probe"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($seed in 901500,902500,903500) {
+  python -B scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_v138_square_tilt_reinsert_lift60_60ep.yaml `
+    --seed $seed `
+    --guard-final-servo-square-fast-settle-contact-max 8 `
+    --guard-final-servo-square-tilt-reinsert-max-attempts 4 `
+    --output-csv "$out\eval_v144_contact8_tilt4_seed$seed.csv" `
+    --output-md "$out\eval_v144_contact8_tilt4_seed$seed.md" `
+    --episode-output-csv "$out\eval_v144_contact8_tilt4_seed$seed`_episodes.csv" `
+    --step-output-csv "$out\eval_v144_contact8_tilt4_seed$seed`_steps.csv" `
+    --step-trace-outcome-filter failure
+}
+```
 
 Narrow square-square contact-unjam diagnostic:
 
