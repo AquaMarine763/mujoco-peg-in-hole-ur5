@@ -1492,6 +1492,20 @@ class PegInHoleMujocoEnv(gym.Env):
         ]
         self.previous_filtered_action = np.zeros(3, dtype=np.float64)
 
+    def flush_control_randomization_history(self, action: np.ndarray) -> None:
+        action = np.asarray(action, dtype=np.float64)
+        action = np.clip(action, self.action_space.low, self.action_space.high)
+        scaled_action = action * self.current_action_scale_multiplier
+        safe_action = np.clip(
+            scaled_action,
+            self.action_space.low,
+            self.action_space.high,
+        )
+        self.action_delay_buffer = [
+            safe_action.copy() for _ in range(self.current_action_delay)
+        ]
+        self.previous_filtered_action = safe_action.copy()
+
     def _apply_control_randomization(self, action: np.ndarray) -> np.ndarray:
         self.last_commanded_action = action.copy()
         if not self._uses_control_randomization():

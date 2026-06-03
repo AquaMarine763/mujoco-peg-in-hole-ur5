@@ -340,6 +340,30 @@ class GuardedPolicyConfig:
     guard_final_servo_square_recovery_z_max: float = 0.025
     guard_final_servo_square_recovery_xy_max: float = 0.014
     guard_final_servo_square_recovery_lift_height: float = 0.035
+    guard_final_servo_square_recovery_escape_enabled: bool = False
+    guard_final_servo_square_recovery_escape_xy: float = 0.014
+    guard_final_servo_square_recovery_escape_z_min: float = 0.020
+    guard_final_servo_square_recovery_escape_z_max: float = 0.060
+    guard_final_servo_square_recovery_escape_height: float = 0.080
+    guard_final_servo_square_recovery_escape_release_xy: float = 0.006
+    guard_final_servo_square_recovery_escape_max_steps: int = 180
+    guard_final_servo_square_recovery_escape_max_xy_action: float = 0.004
+    guard_final_servo_square_recovery_escape_max_up_action: float = 0.005
+    guard_final_servo_square_recovery_escape_max_clearance: float = 0.0
+    guard_final_servo_square_recovery_escape_early_contact_enabled: bool = False
+    guard_final_servo_square_recovery_escape_early_contact_wall_steps: int = 2
+    guard_final_servo_square_recovery_escape_early_contact_xy_max: float = 0.008
+    guard_final_servo_square_recovery_escape_early_contact_z_min: float = 0.020
+    guard_final_servo_square_recovery_escape_early_contact_z_max: float = 0.045
+    guard_final_servo_square_recovery_escape_early_contact_margin_threshold: float = 0.0
+    guard_final_servo_square_recovery_escape_early_contact_require_bad_margin: bool = False
+    guard_final_servo_square_recovery_escape_early_risk_enabled: bool = False
+    guard_final_servo_square_recovery_escape_early_risk_steps: int = 3
+    guard_final_servo_square_recovery_escape_early_risk_xy_max: float = 0.008
+    guard_final_servo_square_recovery_escape_early_risk_z_min: float = 0.028
+    guard_final_servo_square_recovery_escape_early_risk_z_max: float = 0.060
+    guard_final_servo_square_recovery_escape_early_risk_margin_threshold: float = -0.0003
+    guard_final_servo_square_recovery_escape_pre_lift_steps: int = 6
     guard_final_servo_split_recovery_enabled: bool = False
     guard_final_servo_contact_reinsert_enabled: bool = False
     guard_final_servo_contact_unjam_wall_steps: int = 8
@@ -392,6 +416,8 @@ class GuardedPolicyConfig:
     guard_final_servo_square_fast_settle_contact_max: int = 0
     guard_final_servo_square_fast_settle_max_steps: int = 260
     guard_final_servo_square_fast_settle_max_xy_action: float = 0.008
+    guard_final_servo_square_fast_settle_low_z_max_xy_action: float = 0.0
+    guard_final_servo_square_fast_settle_low_z_threshold: float = 0.0
     guard_final_servo_square_fast_settle_max_down_action: float = 0.0020
     guard_final_servo_square_fast_settle_contact_unjam_enabled: bool = False
     guard_final_servo_square_high_z_descend_enabled: bool = False
@@ -848,6 +874,123 @@ class GuardedPolicyConfig:
                 "guard_final_servo_square_recovery_lift_height must be greater than "
                 "guard_final_servo_hover_height."
             )
+        if self.guard_final_servo_square_recovery_escape_xy <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_xy must be positive."
+            )
+        if self.guard_final_servo_square_recovery_escape_z_min < 0.0:
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_z_min cannot be negative."
+            )
+        if self.guard_final_servo_square_recovery_escape_z_max <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_z_max must be positive."
+            )
+        if (
+            self.guard_final_servo_square_recovery_escape_z_min
+            > self.guard_final_servo_square_recovery_escape_z_max
+        ):
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_z_min must be <= "
+                "guard_final_servo_square_recovery_escape_z_max."
+            )
+        if (
+            self.guard_final_servo_square_recovery_escape_height
+            <= self.guard_final_servo_hover_height
+        ):
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_height must be greater than "
+                "guard_final_servo_hover_height."
+            )
+        if self.guard_final_servo_square_recovery_escape_release_xy <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_release_xy must be positive."
+            )
+        if (
+            self.guard_final_servo_square_recovery_escape_release_xy
+            > self.guard_final_servo_square_recovery_escape_xy
+        ):
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_release_xy must be <= "
+                "guard_final_servo_square_recovery_escape_xy."
+            )
+        if self.guard_final_servo_square_recovery_escape_max_steps <= 0:
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_max_steps must be positive."
+            )
+        if self.guard_final_servo_square_recovery_escape_max_xy_action <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_max_xy_action must be positive."
+            )
+        if self.guard_final_servo_square_recovery_escape_max_up_action <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_max_up_action must be positive."
+            )
+        if self.guard_final_servo_square_recovery_escape_max_clearance < 0.0:
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_max_clearance cannot be negative."
+            )
+        if self.guard_final_servo_square_recovery_escape_early_contact_wall_steps <= 0:
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_early_contact_wall_steps "
+                "must be positive."
+            )
+        if self.guard_final_servo_square_recovery_escape_early_contact_xy_max <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_early_contact_xy_max "
+                "must be positive."
+            )
+        if self.guard_final_servo_square_recovery_escape_early_contact_z_min < 0.0:
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_early_contact_z_min "
+                "cannot be negative."
+            )
+        if self.guard_final_servo_square_recovery_escape_early_contact_z_max <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_early_contact_z_max "
+                "must be positive."
+            )
+        if (
+            self.guard_final_servo_square_recovery_escape_early_contact_z_min
+            > self.guard_final_servo_square_recovery_escape_early_contact_z_max
+        ):
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_early_contact_z_min "
+                "must be <= guard_final_servo_square_recovery_escape_early_contact_z_max."
+            )
+        if self.guard_final_servo_square_recovery_escape_pre_lift_steps < 0:
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_pre_lift_steps "
+                "cannot be negative."
+            )
+        if self.guard_final_servo_square_recovery_escape_early_risk_steps <= 0:
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_early_risk_steps "
+                "must be positive."
+            )
+        if self.guard_final_servo_square_recovery_escape_early_risk_xy_max <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_early_risk_xy_max "
+                "must be positive."
+            )
+        if self.guard_final_servo_square_recovery_escape_early_risk_z_min < 0.0:
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_early_risk_z_min "
+                "cannot be negative."
+            )
+        if self.guard_final_servo_square_recovery_escape_early_risk_z_max <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_early_risk_z_max "
+                "must be positive."
+            )
+        if (
+            self.guard_final_servo_square_recovery_escape_early_risk_z_min
+            > self.guard_final_servo_square_recovery_escape_early_risk_z_max
+        ):
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_early_risk_z_min "
+                "must be <= guard_final_servo_square_recovery_escape_early_risk_z_max."
+            )
         if self.guard_final_servo_contact_unjam_wall_steps <= 0:
             raise ValueError(
                 "guard_final_servo_contact_unjam_wall_steps must be positive."
@@ -1063,6 +1206,23 @@ class GuardedPolicyConfig:
         if self.guard_final_servo_square_fast_settle_max_xy_action <= 0.0:
             raise ValueError(
                 "guard_final_servo_square_fast_settle_max_xy_action must be positive."
+            )
+        if self.guard_final_servo_square_fast_settle_low_z_max_xy_action < 0.0:
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_max_xy_action "
+                "cannot be negative."
+            )
+        if self.guard_final_servo_square_fast_settle_low_z_threshold < 0.0:
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_threshold cannot be negative."
+            )
+        if (
+            self.guard_final_servo_square_fast_settle_low_z_max_xy_action > 0.0
+            and self.guard_final_servo_square_fast_settle_low_z_threshold <= 0.0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_threshold must be positive "
+                "when low-z XY action limiting is enabled."
             )
         if self.guard_final_servo_square_fast_settle_max_down_action < 0.0:
             raise ValueError(
@@ -1357,6 +1517,10 @@ class GuardedPolicyStep:
     guard_final_servo_square_recovery_active: bool = False
     guard_final_servo_square_recovery_triggered: bool = False
     guard_final_servo_square_recovery_tilt_steps: int = 0
+    guard_final_servo_square_recovery_escape_active: bool = False
+    guard_final_servo_square_recovery_escape_triggered: bool = False
+    guard_final_servo_square_recovery_escape_early_contact_steps: int = 0
+    guard_final_servo_square_recovery_escape_early_risk_steps: int = 0
     guard_final_servo_contact_unjam_wall_steps: int = 0
     guard_final_servo_near_miss_steps: int = 0
     guard_final_servo_contact_reinsert_micro_align_best_dist_xy: float = float("inf")
@@ -1416,6 +1580,8 @@ class GuardedPolicyController:
         self.guard_final_servo_square_margin_yaw_settle_stable_steps = 0
         self.guard_final_servo_square_tilt_reinsert_wall_steps = 0
         self.guard_final_servo_square_tilt_reinsert_attempts = 0
+        self.guard_final_servo_square_recovery_escape_early_contact_steps = 0
+        self.guard_final_servo_square_recovery_escape_early_risk_steps = 0
         self.guard_final_servo_contact_unjam_wall_steps = 0
         self.guard_final_servo_contact_unjam_relief_xy = np.zeros(2, dtype=np.float64)
         self.guard_final_servo_near_miss_steps = 0
@@ -1477,6 +1643,8 @@ class GuardedPolicyController:
         self.guard_final_servo_square_margin_yaw_settle_stable_steps = 0
         self.guard_final_servo_square_tilt_reinsert_wall_steps = 0
         self.guard_final_servo_square_tilt_reinsert_attempts = 0
+        self.guard_final_servo_square_recovery_escape_early_contact_steps = 0
+        self.guard_final_servo_square_recovery_escape_early_risk_steps = 0
         self.guard_final_servo_contact_unjam_wall_steps = 0
         self.guard_final_servo_contact_unjam_relief_xy = np.zeros(2, dtype=np.float64)
         self.guard_final_servo_near_miss_steps = 0
@@ -1939,6 +2107,7 @@ class GuardedPolicyController:
             final_rearmed,
             final_recovery_triggered,
             final_square_triggered,
+            final_square_escape_triggered,
         ) = self._update_final_servo_state(state, dist_xy, z_above_target)
         if final_active:
             self._reset_retry()
@@ -1998,7 +2167,9 @@ class GuardedPolicyController:
                 guard_final_servo_triggered=final_triggered,
                 guard_final_servo_rearmed=final_rearmed,
                 guard_final_servo_recovery_triggered=(
-                    final_recovery_triggered or final_square_triggered
+                    final_recovery_triggered
+                    or final_square_triggered
+                    or final_square_escape_triggered
                 ),
                 guard_final_servo_exhausted=self.guard_final_servo_exhausted,
                 guard_final_servo_phase=self.guard_final_servo_phase,
@@ -2029,6 +2200,18 @@ class GuardedPolicyController:
                 guard_final_servo_square_recovery_triggered=final_square_triggered,
                 guard_final_servo_square_recovery_tilt_steps=(
                     self.guard_final_servo_square_recovery_tilt_steps
+                ),
+                guard_final_servo_square_recovery_escape_active=(
+                    self._final_servo_square_recovery_escape_phase_active()
+                ),
+                guard_final_servo_square_recovery_escape_triggered=(
+                    final_square_escape_triggered
+                ),
+                guard_final_servo_square_recovery_escape_early_contact_steps=(
+                    self.guard_final_servo_square_recovery_escape_early_contact_steps
+                ),
+                guard_final_servo_square_recovery_escape_early_risk_steps=(
+                    self.guard_final_servo_square_recovery_escape_early_risk_steps
                 ),
                 guard_final_servo_contact_unjam_wall_steps=(
                     self.guard_final_servo_contact_unjam_wall_steps
@@ -2238,6 +2421,8 @@ class GuardedPolicyController:
         self.guard_final_servo_square_recovery_tilt_steps = 0
         self.guard_final_servo_square_tilt_reinsert_wall_steps = 0
         self.guard_final_servo_square_tilt_reinsert_attempts = 0
+        self.guard_final_servo_square_recovery_escape_early_contact_steps = 0
+        self.guard_final_servo_square_recovery_escape_early_risk_steps = 0
         self.guard_final_servo_contact_unjam_wall_steps = 0
         self.guard_final_servo_contact_unjam_relief_xy = np.zeros(2, dtype=np.float64)
         self.guard_final_servo_near_miss_steps = 0
@@ -2273,10 +2458,18 @@ class GuardedPolicyController:
         if phase != "low_recenter":
             self.guard_final_servo_low_recenter_stall_steps = 0
             self.guard_final_servo_low_recenter_best_dist_xy = float("inf")
-        if not phase.startswith("square_recover"):
+        if phase not in ("square_recover_lift", "square_recover_recenter"):
             self.guard_final_servo_square_recovery_tilt_steps = 0
         if not phase.startswith("square_tilt_reinsert"):
             self.guard_final_servo_square_tilt_reinsert_wall_steps = 0
+        if phase not in (
+            "square_fast_settle",
+            "square_recovery_escape_pre_lift",
+            "square_recovery_escape_lift",
+            "square_recovery_escape_recenter",
+        ):
+            self.guard_final_servo_square_recovery_escape_early_contact_steps = 0
+            self.guard_final_servo_square_recovery_escape_early_risk_steps = 0
         if not phase.startswith("contact_unjam"):
             self.guard_final_servo_contact_unjam_wall_steps = 0
         if phase != "near_miss_descend":
@@ -2890,8 +3083,33 @@ class GuardedPolicyController:
         self._set_final_servo_phase("square_tilt_reinsert_lift")
         return True
 
+    def _start_final_servo_square_recovery_escape(
+        self,
+        z_above_target: float,
+        *,
+        pre_lift: bool = False,
+    ) -> bool:
+        self.guard_final_servo_stable_steps = 0
+        self.guard_final_servo_stall_steps = 0
+        self.guard_final_servo_best_z_above = float("inf")
+        self.guard_final_servo_recovery_start_z_above = z_above_target
+        self.guard_final_servo_recovery_target_z_above = (
+            self.config.guard_final_servo_square_recovery_escape_height
+        )
+        phase = "square_recovery_escape_lift"
+        if pre_lift and self.config.guard_final_servo_square_recovery_escape_pre_lift_steps > 0:
+            phase = "square_recovery_escape_pre_lift"
+        self._set_final_servo_phase(phase)
+        return True
+
     def _final_servo_square_recovery_phase_active(self) -> bool:
-        return self.guard_final_servo_phase.startswith("square_recover")
+        return self.guard_final_servo_phase in (
+            "square_recover_lift",
+            "square_recover_recenter",
+        )
+
+    def _final_servo_square_recovery_escape_phase_active(self) -> bool:
+        return self.guard_final_servo_phase.startswith("square_recovery_escape")
 
     def _split_recovery_enabled_for_state(self, state: GuardedDeploymentState) -> bool:
         return (
@@ -3181,6 +3399,166 @@ class GuardedPolicyController:
         return (
             self.guard_final_servo_near_miss_steps
             >= self.config.guard_final_servo_near_miss_steps
+        )
+
+    def _square_recovery_escape_condition(
+        self,
+        state: GuardedDeploymentState,
+        dist_xy: float,
+        z_above_target: float,
+    ) -> bool:
+        if not self.config.guard_final_servo_square_recovery_escape_enabled:
+            return False
+        if state.peg_shape != "square":
+            return False
+        if self.guard_final_servo_phase not in (
+            "square_fast_settle",
+            "recover_lift",
+            "recover_recenter",
+        ):
+            return False
+        max_clearance = self.config.guard_final_servo_square_recovery_escape_max_clearance
+        if max_clearance > 0.0:
+            clearance = state.hole_clearance
+            if clearance is None or clearance > max_clearance:
+                return False
+        return (
+            dist_xy >= self.config.guard_final_servo_square_recovery_escape_xy
+            and self.config.guard_final_servo_square_recovery_escape_z_min
+            <= z_above_target
+            <= self.config.guard_final_servo_square_recovery_escape_z_max
+        )
+
+    def _square_recovery_escape_preempt_recovery_condition(
+        self,
+        state: GuardedDeploymentState,
+        dist_xy: float,
+        z_above_target: float,
+    ) -> bool:
+        if not self.config.guard_final_servo_square_recovery_escape_enabled:
+            return False
+        if self.guard_final_servo_phase != "square_fast_settle":
+            return False
+        if state.peg_shape != "square":
+            return False
+        max_clearance = self.config.guard_final_servo_square_recovery_escape_max_clearance
+        if max_clearance > 0.0:
+            clearance = state.hole_clearance
+            if clearance is None or clearance > max_clearance:
+                return False
+        if not (
+            self.config.guard_final_servo_square_recovery_escape_z_min
+            <= z_above_target
+            <= self.config.guard_final_servo_square_recovery_escape_z_max
+        ):
+            return False
+        return not self._square_fast_settle_state_ok(state, dist_xy, z_above_target)
+
+    def _square_recovery_escape_early_contact_condition(
+        self,
+        state: GuardedDeploymentState,
+        dist_xy: float,
+        z_above_target: float,
+    ) -> bool:
+        if not (
+            self.config.guard_final_servo_square_recovery_escape_enabled
+            and self.config.guard_final_servo_square_recovery_escape_early_contact_enabled
+        ):
+            self.guard_final_servo_square_recovery_escape_early_contact_steps = 0
+            return False
+        if self.guard_final_servo_phase != "square_fast_settle":
+            self.guard_final_servo_square_recovery_escape_early_contact_steps = 0
+            return False
+        if state.peg_shape != "square":
+            self.guard_final_servo_square_recovery_escape_early_contact_steps = 0
+            return False
+        max_clearance = self.config.guard_final_servo_square_recovery_escape_max_clearance
+        if max_clearance > 0.0:
+            clearance = state.hole_clearance
+            if clearance is None or clearance > max_clearance:
+                self.guard_final_servo_square_recovery_escape_early_contact_steps = 0
+                return False
+        if (
+            dist_xy
+            > self.config.guard_final_servo_square_recovery_escape_early_contact_xy_max
+            or z_above_target
+            < self.config.guard_final_servo_square_recovery_escape_early_contact_z_min
+            or z_above_target
+            > self.config.guard_final_servo_square_recovery_escape_early_contact_z_max
+        ):
+            self.guard_final_servo_square_recovery_escape_early_contact_steps = 0
+            return False
+        margin = state.square_peg_tilted_clearance_margin
+        bad_margin = margin is not None and np.isfinite(margin) and (
+            margin
+            <= self.config.guard_final_servo_square_recovery_escape_early_contact_margin_threshold
+        )
+        margin_gate_ok = (
+            bad_margin
+            or not self.config.guard_final_servo_square_recovery_escape_early_contact_require_bad_margin
+        )
+        if state.peg_hole_contact_wall_count > 0 and margin_gate_ok:
+            self.guard_final_servo_square_recovery_escape_early_contact_steps += 1
+        else:
+            self.guard_final_servo_square_recovery_escape_early_contact_steps = max(
+                0,
+                self.guard_final_servo_square_recovery_escape_early_contact_steps - 1,
+            )
+        return (
+            self.guard_final_servo_square_recovery_escape_early_contact_steps
+            >= self.config.guard_final_servo_square_recovery_escape_early_contact_wall_steps
+        )
+
+    def _square_recovery_escape_early_risk_condition(
+        self,
+        state: GuardedDeploymentState,
+        dist_xy: float,
+        z_above_target: float,
+    ) -> bool:
+        if not (
+            self.config.guard_final_servo_square_recovery_escape_enabled
+            and self.config.guard_final_servo_square_recovery_escape_early_risk_enabled
+        ):
+            self.guard_final_servo_square_recovery_escape_early_risk_steps = 0
+            return False
+        if self.guard_final_servo_phase != "square_fast_settle":
+            self.guard_final_servo_square_recovery_escape_early_risk_steps = 0
+            return False
+        if state.peg_shape != "square":
+            self.guard_final_servo_square_recovery_escape_early_risk_steps = 0
+            return False
+        max_clearance = self.config.guard_final_servo_square_recovery_escape_max_clearance
+        if max_clearance > 0.0:
+            clearance = state.hole_clearance
+            if clearance is None or clearance > max_clearance:
+                self.guard_final_servo_square_recovery_escape_early_risk_steps = 0
+                return False
+        if (
+            dist_xy
+            > self.config.guard_final_servo_square_recovery_escape_early_risk_xy_max
+            or z_above_target
+            < self.config.guard_final_servo_square_recovery_escape_early_risk_z_min
+            or z_above_target
+            > self.config.guard_final_servo_square_recovery_escape_early_risk_z_max
+        ):
+            self.guard_final_servo_square_recovery_escape_early_risk_steps = 0
+            return False
+        margin = state.square_peg_tilted_clearance_margin
+        if (
+            margin is not None
+            and np.isfinite(margin)
+            and margin
+            <= self.config.guard_final_servo_square_recovery_escape_early_risk_margin_threshold
+        ):
+            self.guard_final_servo_square_recovery_escape_early_risk_steps += 1
+        else:
+            self.guard_final_servo_square_recovery_escape_early_risk_steps = max(
+                0,
+                self.guard_final_servo_square_recovery_escape_early_risk_steps - 1,
+            )
+        return (
+            self.guard_final_servo_square_recovery_escape_early_risk_steps
+            >= self.config.guard_final_servo_square_recovery_escape_early_risk_steps
         )
 
     def _square_fast_settle_state_ok(
@@ -3488,10 +3866,10 @@ class GuardedPolicyController:
         state: GuardedDeploymentState,
         dist_xy: float,
         z_above_target: float,
-    ) -> tuple[bool, bool, bool, bool, bool]:
+    ) -> tuple[bool, bool, bool, bool, bool, bool]:
         if not self.config.guard_final_servo_enabled:
             self._reset_final_servo()
-            return False, False, False, False, False
+            return False, False, False, False, False, False
 
         rearmed = False
         if self.guard_final_servo_exhausted:
@@ -3504,11 +3882,12 @@ class GuardedPolicyController:
             elif self._maybe_rearm_final_servo(state, dist_xy, z_above_target):
                 rearmed = True
             else:
-                return False, False, False, False, False
+                return False, False, False, False, False, False
 
         triggered = rearmed
         recovery_triggered = False
         square_recovery_triggered = False
+        square_recovery_escape_triggered = False
         if self.guard_final_servo_phase == "inactive":
             if (
                 dist_xy <= self.config.guard_final_servo_start_xy
@@ -3523,7 +3902,7 @@ class GuardedPolicyController:
                 self._set_final_servo_phase("align_hover")
                 triggered = True
             else:
-                return False, False, False, False, False
+                return False, False, False, False, False, False
 
         if self.guard_final_servo_phase == "align_hover":
             if self._final_servo_align_hover_escape_condition(dist_xy, z_above_target):
@@ -3854,7 +4233,29 @@ class GuardedPolicyController:
                     )
 
         elif self.guard_final_servo_phase == "square_fast_settle":
-            if self._square_margin_yaw_settle_condition(
+            if self._square_recovery_escape_early_contact_condition(
+                state,
+                dist_xy,
+                z_above_target,
+            ):
+                square_recovery_escape_triggered = (
+                    self._start_final_servo_square_recovery_escape(
+                        z_above_target,
+                        pre_lift=True,
+                    )
+                )
+            elif self._square_recovery_escape_early_risk_condition(
+                state,
+                dist_xy,
+                z_above_target,
+            ):
+                square_recovery_escape_triggered = (
+                    self._start_final_servo_square_recovery_escape(
+                        z_above_target,
+                        pre_lift=True,
+                    )
+                )
+            elif self._square_margin_yaw_settle_condition(
                 state,
                 dist_xy,
                 z_above_target,
@@ -3879,6 +4280,22 @@ class GuardedPolicyController:
                     state,
                     z_above_target,
                 )
+            elif self._square_recovery_escape_condition(
+                state,
+                dist_xy,
+                z_above_target,
+            ):
+                square_recovery_escape_triggered = (
+                    self._start_final_servo_square_recovery_escape(z_above_target)
+                )
+            elif self._square_recovery_escape_preempt_recovery_condition(
+                state,
+                dist_xy,
+                z_above_target,
+            ):
+                square_recovery_escape_triggered = (
+                    self._start_final_servo_square_recovery_escape(z_above_target)
+                )
             elif not self._square_fast_settle_state_ok(state, dist_xy, z_above_target):
                 recovery_triggered = self._start_final_servo_recovery(z_above_target)
             elif (
@@ -3894,6 +4311,13 @@ class GuardedPolicyController:
                 self.guard_final_servo_stall_steps = 0
             else:
                 self.guard_final_servo_stall_steps += 1
+
+        elif self.guard_final_servo_phase == "square_recovery_escape_pre_lift":
+            if (
+                self.guard_final_servo_phase_steps
+                >= self.config.guard_final_servo_square_recovery_escape_pre_lift_steps
+            ):
+                self._set_final_servo_phase("square_recovery_escape_lift")
 
         elif self.guard_final_servo_phase == "square_high_z_descend":
             if not self._square_high_z_descend_low_risk(state):
@@ -4093,7 +4517,56 @@ class GuardedPolicyController:
                 self._reset_final_servo(keep_exhausted=True)
                 recovery_triggered = True
 
+        elif self.guard_final_servo_phase == "square_recovery_escape_lift":
+            target_z = self.guard_final_servo_recovery_target_z_above
+            lifted_enough = z_above_target >= (
+                target_z
+                - 2.0
+                * self.config.guard_final_servo_square_recovery_escape_max_up_action
+            )
+            timed_out = (
+                self.guard_final_servo_phase_steps
+                >= self.config.guard_final_servo_square_recovery_escape_max_steps
+            )
+            if lifted_enough:
+                self._set_final_servo_phase("square_recovery_escape_recenter")
+            elif timed_out:
+                self._set_final_servo_phase("square_recovery_escape_recenter")
+
+        elif self.guard_final_servo_phase == "square_recovery_escape_recenter":
+            if (
+                dist_xy
+                <= self.config.guard_final_servo_square_recovery_escape_release_xy
+            ):
+                self.guard_final_servo_best_z_above = z_above_target
+                self.guard_final_servo_stall_steps = 0
+                self.guard_final_servo_stable_steps = 0
+                self._set_final_servo_phase("align_hover")
+            elif (
+                self.guard_final_servo_phase_steps
+                >= self.config.guard_final_servo_square_recovery_escape_max_steps
+            ):
+                self.guard_final_servo_exhausted = True
+                self._reset_final_servo(keep_exhausted=True)
+                recovery_triggered = True
+
         elif self.guard_final_servo_phase == "recover_lift":
+            if self._square_recovery_escape_condition(
+                state,
+                dist_xy,
+                z_above_target,
+            ):
+                square_recovery_escape_triggered = (
+                    self._start_final_servo_square_recovery_escape(z_above_target)
+                )
+                return (
+                    self.guard_final_servo_phase != "inactive",
+                    triggered,
+                    rearmed,
+                    recovery_triggered,
+                    square_recovery_triggered,
+                    square_recovery_escape_triggered,
+                )
             if self._square_fast_settle_condition(state, dist_xy, z_above_target):
                 self._start_final_servo_square_fast_settle(z_above_target)
                 return (
@@ -4102,6 +4575,7 @@ class GuardedPolicyController:
                     rearmed,
                     recovery_triggered,
                     square_recovery_triggered,
+                    square_recovery_escape_triggered,
                 )
             if self._near_miss_condition(state, dist_xy, z_above_target):
                 recovery_triggered = self._start_final_servo_near_miss_descend(
@@ -4113,6 +4587,7 @@ class GuardedPolicyController:
                     rearmed,
                     recovery_triggered,
                     square_recovery_triggered,
+                    square_recovery_escape_triggered,
                 )
             lifted_enough = z_above_target >= (
                 self.config.guard_final_servo_lift_height
@@ -4164,7 +4639,15 @@ class GuardedPolicyController:
                 recovery_triggered = True
 
         elif self.guard_final_servo_phase == "recover_recenter":
-            if self._square_fast_settle_condition(state, dist_xy, z_above_target):
+            if self._square_recovery_escape_condition(
+                state,
+                dist_xy,
+                z_above_target,
+            ):
+                square_recovery_escape_triggered = (
+                    self._start_final_servo_square_recovery_escape(z_above_target)
+                )
+            elif self._square_fast_settle_condition(state, dist_xy, z_above_target):
                 self._start_final_servo_square_fast_settle(z_above_target)
             elif self._near_miss_condition(state, dist_xy, z_above_target):
                 recovery_triggered = self._start_final_servo_near_miss_descend(
@@ -4190,6 +4673,7 @@ class GuardedPolicyController:
             rearmed,
             recovery_triggered,
             square_recovery_triggered,
+            square_recovery_escape_triggered,
         )
 
     def _final_servo_action_from_state(
@@ -4298,6 +4782,7 @@ class GuardedPolicyController:
             max_up_action = self.config.guard_final_servo_low_recenter_max_up_action
             down_blocked = False
         elif phase == "square_fast_settle":
+            z_above_target = float(tip[2] - target[2])
             desired = np.asarray(
                 [
                     target[0],
@@ -4309,6 +4794,14 @@ class GuardedPolicyController:
             max_xy_action = (
                 self.config.guard_final_servo_square_fast_settle_max_xy_action
             )
+            low_z_max_xy_action = (
+                self.config.guard_final_servo_square_fast_settle_low_z_max_xy_action
+            )
+            low_z_threshold = (
+                self.config.guard_final_servo_square_fast_settle_low_z_threshold
+            )
+            if low_z_max_xy_action > 0.0 and z_above_target <= low_z_threshold:
+                max_xy_action = min(max_xy_action, low_z_max_xy_action)
             max_down_action = (
                 self.config.guard_final_servo_square_fast_settle_max_down_action
             )
@@ -4508,6 +5001,55 @@ class GuardedPolicyController:
             max_down_action = 0.0
             max_up_action = (
                 self.config.guard_final_servo_square_tilt_reinsert_max_up_action
+            )
+            down_blocked = True
+        elif phase == "square_recovery_escape_pre_lift":
+            desired = np.asarray(
+                [
+                    control_tip[0],
+                    control_tip[1],
+                    control_tip[2]
+                    + self.config.guard_final_servo_square_recovery_escape_max_up_action
+                    / self.config.oracle.action_gain,
+                ],
+                dtype=np.float64,
+            )
+            max_xy_action = 0.0
+            max_down_action = 0.0
+            max_up_action = (
+                self.config.guard_final_servo_square_recovery_escape_max_up_action
+            )
+            down_blocked = True
+        elif phase == "square_recovery_escape_lift":
+            desired = np.asarray(
+                [
+                    control_tip[0],
+                    control_tip[1],
+                    target[2] + self.guard_final_servo_recovery_target_z_above,
+                ],
+                dtype=np.float64,
+            )
+            max_xy_action = 0.0
+            max_down_action = 0.0
+            max_up_action = (
+                self.config.guard_final_servo_square_recovery_escape_max_up_action
+            )
+            down_blocked = True
+        elif phase == "square_recovery_escape_recenter":
+            desired = np.asarray(
+                [
+                    target[0],
+                    target[1],
+                    target[2] + self.guard_final_servo_recovery_target_z_above,
+                ],
+                dtype=np.float64,
+            )
+            max_xy_action = (
+                self.config.guard_final_servo_square_recovery_escape_max_xy_action
+            )
+            max_down_action = 0.0
+            max_up_action = (
+                self.config.guard_final_servo_square_recovery_escape_max_up_action
             )
             down_blocked = True
         elif phase == "recover_lift":

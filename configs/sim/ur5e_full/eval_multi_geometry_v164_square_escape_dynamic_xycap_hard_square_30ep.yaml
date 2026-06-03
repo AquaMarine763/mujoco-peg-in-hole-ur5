@@ -1,0 +1,58 @@
+# v164 deployable hard square-square stress candidate.
+#
+# Inherits v148 square pose/yaw alignment and adds a default-off square recovery
+# escape recipe without simulator-side control-history flushing:
+# - square recovery escape height: 70 mm
+# - pre-lift queue-drain behavior: 8 upward-only steps
+# - early contact/risk triggers for narrow square-square clearances
+# - dynamic square_fast_settle XY cap: 3 mm normally, 2 mm below 55 mm Z
+#
+# Validation reference:
+# D:\peg-in-hole-6yh\v164_square_escape_h0070_dynamic_xycap_z055_bucket918500
+# D:\peg-in-hole-6yh\v164_square_escape_h0070_dynamic_xycap_z055_bucket919500
+# D:\peg-in-hole-6yh\v164_square_escape_h0070_dynamic_xycap_z055_bucket920500
+# seeds 918500/919500/920500, 30 episodes each:
+# 90/90 success, 0 collision, 0 timeout.
+# Mean steps 330.6, max steps 917.
+base_config: eval_multi_geometry_v148_square_pose_yaw_align_w020_60ep.yaml
+
+episodes: 30
+seed: 918500
+output_csv: results/ur5e_full/multi_geometry/v164_square_escape_dynamic_xycap/eval_hard_square_30ep_seed918500.csv
+output_md: results/ur5e_full/multi_geometry/v164_square_escape_dynamic_xycap/eval_hard_square_30ep_seed918500.md
+episode_output_csv: results/ur5e_full/multi_geometry/v164_square_escape_dynamic_xycap/eval_hard_square_30ep_seed918500_episodes.csv
+step_output_csv: results/ur5e_full/multi_geometry/v164_square_escape_dynamic_xycap/eval_hard_square_30ep_seed918500_failure_steps.csv
+step_trace_outcome_filter: failure
+
+geometry_profile: square_square
+geometry_hole_half_size_range: [0.0140, 0.0152]
+geometry_square_peg_half_size_range: [0.0128, 0.0138]
+geometry_hole_center_xy_jitter: [0.006, 0.006]
+geometry_fixture_height_jitter: 0.003
+geometry_table_height_jitter: 0.003
+hard_control_scale_range: [0.60, 0.95]
+hard_control_noise_std_range: [0.0004, 0.0010]
+hard_control_delay_range: [3, 5]
+hard_control_filter_alpha_range: [0.30, 0.50]
+
+guard_final_servo_square_recovery_escape_enabled: true
+guard_final_servo_square_recovery_escape_xy: 0.014
+guard_final_servo_square_recovery_escape_height: 0.070
+guard_final_servo_square_recovery_escape_release_xy: 0.006
+guard_final_servo_square_recovery_escape_max_clearance: 0.0020
+guard_final_servo_square_recovery_escape_early_contact_enabled: true
+guard_final_servo_square_recovery_escape_early_contact_wall_steps: 2
+guard_final_servo_square_recovery_escape_early_contact_xy_max: 0.008
+guard_final_servo_square_recovery_escape_early_contact_z_min: 0.020
+guard_final_servo_square_recovery_escape_early_contact_z_max: 0.045
+guard_final_servo_square_recovery_escape_early_contact_margin_threshold: 0.0
+guard_final_servo_square_recovery_escape_early_risk_enabled: true
+guard_final_servo_square_recovery_escape_early_risk_steps: 3
+guard_final_servo_square_recovery_escape_early_risk_xy_max: 0.008
+guard_final_servo_square_recovery_escape_early_risk_z_min: 0.028
+guard_final_servo_square_recovery_escape_early_risk_z_max: 0.045
+guard_final_servo_square_recovery_escape_early_risk_margin_threshold: -0.0020
+guard_final_servo_square_recovery_escape_pre_lift_steps: 8
+guard_final_servo_square_fast_settle_max_xy_action: 0.003
+guard_final_servo_square_fast_settle_low_z_max_xy_action: 0.002
+guard_final_servo_square_fast_settle_low_z_threshold: 0.055

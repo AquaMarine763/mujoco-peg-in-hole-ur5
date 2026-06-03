@@ -9237,3 +9237,114 @@ Notes:
 
 - `triangle_triangle` currently uses a scaffold/easy-curriculum hole floor of `2.2 * peg_radius`.
 - The next implementation step before large balanced same-shape datasets is a guarded-deployment rollout teacher path, or an eval-trace-derived collector, so collection rollouts match the stable v93 guarded recipe.
+
+## Square Recovery Escape v164
+
+v164 is the current deployable hard `square_square` stress candidate. It keeps
+the square recovery escape hook default-off, uses an upward-only pre-lift instead
+of simulator-side control-history flushing, and dynamically limits
+`square_fast_settle` XY action to `3 mm` normally and `2 mm` below `55 mm` Z.
+
+Validation result:
+
+- focused known-hard set: `10/10`, zero collision, zero timeout
+- hard square-square stress: `90/90`, zero collision, zero timeout
+- stress buckets: seeds `918500`, `919500`, `920500`, 30 episodes each
+- result dirs:
+  - `D:\peg-in-hole-6yh\v164_square_escape_h0070_dynamic_xycap_z055_bucket918500`
+  - `D:\peg-in-hole-6yh\v164_square_escape_h0070_dynamic_xycap_z055_bucket919500`
+  - `D:\peg-in-hole-6yh\v164_square_escape_h0070_dynamic_xycap_z055_bucket920500`
+
+Reusable config:
+
+```powershell
+$model = "D:\peg-in-hole-6yh\mujoco_peg_in_hole\checkpoints\ur5e_full\high_start\hard\correction\sac_image_bc_wrist_pose_control_state_insert_drift_2k_w10_e1.zip"
+
+python -B scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_multi_geometry_v164_square_escape_dynamic_xycap_hard_square_30ep.yaml `
+  --model $model
+```
+
+Focused hard-seed check:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v164_square_escape_h0070_dynamic_xycap_z055_focused10"
+$adapter = "D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"
+$final = "D:\peg-in-hole-6yh\v119_final_insert_handoff_adapter_pilot\final_insert_adapter_handoff_alldata_e150.pt"
+$model = "D:\peg-in-hole-6yh\mujoco_peg_in_hole\checkpoints\ur5e_full\high_start\hard\correction\sac_image_bc_wrist_pose_control_state_insert_drift_2k_w10_e1.zip"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($seed in 920502,919504,920501,920510,920520,920525,918502,918521,920512,919508) {
+  python -B scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_v148_square_pose_yaw_align_w020_60ep.yaml `
+    --model $model `
+    --seed $seed `
+    --episodes 1 `
+    --geometry-profile square_square `
+    --geometry-hole-half-size-range 0.0140 0.0152 `
+    --geometry-square-peg-half-size-range 0.0128 0.0138 `
+    --geometry-hole-center-xy-jitter 0.006 0.006 `
+    --geometry-fixture-height-jitter 0.003 `
+    --geometry-table-height-jitter 0.003 `
+    --hard-control-scale-range 0.60 0.95 `
+    --hard-control-noise-std-range 0.0004 0.0010 `
+    --hard-control-delay-range 3 5 `
+    --hard-control-filter-alpha-range 0.30 0.50 `
+    --approach-adapter $adapter `
+    --final-insert-adapter $final `
+    --guard-final-servo-square-recovery-escape-enabled `
+    --guard-final-servo-square-recovery-escape-xy 0.014 `
+    --guard-final-servo-square-recovery-escape-height 0.070 `
+    --guard-final-servo-square-recovery-escape-release-xy 0.006 `
+    --guard-final-servo-square-recovery-escape-max-clearance 0.0020 `
+    --guard-final-servo-square-recovery-escape-early-contact-enabled `
+    --guard-final-servo-square-recovery-escape-early-contact-wall-steps 2 `
+    --guard-final-servo-square-recovery-escape-early-contact-xy-max 0.008 `
+    --guard-final-servo-square-recovery-escape-early-contact-z-min 0.020 `
+    --guard-final-servo-square-recovery-escape-early-contact-z-max 0.045 `
+    --guard-final-servo-square-recovery-escape-early-contact-margin-threshold 0.0 `
+    --guard-final-servo-square-recovery-escape-early-risk-enabled `
+    --guard-final-servo-square-recovery-escape-early-risk-steps 3 `
+    --guard-final-servo-square-recovery-escape-early-risk-xy-max 0.008 `
+    --guard-final-servo-square-recovery-escape-early-risk-z-min 0.028 `
+    --guard-final-servo-square-recovery-escape-early-risk-z-max 0.045 `
+    --guard-final-servo-square-recovery-escape-early-risk-margin-threshold -0.0020 `
+    --guard-final-servo-square-recovery-escape-pre-lift-steps 8 `
+    --guard-final-servo-square-fast-settle-max-xy-action 0.003 `
+    --guard-final-servo-square-fast-settle-low-z-max-xy-action 0.002 `
+    --guard-final-servo-square-fast-settle-low-z-threshold 0.055 `
+    --output-csv "$out\eval_v164_dynamic_z055_seed$seed.csv" `
+    --output-md "$out\eval_v164_dynamic_z055_seed$seed.md" `
+    --episode-output-csv "$out\eval_v164_dynamic_z055_seed$seed`_episodes.csv" `
+    --step-output-csv "$out\eval_v164_dynamic_z055_seed$seed`_steps.csv" `
+    --step-trace-outcome-filter any
+}
+```
+
+Hard square-square stress buckets:
+
+```powershell
+$model = "D:\peg-in-hole-6yh\mujoco_peg_in_hole\checkpoints\ur5e_full\high_start\hard\correction\sac_image_bc_wrist_pose_control_state_insert_drift_2k_w10_e1.zip"
+
+foreach ($seed in 918500,919500,920500) {
+  $out = "D:\peg-in-hole-6yh\v164_square_escape_h0070_dynamic_xycap_z055_bucket$seed"
+  New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+  python -B scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_v164_square_escape_dynamic_xycap_hard_square_30ep.yaml `
+    --model $model `
+    --seed $seed `
+    --output-csv "$out\eval_v164_dynamic_z055_bucket${seed}_30ep.csv" `
+    --output-md "$out\eval_v164_dynamic_z055_bucket${seed}_30ep.md" `
+    --episode-output-csv "$out\eval_v164_dynamic_z055_bucket${seed}_30ep_episodes.csv" `
+    --step-output-csv "$out\eval_v164_dynamic_z055_bucket${seed}_30ep_steps.csv"
+}
+```
+
+Notes:
+
+- v163 with `--guard-final-servo-square-recovery-escape-flush-control-history`
+  remains useful as a simulator diagnostic, but v164 avoids direct buffer
+  flushing and is the deployable candidate.
+- The next useful gate is fresh hard-control seeds before broadening this recipe
+  to mixed same-shape geometry stress.

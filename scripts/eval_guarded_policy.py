@@ -2,10 +2,15 @@ from __future__ import annotations
 
 import argparse
 import csv
+import sys
 from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 import numpy as np
 import torch
@@ -255,6 +260,10 @@ STEP_TRACE_FIELDNAMES = [
     "guard_final_servo_square_recovery_active",
     "guard_final_servo_square_recovery_triggered",
     "guard_final_servo_square_recovery_tilt_steps",
+    "guard_final_servo_square_recovery_escape_active",
+    "guard_final_servo_square_recovery_escape_triggered",
+    "guard_final_servo_square_recovery_escape_early_contact_steps",
+    "guard_final_servo_square_recovery_escape_early_risk_steps",
     "guard_final_servo_contact_unjam_wall_steps",
     "guard_final_servo_contact_reinsert_orient_tip_lock_active",
     "guard_final_servo_contact_reinsert_orient_tip_lock_drift_xy",
@@ -854,6 +863,34 @@ def build_parser(
     parser.add_argument("--guard-final-servo-square-recovery-z-max", type=float, default=0.025)
     parser.add_argument("--guard-final-servo-square-recovery-xy-max", type=float, default=0.014)
     parser.add_argument("--guard-final-servo-square-recovery-lift-height", type=float, default=0.035)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-recovery-escape-xy", type=float, default=0.014)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-z-min", type=float, default=0.020)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-z-max", type=float, default=0.060)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-height", type=float, default=0.080)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-release-xy", type=float, default=0.006)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-max-steps", type=int, default=180)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-max-xy-action", type=float, default=0.004)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-max-up-action", type=float, default=0.005)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-max-clearance", type=float, default=0.0)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-early-contact-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-recovery-escape-early-contact-wall-steps", type=int, default=2)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-early-contact-xy-max", type=float, default=0.008)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-early-contact-z-min", type=float, default=0.020)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-early-contact-z-max", type=float, default=0.045)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-early-contact-margin-threshold", type=float, default=0.0)
+    parser.add_argument(
+        "--guard-final-servo-square-recovery-escape-early-contact-require-bad-margin",
+        action="store_true",
+    )
+    parser.add_argument("--guard-final-servo-square-recovery-escape-early-risk-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-recovery-escape-early-risk-steps", type=int, default=3)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-early-risk-xy-max", type=float, default=0.008)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-early-risk-z-min", type=float, default=0.028)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-early-risk-z-max", type=float, default=0.060)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-early-risk-margin-threshold", type=float, default=-0.0003)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-pre-lift-steps", type=int, default=6)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-flush-control-history", action="store_true")
     parser.add_argument("--guard-final-servo-split-recovery-enabled", action="store_true")
     parser.add_argument("--guard-final-servo-contact-reinsert-enabled", action="store_true")
     parser.add_argument("--guard-final-servo-contact-unjam-wall-steps", type=int, default=8)
@@ -906,6 +943,8 @@ def build_parser(
     parser.add_argument("--guard-final-servo-square-fast-settle-contact-max", type=int, default=0)
     parser.add_argument("--guard-final-servo-square-fast-settle-max-steps", type=int, default=260)
     parser.add_argument("--guard-final-servo-square-fast-settle-max-xy-action", type=float, default=0.008)
+    parser.add_argument("--guard-final-servo-square-fast-settle-low-z-max-xy-action", type=float, default=0.0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-low-z-threshold", type=float, default=0.0)
     parser.add_argument("--guard-final-servo-square-fast-settle-max-down-action", type=float, default=0.0020)
     parser.add_argument("--guard-final-servo-square-fast-settle-contact-unjam-enabled", action="store_true")
     parser.add_argument("--guard-final-servo-square-high-z-descend-enabled", action="store_true")
@@ -1334,6 +1373,78 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         guard_final_servo_square_recovery_lift_height=(
             args.guard_final_servo_square_recovery_lift_height
         ),
+        guard_final_servo_square_recovery_escape_enabled=(
+            args.guard_final_servo_square_recovery_escape_enabled
+        ),
+        guard_final_servo_square_recovery_escape_xy=(
+            args.guard_final_servo_square_recovery_escape_xy
+        ),
+        guard_final_servo_square_recovery_escape_z_min=(
+            args.guard_final_servo_square_recovery_escape_z_min
+        ),
+        guard_final_servo_square_recovery_escape_z_max=(
+            args.guard_final_servo_square_recovery_escape_z_max
+        ),
+        guard_final_servo_square_recovery_escape_height=(
+            args.guard_final_servo_square_recovery_escape_height
+        ),
+        guard_final_servo_square_recovery_escape_release_xy=(
+            args.guard_final_servo_square_recovery_escape_release_xy
+        ),
+        guard_final_servo_square_recovery_escape_max_steps=(
+            args.guard_final_servo_square_recovery_escape_max_steps
+        ),
+        guard_final_servo_square_recovery_escape_max_xy_action=(
+            args.guard_final_servo_square_recovery_escape_max_xy_action
+        ),
+        guard_final_servo_square_recovery_escape_max_up_action=(
+            args.guard_final_servo_square_recovery_escape_max_up_action
+        ),
+        guard_final_servo_square_recovery_escape_max_clearance=(
+            args.guard_final_servo_square_recovery_escape_max_clearance
+        ),
+        guard_final_servo_square_recovery_escape_early_contact_enabled=(
+            args.guard_final_servo_square_recovery_escape_early_contact_enabled
+        ),
+        guard_final_servo_square_recovery_escape_early_contact_wall_steps=(
+            args.guard_final_servo_square_recovery_escape_early_contact_wall_steps
+        ),
+        guard_final_servo_square_recovery_escape_early_contact_xy_max=(
+            args.guard_final_servo_square_recovery_escape_early_contact_xy_max
+        ),
+        guard_final_servo_square_recovery_escape_early_contact_z_min=(
+            args.guard_final_servo_square_recovery_escape_early_contact_z_min
+        ),
+        guard_final_servo_square_recovery_escape_early_contact_z_max=(
+            args.guard_final_servo_square_recovery_escape_early_contact_z_max
+        ),
+        guard_final_servo_square_recovery_escape_early_contact_margin_threshold=(
+            args.guard_final_servo_square_recovery_escape_early_contact_margin_threshold
+        ),
+        guard_final_servo_square_recovery_escape_early_contact_require_bad_margin=(
+            args.guard_final_servo_square_recovery_escape_early_contact_require_bad_margin
+        ),
+        guard_final_servo_square_recovery_escape_early_risk_enabled=(
+            args.guard_final_servo_square_recovery_escape_early_risk_enabled
+        ),
+        guard_final_servo_square_recovery_escape_early_risk_steps=(
+            args.guard_final_servo_square_recovery_escape_early_risk_steps
+        ),
+        guard_final_servo_square_recovery_escape_early_risk_xy_max=(
+            args.guard_final_servo_square_recovery_escape_early_risk_xy_max
+        ),
+        guard_final_servo_square_recovery_escape_early_risk_z_min=(
+            args.guard_final_servo_square_recovery_escape_early_risk_z_min
+        ),
+        guard_final_servo_square_recovery_escape_early_risk_z_max=(
+            args.guard_final_servo_square_recovery_escape_early_risk_z_max
+        ),
+        guard_final_servo_square_recovery_escape_early_risk_margin_threshold=(
+            args.guard_final_servo_square_recovery_escape_early_risk_margin_threshold
+        ),
+        guard_final_servo_square_recovery_escape_pre_lift_steps=(
+            args.guard_final_servo_square_recovery_escape_pre_lift_steps
+        ),
         guard_final_servo_split_recovery_enabled=(
             args.guard_final_servo_split_recovery_enabled
         ),
@@ -1481,6 +1592,12 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         ),
         guard_final_servo_square_fast_settle_max_xy_action=(
             args.guard_final_servo_square_fast_settle_max_xy_action
+        ),
+        guard_final_servo_square_fast_settle_low_z_max_xy_action=(
+            args.guard_final_servo_square_fast_settle_low_z_max_xy_action
+        ),
+        guard_final_servo_square_fast_settle_low_z_threshold=(
+            args.guard_final_servo_square_fast_settle_low_z_threshold
         ),
         guard_final_servo_square_fast_settle_max_down_action=(
             args.guard_final_servo_square_fast_settle_max_down_action
@@ -2688,6 +2805,26 @@ def build_step_trace_row(
         "guard_final_servo_square_recovery_tilt_steps": (
             int(step.guard_final_servo_square_recovery_tilt_steps) if step_guard else 0
         ),
+        "guard_final_servo_square_recovery_escape_active": (
+            bool(step.guard_final_servo_square_recovery_escape_active)
+            if step_guard
+            else False
+        ),
+        "guard_final_servo_square_recovery_escape_triggered": (
+            bool(step.guard_final_servo_square_recovery_escape_triggered)
+            if step_guard
+            else False
+        ),
+        "guard_final_servo_square_recovery_escape_early_contact_steps": (
+            int(step.guard_final_servo_square_recovery_escape_early_contact_steps)
+            if step_guard
+            else 0
+        ),
+        "guard_final_servo_square_recovery_escape_early_risk_steps": (
+            int(step.guard_final_servo_square_recovery_escape_early_risk_steps)
+            if step_guard
+            else 0
+        ),
         "guard_final_servo_contact_unjam_wall_steps": (
             int(step.guard_final_servo_contact_unjam_wall_steps) if step_guard else 0
         ),
@@ -3362,6 +3499,12 @@ def evaluate_scenario(
                     pre_info,
                     args,
                 )
+                if (
+                    args.guard_final_servo_square_recovery_escape_flush_control_history
+                    and step is not None
+                    and step.guard_final_servo_square_recovery_escape_triggered
+                ):
+                    env.flush_control_randomization_history(np.asarray(action, dtype=np.float32))
                 obs, reward, terminated, truncated, info = env.step(action)
                 episode_return += float(reward)
                 dist_xy = float(info["dist_xy"])
@@ -3968,6 +4111,8 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Guard final servo descend bias requires stateful recovery: `{args.guard_final_servo_descend_xy_bias_requires_stateful_recovery}`",
         f"- Guard final servo recovery mode/soft lift/min height/z tol/hold/max up: `{args.guard_final_servo_recovery_mode}/{args.guard_final_servo_soft_unjam_lift}/{args.guard_final_servo_soft_unjam_min_height}/{args.guard_final_servo_soft_unjam_z_tolerance}/{args.guard_final_servo_soft_unjam_hold_steps}/{args.guard_final_servo_soft_unjam_max_up_action}`",
         f"- Guard final servo square recovery enabled/tilt/steps/XY/Z/lift: `{args.guard_final_servo_square_recovery_enabled}/{args.guard_final_servo_square_recovery_tilt_deg}/{args.guard_final_servo_square_recovery_tilt_steps}/{args.guard_final_servo_square_recovery_xy_max}/{args.guard_final_servo_square_recovery_z_max}/{args.guard_final_servo_square_recovery_lift_height}`",
+        f"- Guard final servo square recovery escape enabled/XY/Z/height/release/max steps/max XY/max up/max clearance/early/pre-lift/flush control history: `{args.guard_final_servo_square_recovery_escape_enabled}/{args.guard_final_servo_square_recovery_escape_xy}/{args.guard_final_servo_square_recovery_escape_z_min}-{args.guard_final_servo_square_recovery_escape_z_max}/{args.guard_final_servo_square_recovery_escape_height}/{args.guard_final_servo_square_recovery_escape_release_xy}/{args.guard_final_servo_square_recovery_escape_max_steps}/{args.guard_final_servo_square_recovery_escape_max_xy_action}/{args.guard_final_servo_square_recovery_escape_max_up_action}/{args.guard_final_servo_square_recovery_escape_max_clearance}/{args.guard_final_servo_square_recovery_escape_early_contact_enabled}:{args.guard_final_servo_square_recovery_escape_early_contact_wall_steps}:{args.guard_final_servo_square_recovery_escape_early_contact_xy_max}:{args.guard_final_servo_square_recovery_escape_early_contact_z_min}-{args.guard_final_servo_square_recovery_escape_early_contact_z_max}:{args.guard_final_servo_square_recovery_escape_early_contact_margin_threshold}:require_bad_margin={args.guard_final_servo_square_recovery_escape_early_contact_require_bad_margin}/{args.guard_final_servo_square_recovery_escape_pre_lift_steps}/{args.guard_final_servo_square_recovery_escape_flush_control_history}`",
+        f"- Guard final servo square recovery escape early-risk enabled/steps/XY/Z/margin: `{args.guard_final_servo_square_recovery_escape_early_risk_enabled}/{args.guard_final_servo_square_recovery_escape_early_risk_steps}/{args.guard_final_servo_square_recovery_escape_early_risk_xy_max}/{args.guard_final_servo_square_recovery_escape_early_risk_z_min}-{args.guard_final_servo_square_recovery_escape_early_risk_z_max}/{args.guard_final_servo_square_recovery_escape_early_risk_margin_threshold}`",
         f"- Guard final servo split recovery enabled: `{args.guard_final_servo_split_recovery_enabled}`",
         f"- Guard final servo contact reinsert enabled: `{args.guard_final_servo_contact_reinsert_enabled}`",
         f"- Guard final servo contact unjam steps/tilt/XY/Z/lift/release/max up/wall bias: `{args.guard_final_servo_contact_unjam_wall_steps}/{args.guard_final_servo_contact_unjam_tilt_deg}/{args.guard_final_servo_contact_unjam_xy_max}/{args.guard_final_servo_contact_unjam_z_max}/{args.guard_final_servo_contact_unjam_lift_height}/{args.guard_final_servo_contact_unjam_release_xy}/{args.guard_final_servo_contact_unjam_max_up_action}/{args.guard_final_servo_contact_unjam_wall_bias}`",
@@ -3975,7 +4120,7 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Guard final servo contact reinsert high reapproach enabled/height/release/stable/max steps/max XY/max up: `{args.guard_final_servo_contact_reinsert_high_reapproach_enabled}/{args.guard_final_servo_contact_reinsert_high_reapproach_height}/{args.guard_final_servo_contact_reinsert_high_reapproach_release_xy}/{args.guard_final_servo_contact_reinsert_high_reapproach_stable_steps}/{args.guard_final_servo_contact_reinsert_high_reapproach_max_steps}/{args.guard_final_servo_contact_reinsert_high_reapproach_max_xy_action}/{args.guard_final_servo_contact_reinsert_high_reapproach_max_up_action}`",
         f"- Guard final servo contact reinsert micro align enabled/Z/XY/release/tilt/max/stall/progress/max XY/up: `{args.guard_final_servo_contact_reinsert_micro_align_enabled}/{args.guard_final_servo_contact_reinsert_micro_align_z_max}/{args.guard_final_servo_contact_reinsert_micro_align_xy_max}/{args.guard_final_servo_contact_reinsert_micro_align_release_xy}/{args.guard_final_servo_contact_reinsert_micro_align_tilt_deg}/{args.guard_final_servo_contact_reinsert_micro_align_max_steps}/{args.guard_final_servo_contact_reinsert_micro_align_stall_steps}/{args.guard_final_servo_contact_reinsert_micro_align_min_xy_progress}/{args.guard_final_servo_contact_reinsert_micro_align_max_xy_action}/{args.guard_final_servo_contact_reinsert_micro_align_up_action}`",
         f"- Guard final servo near-miss steps/XY/Z/contact/tilt/max steps/max down/bias: `{args.guard_final_servo_near_miss_steps}/{args.guard_final_servo_near_miss_xy_max}/{args.guard_final_servo_near_miss_z_max}/{args.guard_final_servo_near_miss_contact_max}/{args.guard_final_servo_near_miss_tilt_max_deg}/{args.guard_final_servo_near_miss_max_steps}/{args.guard_final_servo_near_miss_max_down_action}/{tuple(args.guard_final_servo_near_miss_xy_bias)}`",
-        f"- Guard final servo square fast settle enabled/XY/Z/release/contact/tilt/max steps/max XY/max down: `{args.guard_final_servo_square_fast_settle_enabled}/{args.guard_final_servo_square_fast_settle_xy_max}/{args.guard_final_servo_square_fast_settle_z_max}/{args.guard_final_servo_square_fast_settle_release_xy}/{args.guard_final_servo_square_fast_settle_contact_max}/{args.guard_final_servo_square_fast_settle_tilt_max_deg}/{args.guard_final_servo_square_fast_settle_max_steps}/{args.guard_final_servo_square_fast_settle_max_xy_action}/{args.guard_final_servo_square_fast_settle_max_down_action}`",
+        f"- Guard final servo square fast settle enabled/XY/Z/release/contact/tilt/max steps/max XY/low-Z XY@Z/max down: `{args.guard_final_servo_square_fast_settle_enabled}/{args.guard_final_servo_square_fast_settle_xy_max}/{args.guard_final_servo_square_fast_settle_z_max}/{args.guard_final_servo_square_fast_settle_release_xy}/{args.guard_final_servo_square_fast_settle_contact_max}/{args.guard_final_servo_square_fast_settle_tilt_max_deg}/{args.guard_final_servo_square_fast_settle_max_steps}/{args.guard_final_servo_square_fast_settle_max_xy_action}/{args.guard_final_servo_square_fast_settle_low_z_max_xy_action}@{args.guard_final_servo_square_fast_settle_low_z_threshold}/{args.guard_final_servo_square_fast_settle_max_down_action}`",
         f"- Guard final servo square high-Z descend enabled/stall/XY/Z/contact/tilt/margin/max/down: `{args.guard_final_servo_square_high_z_descend_enabled}/{args.guard_final_servo_square_high_z_descend_stall_steps}/{args.guard_final_servo_square_high_z_descend_xy_max}/{args.guard_final_servo_square_high_z_descend_z_min}-{args.guard_final_servo_square_high_z_descend_z_max}/{args.guard_final_servo_square_high_z_descend_contact_max}/{args.guard_final_servo_square_high_z_descend_tilt_max_deg}/{args.guard_final_servo_square_high_z_descend_margin_min}/{args.guard_final_servo_square_high_z_descend_max_steps}/{args.guard_final_servo_square_high_z_descend_max_down_action}`",
         f"- Guard final servo square margin/yaw settle enabled/stall/XY/Z/contact/margin/yaw/lift/max attempts: `{args.guard_final_servo_square_margin_yaw_settle_enabled}/{args.guard_final_servo_square_margin_yaw_settle_stall_steps}/{args.guard_final_servo_square_margin_yaw_settle_xy_max}/{args.guard_final_servo_square_margin_yaw_settle_z_min}-{args.guard_final_servo_square_margin_yaw_settle_z_max}/{args.guard_final_servo_square_margin_yaw_settle_contact_max}/{args.guard_final_servo_square_margin_yaw_settle_margin_threshold}/{args.guard_final_servo_square_margin_yaw_settle_yaw_deg}/{args.guard_final_servo_square_margin_yaw_settle_lift_height}/{args.guard_final_servo_square_margin_yaw_settle_max_attempts}`",
         f"- Guard approach recenter enabled/requires stateful recovery: `{args.guard_approach_recenter_enabled}/{args.guard_approach_recenter_requires_stateful_recovery}`",
@@ -4497,6 +4642,116 @@ def main() -> None:
             "--guard-final-servo-square-recovery-lift-height must be greater than "
             "--guard-final-servo-hover-height."
         )
+    if args.guard_final_servo_square_recovery_escape_xy <= 0.0:
+        raise ValueError("--guard-final-servo-square-recovery-escape-xy must be positive.")
+    if args.guard_final_servo_square_recovery_escape_z_min < 0.0:
+        raise ValueError("--guard-final-servo-square-recovery-escape-z-min cannot be negative.")
+    if args.guard_final_servo_square_recovery_escape_z_max <= 0.0:
+        raise ValueError("--guard-final-servo-square-recovery-escape-z-max must be positive.")
+    if (
+        args.guard_final_servo_square_recovery_escape_z_min
+        > args.guard_final_servo_square_recovery_escape_z_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-z-min must be <= z-max."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_height
+        <= args.guard_final_servo_hover_height
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-height must be greater than "
+            "--guard-final-servo-hover-height."
+        )
+    if args.guard_final_servo_square_recovery_escape_release_xy <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-release-xy must be positive."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_release_xy
+        > args.guard_final_servo_square_recovery_escape_xy
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-release-xy must be <= "
+            "--guard-final-servo-square-recovery-escape-xy."
+        )
+    if args.guard_final_servo_square_recovery_escape_max_steps <= 0:
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-max-steps must be positive."
+        )
+    if args.guard_final_servo_square_recovery_escape_max_xy_action <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-max-xy-action must be positive."
+        )
+    if args.guard_final_servo_square_recovery_escape_max_up_action <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-max-up-action must be positive."
+        )
+    if args.guard_final_servo_square_recovery_escape_max_clearance < 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-max-clearance cannot be negative."
+        )
+    if args.guard_final_servo_square_recovery_escape_early_contact_wall_steps <= 0:
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-early-contact-wall-steps "
+            "must be positive."
+        )
+    if args.guard_final_servo_square_recovery_escape_early_contact_xy_max <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-early-contact-xy-max "
+            "must be positive."
+        )
+    if args.guard_final_servo_square_recovery_escape_early_contact_z_min < 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-early-contact-z-min "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_recovery_escape_early_contact_z_max <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-early-contact-z-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_early_contact_z_min
+        > args.guard_final_servo_square_recovery_escape_early_contact_z_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-early-contact-z-min "
+            "must be <= early-contact-z-max."
+        )
+    if args.guard_final_servo_square_recovery_escape_early_risk_steps <= 0:
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-early-risk-steps "
+            "must be positive."
+        )
+    if args.guard_final_servo_square_recovery_escape_early_risk_xy_max <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-early-risk-xy-max "
+            "must be positive."
+        )
+    if args.guard_final_servo_square_recovery_escape_early_risk_z_min < 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-early-risk-z-min "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_recovery_escape_early_risk_z_max <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-early-risk-z-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_early_risk_z_min
+        > args.guard_final_servo_square_recovery_escape_early_risk_z_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-early-risk-z-min "
+            "must be <= early-risk-z-max."
+        )
+    if args.guard_final_servo_square_recovery_escape_pre_lift_steps < 0:
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-pre-lift-steps "
+            "cannot be negative."
+        )
     if args.guard_final_servo_contact_unjam_wall_steps <= 0:
         raise ValueError("--guard-final-servo-contact-unjam-wall-steps must be positive.")
     if args.guard_final_servo_contact_unjam_tilt_deg <= 0.0:
@@ -4669,6 +4924,22 @@ def main() -> None:
         raise ValueError("--guard-final-servo-square-fast-settle-max-steps must be positive.")
     if args.guard_final_servo_square_fast_settle_max_xy_action <= 0.0:
         raise ValueError("--guard-final-servo-square-fast-settle-max-xy-action must be positive.")
+    if args.guard_final_servo_square_fast_settle_low_z_max_xy_action < 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-low-z-max-xy-action cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_low_z_threshold < 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-low-z-threshold cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_low_z_max_xy_action > 0.0
+        and args.guard_final_servo_square_fast_settle_low_z_threshold <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-low-z-threshold must be positive "
+            "when low-z XY limiting is enabled."
+        )
     if args.guard_final_servo_square_fast_settle_max_down_action < 0.0:
         raise ValueError("--guard-final-servo-square-fast-settle-max-down-action cannot be negative.")
     if args.guard_final_servo_square_high_z_descend_stall_steps < 0:
