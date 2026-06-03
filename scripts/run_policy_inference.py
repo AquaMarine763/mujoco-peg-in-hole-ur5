@@ -375,6 +375,21 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--guard-final-servo-square-fast-settle-max-steps", type=int, default=260)
     parser.add_argument("--guard-final-servo-square-fast-settle-max-xy-action", type=float, default=0.008)
     parser.add_argument("--guard-final-servo-square-fast-settle-max-down-action", type=float, default=0.0020)
+    parser.add_argument("--guard-final-servo-square-margin-yaw-settle-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-margin-yaw-settle-stall-steps", type=int, default=12)
+    parser.add_argument("--guard-final-servo-square-margin-yaw-settle-xy-max", type=float, default=0.008)
+    parser.add_argument("--guard-final-servo-square-margin-yaw-settle-z-min", type=float, default=0.026)
+    parser.add_argument("--guard-final-servo-square-margin-yaw-settle-z-max", type=float, default=0.045)
+    parser.add_argument("--guard-final-servo-square-margin-yaw-settle-contact-max", type=int, default=8)
+    parser.add_argument("--guard-final-servo-square-margin-yaw-settle-margin-threshold", type=float, default=0.0)
+    parser.add_argument("--guard-final-servo-square-margin-yaw-settle-yaw-deg", type=float, default=4.0)
+    parser.add_argument("--guard-final-servo-square-margin-yaw-settle-release-xy", type=float, default=0.0048)
+    parser.add_argument("--guard-final-servo-square-margin-yaw-settle-lift-height", type=float, default=0.018)
+    parser.add_argument("--guard-final-servo-square-margin-yaw-settle-stable-steps", type=int, default=3)
+    parser.add_argument("--guard-final-servo-square-margin-yaw-settle-max-steps", type=int, default=60)
+    parser.add_argument("--guard-final-servo-square-margin-yaw-settle-max-attempts", type=int, default=1)
+    parser.add_argument("--guard-final-servo-square-margin-yaw-settle-max-xy-action", type=float, default=0.003)
+    parser.add_argument("--guard-final-servo-square-margin-yaw-settle-max-up-action", type=float, default=0.0025)
     parser.add_argument(
         "--guarded-oracle-mode",
         choices=[
@@ -812,6 +827,51 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         ),
         guard_final_servo_square_fast_settle_max_down_action=(
             args.guard_final_servo_square_fast_settle_max_down_action
+        ),
+        guard_final_servo_square_margin_yaw_settle_enabled=(
+            args.guard_final_servo_square_margin_yaw_settle_enabled
+        ),
+        guard_final_servo_square_margin_yaw_settle_stall_steps=(
+            args.guard_final_servo_square_margin_yaw_settle_stall_steps
+        ),
+        guard_final_servo_square_margin_yaw_settle_xy_max=(
+            args.guard_final_servo_square_margin_yaw_settle_xy_max
+        ),
+        guard_final_servo_square_margin_yaw_settle_z_min=(
+            args.guard_final_servo_square_margin_yaw_settle_z_min
+        ),
+        guard_final_servo_square_margin_yaw_settle_z_max=(
+            args.guard_final_servo_square_margin_yaw_settle_z_max
+        ),
+        guard_final_servo_square_margin_yaw_settle_contact_max=(
+            args.guard_final_servo_square_margin_yaw_settle_contact_max
+        ),
+        guard_final_servo_square_margin_yaw_settle_margin_threshold=(
+            args.guard_final_servo_square_margin_yaw_settle_margin_threshold
+        ),
+        guard_final_servo_square_margin_yaw_settle_yaw_deg=(
+            args.guard_final_servo_square_margin_yaw_settle_yaw_deg
+        ),
+        guard_final_servo_square_margin_yaw_settle_release_xy=(
+            args.guard_final_servo_square_margin_yaw_settle_release_xy
+        ),
+        guard_final_servo_square_margin_yaw_settle_lift_height=(
+            args.guard_final_servo_square_margin_yaw_settle_lift_height
+        ),
+        guard_final_servo_square_margin_yaw_settle_stable_steps=(
+            args.guard_final_servo_square_margin_yaw_settle_stable_steps
+        ),
+        guard_final_servo_square_margin_yaw_settle_max_steps=(
+            args.guard_final_servo_square_margin_yaw_settle_max_steps
+        ),
+        guard_final_servo_square_margin_yaw_settle_max_attempts=(
+            args.guard_final_servo_square_margin_yaw_settle_max_attempts
+        ),
+        guard_final_servo_square_margin_yaw_settle_max_xy_action=(
+            args.guard_final_servo_square_margin_yaw_settle_max_xy_action
+        ),
+        guard_final_servo_square_margin_yaw_settle_max_up_action=(
+            args.guard_final_servo_square_margin_yaw_settle_max_up_action
         ),
         oracle=OracleControllerConfig(
             mode=args.guarded_oracle_mode,
@@ -1427,6 +1487,42 @@ def main() -> None:
         raise ValueError("--guard-final-servo-square-fast-settle-max-xy-action must be positive.")
     if args.guard_final_servo_square_fast_settle_max_down_action < 0.0:
         raise ValueError("--guard-final-servo-square-fast-settle-max-down-action cannot be negative.")
+    if args.guard_final_servo_square_margin_yaw_settle_stall_steps < 0:
+        raise ValueError("--guard-final-servo-square-margin-yaw-settle-stall-steps cannot be negative.")
+    if args.guard_final_servo_square_margin_yaw_settle_xy_max <= 0.0:
+        raise ValueError("--guard-final-servo-square-margin-yaw-settle-xy-max must be positive.")
+    if args.guard_final_servo_square_margin_yaw_settle_z_min < 0.0:
+        raise ValueError("--guard-final-servo-square-margin-yaw-settle-z-min cannot be negative.")
+    if args.guard_final_servo_square_margin_yaw_settle_z_max <= 0.0:
+        raise ValueError("--guard-final-servo-square-margin-yaw-settle-z-max must be positive.")
+    if (
+        args.guard_final_servo_square_margin_yaw_settle_z_min
+        > args.guard_final_servo_square_margin_yaw_settle_z_max
+    ):
+        raise ValueError("--guard-final-servo-square-margin-yaw-settle-z-min must be <= z-max.")
+    if args.guard_final_servo_square_margin_yaw_settle_contact_max < 0:
+        raise ValueError("--guard-final-servo-square-margin-yaw-settle-contact-max cannot be negative.")
+    if args.guard_final_servo_square_margin_yaw_settle_yaw_deg <= 0.0:
+        raise ValueError("--guard-final-servo-square-margin-yaw-settle-yaw-deg must be positive.")
+    if args.guard_final_servo_square_margin_yaw_settle_release_xy <= 0.0:
+        raise ValueError("--guard-final-servo-square-margin-yaw-settle-release-xy must be positive.")
+    if (
+        args.guard_final_servo_square_margin_yaw_settle_release_xy
+        > args.guard_final_servo_square_margin_yaw_settle_xy_max
+    ):
+        raise ValueError("--guard-final-servo-square-margin-yaw-settle-release-xy must be <= xy-max.")
+    if args.guard_final_servo_square_margin_yaw_settle_lift_height <= 0.0:
+        raise ValueError("--guard-final-servo-square-margin-yaw-settle-lift-height must be positive.")
+    if args.guard_final_servo_square_margin_yaw_settle_stable_steps <= 0:
+        raise ValueError("--guard-final-servo-square-margin-yaw-settle-stable-steps must be positive.")
+    if args.guard_final_servo_square_margin_yaw_settle_max_steps <= 0:
+        raise ValueError("--guard-final-servo-square-margin-yaw-settle-max-steps must be positive.")
+    if args.guard_final_servo_square_margin_yaw_settle_max_attempts < 0:
+        raise ValueError("--guard-final-servo-square-margin-yaw-settle-max-attempts cannot be negative.")
+    if args.guard_final_servo_square_margin_yaw_settle_max_xy_action <= 0.0:
+        raise ValueError("--guard-final-servo-square-margin-yaw-settle-max-xy-action must be positive.")
+    if args.guard_final_servo_square_margin_yaw_settle_max_up_action <= 0.0:
+        raise ValueError("--guard-final-servo-square-margin-yaw-settle-max-up-action must be positive.")
     env = make_env(args)
     model = AGENTS[args.agent].load(args.model, env=env, device=args.device)
     policy = SB3PolicyAdapter(model, deterministic=not args.stochastic)

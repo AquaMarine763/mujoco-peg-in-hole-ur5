@@ -91,6 +91,20 @@ def classify_episode(
     contact_near_rows = [
         row for row in near_rows if to_int(row, "peg_hole_contact_wall_count") > 0
     ]
+    fast_rows = [
+        row for row in rows if row.get("guard_final_servo_phase") == "square_fast_settle"
+    ]
+    final_margin = to_float(last, "square_peg_tilted_clearance_margin")
+    final_yaw = to_float(last, "square_peg_yaw_error_deg")
+    if (
+        fast_rows
+        and final_margin < 0.0
+        and final_yaw >= 4.0
+        and near_rows
+    ):
+        return "square_fast_settle_negative_margin_yaw_stall"
+    if fast_rows and final_margin < 0.0 and near_rows:
+        return "square_fast_settle_negative_margin_stall"
     if success_band_rows:
         return "success_band_not_terminated"
     if contact_near_rows:

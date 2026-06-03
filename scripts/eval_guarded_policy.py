@@ -892,6 +892,21 @@ def build_parser(
     parser.add_argument("--guard-final-servo-square-high-z-descend-margin-min", type=float, default=-0.0015)
     parser.add_argument("--guard-final-servo-square-high-z-descend-max-steps", type=int, default=90)
     parser.add_argument("--guard-final-servo-square-high-z-descend-max-down-action", type=float, default=0.0025)
+    parser.add_argument("--guard-final-servo-square-margin-yaw-settle-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-margin-yaw-settle-stall-steps", type=int, default=12)
+    parser.add_argument("--guard-final-servo-square-margin-yaw-settle-xy-max", type=float, default=0.008)
+    parser.add_argument("--guard-final-servo-square-margin-yaw-settle-z-min", type=float, default=0.026)
+    parser.add_argument("--guard-final-servo-square-margin-yaw-settle-z-max", type=float, default=0.045)
+    parser.add_argument("--guard-final-servo-square-margin-yaw-settle-contact-max", type=int, default=8)
+    parser.add_argument("--guard-final-servo-square-margin-yaw-settle-margin-threshold", type=float, default=0.0)
+    parser.add_argument("--guard-final-servo-square-margin-yaw-settle-yaw-deg", type=float, default=4.0)
+    parser.add_argument("--guard-final-servo-square-margin-yaw-settle-release-xy", type=float, default=0.0048)
+    parser.add_argument("--guard-final-servo-square-margin-yaw-settle-lift-height", type=float, default=0.018)
+    parser.add_argument("--guard-final-servo-square-margin-yaw-settle-stable-steps", type=int, default=3)
+    parser.add_argument("--guard-final-servo-square-margin-yaw-settle-max-steps", type=int, default=60)
+    parser.add_argument("--guard-final-servo-square-margin-yaw-settle-max-attempts", type=int, default=1)
+    parser.add_argument("--guard-final-servo-square-margin-yaw-settle-max-xy-action", type=float, default=0.003)
+    parser.add_argument("--guard-final-servo-square-margin-yaw-settle-max-up-action", type=float, default=0.0025)
     parser.add_argument("--guard-final-servo-square-tilt-reinsert-enabled", action="store_true")
     parser.add_argument("--guard-final-servo-square-tilt-reinsert-wall-steps", type=int, default=4)
     parser.add_argument("--guard-final-servo-square-tilt-reinsert-stall-steps", type=int, default=16)
@@ -1476,6 +1491,51 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         ),
         guard_final_servo_square_high_z_descend_max_down_action=(
             args.guard_final_servo_square_high_z_descend_max_down_action
+        ),
+        guard_final_servo_square_margin_yaw_settle_enabled=(
+            args.guard_final_servo_square_margin_yaw_settle_enabled
+        ),
+        guard_final_servo_square_margin_yaw_settle_stall_steps=(
+            args.guard_final_servo_square_margin_yaw_settle_stall_steps
+        ),
+        guard_final_servo_square_margin_yaw_settle_xy_max=(
+            args.guard_final_servo_square_margin_yaw_settle_xy_max
+        ),
+        guard_final_servo_square_margin_yaw_settle_z_min=(
+            args.guard_final_servo_square_margin_yaw_settle_z_min
+        ),
+        guard_final_servo_square_margin_yaw_settle_z_max=(
+            args.guard_final_servo_square_margin_yaw_settle_z_max
+        ),
+        guard_final_servo_square_margin_yaw_settle_contact_max=(
+            args.guard_final_servo_square_margin_yaw_settle_contact_max
+        ),
+        guard_final_servo_square_margin_yaw_settle_margin_threshold=(
+            args.guard_final_servo_square_margin_yaw_settle_margin_threshold
+        ),
+        guard_final_servo_square_margin_yaw_settle_yaw_deg=(
+            args.guard_final_servo_square_margin_yaw_settle_yaw_deg
+        ),
+        guard_final_servo_square_margin_yaw_settle_release_xy=(
+            args.guard_final_servo_square_margin_yaw_settle_release_xy
+        ),
+        guard_final_servo_square_margin_yaw_settle_lift_height=(
+            args.guard_final_servo_square_margin_yaw_settle_lift_height
+        ),
+        guard_final_servo_square_margin_yaw_settle_stable_steps=(
+            args.guard_final_servo_square_margin_yaw_settle_stable_steps
+        ),
+        guard_final_servo_square_margin_yaw_settle_max_steps=(
+            args.guard_final_servo_square_margin_yaw_settle_max_steps
+        ),
+        guard_final_servo_square_margin_yaw_settle_max_attempts=(
+            args.guard_final_servo_square_margin_yaw_settle_max_attempts
+        ),
+        guard_final_servo_square_margin_yaw_settle_max_xy_action=(
+            args.guard_final_servo_square_margin_yaw_settle_max_xy_action
+        ),
+        guard_final_servo_square_margin_yaw_settle_max_up_action=(
+            args.guard_final_servo_square_margin_yaw_settle_max_up_action
         ),
         guard_final_servo_square_tilt_reinsert_enabled=(
             args.guard_final_servo_square_tilt_reinsert_enabled
@@ -3837,6 +3897,7 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Guard final servo near-miss steps/XY/Z/contact/tilt/max steps/max down/bias: `{args.guard_final_servo_near_miss_steps}/{args.guard_final_servo_near_miss_xy_max}/{args.guard_final_servo_near_miss_z_max}/{args.guard_final_servo_near_miss_contact_max}/{args.guard_final_servo_near_miss_tilt_max_deg}/{args.guard_final_servo_near_miss_max_steps}/{args.guard_final_servo_near_miss_max_down_action}/{tuple(args.guard_final_servo_near_miss_xy_bias)}`",
         f"- Guard final servo square fast settle enabled/XY/Z/release/contact/tilt/max steps/max XY/max down: `{args.guard_final_servo_square_fast_settle_enabled}/{args.guard_final_servo_square_fast_settle_xy_max}/{args.guard_final_servo_square_fast_settle_z_max}/{args.guard_final_servo_square_fast_settle_release_xy}/{args.guard_final_servo_square_fast_settle_contact_max}/{args.guard_final_servo_square_fast_settle_tilt_max_deg}/{args.guard_final_servo_square_fast_settle_max_steps}/{args.guard_final_servo_square_fast_settle_max_xy_action}/{args.guard_final_servo_square_fast_settle_max_down_action}`",
         f"- Guard final servo square high-Z descend enabled/stall/XY/Z/contact/tilt/margin/max/down: `{args.guard_final_servo_square_high_z_descend_enabled}/{args.guard_final_servo_square_high_z_descend_stall_steps}/{args.guard_final_servo_square_high_z_descend_xy_max}/{args.guard_final_servo_square_high_z_descend_z_min}-{args.guard_final_servo_square_high_z_descend_z_max}/{args.guard_final_servo_square_high_z_descend_contact_max}/{args.guard_final_servo_square_high_z_descend_tilt_max_deg}/{args.guard_final_servo_square_high_z_descend_margin_min}/{args.guard_final_servo_square_high_z_descend_max_steps}/{args.guard_final_servo_square_high_z_descend_max_down_action}`",
+        f"- Guard final servo square margin/yaw settle enabled/stall/XY/Z/contact/margin/yaw/lift/max attempts: `{args.guard_final_servo_square_margin_yaw_settle_enabled}/{args.guard_final_servo_square_margin_yaw_settle_stall_steps}/{args.guard_final_servo_square_margin_yaw_settle_xy_max}/{args.guard_final_servo_square_margin_yaw_settle_z_min}-{args.guard_final_servo_square_margin_yaw_settle_z_max}/{args.guard_final_servo_square_margin_yaw_settle_contact_max}/{args.guard_final_servo_square_margin_yaw_settle_margin_threshold}/{args.guard_final_servo_square_margin_yaw_settle_yaw_deg}/{args.guard_final_servo_square_margin_yaw_settle_lift_height}/{args.guard_final_servo_square_margin_yaw_settle_max_attempts}`",
         f"- Guard approach recenter enabled/requires stateful recovery: `{args.guard_approach_recenter_enabled}/{args.guard_approach_recenter_requires_stateful_recovery}`",
         f"- Guard approach recenter XY window/stable/bias: `{args.guard_approach_recenter_trigger_xy}-{args.guard_approach_recenter_max_xy}/{args.guard_approach_recenter_stable_xy}/{tuple(args.guard_approach_recenter_xy_bias)}`",
         f"- Guard approach recenter Z window/height/tolerance/max steps: `{args.guard_approach_recenter_min_z}-{args.guard_approach_recenter_start_z}/{args.guard_approach_recenter_height}/{args.guard_approach_recenter_z_tolerance}/{args.guard_approach_recenter_max_steps}`",
@@ -4546,6 +4607,42 @@ def main() -> None:
         raise ValueError("--guard-final-servo-square-high-z-descend-max-steps must be positive.")
     if args.guard_final_servo_square_high_z_descend_max_down_action < 0.0:
         raise ValueError("--guard-final-servo-square-high-z-descend-max-down-action cannot be negative.")
+    if args.guard_final_servo_square_margin_yaw_settle_stall_steps < 0:
+        raise ValueError("--guard-final-servo-square-margin-yaw-settle-stall-steps cannot be negative.")
+    if args.guard_final_servo_square_margin_yaw_settle_xy_max <= 0.0:
+        raise ValueError("--guard-final-servo-square-margin-yaw-settle-xy-max must be positive.")
+    if args.guard_final_servo_square_margin_yaw_settle_z_min < 0.0:
+        raise ValueError("--guard-final-servo-square-margin-yaw-settle-z-min cannot be negative.")
+    if args.guard_final_servo_square_margin_yaw_settle_z_max <= 0.0:
+        raise ValueError("--guard-final-servo-square-margin-yaw-settle-z-max must be positive.")
+    if (
+        args.guard_final_servo_square_margin_yaw_settle_z_min
+        > args.guard_final_servo_square_margin_yaw_settle_z_max
+    ):
+        raise ValueError("--guard-final-servo-square-margin-yaw-settle-z-min must be <= z-max.")
+    if args.guard_final_servo_square_margin_yaw_settle_contact_max < 0:
+        raise ValueError("--guard-final-servo-square-margin-yaw-settle-contact-max cannot be negative.")
+    if args.guard_final_servo_square_margin_yaw_settle_yaw_deg <= 0.0:
+        raise ValueError("--guard-final-servo-square-margin-yaw-settle-yaw-deg must be positive.")
+    if args.guard_final_servo_square_margin_yaw_settle_release_xy <= 0.0:
+        raise ValueError("--guard-final-servo-square-margin-yaw-settle-release-xy must be positive.")
+    if (
+        args.guard_final_servo_square_margin_yaw_settle_release_xy
+        > args.guard_final_servo_square_margin_yaw_settle_xy_max
+    ):
+        raise ValueError("--guard-final-servo-square-margin-yaw-settle-release-xy must be <= xy-max.")
+    if args.guard_final_servo_square_margin_yaw_settle_lift_height <= 0.0:
+        raise ValueError("--guard-final-servo-square-margin-yaw-settle-lift-height must be positive.")
+    if args.guard_final_servo_square_margin_yaw_settle_stable_steps <= 0:
+        raise ValueError("--guard-final-servo-square-margin-yaw-settle-stable-steps must be positive.")
+    if args.guard_final_servo_square_margin_yaw_settle_max_steps <= 0:
+        raise ValueError("--guard-final-servo-square-margin-yaw-settle-max-steps must be positive.")
+    if args.guard_final_servo_square_margin_yaw_settle_max_attempts < 0:
+        raise ValueError("--guard-final-servo-square-margin-yaw-settle-max-attempts cannot be negative.")
+    if args.guard_final_servo_square_margin_yaw_settle_max_xy_action <= 0.0:
+        raise ValueError("--guard-final-servo-square-margin-yaw-settle-max-xy-action must be positive.")
+    if args.guard_final_servo_square_margin_yaw_settle_max_up_action <= 0.0:
+        raise ValueError("--guard-final-servo-square-margin-yaw-settle-max-up-action must be positive.")
     if args.guard_final_servo_square_tilt_reinsert_wall_steps <= 0:
         raise ValueError("--guard-final-servo-square-tilt-reinsert-wall-steps must be positive.")
     if args.guard_final_servo_square_tilt_reinsert_stall_steps < 0:

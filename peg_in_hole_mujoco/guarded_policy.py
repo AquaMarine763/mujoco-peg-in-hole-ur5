@@ -29,6 +29,7 @@ class GuardedDeploymentState:
     hole_clearance: float | None = None
     peg_shape: str = ""
     peg_tilt_angle_deg: float | None = None
+    square_peg_yaw_error_deg: float | None = None
     square_peg_tilted_clearance_margin: float | None = None
     peg_hole_contact_wall_count: int = 0
     peg_hole_contact_plate_count: int = 0
@@ -92,6 +93,10 @@ class GuardedDeploymentState:
             hole_clearance=hole_clearance,
             peg_shape=str(info.get("peg_shape", "")),
             peg_tilt_angle_deg=_optional_float_from_info(info, "peg_tilt_angle_deg"),
+            square_peg_yaw_error_deg=_optional_float_from_info(
+                info,
+                "square_peg_yaw_error_deg",
+            ),
             square_peg_tilted_clearance_margin=_optional_float_from_info(
                 info,
                 "square_peg_tilted_clearance_margin",
@@ -399,6 +404,21 @@ class GuardedPolicyConfig:
     guard_final_servo_square_high_z_descend_margin_min: float = -0.0015
     guard_final_servo_square_high_z_descend_max_steps: int = 90
     guard_final_servo_square_high_z_descend_max_down_action: float = 0.0025
+    guard_final_servo_square_margin_yaw_settle_enabled: bool = False
+    guard_final_servo_square_margin_yaw_settle_stall_steps: int = 12
+    guard_final_servo_square_margin_yaw_settle_xy_max: float = 0.008
+    guard_final_servo_square_margin_yaw_settle_z_min: float = 0.026
+    guard_final_servo_square_margin_yaw_settle_z_max: float = 0.045
+    guard_final_servo_square_margin_yaw_settle_contact_max: int = 8
+    guard_final_servo_square_margin_yaw_settle_margin_threshold: float = 0.0
+    guard_final_servo_square_margin_yaw_settle_yaw_deg: float = 4.0
+    guard_final_servo_square_margin_yaw_settle_release_xy: float = 0.0048
+    guard_final_servo_square_margin_yaw_settle_lift_height: float = 0.018
+    guard_final_servo_square_margin_yaw_settle_stable_steps: int = 3
+    guard_final_servo_square_margin_yaw_settle_max_steps: int = 60
+    guard_final_servo_square_margin_yaw_settle_max_attempts: int = 1
+    guard_final_servo_square_margin_yaw_settle_max_xy_action: float = 0.003
+    guard_final_servo_square_margin_yaw_settle_max_up_action: float = 0.0025
     guard_final_servo_square_tilt_reinsert_enabled: bool = False
     guard_final_servo_square_tilt_reinsert_wall_steps: int = 4
     guard_final_servo_square_tilt_reinsert_stall_steps: int = 16
@@ -1092,6 +1112,74 @@ class GuardedPolicyConfig:
             raise ValueError(
                 "guard_final_servo_square_high_z_descend_max_down_action cannot be negative."
             )
+        if self.guard_final_servo_square_margin_yaw_settle_stall_steps < 0:
+            raise ValueError(
+                "guard_final_servo_square_margin_yaw_settle_stall_steps cannot be negative."
+            )
+        if self.guard_final_servo_square_margin_yaw_settle_xy_max <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_margin_yaw_settle_xy_max must be positive."
+            )
+        if self.guard_final_servo_square_margin_yaw_settle_z_min < 0.0:
+            raise ValueError(
+                "guard_final_servo_square_margin_yaw_settle_z_min cannot be negative."
+            )
+        if self.guard_final_servo_square_margin_yaw_settle_z_max <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_margin_yaw_settle_z_max must be positive."
+            )
+        if (
+            self.guard_final_servo_square_margin_yaw_settle_z_min
+            > self.guard_final_servo_square_margin_yaw_settle_z_max
+        ):
+            raise ValueError(
+                "guard_final_servo_square_margin_yaw_settle_z_min must be <= "
+                "guard_final_servo_square_margin_yaw_settle_z_max."
+            )
+        if self.guard_final_servo_square_margin_yaw_settle_contact_max < 0:
+            raise ValueError(
+                "guard_final_servo_square_margin_yaw_settle_contact_max cannot be negative."
+            )
+        if self.guard_final_servo_square_margin_yaw_settle_yaw_deg <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_margin_yaw_settle_yaw_deg must be positive."
+            )
+        if self.guard_final_servo_square_margin_yaw_settle_release_xy <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_margin_yaw_settle_release_xy must be positive."
+            )
+        if (
+            self.guard_final_servo_square_margin_yaw_settle_release_xy
+            > self.guard_final_servo_square_margin_yaw_settle_xy_max
+        ):
+            raise ValueError(
+                "guard_final_servo_square_margin_yaw_settle_release_xy must be <= "
+                "guard_final_servo_square_margin_yaw_settle_xy_max."
+            )
+        if self.guard_final_servo_square_margin_yaw_settle_lift_height <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_margin_yaw_settle_lift_height must be positive."
+            )
+        if self.guard_final_servo_square_margin_yaw_settle_stable_steps <= 0:
+            raise ValueError(
+                "guard_final_servo_square_margin_yaw_settle_stable_steps must be positive."
+            )
+        if self.guard_final_servo_square_margin_yaw_settle_max_steps <= 0:
+            raise ValueError(
+                "guard_final_servo_square_margin_yaw_settle_max_steps must be positive."
+            )
+        if self.guard_final_servo_square_margin_yaw_settle_max_attempts < 0:
+            raise ValueError(
+                "guard_final_servo_square_margin_yaw_settle_max_attempts cannot be negative."
+            )
+        if self.guard_final_servo_square_margin_yaw_settle_max_xy_action <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_margin_yaw_settle_max_xy_action must be positive."
+            )
+        if self.guard_final_servo_square_margin_yaw_settle_max_up_action <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_margin_yaw_settle_max_up_action must be positive."
+            )
         if self.guard_final_servo_square_tilt_reinsert_wall_steps <= 0:
             raise ValueError(
                 "guard_final_servo_square_tilt_reinsert_wall_steps must be positive."
@@ -1324,6 +1412,8 @@ class GuardedPolicyController:
         self.guard_final_servo_recovery_target_z_above = 0.0
         self.guard_final_servo_exhausted = False
         self.guard_final_servo_square_recovery_tilt_steps = 0
+        self.guard_final_servo_square_margin_yaw_settle_attempts = 0
+        self.guard_final_servo_square_margin_yaw_settle_stable_steps = 0
         self.guard_final_servo_square_tilt_reinsert_wall_steps = 0
         self.guard_final_servo_square_tilt_reinsert_attempts = 0
         self.guard_final_servo_contact_unjam_wall_steps = 0
@@ -1383,6 +1473,8 @@ class GuardedPolicyController:
         self.guard_final_servo_recovery_target_z_above = 0.0
         self.guard_final_servo_exhausted = False
         self.guard_final_servo_square_recovery_tilt_steps = 0
+        self.guard_final_servo_square_margin_yaw_settle_attempts = 0
+        self.guard_final_servo_square_margin_yaw_settle_stable_steps = 0
         self.guard_final_servo_square_tilt_reinsert_wall_steps = 0
         self.guard_final_servo_square_tilt_reinsert_attempts = 0
         self.guard_final_servo_contact_unjam_wall_steps = 0
@@ -2755,6 +2847,29 @@ class GuardedPolicyController:
         self._set_final_servo_phase("square_high_z_descend")
         return True
 
+    def _start_final_servo_square_margin_yaw_settle(
+        self,
+        z_above_target: float,
+    ) -> bool:
+        if (
+            self.guard_final_servo_square_margin_yaw_settle_attempts
+            >= self.config.guard_final_servo_square_margin_yaw_settle_max_attempts
+        ):
+            return False
+        self.guard_final_servo_square_margin_yaw_settle_attempts += 1
+        self.guard_final_servo_stable_steps = 0
+        self.guard_final_servo_stall_steps = 0
+        self.guard_final_servo_square_margin_yaw_settle_stable_steps = 0
+        self.guard_final_servo_best_z_above = float("inf")
+        self.guard_final_servo_recovery_start_z_above = z_above_target
+        self.guard_final_servo_recovery_target_z_above = min(
+            z_above_target
+            + self.config.guard_final_servo_square_margin_yaw_settle_lift_height,
+            self.config.guard_final_servo_square_fast_settle_z_max,
+        )
+        self._set_final_servo_phase("square_margin_yaw_settle_lift")
+        return True
+
     def _start_final_servo_square_tilt_reinsert(self, z_above_target: float) -> bool:
         if (
             self.guard_final_servo_square_tilt_reinsert_attempts
@@ -2909,6 +3024,70 @@ class GuardedPolicyController:
         ):
             return False
         return self._square_high_z_descend_low_risk(state)
+
+    def _square_margin_yaw_settle_bad_pose(
+        self,
+        state: GuardedDeploymentState,
+    ) -> bool:
+        margin = state.square_peg_tilted_clearance_margin
+        bad_margin = margin is not None and np.isfinite(margin) and (
+            margin
+            <= self.config.guard_final_servo_square_margin_yaw_settle_margin_threshold
+        )
+        yaw = state.square_peg_yaw_error_deg
+        bad_yaw = yaw is not None and np.isfinite(yaw) and (
+            yaw >= self.config.guard_final_servo_square_margin_yaw_settle_yaw_deg
+        )
+        return bad_margin or bad_yaw
+
+    def _square_margin_yaw_settle_condition(
+        self,
+        state: GuardedDeploymentState,
+        dist_xy: float,
+        z_above_target: float,
+    ) -> bool:
+        if not self.config.guard_final_servo_square_margin_yaw_settle_enabled:
+            return False
+        if state.peg_shape != "square":
+            return False
+        if self.guard_final_servo_phase != "square_fast_settle":
+            return False
+        if (
+            self.guard_final_servo_square_margin_yaw_settle_attempts
+            >= self.config.guard_final_servo_square_margin_yaw_settle_max_attempts
+        ):
+            return False
+        if (
+            self.guard_final_servo_stall_steps
+            < self.config.guard_final_servo_square_margin_yaw_settle_stall_steps
+        ):
+            return False
+        if (
+            dist_xy > self.config.guard_final_servo_square_margin_yaw_settle_xy_max
+            or z_above_target
+            < self.config.guard_final_servo_square_margin_yaw_settle_z_min
+            or z_above_target
+            > self.config.guard_final_servo_square_margin_yaw_settle_z_max
+        ):
+            return False
+        contact_count = (
+            state.peg_hole_contact_wall_count + state.peg_hole_contact_plate_count
+        )
+        if (
+            contact_count
+            > self.config.guard_final_servo_square_margin_yaw_settle_contact_max
+        ):
+            return False
+        return self._square_margin_yaw_settle_bad_pose(state)
+
+    def _square_margin_yaw_settle_ready(
+        self,
+        dist_xy: float,
+    ) -> bool:
+        return (
+            dist_xy
+            <= self.config.guard_final_servo_square_margin_yaw_settle_release_xy
+        )
 
     def _square_tilt_reinsert_condition(
         self,
@@ -3675,7 +3854,17 @@ class GuardedPolicyController:
                     )
 
         elif self.guard_final_servo_phase == "square_fast_settle":
-            if self._square_tilt_reinsert_condition(state, dist_xy, z_above_target):
+            if self._square_margin_yaw_settle_condition(
+                state,
+                dist_xy,
+                z_above_target,
+            ):
+                recovery_triggered = (
+                    self._start_final_servo_square_margin_yaw_settle(
+                        z_above_target,
+                    )
+                )
+            elif self._square_tilt_reinsert_condition(state, dist_xy, z_above_target):
                 recovery_triggered = self._start_final_servo_square_tilt_reinsert(
                     z_above_target,
                 )
@@ -3722,6 +3911,40 @@ class GuardedPolicyController:
                 self.guard_final_servo_stall_steps = 0
             else:
                 self.guard_final_servo_stall_steps += 1
+
+        elif self.guard_final_servo_phase == "square_margin_yaw_settle_lift":
+            target_z = self.guard_final_servo_recovery_target_z_above
+            lifted_enough = z_above_target >= (
+                target_z
+                - 2.0
+                * self.config.guard_final_servo_square_margin_yaw_settle_max_up_action
+            )
+            timed_out = (
+                self.guard_final_servo_phase_steps
+                >= self.config.guard_final_servo_square_margin_yaw_settle_max_steps
+            )
+            if lifted_enough:
+                self.guard_final_servo_square_margin_yaw_settle_stable_steps = 0
+                self._set_final_servo_phase("square_margin_yaw_settle_recenter")
+            elif timed_out:
+                self.guard_final_servo_square_margin_yaw_settle_stable_steps = 0
+                self._set_final_servo_phase("square_margin_yaw_settle_recenter")
+
+        elif self.guard_final_servo_phase == "square_margin_yaw_settle_recenter":
+            if self._square_margin_yaw_settle_ready(dist_xy):
+                self.guard_final_servo_square_margin_yaw_settle_stable_steps += 1
+                if (
+                    self.guard_final_servo_square_margin_yaw_settle_stable_steps
+                    >= self.config.guard_final_servo_square_margin_yaw_settle_stable_steps
+                ):
+                    self._start_final_servo_square_fast_settle(z_above_target)
+            else:
+                self.guard_final_servo_square_margin_yaw_settle_stable_steps = 0
+                if (
+                    self.guard_final_servo_phase_steps
+                    >= self.config.guard_final_servo_square_margin_yaw_settle_max_steps
+                ):
+                    self._start_final_servo_square_fast_settle(z_above_target)
 
         elif self.guard_final_servo_phase == "square_tilt_reinsert_lift":
             target_z = self.guard_final_servo_recovery_target_z_above
@@ -4217,6 +4440,40 @@ class GuardedPolicyController:
             max_down_action = 0.0
             max_up_action = (
                 self.config.guard_final_servo_contact_reinsert_high_reapproach_max_up_action
+            )
+            down_blocked = True
+        elif phase == "square_margin_yaw_settle_lift":
+            desired = np.asarray(
+                [
+                    target[0],
+                    target[1],
+                    target[2] + self.guard_final_servo_recovery_target_z_above,
+                ],
+                dtype=np.float64,
+            )
+            max_xy_action = (
+                self.config.guard_final_servo_square_margin_yaw_settle_max_xy_action
+            )
+            max_down_action = 0.0
+            max_up_action = (
+                self.config.guard_final_servo_square_margin_yaw_settle_max_up_action
+            )
+            down_blocked = True
+        elif phase == "square_margin_yaw_settle_recenter":
+            desired = np.asarray(
+                [
+                    target[0],
+                    target[1],
+                    target[2] + self.guard_final_servo_recovery_target_z_above,
+                ],
+                dtype=np.float64,
+            )
+            max_xy_action = (
+                self.config.guard_final_servo_square_margin_yaw_settle_max_xy_action
+            )
+            max_down_action = 0.0
+            max_up_action = (
+                self.config.guard_final_servo_square_margin_yaw_settle_max_up_action
             )
             down_blocked = True
         elif phase == "square_tilt_reinsert_lift":

@@ -8848,6 +8848,7 @@ Promoted-v8 same-shape stress checkpoints:
 - v138 remains the reproducible narrow same-shape diagnostic config: `configs\sim\ur5e_full\eval_multi_geometry_v138_square_tilt_reinsert_lift60_60ep.yaml`. Combined v138+v139 result was `355/360`, zero collision, five square-square timeouts.
 - v143 raises only `guard_final_servo_square_fast_settle_contact_max` from `6` to `8` on top of v138. Six-seed validation reached `356/360`, zero collision and four square-square timeouts; non-square same-shape profiles were perfect (`287/287`). Do not promote/tag v143 because it regressed the original v138 seed set from `178/180` to `177/180`.
 - v144 raises square tilt-reinsert max attempts to `4` on top of v143 and is rejected: focused seeds `901500/902500/903500` reached `177/180` with one collision and two timeouts.
+- v145 margin/yaw-aware square settle hook is default-off and diagnostic only. It adds `square_margin_yaw_settle_lift/recenter` phases plus eval/demo/inference CLI flags. Focused 1ep probes fixed different individual failures, but full six-seed validation rejected both serious candidates: attempts=1 reached `354/360`, one collision and five timeouts; attempts=2 also reached `354/360`, one collision and five timeouts. Do not promote/tag v145.
 
 Reproduce the v143 contact-tolerance probe:
 
@@ -8884,6 +8885,54 @@ foreach ($seed in 901500,902500,903500) {
     --output-md "$out\eval_v144_contact8_tilt4_seed$seed.md" `
     --episode-output-csv "$out\eval_v144_contact8_tilt4_seed$seed`_episodes.csv" `
     --step-output-csv "$out\eval_v144_contact8_tilt4_seed$seed`_steps.csv" `
+    --step-trace-outcome-filter failure
+}
+```
+
+Reproduce the rejected v145 margin/yaw settle probes. Local worktrees may not
+materialize the staged adapter artifacts under `assets`, so these commands
+override them with the known local artifact paths.
+
+```powershell
+$approach = "D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"
+$finalInsert = "D:\peg-in-hole-6yh\v119_final_insert_handoff_adapter_pilot\final_insert_adapter_handoff_alldata_e150.pt"
+
+# Conservative attempts=1 probe: rejected, 354/360, 1 collision, 5 timeouts.
+$out = "D:\peg-in-hole-6yh\v145a_square_margin_yaw_attempt1_60ep_probe"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+foreach ($seed in 900500,901500,902500,903500,904500,905500) {
+  python -B scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_v138_square_tilt_reinsert_lift60_60ep.yaml `
+    --seed $seed `
+    --episodes 60 `
+    --approach-adapter $approach `
+    --final-insert-adapter $finalInsert `
+    --guard-final-servo-square-fast-settle-contact-max 8 `
+    --guard-final-servo-square-margin-yaw-settle-enabled `
+    --output-csv "$out\eval_margin_yaw_attempt1_60ep_seed$seed.csv" `
+    --output-md "$out\eval_margin_yaw_attempt1_60ep_seed$seed.md" `
+    --episode-output-csv "$out\eval_margin_yaw_attempt1_60ep_seed$seed`_episodes.csv" `
+    --step-output-csv "$out\eval_margin_yaw_attempt1_60ep_seed$seed`_failure_steps.csv" `
+    --step-trace-outcome-filter failure
+}
+
+# Attempts=2 probe: rejected, 354/360, 1 collision, 5 timeouts.
+$out = "D:\peg-in-hole-6yh\v145c_square_margin_yaw_attempt2_60ep_probe"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+foreach ($seed in 900500,901500,902500,903500,904500,905500) {
+  python -B scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_v138_square_tilt_reinsert_lift60_60ep.yaml `
+    --seed $seed `
+    --episodes 60 `
+    --approach-adapter $approach `
+    --final-insert-adapter $finalInsert `
+    --guard-final-servo-square-fast-settle-contact-max 8 `
+    --guard-final-servo-square-margin-yaw-settle-enabled `
+    --guard-final-servo-square-margin-yaw-settle-max-attempts 2 `
+    --output-csv "$out\eval_margin_yaw_attempt2_60ep_seed$seed.csv" `
+    --output-md "$out\eval_margin_yaw_attempt2_60ep_seed$seed.md" `
+    --episode-output-csv "$out\eval_margin_yaw_attempt2_60ep_seed$seed`_episodes.csv" `
+    --step-output-csv "$out\eval_margin_yaw_attempt2_60ep_seed$seed`_failure_steps.csv" `
     --step-trace-outcome-filter failure
 }
 ```
