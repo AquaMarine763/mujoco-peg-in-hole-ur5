@@ -1,0 +1,30 @@
+# v148 opt-in narrow same-shape candidate.
+#
+# Inherits the full v138 square-tilt-reinsert/lift60 stack and adds:
+# - square_fast_settle contact_max 8, from the v143 contact-tolerance probe
+# - square-only pose IK target yaw alignment during square final-servo phases
+# - pose yaw-align weight 0.20, selected after weight scan
+#
+# Validation reference:
+# D:\peg-in-hole-6yh\v148_square_pose_yaw_align_probe\matrix_60ep_weight020_six_seed
+# seeds 900500/901500/902500/903500/904500/905500, 60 episodes each:
+# 360/360 success, 0 collision, 0 timeout. Shape split:
+# square_square 73/73, non-square same-shape 287/287.
+# Mean steps 276.5, max steps 660.
+#
+# Fresh-seed gate:
+# D:\peg-in-hole-6yh\v149_v148_fresh_seed_gate_906500_907500
+# seeds 906500/907500/908500/909500/910500/911500, 60 episodes each:
+# 360/360 success, 0 collision, 0 timeout. Combined v148+v149 result:
+# 720/720 success, 0 collision, 0 timeout.
+base_config: eval_multi_geometry_v138_square_tilt_reinsert_lift60_60ep.yaml
+
+output_csv: results/ur5e_full/multi_geometry/v148_square_pose_yaw_align_w020/eval_mixed_same_shape_60ep_seed900500.csv
+output_md: results/ur5e_full/multi_geometry/v148_square_pose_yaw_align_w020/eval_mixed_same_shape_60ep_seed900500.md
+episode_output_csv: results/ur5e_full/multi_geometry/v148_square_pose_yaw_align_w020/eval_mixed_same_shape_60ep_seed900500_episodes.csv
+step_output_csv: results/ur5e_full/multi_geometry/v148_square_pose_yaw_align_w020/eval_mixed_same_shape_60ep_seed900500_failure_steps.csv
+
+guard_final_servo_square_fast_settle_contact_max: 8
+guard_square_pose_yaw_align_enabled: true
+guard_square_pose_yaw_align_ik_control_mode: pose_tip_priority
+guard_square_pose_yaw_align_ik_orientation_weight: 0.20

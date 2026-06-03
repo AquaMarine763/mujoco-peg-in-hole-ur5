@@ -8937,6 +8937,179 @@ foreach ($seed in 900500,901500,902500,903500,904500,905500) {
 }
 ```
 
+Reproduce the v148 square pose-yaw-align candidate. This inherits the v138
+diagnostic stack through `base_config`, raises square-fast-settle contact
+tolerance to `8`, and enables square-only pose target yaw alignment with
+orientation weight `0.20`. Six-seed validation reached `360/360`, zero collision
+and zero timeout: `D:\peg-in-hole-6yh\v148_square_pose_yaw_align_probe\matrix_60ep_weight020_six_seed`.
+The follow-up v149 fresh-seed gate on seeds
+`906500/907500/908500/909500/910500/911500` also reached `360/360`, zero
+collision and zero timeout:
+`D:\peg-in-hole-6yh\v149_v148_fresh_seed_gate_906500_907500`.
+
+```powershell
+$approach = "D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"
+$finalInsert = "D:\peg-in-hole-6yh\v119_final_insert_handoff_adapter_pilot\final_insert_adapter_handoff_alldata_e150.pt"
+$out = "D:\peg-in-hole-6yh\v148_square_pose_yaw_align_probe\matrix_60ep_weight020_six_seed"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($seed in 900500,901500,902500,903500,904500,905500) {
+  python -B scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_v148_square_pose_yaw_align_w020_60ep.yaml `
+    --seed $seed `
+    --episodes 60 `
+    --approach-adapter $approach `
+    --final-insert-adapter $finalInsert `
+    --output-csv "$out\eval_square_pose_yaw_align_w020_mixed_same_shape_60ep_seed$seed.csv" `
+    --output-md "$out\eval_square_pose_yaw_align_w020_mixed_same_shape_60ep_seed$seed.md" `
+    --episode-output-csv "$out\eval_square_pose_yaw_align_w020_mixed_same_shape_60ep_seed$seed`_episodes.csv" `
+    --step-output-csv "$out\eval_square_pose_yaw_align_w020_mixed_same_shape_60ep_seed$seed`_failure_steps.csv" `
+    --step-trace-outcome-filter failure
+}
+```
+
+Run the v149 fresh-seed gate:
+
+```powershell
+$approach = "D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"
+$finalInsert = "D:\peg-in-hole-6yh\v119_final_insert_handoff_adapter_pilot\final_insert_adapter_handoff_alldata_e150.pt"
+$out = "D:\peg-in-hole-6yh\v149_v148_fresh_seed_gate_906500_907500"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($seed in 906500,907500,908500,909500,910500,911500) {
+  python -B scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_v148_square_pose_yaw_align_w020_60ep.yaml `
+    --seed $seed `
+    --episodes 60 `
+    --approach-adapter $approach `
+    --final-insert-adapter $finalInsert `
+    --output-csv "$out\eval_v148_w020_mixed_same_shape_60ep_seed$seed.csv" `
+    --output-md "$out\eval_v148_w020_mixed_same_shape_60ep_seed$seed.md" `
+    --episode-output-csv "$out\eval_v148_w020_mixed_same_shape_60ep_seed$seed`_episodes.csv" `
+    --step-output-csv "$out\eval_v148_w020_mixed_same_shape_60ep_seed$seed`_failure_steps.csv" `
+    --step-trace-outcome-filter failure
+}
+```
+
+Summarize the v148/v149 episode CSVs:
+
+```powershell
+$dir = "D:\peg-in-hole-6yh\v149_v148_fresh_seed_gate_906500_907500"
+$rows = Get-ChildItem $dir -Filter "*_episodes.csv" | Sort-Object Name | ForEach-Object { Import-Csv $_.FullName }
+[PSCustomObject]@{
+  episodes=$rows.Count
+  success=(@($rows | Where-Object { $_.success -eq 'True' })).Count
+  collision=(@($rows | Where-Object { $_.collision -eq 'True' })).Count
+  timeout=(@($rows | Where-Object { $_.timeout -eq 'True' })).Count
+  mean_steps=[Math]::Round((($rows | Measure-Object steps -Average).Average), 1)
+  max_steps=(($rows | Measure-Object steps -Maximum).Maximum)
+} | Format-List
+
+$rows | Group-Object geometry_name | Sort-Object Name | ForEach-Object {
+  [PSCustomObject]@{
+    geometry=$_.Name
+    episodes=$_.Count
+    success=(@($_.Group | Where-Object { $_.success -eq 'True' })).Count
+    collision=(@($_.Group | Where-Object { $_.collision -eq 'True' })).Count
+    timeout=(@($_.Group | Where-Object { $_.timeout -eq 'True' })).Count
+  }
+} | Format-Table -AutoSize
+```
+
+Build and probe the v146/v147 square-fast-settle teacher adapter. This is a
+diagnostic data path, not a promoted controller. Best focused result so far is
+v147b e50 `override_xy`: `2/4` on seeds `901555/902535/902550/903557`, zero
+collision, with `901555` and `902550` succeeding.
+
+```powershell
+# v146: build from v143 timeout traces.
+$out = "D:\peg-in-hole-6yh\v146_square_fast_settle_teacher"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+$inputs = Get-ChildItem -Path D:\peg-in-hole-6yh\v143_square_contact8_probe -Filter "eval_square_fast_settle_contact8_mixed_same_shape_60ep_seed*_failure_steps.csv" | Select-Object -ExpandProperty FullName
+python -B scripts\build_square_fast_settle_teacher_dataset.py `
+  --input $inputs `
+  --output-csv "$out\square_fast_settle_teacher.csv" `
+  --output-md "$out\square_fast_settle_teacher.md" `
+  --output-npz "$out\square_fast_settle_teacher.npz"
+
+python -B scripts\train_final_insert_adapter.py `
+  --dataset "$out\square_fast_settle_teacher.npz" `
+  --output "$out\final_insert_adapter_square_fast_settle_teacher.pt" `
+  --metadata-output "$out\training_metadata.json" `
+  --epochs 100 `
+  --batch-size 64 `
+  --learning-rate 0.0001 `
+  --split-mode episode `
+  --validation-split 0.33 `
+  --balance-label-phases `
+  --log-interval 25
+
+# v147b: rebuild from focused traces and force successful near-aligned samples
+# to teach guarded_descend/handoff.
+$out = "D:\peg-in-hole-6yh\v147b_square_fast_settle_teacher_mix_success_descend"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+$inputs = Get-ChildItem -Path D:\peg-in-hole-6yh\v146_square_fast_settle_teacher\focused_eval_override_xy -Filter "eval_v146_xy_seed*_steps.csv" | Select-Object -ExpandProperty FullName
+python -B scripts\build_square_fast_settle_teacher_dataset.py `
+  --input $inputs `
+  --outcome any `
+  --success-descend-override `
+  --output-csv "$out\square_fast_settle_teacher_mix_success_descend.csv" `
+  --output-md "$out\square_fast_settle_teacher_mix_success_descend.md" `
+  --output-npz "$out\square_fast_settle_teacher_mix_success_descend.npz"
+
+python -B scripts\train_final_insert_adapter.py `
+  --dataset "$out\square_fast_settle_teacher_mix_success_descend.npz" `
+  --output "$out\final_insert_adapter_square_fast_settle_teacher_success_descend_e50.pt" `
+  --metadata-output "$out\training_metadata_e50.json" `
+  --epochs 50 `
+  --batch-size 64 `
+  --learning-rate 0.0001 `
+  --split-mode episode `
+  --validation-split 0.33 `
+  --balance-label-phases `
+  --log-interval 25
+```
+
+Focused v147b e50 eval on the known v143 square-square timeout seeds:
+
+```powershell
+$approach = "D:\peg-in-hole-6yh\v63_adapter_v8_balanced_dagger\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt"
+$adapter = "D:\peg-in-hole-6yh\v147b_square_fast_settle_teacher_mix_success_descend\final_insert_adapter_square_fast_settle_teacher_success_descend_e50.pt"
+$out = "D:\peg-in-hole-6yh\v147b_square_fast_settle_teacher_mix_success_descend\focused_eval_override_xy_e50"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($seed in 901555,902535,902550,903557) {
+  python -B scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_v138_square_tilt_reinsert_lift60_60ep.yaml `
+    --episodes 1 `
+    --seed $seed `
+    --approach-adapter $approach `
+    --final-insert-adapter $adapter `
+    --guard-final-servo-square-fast-settle-contact-max 8 `
+    --final-insert-adapter-mode override_xy `
+    --final-insert-adapter-phase square_fast_settle `
+    --final-insert-adapter-geometry-name square_square `
+    --final-insert-adapter-max-xy 0.008 `
+    --final-insert-adapter-min-z 0.026 `
+    --final-insert-adapter-max-z 0.055 `
+    --final-insert-adapter-min-stall-steps 8 `
+    --no-final-insert-adapter-wall-contact-required `
+    --final-insert-adapter-max-xy-action 0.0012 `
+    --final-insert-adapter-max-up-action 0.003 `
+    --final-insert-adapter-max-down-action 0.0008 `
+    --final-insert-adapter-handoff-on-down-action `
+    --final-insert-adapter-handoff-on-aligned-no-contact `
+    --final-insert-adapter-handoff-xy 0.0048 `
+    --final-insert-adapter-handoff-min-z 0.025 `
+    --final-insert-adapter-handoff-max-z 0.060 `
+    --output-csv "$out\eval_v147b_e50_xy_seed$seed.csv" `
+    --output-md "$out\eval_v147b_e50_xy_seed$seed.md" `
+    --episode-output-csv "$out\eval_v147b_e50_xy_seed$seed`_episodes.csv" `
+    --step-output-csv "$out\eval_v147b_e50_xy_seed$seed`_steps.csv" `
+    --step-trace-outcome-filter any
+}
+```
+
 Narrow square-square contact-unjam diagnostic:
 
 ```powershell

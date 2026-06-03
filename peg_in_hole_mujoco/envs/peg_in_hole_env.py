@@ -487,7 +487,10 @@ class PegInHoleMujocoEnv(gym.Env):
             ],
             dtype=np.int32,
         )
-        self.pose_ik_target_xmat = self._compute_rest_site_xmat(self.peg_tip_site_id)
+        self.default_pose_ik_target_xmat = self._compute_rest_site_xmat(
+            self.peg_tip_site_id
+        )
+        self.pose_ik_target_xmat = self.default_pose_ik_target_xmat.copy()
 
         self.base_geom_rgba = self.model.geom_rgba.copy()
         self.base_geom_pos = self.model.geom_pos.copy()
@@ -593,6 +596,7 @@ class PegInHoleMujocoEnv(gym.Env):
         self._sample_target()
         self._maybe_randomize_domain()
         self._initialize_arm_pose()
+        self.reset_pose_ik_target_xmat()
         self.data.qvel[:] = 0.0
 
         mujoco.mj_forward(self.model, self.data)
@@ -1392,6 +1396,83 @@ class PegInHoleMujocoEnv(gym.Env):
             raise ValueError("ik_orientation_weight cannot be negative.")
         self.ik_orientation_weight = float(ik_orientation_weight)
 
+    def reset_pose_ik_target_xmat(self) -> None:
+        self.pose_ik_target_xmat = self.default_pose_ik_target_xmat.copy()
+
+    def set_pose_ik_target_xmat(self, target_xmat: np.ndarray) -> None:
+        target_xmat = np.asarray(target_xmat, dtype=np.float64)
+        if target_xmat.shape != (3, 3):
+            raise ValueError("target_xmat must have shape (3, 3).")
+        if not np.all(np.isfinite(target_xmat)):
+            raise ValueError("target_xmat must be finite.")
+        self.pose_ik_target_xmat = target_xmat.copy()
+
+    def set_pose_ik_target_to_nearest_square_hole_yaw(self) -> dict[str, float]:
+        spec = self.current_geometry_spec
+        if spec.peg_shape != "square" or spec.hole_shape != "square":
+            self.reset_pose_ik_target_xmat()
+            return {
+                "pose_ik_target_raw_yaw_deg": float("nan"),
+                "pose_ik_target_square_yaw_error_deg": float("nan"),
+            }
+
+        hole_xmat = self._body_xmat(self.data, self.hole_body_id)
+        current_xmat = self._site_xmat(self.data, self.peg_tip_site_id)
+        current_x_xy = self._project_unit_xy(
+            current_xmat @ np.asarray([1.0, 0.0, 0.0], dtype=np.float64)
+        )
+        hole_x_axis = hole_xmat @ np.asarray([1.0, 0.0, 0.0], dtype=np.float64)
+        hole_y_axis = hole_xmat @ np.asarray([0.0, 1.0, 0.0], dtype=np.float64)
+        candidate_axes = (
+            hole_x_axis,
+            hole_y_axis,
+            -hole_x_axis,
+            -hole_y_axis,
+        )
+        candidate_xy_axes: list[tuple[np.ndarray, np.ndarray]] = []
+        for candidate_axis in candidate_axes:
+            candidate_xy = self._project_unit_xy(candidate_axis)
+            if candidate_xy is not None:
+                candidate_xy_axes.append((candidate_axis, candidate_xy))
+        if current_x_xy is None or not candidate_xy_axes:
+            self.reset_pose_ik_target_xmat()
+            return {
+                "pose_ik_target_raw_yaw_deg": float("nan"),
+                "pose_ik_target_square_yaw_error_deg": float("nan"),
+            }
+
+        target_x_axis = max(
+            candidate_xy_axes,
+            key=lambda item: float(np.dot(current_x_xy, item[1])),
+        )[0]
+        target_z_axis = self.default_pose_ik_target_xmat[:, 2].copy()
+        target_z_norm = float(np.linalg.norm(target_z_axis))
+        if target_z_norm <= 1e-9:
+            target_z_axis = np.asarray([0.0, 0.0, 1.0], dtype=np.float64)
+        else:
+            target_z_axis = target_z_axis / target_z_norm
+
+        target_x_axis = target_x_axis - target_z_axis * float(
+            np.dot(target_x_axis, target_z_axis)
+        )
+        target_x_norm = float(np.linalg.norm(target_x_axis))
+        if target_x_norm <= 1e-9:
+            self.reset_pose_ik_target_xmat()
+            return {
+                "pose_ik_target_raw_yaw_deg": float("nan"),
+                "pose_ik_target_square_yaw_error_deg": float("nan"),
+            }
+        target_x_axis = target_x_axis / target_x_norm
+        target_y_axis = np.cross(target_z_axis, target_x_axis)
+        target_y_axis = target_y_axis / max(float(np.linalg.norm(target_y_axis)), 1e-9)
+        target_xmat = np.column_stack((target_x_axis, target_y_axis, target_z_axis))
+        self.set_pose_ik_target_xmat(target_xmat)
+        raw_yaw_deg, yaw_error_deg = self._square_symmetry_yaw_metrics(target_xmat)
+        return {
+            "pose_ik_target_raw_yaw_deg": raw_yaw_deg,
+            "pose_ik_target_square_yaw_error_deg": yaw_error_deg,
+        }
+
     def _randomize_control_channel(self) -> None:
         self.current_action_scale_multiplier = float(
             self.np_random.uniform(*self.control_action_scale_range)
@@ -1817,6 +1898,23 @@ class PegInHoleMujocoEnv(gym.Env):
     @staticmethod
     def _square_symmetry_yaw_error_deg(raw_yaw_deg: float) -> float:
         return float(abs(((raw_yaw_deg + 45.0) % 90.0) - 45.0))
+
+    def _square_symmetry_yaw_metrics(self, xmat: np.ndarray) -> tuple[float, float]:
+        spec = self.current_geometry_spec
+        if spec.peg_shape != "square" or spec.hole_shape != "square":
+            return float("nan"), float("nan")
+        x_axis = np.asarray(xmat, dtype=np.float64).reshape(3, 3) @ np.asarray(
+            [1.0, 0.0, 0.0],
+            dtype=np.float64,
+        )
+        hole_xmat = self._body_xmat(self.data, self.hole_body_id)
+        hole_x_axis = hole_xmat @ np.asarray([1.0, 0.0, 0.0], dtype=np.float64)
+        x_xy = self._project_unit_xy(x_axis)
+        hole_x_xy = self._project_unit_xy(hole_x_axis)
+        if x_xy is None or hole_x_xy is None:
+            return float("nan"), float("nan")
+        raw_yaw_deg = self._signed_planar_angle_deg(hole_x_xy, x_xy)
+        return raw_yaw_deg, self._square_symmetry_yaw_error_deg(raw_yaw_deg)
 
     def _square_peg_orientation_metrics(self, data: mujoco.MjData) -> dict[str, float]:
         spec = self.current_geometry_spec
@@ -2409,6 +2507,10 @@ class PegInHoleMujocoEnv(gym.Env):
         joint_limit_margin, joint_limit_normalized_margin = self._joint_limit_metrics(joint_qpos)
         peg_axis_world, peg_tilt_angle_deg = self._peg_axis_and_tilt(self.data)
         square_peg_metrics = self._square_peg_orientation_metrics(self.data)
+        (
+            pose_ik_target_raw_yaw_deg,
+            pose_ik_target_square_yaw_error_deg,
+        ) = self._square_symmetry_yaw_metrics(self.pose_ik_target_xmat)
         return {
             "insertion_success": terms.inserted,
             "dist_xy": terms.dist_xy,
@@ -2438,6 +2540,8 @@ class PegInHoleMujocoEnv(gym.Env):
             "ik_tip_pos": self.last_ik_tip_pos.astype(np.float32),
             "ik_target_error": self.last_ik_target_error,
             "ik_orientation_error": self.last_ik_orientation_error,
+            "pose_ik_target_raw_yaw_deg": pose_ik_target_raw_yaw_deg,
+            "pose_ik_target_square_yaw_error_deg": pose_ik_target_square_yaw_error_deg,
             "ik_iterations": self.last_ik_iterations,
             "ik_control_mode": self.ik_control_mode,
             "ik_orientation_weight": self.ik_orientation_weight,

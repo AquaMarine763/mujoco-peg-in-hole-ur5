@@ -40,6 +40,32 @@ def load_flat_yaml(path: Path) -> dict[str, Any]:
     return config
 
 
+def load_flat_yaml_with_base(
+    path: Path,
+    seen: set[Path] | None = None,
+) -> dict[str, Any]:
+    path = path.resolve()
+    if seen is None:
+        seen = set()
+    if path in seen:
+        raise ValueError(f"recursive config base_config reference: {path}")
+    seen.add(path)
+
+    config = load_flat_yaml(path)
+    base_value = config.pop("base_config", None)
+    if base_value is None:
+        seen.remove(path)
+        return config
+
+    base_path = Path(str(base_value))
+    if not base_path.is_absolute():
+        base_path = path.parent / base_path
+    merged = load_flat_yaml_with_base(base_path, seen)
+    merged.update(config)
+    seen.remove(path)
+    return merged
+
+
 def normalize_key(key: str) -> str:
     return key.strip().replace("-", "_")
 
@@ -92,7 +118,7 @@ def parse_args_with_config(parser: argparse.ArgumentParser) -> argparse.Namespac
         actions = get_action_by_dest(parser)
         defaults: dict[str, Any] = {}
         unknown_keys: list[str] = []
-        for raw_key, raw_value in load_flat_yaml(config_path).items():
+        for raw_key, raw_value in load_flat_yaml_with_base(config_path).items():
             key = normalize_key(raw_key)
             action = actions.get(key)
             if action is None:

@@ -85,6 +85,18 @@ CORE_SCENARIOS = (
 )
 
 
+SQUARE_POSE_YAW_ALIGN_PHASES = frozenset(
+    (
+        "square_fast_settle",
+        "square_high_z_descend",
+        "square_margin_yaw_settle_lift",
+        "square_margin_yaw_settle_recenter",
+        "square_tilt_reinsert_lift",
+        "square_tilt_reinsert_recenter",
+    )
+)
+
+
 HARD_BUCKET_SCENARIO = Scenario(
     "hard_full_light_bucket",
     "full_light_geometry",
@@ -296,6 +308,9 @@ STEP_TRACE_FIELDNAMES = [
     "ik_orientation_weight",
     "ik_target_error",
     "ik_orientation_error",
+    "pose_ik_target_raw_yaw_deg",
+    "pose_ik_target_square_yaw_error_deg",
+    "guard_square_pose_yaw_align_active",
     "ik_iterations",
     "peg_tilt_angle_deg",
     "joint_limit_min_normalized_margin",
@@ -579,6 +594,17 @@ def build_parser(
     parser.add_argument("--guard-near-ik-orientation-weight", type=float, default=None)
     parser.add_argument("--guard-final-servo-ik-orientation-weight", type=float, default=None)
     parser.add_argument("--guard-final-servo-tip-priority-ik-enabled", action="store_true")
+    parser.add_argument("--guard-square-pose-yaw-align-enabled", action="store_true")
+    parser.add_argument(
+        "--guard-square-pose-yaw-align-ik-control-mode",
+        choices=["pose", "pose_tip_priority"],
+        default="pose_tip_priority",
+    )
+    parser.add_argument(
+        "--guard-square-pose-yaw-align-ik-orientation-weight",
+        type=float,
+        default=0.25,
+    )
     parser.add_argument("--guard-contact-unjam-ik-orientation-weight", type=float, default=None)
     parser.add_argument("--guard-contact-reinsert-orient-ik-orientation-weight", type=float, default=None)
     parser.add_argument("--guard-contact-reinsert-high-ik-orientation-weight", type=float, default=None)
@@ -2392,6 +2418,7 @@ def build_step_trace_row(
     final_insert_macro_recovery_reason: str = "inactive",
     final_insert_macro_recovery_attempt: int = 0,
     final_insert_macro_recovery_steps_remaining: int = 0,
+    guard_square_pose_yaw_align_active: bool = False,
 ) -> dict[str, Any]:
     pre_tip = np.asarray(pre_info["peg_tip_pos"], dtype=np.float64)
     pre_target = np.asarray(pre_info["target_pos"], dtype=np.float64)
@@ -2712,6 +2739,15 @@ def build_step_trace_row(
         "ik_orientation_weight": float(post_info.get("ik_orientation_weight", np.nan)),
         "ik_target_error": float(post_info.get("ik_target_error", np.nan)),
         "ik_orientation_error": float(post_info.get("ik_orientation_error", np.nan)),
+        "pose_ik_target_raw_yaw_deg": float(
+            post_info.get("pose_ik_target_raw_yaw_deg", np.nan)
+        ),
+        "pose_ik_target_square_yaw_error_deg": float(
+            post_info.get("pose_ik_target_square_yaw_error_deg", np.nan)
+        ),
+        "guard_square_pose_yaw_align_active": bool(
+            guard_square_pose_yaw_align_active
+        ),
         "ik_iterations": int(post_info.get("ik_iterations", 0)),
         "peg_tilt_angle_deg": float(post_info.get("peg_tilt_angle_deg", np.nan)),
         "joint_limit_min_normalized_margin": float(
@@ -2786,6 +2822,40 @@ def guard_near_control_active(
             and step.guard_z_above_target <= args.guard_start_z
         )
     )
+
+
+def square_pose_yaw_align_active(
+    step: GuardedPolicyStep | None,
+    pre_info: dict[str, Any],
+    args: argparse.Namespace,
+) -> bool:
+    if not args.guard_square_pose_yaw_align_enabled:
+        return False
+    if step is None or not bool(step.guard_final_servo_active):
+        return False
+    if str(pre_info.get("peg_shape", "")) != "square":
+        return False
+    if str(pre_info.get("hole_shape", "")) != "square":
+        return False
+    return str(step.guard_final_servo_phase) in SQUARE_POSE_YAW_ALIGN_PHASES
+
+
+def apply_guard_square_pose_yaw_align(
+    env: PegInHoleMujocoEnv,
+    step: GuardedPolicyStep | None,
+    pre_info: dict[str, Any],
+    args: argparse.Namespace,
+) -> bool:
+    env.reset_pose_ik_target_xmat()
+    active = square_pose_yaw_align_active(step, pre_info, args)
+    if not active:
+        return False
+    env.set_pose_ik_target_to_nearest_square_hole_yaw()
+    env.set_ik_control_mode(args.guard_square_pose_yaw_align_ik_control_mode)
+    env.set_ik_orientation_weight(
+        args.guard_square_pose_yaw_align_ik_orientation_weight
+    )
+    return True
 
 
 def apply_guard_near_ik_orientation_weight(
@@ -3286,6 +3356,12 @@ def evaluate_scenario(
                         else episode_base_actuator_kp_multiplier
                     )
                 apply_guard_near_ik_orientation_weight(env, step, args)
+                guard_square_pose_yaw_align_active = apply_guard_square_pose_yaw_align(
+                    env,
+                    step,
+                    pre_info,
+                    args,
+                )
                 obs, reward, terminated, truncated, info = env.step(action)
                 episode_return += float(reward)
                 dist_xy = float(info["dist_xy"])
@@ -3344,6 +3420,9 @@ def evaluate_scenario(
                             ),
                             final_insert_macro_recovery_steps_remaining=(
                                 final_insert_macro_recovery_steps_remaining
+                            ),
+                            guard_square_pose_yaw_align_active=(
+                                guard_square_pose_yaw_align_active
                             ),
                             step=step,
                             guard_enabled=guard_enabled,
@@ -3837,6 +3916,7 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Guard near IK orientation weight: `{args.guard_near_ik_orientation_weight}`",
         f"- Guard final servo IK orientation weight: `{args.guard_final_servo_ik_orientation_weight}`",
         f"- Guard final servo tip-priority IK enabled: `{args.guard_final_servo_tip_priority_ik_enabled}`",
+        f"- Guard square pose yaw-align enabled/mode/weight: `{args.guard_square_pose_yaw_align_enabled}/{args.guard_square_pose_yaw_align_ik_control_mode}/{args.guard_square_pose_yaw_align_ik_orientation_weight}`",
         f"- Guard contact unjam IK orientation weight: `{args.guard_contact_unjam_ik_orientation_weight}`",
         f"- Guard contact reinsert orient IK orientation weight: `{args.guard_contact_reinsert_orient_ik_orientation_weight}`",
         f"- Guard contact reinsert high IK orientation weight: `{args.guard_contact_reinsert_high_ik_orientation_weight}`",
@@ -4122,6 +4202,10 @@ def main() -> None:
         and args.guard_final_servo_ik_orientation_weight < 0.0
     ):
         raise ValueError("--guard-final-servo-ik-orientation-weight cannot be negative.")
+    if args.guard_square_pose_yaw_align_ik_orientation_weight < 0.0:
+        raise ValueError(
+            "--guard-square-pose-yaw-align-ik-orientation-weight cannot be negative."
+        )
     if (
         args.guard_contact_unjam_ik_orientation_weight is not None
         and args.guard_contact_unjam_ik_orientation_weight < 0.0
