@@ -1,0 +1,12 @@
+# v205 diagnostic v204 + fourth low-Z contact relief attempt.
+#
+# v204 still leaves the 927514 low-Z square pop/collision. The trace matches the
+# same local state family that v203 fixed in 931500: near-centered, low-Z,
+# contact-risk square_fast_settle after several relief cycles. This candidate
+# gives the local relief branch one more attempt while retaining v204's
+# late-only direct finish for timeout-pressure cases.
+#
+# Diagnostic only until 924/927/928/929/931 focused gates pass.
+base_config: eval_multi_geometry_v204_v203_late_direct_finish_hard_square_30ep.yaml
+
+guard_final_servo_square_fast_settle_low_z_relief_max_attempts: 4

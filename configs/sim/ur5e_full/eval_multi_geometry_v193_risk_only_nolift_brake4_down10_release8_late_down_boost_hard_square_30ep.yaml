@@ -1,0 +1,24 @@
+# v193 diagnostic v190 + earlier safe escape release + narrow late down boost.
+#
+# v190 removes 931500 low-Z collisions but leaves one safe timeout: after an
+# escape/recenter sequence, episode 931509 returns to square_fast_settle too
+# late and ends at about 1.9 mm XY / 21.8 mm Z. v192 shortened escape height
+# but produced a late pop, so this keeps v190's 70 mm escape height and only:
+# - releases escape recenter slightly earlier while still high and no-contact
+# - restores faster low-Z descent only late in square_fast_settle, near center,
+#   no-contact, and after several contact-brake attempts.
+#
+# Diagnostic only until focused and broad hard-square gates pass.
+base_config: eval_multi_geometry_v190_risk_only_nolift_brake4_down10_low_z_contact_and_stall_relief_hard_square_30ep.yaml
+
+guard_final_servo_square_recovery_escape_release_xy: 0.0080
+
+guard_final_servo_square_fast_settle_late_down_boost_enabled: true
+guard_final_servo_square_fast_settle_late_down_boost_max_down_action: 0.0020
+guard_final_servo_square_fast_settle_late_down_boost_max_xy_action: 0.0010
+guard_final_servo_square_fast_settle_late_down_boost_xy_max: 0.0024
+guard_final_servo_square_fast_settle_late_down_boost_z_min: 0.018
+guard_final_servo_square_fast_settle_late_down_boost_z_max: 0.033
+guard_final_servo_square_fast_settle_late_down_boost_min_brake_attempts: 3
+guard_final_servo_square_fast_settle_late_down_boost_contact_max: 0
+guard_final_servo_square_fast_settle_late_down_boost_min_phase_steps: 28

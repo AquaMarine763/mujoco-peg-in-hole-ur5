@@ -1,0 +1,13 @@
+# v181 diagnostic v177 + very-low-Z square_fast_settle XY cap.
+#
+# v177 still has rare low-Z lateral pops after contact-brake attempts are
+# exhausted. v179/v180 showed that broader extra brake or exhausted escape can
+# convert collisions into loops/timeouts. This config keeps the learned adapter
+# risk-only and only tightens square_fast_settle lateral authority in the
+# narrow very-low-Z band where the pop happens.
+#
+# Diagnostic only until 923500/927500/929500/930500 and broader gates pass.
+base_config: eval_multi_geometry_v177_low_z_adapter_risk_only_hard_square_30ep.yaml
+
+guard_final_servo_square_fast_settle_low_z_threshold: 0.032
+guard_final_servo_square_fast_settle_low_z_max_xy_action: 0.0010

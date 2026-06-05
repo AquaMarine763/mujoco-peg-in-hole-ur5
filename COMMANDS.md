@@ -9348,3 +9348,208 @@ Notes:
   flushing and is the deployable candidate.
 - The next useful gate is fresh hard-control seeds before broadening this recipe
   to mixed same-shape geometry stress.
+
+## Hard Square Contact Brake v170-v172 Diagnostics
+
+Status:
+
+- `v0.7.6-square-escape-dynamic-xycap` remains the latest stable promoted tag.
+- v170 contact-brake/staged-descend passed the old 6x30 hard-square gate
+  (`180/180`) but failed fresh seeds at `88/90`.
+- v171/v172 low-Z relief, direct-fast-settle, yaw/fast-down, and adapter-cap
+  probes are diagnostic-only. Do not push/tag them as a successor.
+
+Run the v170 hard-square config on old or fresh buckets:
+
+```powershell
+$model = "D:\peg-in-hole-6yh\mujoco_peg_in_hole\checkpoints\ur5e_full\high_start\hard\correction\sac_image_bc_wrist_pose_control_state_insert_drift_2k_w10_e1.zip"
+$out = "D:\peg-in-hole-6yh\v170_recheck_hard_square"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($seed in 921500,922500,923500,924500,925500,926500) {
+  python -B scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_v170_square_contact_brake_staged_descend_hard_square_30ep.yaml `
+    --model $model `
+    --seed $seed `
+    --output-csv "$out\eval_v170_seed${seed}_30ep.csv" `
+    --output-md "$out\eval_v170_seed${seed}_30ep.md" `
+    --episode-output-csv "$out\eval_v170_seed${seed}_30ep_episodes.csv" `
+    --step-output-csv "$out\eval_v170_seed${seed}_30ep_failure_steps.csv" `
+    --step-trace-outcome-filter failure
+}
+```
+
+Fresh-gate replay:
+
+```powershell
+$model = "D:\peg-in-hole-6yh\mujoco_peg_in_hole\checkpoints\ur5e_full\high_start\hard\correction\sac_image_bc_wrist_pose_control_state_insert_drift_2k_w10_e1.zip"
+$out = "D:\peg-in-hole-6yh\v170_fresh_recheck_hard_square"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($seed in 927500,928500,929500) {
+  python -B scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_v170_square_contact_brake_staged_descend_hard_square_30ep.yaml `
+    --model $model `
+    --seed $seed `
+    --output-csv "$out\eval_v170_fresh_seed${seed}_30ep.csv" `
+    --output-md "$out\eval_v170_fresh_seed${seed}_30ep.md" `
+    --episode-output-csv "$out\eval_v170_fresh_seed${seed}_30ep_episodes.csv" `
+    --step-output-csv "$out\eval_v170_fresh_seed${seed}_30ep_failure_steps.csv" `
+    --step-trace-outcome-filter failure
+}
+```
+
+Run the v171 late-down diagnostic config:
+
+```powershell
+$model = "D:\peg-in-hole-6yh\mujoco_peg_in_hole\checkpoints\ur5e_full\high_start\hard\correction\sac_image_bc_wrist_pose_control_state_insert_drift_2k_w10_e1.zip"
+$out = "D:\peg-in-hole-6yh\v171_late_down_recheck_hard_square"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($seed in 927500,928500,929500) {
+  python -B scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_v171_no_final_adapter_fastdown_hard_square_30ep.yaml `
+    --model $model `
+    --seed $seed `
+    --output-csv "$out\eval_v171_seed${seed}_30ep.csv" `
+    --output-md "$out\eval_v171_seed${seed}_30ep.md" `
+    --episode-output-csv "$out\eval_v171_seed${seed}_30ep_episodes.csv" `
+    --step-output-csv "$out\eval_v171_seed${seed}_30ep_failure_steps.csv" `
+    --step-trace-outcome-filter failure
+}
+```
+
+Focused residual hard-square seeds for the next DAgger/correction path:
+
+```powershell
+$model = "D:\peg-in-hole-6yh\mujoco_peg_in_hole\checkpoints\ur5e_full\high_start\hard\correction\sac_image_bc_wrist_pose_control_state_insert_drift_2k_w10_e1.zip"
+$out = "D:\peg-in-hole-6yh\v172_low_z_failure_focus"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($seed in 929512,929518,927525,927514,928528) {
+  python -B scripts\eval_guarded_policy.py `
+    --config configs\sim\ur5e_full\eval_multi_geometry_v170_square_contact_brake_staged_descend_hard_square_30ep.yaml `
+    --model $model `
+    --seed $seed `
+    --episodes 1 `
+    --output-csv "$out\eval_seed${seed}.csv" `
+    --output-md "$out\eval_seed${seed}.md" `
+    --episode-output-csv "$out\eval_seed${seed}_episodes.csv" `
+    --step-output-csv "$out\eval_seed${seed}_steps.csv" `
+    --step-trace-outcome-filter any
+}
+```
+
+Build the v173 low-Z `square_fast_settle` teacher smoke dataset from the
+current-code v170 fresh replay:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v172_low_z_square_teacher_smoke"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+python -B scripts\build_square_fast_settle_teacher_dataset.py `
+  --input D:\peg-in-hole-6yh\v172_current_code_fresh3x30\eval_v170_fresh_seed929500_30ep_failure_steps.csv `
+  --output-csv "$out\square_fast_settle_teacher_seed929500.csv" `
+  --output-md "$out\square_fast_settle_teacher_seed929500.md" `
+  --output-npz "$out\square_fast_settle_teacher_seed929500.npz" `
+  --geometry-name square_square `
+  --outcome timeout `
+  --max-xy-m 0.008 `
+  --min-z-m 0.020 `
+  --max-z-m 0.055 `
+  --sample-stride 2 `
+  --max-samples-per-episode 256
+```
+
+Train the tiny v173 low-Z adapter smoke:
+
+```powershell
+$out = "D:\peg-in-hole-6yh\v172_low_z_square_teacher_smoke"
+
+python -B scripts\train_final_insert_adapter.py `
+  --dataset "$out\square_fast_settle_teacher_seed929500.npz" `
+  --output "$out\final_insert_adapter_low_z_square_seed929500_smoke.pt" `
+  --metadata-output "$out\training_metadata_low_z_square_seed929500_smoke.json" `
+  --epochs 20 `
+  --batch-size 32 `
+  --learning-rate 0.0003 `
+  --validation-split 0.20 `
+  --split-mode random `
+  --seed 929512 `
+  --device cpu `
+  --hidden-dim 64 `
+  --num-hidden-layers 2 `
+  --target-scale 1000.0 `
+  --label-phase hold_recenter clearance_lift `
+  --balance-label-phases `
+  --log-interval 5
+```
+
+Evaluate the tiny adapter smoke on the same `929500` bucket:
+
+```powershell
+$model = "D:\peg-in-hole-6yh\mujoco_peg_in_hole\checkpoints\ur5e_full\high_start\hard\correction\sac_image_bc_wrist_pose_control_state_insert_drift_2k_w10_e1.zip"
+$base = "D:\peg-in-hole-6yh\v172_low_z_square_teacher_smoke"
+$out = "D:\peg-in-hole-6yh\v173_low_z_square_adapter_smoke_eval"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+python -B scripts\eval_guarded_policy.py `
+  --config configs\sim\ur5e_full\eval_multi_geometry_v170_square_contact_brake_staged_descend_hard_square_30ep.yaml `
+  --model $model `
+  --final-insert-adapter "$base\final_insert_adapter_low_z_square_seed929500_smoke.pt" `
+  --seed 929500 `
+  --episodes 30 `
+  --output-csv "$out\eval_low_z_adapter_seed929500_30ep.csv" `
+  --output-md "$out\eval_low_z_adapter_seed929500_30ep.md" `
+  --episode-output-csv "$out\eval_low_z_adapter_seed929500_30ep_episodes.csv" `
+  --step-output-csv "$out\eval_low_z_adapter_seed929500_30ep_failure_steps.csv" `
+  --step-trace-outcome-filter failure
+```
+
+Expected smoke result: `29/30`, zero collision, `929512` still timeout. This
+confirms the data/training/eval path, but it is not a candidate model. The next
+real DAgger run needs several low-Z failure traces plus success-preservation
+traces before training.
+
+## Current Hard-Square Recovery Probe Commands
+
+Use this template for the current v221 hard `square_square` recovery candidate.
+The latest pushed stable contact-aware tag is
+`v0.7.7-hard-square-clean3-escape55`.
+
+```powershell
+$model = "D:\peg-in-hole-6yh\mujoco_peg_in_hole\checkpoints\ur5e_full\high_start\hard\correction\sac_image_bc_wrist_pose_control_state_insert_drift_2k_w10_e1.zip"
+$adapter = "D:\peg-in-hole-6yh\v174_low_z_dagger_balanced\final_insert_adapter_v174_nolift_e80.pt"
+$config = "configs\sim\ur5e_full\eval_multi_geometry_v221_v220_clean3_escape55_hard_square_30ep.yaml"
+$out = "D:\peg-in-hole-6yh\v221_clean3_escape55_probe"
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+foreach ($seed in 924500,927500,928500,929500,931500) {
+  python -B scripts\eval_guarded_policy.py `
+    --config $config `
+    --model $model `
+    --final-insert-adapter $adapter `
+    --seed $seed `
+    --episodes 30 `
+    --output-csv "$out\eval_seed${seed}_30ep.csv" `
+    --output-md "$out\eval_seed${seed}_30ep.md" `
+    --episode-output-csv "$out\eval_seed${seed}_30ep_episodes.csv" `
+    --step-output-csv "$out\eval_seed${seed}_30ep_failure_steps.csv" `
+    --step-trace-outcome-filter failure
+}
+```
+
+Current diagnostic summary:
+
+- v203: `929500=30/30`, `931500=30/30`, `928500=30/30`, but `924500=29/30` and `927500=28/30`; rejected.
+- v205: `927500=29/30`, one collision; rejected.
+- v206: `927500=28/30`, zero collision but two timeouts; rejected.
+- v217: `927500=28/30`, two timeouts; rejected.
+- v218: `927500=30/30`, but `931500=29/30`, one collision; rejected.
+- v219 clean5: `927500=29/30` timeout and `931500=29/30` collision/timeout; rejected.
+- v220 clean3: `927500=29/30` and `931500=29/30`, both timeout-only in `square_recovery_escape_lift`; rejected.
+- v221 clean3 + escape55: `924500/927500/928500/929500/931500 = 30/30`, zero collision, zero timeout. Current local promotion candidate.
+
+Before promoting any successor, require a fresh focused gate on
+`924500/927500/928500/929500/931500`, 30 episodes each, with zero collision and
+zero timeout.

@@ -1,0 +1,31 @@
+# v190 diagnostic v189 + wall-contact low-Z relief.
+#
+# Rechecking v185/v189 showed 931500 is not actually clean: several failures
+# pop out at low Z with wall contact already present, XY near 2 mm, and tilted
+# clearance margin ranging from mildly positive to clearly negative. v189's
+# no-contact stall relief fixes the 927521-style delayed pop but cannot trigger
+# on these contact states. This config also enables the existing wall-contact
+# low-Z relief path with a narrow Z/XY window and short lift/recenter action.
+#
+# Diagnostic only until 924/927/928/929/931 focused gates and full hard-square
+# gates pass.
+base_config: eval_multi_geometry_v189_risk_only_nolift_brake4_down10_low_z_stall_relief_hard_square_30ep.yaml
+
+guard_final_servo_square_fast_settle_low_z_relief_enabled: true
+guard_final_servo_square_fast_settle_low_z_relief_wall_count: 1
+guard_final_servo_square_fast_settle_low_z_relief_xy_max: 0.0025
+guard_final_servo_square_fast_settle_low_z_relief_z_min: 0.026
+guard_final_servo_square_fast_settle_low_z_relief_z_max: 0.0325
+guard_final_servo_square_fast_settle_low_z_relief_margin_min: -0.0025
+guard_final_servo_square_fast_settle_low_z_relief_margin_threshold: 0.0010
+guard_final_servo_square_fast_settle_low_z_relief_contact_max: 4
+guard_final_servo_square_fast_settle_low_z_relief_min_brake_attempts: 3
+guard_final_servo_square_fast_settle_low_z_relief_min_phase_steps: 25
+guard_final_servo_square_fast_settle_low_z_relief_max_attempts: 2
+guard_final_servo_square_fast_settle_low_z_relief_lift_height: 0.004
+guard_final_servo_square_fast_settle_low_z_relief_target_z_max: 0.040
+guard_final_servo_square_fast_settle_low_z_relief_lift_steps: 8
+guard_final_servo_square_fast_settle_low_z_relief_recenter_steps: 8
+guard_final_servo_square_fast_settle_low_z_relief_release_xy: 0.0020
+guard_final_servo_square_fast_settle_low_z_relief_max_up_action: 0.0020
+guard_final_servo_square_fast_settle_low_z_relief_max_xy_action: 0.0010

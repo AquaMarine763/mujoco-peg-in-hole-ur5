@@ -1,0 +1,13 @@
+# v202 diagnostic v198 + pre-lift on ordinary square recovery escape trigger.
+#
+# Current-code v198 no longer reproduces the older clean 931500 result. The
+# failure traces show square_recovery_escape_lift can be entered while delayed
+# low-Z descent commands are still being applied, causing collision before the
+# lift takes effect. This candidate keeps v198's conservative recovery timing
+# and only routes ordinary square recovery escape triggers through the existing
+# 8-step upward-only pre-lift queue-drain phase.
+#
+# Diagnostic only until 929500/931500 and the focused hard-square gate pass.
+base_config: eval_multi_geometry_v198_risk_only_nolift_brake4_down10_late_boost_prepop_relief_hard_square_30ep.yaml
+
+guard_final_servo_square_recovery_escape_pre_lift_on_trigger: true

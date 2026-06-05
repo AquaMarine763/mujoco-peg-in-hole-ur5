@@ -1,0 +1,27 @@
+# v177 diagnostic risk-only low-Z square final-insert adapter.
+#
+# v175/v176 showed that the trace-derived adapter can rescue fresh low-Z
+# square failures, but normal stall>=6 `near_final_insert` activation can
+# regress older sensitive buckets by adding repeated lateral pushes. This
+# config treats the adapter as an emergency corrector only:
+# - ordinary near-final activation is effectively disabled by a very high
+#   min-stall threshold
+# - early activation is still allowed for explicit square risk states
+# - top-down-only risk is disabled to avoid broad activation on benign states
+# - handoff shortcuts remain disabled so risk corrections are measurable
+#
+# Diagnostic only until 923500/929500/930500 and broader fresh gates pass.
+base_config: eval_multi_geometry_v170_square_contact_brake_staged_descend_hard_square_30ep.yaml
+
+final_insert_adapter_mode: override_xy
+final_insert_adapter_min_stall_steps: 100000
+final_insert_adapter_handoff_on_down_action: false
+final_insert_adapter_handoff_on_aligned_no_contact: false
+
+final_insert_adapter_square_risk_gate_enabled: true
+final_insert_adapter_square_risk_min_stall_steps: 4
+final_insert_adapter_square_risk_xy_min: 0.0065
+final_insert_adapter_square_risk_topdown_margin_max: 0.0
+final_insert_adapter_square_risk_tilted_margin_max: -0.0003
+final_insert_adapter_square_risk_wall_topdown_margin_max: 0.0
+final_insert_adapter_square_risk_wall_tilted_margin_max: -0.0003

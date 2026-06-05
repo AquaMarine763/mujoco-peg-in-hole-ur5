@@ -1,0 +1,12 @@
+# v206 diagnostic v205 + earlier no-contact pre-pop relief.
+#
+# v205 still leaves 927514 collision. The decisive state appears before wall
+# contact is visible to the controller: no contact, XY about 2 mm, Z about
+# 30 mm, positive clearance margin, and square_fast_settle phase steps around
+# 36-37. v198's pre-pop relief waits until 45 phase steps, so it misses this
+# earlier pop. This candidate lowers only that no-contact pre-pop phase gate.
+#
+# Diagnostic only until 924/927/928/929/931 focused gates pass.
+base_config: eval_multi_geometry_v205_v204_low_z_relief_attempt4_hard_square_30ep.yaml
+
+guard_final_servo_square_fast_settle_low_z_stall_relief_min_phase_steps: 35

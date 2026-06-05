@@ -1,0 +1,19 @@
+# v196 diagnostic v195 with softer late down boost.
+#
+# v195 fixes the 931509 timeout but creates one no-contact low-Z lateral pop at
+# 931510. Because 931509 succeeds with large step margin under v195, this
+# candidate keeps recovery timing untouched and softens only the late down
+# boost before adding any new recovery branch.
+#
+# Diagnostic only until focused and broad hard-square gates pass.
+base_config: eval_multi_geometry_v190_risk_only_nolift_brake4_down10_low_z_contact_and_stall_relief_hard_square_30ep.yaml
+
+guard_final_servo_square_fast_settle_late_down_boost_enabled: true
+guard_final_servo_square_fast_settle_late_down_boost_max_down_action: 0.0015
+guard_final_servo_square_fast_settle_late_down_boost_max_xy_action: 0.0008
+guard_final_servo_square_fast_settle_late_down_boost_xy_max: 0.0024
+guard_final_servo_square_fast_settle_late_down_boost_z_min: 0.018
+guard_final_servo_square_fast_settle_late_down_boost_z_max: 0.033
+guard_final_servo_square_fast_settle_late_down_boost_min_brake_attempts: 3
+guard_final_servo_square_fast_settle_late_down_boost_contact_max: 0
+guard_final_servo_square_fast_settle_late_down_boost_min_phase_steps: 28

@@ -8,6 +8,8 @@ from pathlib import Path
 
 import numpy as np
 
+from peg_in_hole_mujoco.sim_config import parse_args_with_config
+
 from build_final_insert_stuck_dataset import (
     CSV_FIELDNAMES,
     FEATURE_NAMES,
@@ -77,7 +79,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--success-descend-max-xy-m", type=float, default=0.005)
     parser.add_argument("--success-descend-min-z-m", type=float, default=0.005)
     parser.add_argument("--success-descend-max-z-m", type=float, default=0.055)
-    return parser.parse_args()
+    return parse_args_with_config(parser)
 
 
 def load_trace(path: Path) -> list[dict[str, str]]:

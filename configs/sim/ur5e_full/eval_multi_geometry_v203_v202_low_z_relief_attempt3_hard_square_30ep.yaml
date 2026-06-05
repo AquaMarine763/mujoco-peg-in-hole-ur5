@@ -1,0 +1,13 @@
+# v203 diagnostic v202 + one extra low-Z contact relief attempt.
+#
+# v202 improves current-code 931500 from 26/30 to 29/30, but the remaining
+# collision shows the low-Z contact pop occurs before square recovery escape can
+# safely lift. At the decisive step the state is still inside the low-Z contact
+# relief envelope, but the two configured relief attempts are already consumed.
+# This candidate gives that local, contact-aware relief one additional attempt
+# so it can intervene before the late escape path.
+#
+# Diagnostic only until 929500/931500 and the focused hard-square gate pass.
+base_config: eval_multi_geometry_v202_v198_pre_lift_on_trigger_hard_square_30ep.yaml
+
+guard_final_servo_square_fast_settle_low_z_relief_max_attempts: 3

@@ -1,0 +1,51 @@
+# v171 hard square-square late-down-boost diagnostic.
+#
+# Base v170 fixed the old 6x30 hard-square gate but failed the next fresh gate:
+# - 927525 collision after final-insert adapter intervention
+# - 929512 timeout after repeated recovery escape loops
+#
+# v171 keeps the v170 contact-brake/staged-descend stack and changes only:
+# - disable the learned final-insert adapter for this hard square deployable gate
+# - keep base square_fast_settle max down action at 0.0020
+# - enable a narrow late square_fast_settle down boost to 0.0025 only after
+#   three contact-brake attempts, tight XY alignment, enough phase age, and no
+#   current peg-hole contact
+# - when the boost is active, cap square_fast_settle XY action to 0.0010 to
+#   avoid delayed lateral-control residue in the low square insert
+#
+# Previous rejected v171 attempt:
+# - globally raising square_fast_settle max down action to 0.0025 passed
+#   927500/928500/929500/925500, but regressed old seeds 921500 and 923500
+#   with collisions.
+#
+# Validation result:
+# - 927500 fresh hard square, 30 episodes: 30/30
+# - 929500 fresh hard square, 30 episodes: 29/30, zero collision, one timeout
+#   (`929512`). With the paired XY cap, the failure is a low-Z square timeout
+#   rather than the earlier late lateral pop/collision mode.
+# - Not promotable.
+# Rejected probes:
+# - globally lowering square recovery escape height to 0.060 fixed 929500 but
+#   introduced a 928526 collision
+# - 0.065 fixed 928500 but introduced a 929524 collision
+base_config: eval_multi_geometry_v170_square_contact_brake_staged_descend_hard_square_30ep.yaml
+
+seed: 927500
+episodes: 30
+output_csv: results/ur5e_full/multi_geometry/v171_no_final_adapter_late_down_boost/eval_hard_square_30ep_seed927500.csv
+output_md: results/ur5e_full/multi_geometry/v171_no_final_adapter_late_down_boost/eval_hard_square_30ep_seed927500.md
+episode_output_csv: results/ur5e_full/multi_geometry/v171_no_final_adapter_late_down_boost/eval_hard_square_30ep_seed927500_episodes.csv
+step_output_csv: results/ur5e_full/multi_geometry/v171_no_final_adapter_late_down_boost/eval_hard_square_30ep_seed927500_failure_steps.csv
+step_trace_outcome_filter: failure
+
+final_insert_adapter_enabled: false
+guard_final_servo_square_fast_settle_max_down_action: 0.0020
+guard_final_servo_square_fast_settle_late_down_boost_enabled: true
+guard_final_servo_square_fast_settle_late_down_boost_max_down_action: 0.0025
+guard_final_servo_square_fast_settle_late_down_boost_max_xy_action: 0.0010
+guard_final_servo_square_fast_settle_late_down_boost_xy_max: 0.0025
+guard_final_servo_square_fast_settle_late_down_boost_z_min: 0.020
+guard_final_servo_square_fast_settle_late_down_boost_z_max: 0.060
+guard_final_servo_square_fast_settle_late_down_boost_min_brake_attempts: 3
+guard_final_servo_square_fast_settle_late_down_boost_contact_max: 0
+guard_final_servo_square_fast_settle_late_down_boost_min_phase_steps: 10

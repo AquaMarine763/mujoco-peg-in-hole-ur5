@@ -1,0 +1,12 @@
+# v179 diagnostic v177 + one extra square contact-brake attempt.
+#
+# v177 fixed old 923500 and fresh 929500, but 930529 failed after the third
+# contact-brake attempt was exhausted. At low Z the controller kept descending
+# through a wall-contact state and then escaped into the east wall. This config
+# keeps the learned adapter risk-only and gives the guarded low-Z contact path
+# one more brake/hold opportunity before exhausted-continue.
+#
+# Diagnostic only until 923500/929500/930500 and broader fresh gates pass.
+base_config: eval_multi_geometry_v177_low_z_adapter_risk_only_hard_square_30ep.yaml
+
+guard_final_servo_square_contact_brake_max_attempts: 4

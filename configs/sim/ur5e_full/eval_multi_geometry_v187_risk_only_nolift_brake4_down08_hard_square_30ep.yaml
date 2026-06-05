@@ -1,0 +1,11 @@
+# v187 diagnostic v185 with a slightly slower very-low-Z down cap.
+#
+# v185 passes 11/12 buckets and leaves one 927 low-Z pop despite the 1.0 mm/step
+# down cap. v186 showed that adding a low-Z XY cap regresses fresh buckets.
+# This keeps XY unrestricted and only reduces the very-low-Z down cap from
+# 1.0 mm/step to 0.8 mm/step.
+#
+# Diagnostic only until focused and broad hard-square gates pass.
+base_config: eval_multi_geometry_v185_risk_only_nolift_brake4_down10_hard_square_30ep.yaml
+
+guard_final_servo_square_fast_settle_low_z_max_down_action: 0.0008

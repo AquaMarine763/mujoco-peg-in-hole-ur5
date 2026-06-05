@@ -1,0 +1,15 @@
+# v180 diagnostic v177 + exhausted contact-brake escape/reset.
+#
+# v177/v179 failures show a narrow low-Z mode: after contact-brake attempts are
+# exhausted, square_fast_settle can continue through wall contact and pop the
+# peg laterally before escape starts. This keeps the learned final-insert
+# adapter risk-only, does not add a global fourth brake attempt, and instead
+# routes exhausted low-Z wall-contact states into the existing square recovery
+# escape. Attempts are reset after a successful escape/recenter so the next
+# insertion attempt has a fresh contact-brake budget.
+#
+# Diagnostic only until fresh and old hard-square gates pass.
+base_config: eval_multi_geometry_v177_low_z_adapter_risk_only_hard_square_30ep.yaml
+
+guard_final_servo_square_contact_brake_exhausted_escape_enabled: true
+guard_final_servo_square_contact_brake_reset_attempts_after_escape_enabled: true

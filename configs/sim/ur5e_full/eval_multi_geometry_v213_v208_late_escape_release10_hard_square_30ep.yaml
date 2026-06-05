@@ -1,0 +1,13 @@
+# v213 diagnostic v208 + late recovery-escape release relaxation.
+#
+# v208 is safer than the lower-height and deeper-direct variants, but 931500
+# still has late timeouts after repeated recovery escapes. This candidate keeps
+# the 70 mm escape height and conservative direct fast-settle settings, then
+# relaxes only the recovery-escape recenter release from 6 mm to 10 mm after
+# episode step 850 so late episodes can leave the high recenter phase sooner.
+#
+# Diagnostic only until 924/927/928/929/931 focused gates pass.
+base_config: eval_multi_geometry_v208_v207_positive_margin_hold_hard_square_30ep.yaml
+
+guard_final_servo_square_recovery_escape_late_release_xy: 0.010
+guard_final_servo_square_recovery_escape_late_release_min_steps_since_reset: 850

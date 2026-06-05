@@ -1,0 +1,12 @@
+# v178 diagnostic early-tilt risk-only low-Z square final-insert adapter.
+#
+# v177 preserved old 923500/929500 buckets but missed 930529 because the
+# failure collapsed from a small XY offset into a large tilted escape before
+# stall reached 4. This keeps the adapter risk-only, but allows earlier tilted
+# risk intervention and lowers the XY action cap to reduce lateral disturbance.
+#
+# Diagnostic only until 923500/929500/930500 and broader fresh gates pass.
+base_config: eval_multi_geometry_v177_low_z_adapter_risk_only_hard_square_30ep.yaml
+
+final_insert_adapter_square_risk_min_stall_steps: 2
+final_insert_adapter_max_xy_action: 0.0008

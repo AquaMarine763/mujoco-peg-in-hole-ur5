@@ -1,0 +1,12 @@
+# v220 diagnostic v218 + shorter clean-step gate for late fast finish.
+#
+# v219 clean5 blocked the v218 immediate post-contact fast-finish collision,
+# but it was too conservative and reintroduced late time-budget failures.
+# This candidate keeps a contact cooldown but lowers it to 3 clean steps:
+# enough to block the original 2-step post-contact boost, while allowing earlier
+# finish than v219 clean5.
+#
+# Diagnostic only until 924/927/928/929/931 focused gates pass.
+base_config: eval_multi_geometry_v218_v217_margin_fast_finish_hard_square_30ep.yaml
+
+guard_final_servo_square_fast_settle_late_down_boost_min_clean_steps: 3

@@ -1,6 +1,6 @@
 # Agent Working Notes
 
-Last updated: 2026-06-03
+Last updated: 2026-06-05
 
 This file records the standing workflow, user preferences, safety rules, and project constraints for future Codex work in this repository. Read this file before making non-trivial changes.
 
@@ -47,6 +47,51 @@ The current focus is:
 - Current active candidate branch: `feature/multi-geometry`
 - Stabilized single-geometry baseline branch: `feature/control-state-observation`
 - Remote: `https://github.com/AquaMarine763/mujoco-peg-in-hole-ur5.git`
+- Current contact-aware hard-square status:
+  - Latest stable promoted tag remains `v0.7.6-square-escape-dynamic-xycap`.
+  - Do not promote/push/tag a v0.7.7 successor from the current local
+    deterministic recovery probes. v170 passed the old hard-square 6x30 gate
+    (`180/180`) but failed the fresh 3x30 gate (`88/90`).
+  - v171-v206 low-Z deterministic probes are diagnostic only. Default-off
+    hooks for late down boost, clearance hold, low-Z relief, direct
+    fast-settle, late-only direct fast-settle, and contact-brake variants may
+    remain in code if they compile and stay disabled by default.
+  - Current-code v198 does not reproduce the older clean `931500=30/30` result:
+    a fresh serial replay on `931500` reached only `26/30`, with three
+    collisions and one timeout. Treat older v198 files as historical evidence,
+    not a promotion gate.
+  - v200 direct finish fixed `929500=30/30` but regressed `931500` with one
+    collision. v201 high-Z-only direct finish also left `931500=29/30`.
+  - v202 pre-lift-on-trigger improved current-code `931500` to `29/30`.
+    v203 added a third low-Z contact relief attempt and passed
+    `929500=30/30`, `931500=30/30`, and `928500=30/30`, but failed focused
+    buckets `924500=29/30` and `927500=28/30`.
+  - v204 late-only direct finish did not fix `927500`. v205 added a fourth
+    low-Z relief attempt and moved `927500` to `29/30`, still with one
+    collision. v206 lowered the no-contact pre-pop relief phase gate from `45`
+    to `35`, removing the `927500` collision but producing two timeouts
+    (`28/30`). Do not promote v203-v206.
+  - Current residual interpretation: low-Z square failures split into
+    pre-contact lateral pop states and late escape/recenter timeout states.
+    More relief attempts improve safety locally but burn budget; broad direct
+    fast-settle can create collisions. The next design should combine earlier
+    pre-pop risk detection with a strictly late, bounded finish assist.
+  - Current-code v170 fresh replay on 2026-06-05 reached `89/90` across
+    `927500/928500/929500`; the only remaining failure was `929512` timeout,
+    zero collision. This is better than the earlier `88/90` record but still
+    below promotion threshold.
+  - The residual failure mode is low-Z hard `square_square` contact under
+    delayed/filtered control: near-centered states around `1-3 mm` XY and
+    `25-35 mm` Z can briefly contact the wall, pop laterally, then either
+    collide if insertion is aggressive or timeout if recovery is conservative.
+  - v173 smoke validates the data path: `build_square_fast_settle_teacher_dataset.py`
+    can extract low-Z `square_fast_settle` labels from failure traces, and a
+    tiny 102-sample adapter can train/evaluate, but it stayed `29/30` on
+    `929500`. Treat it as infrastructure only.
+  - Next technical direction is balanced failure-correction / DAgger around
+    policy-visited low-Z lateral-pop states, with success-preservation rows;
+    do not continue broad scalar scans of descent speed, yaw weight, escape
+    height, or approach-adapter cap.
 - Default task model remains the lightweight UR5e adapter unless explicitly switched:
   - `assets/ur5e_adapter/ur5e_peg_in_hole.xml`
 - Full UR5e model lives at:
@@ -506,6 +551,12 @@ The current focus is:
 
 ## Editing Workflow
 
+- Current hard-square context: v221
+  `configs/sim/ur5e_full/eval_multi_geometry_v221_v220_clean3_escape55_hard_square_30ep.yaml`
+  is the active local promotion candidate. It passed seeds
+  `924500/927500/928500/929500/931500`, 30 episodes each, with zero collision
+  and zero timeout. It is committed, tagged, and pushed as
+  `v0.7.7-hard-square-clean3-escape55`.
 - Check `git status --short --branch` before and after code changes when possible.
 - Use `rg` / `rg --files` for searching.
 - Use `apply_patch` for manual file edits.

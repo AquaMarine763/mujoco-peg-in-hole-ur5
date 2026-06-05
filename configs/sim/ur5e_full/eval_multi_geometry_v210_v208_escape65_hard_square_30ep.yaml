@@ -1,0 +1,12 @@
+# v210 diagnostic v208 + shorter square recovery escape height.
+#
+# v208 is collision-free on 931500 but leaves two timeouts after repeated high
+# recovery escapes. Earlier direct-finish handoff (v209) reintroduces collision
+# risk, so this candidate reduces recovery budget consumption instead: keep the
+# conservative direct-finish gate and lower the square escape height from 70 mm
+# to 65 mm.
+#
+# Diagnostic only until 924/927/928/929/931 focused gates pass.
+base_config: eval_multi_geometry_v208_v207_positive_margin_hold_hard_square_30ep.yaml
+
+guard_final_servo_square_recovery_escape_height: 0.065

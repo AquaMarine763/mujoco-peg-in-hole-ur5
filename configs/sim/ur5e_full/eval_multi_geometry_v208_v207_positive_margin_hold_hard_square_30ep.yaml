@@ -1,0 +1,12 @@
+# v208 diagnostic v207 + positive-margin-only pre-pop hold.
+#
+# v207 fixes 924/927/928 but regresses 929/931 because the hold/resume branch
+# can trigger on slightly negative tilted clearance margins. Negative margin is
+# already a no-clearance state; holding there lets contact dynamics pop the peg
+# laterally. The 927 pre-pop family has positive margin, so this candidate keeps
+# the early hold path but restricts it to positive clearance states.
+#
+# Diagnostic only until 924/927/928/929/931 focused gates pass.
+base_config: eval_multi_geometry_v207_v205_prepop_hold_resume_hard_square_30ep.yaml
+
+guard_final_servo_square_fast_settle_low_z_stall_relief_margin_min: 0.0002

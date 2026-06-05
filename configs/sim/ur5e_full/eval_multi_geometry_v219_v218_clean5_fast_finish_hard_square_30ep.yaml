@@ -1,0 +1,11 @@
+# v219 diagnostic v218 + clean-step gate for late fast finish.
+#
+# v218 fixed the 927500 timeout bucket but reintroduced a 931500 collision by
+# allowing late-down-boost immediately after a brief wall-contact interval.
+# This candidate requires a short clean no-contact streak before late-down-boost
+# can activate, while keeping the v218 fast-finish geometry and margins.
+#
+# Diagnostic only until 924/927/928/929/931 focused gates pass.
+base_config: eval_multi_geometry_v218_v217_margin_fast_finish_hard_square_30ep.yaml
+
+guard_final_servo_square_fast_settle_late_down_boost_min_clean_steps: 5

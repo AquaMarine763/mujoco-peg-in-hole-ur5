@@ -21,6 +21,7 @@ dist/
 checkpoints*/
 logs*/
 videos/
+eval_outputs/
 datasets/*.npz
 datasets/**/*.npz
 datasets/**/*.npz.json

@@ -1,0 +1,11 @@
+# v211 diagnostic v208 + moderate square recovery escape height.
+#
+# v210's 65 mm escape height removes 931500 timeouts but is too low in one
+# case, causing a low-Z lateral pop after recovery. This candidate uses a
+# middle value, 68 mm, to save some budget while preserving more clearance than
+# v210.
+#
+# Diagnostic only until 924/927/928/929/931 focused gates pass.
+base_config: eval_multi_geometry_v208_v207_positive_margin_hold_hard_square_30ep.yaml
+
+guard_final_servo_square_recovery_escape_height: 0.068

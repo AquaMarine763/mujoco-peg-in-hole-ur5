@@ -1,0 +1,12 @@
+# v184 diagnostic v177 + no-lift adapter + very-low-Z down cap.
+#
+# v182 leaves rare collisions where the peg is nearly centered but a continued
+# 2 mm/step down command at about 27-30 mm Z causes a delayed/contact pop into
+# the wall. This keeps XY authority unchanged and only slows square_fast_settle
+# descent in that very-low-Z band.
+#
+# Diagnostic only until focused and broad hard-square gates pass.
+base_config: eval_multi_geometry_v177_low_z_adapter_risk_only_hard_square_30ep.yaml
+
+guard_final_servo_square_fast_settle_low_z_down_threshold: 0.032
+guard_final_servo_square_fast_settle_low_z_max_down_action: 0.0010

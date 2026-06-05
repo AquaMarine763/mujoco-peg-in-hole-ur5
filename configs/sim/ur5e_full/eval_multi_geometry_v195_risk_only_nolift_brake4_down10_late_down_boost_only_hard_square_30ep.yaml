@@ -1,0 +1,18 @@
+# v195 diagnostic v190 + late down boost only.
+#
+# v193/v194 show that changing square recovery escape release timing is not
+# stable across 931500. This isolates the no-contact low-Z down boost while
+# leaving v190 recovery timing untouched.
+#
+# Diagnostic only until focused and broad hard-square gates pass.
+base_config: eval_multi_geometry_v190_risk_only_nolift_brake4_down10_low_z_contact_and_stall_relief_hard_square_30ep.yaml
+
+guard_final_servo_square_fast_settle_late_down_boost_enabled: true
+guard_final_servo_square_fast_settle_late_down_boost_max_down_action: 0.0020
+guard_final_servo_square_fast_settle_late_down_boost_max_xy_action: 0.0010
+guard_final_servo_square_fast_settle_late_down_boost_xy_max: 0.0024
+guard_final_servo_square_fast_settle_late_down_boost_z_min: 0.018
+guard_final_servo_square_fast_settle_late_down_boost_z_max: 0.033
+guard_final_servo_square_fast_settle_late_down_boost_min_brake_attempts: 3
+guard_final_servo_square_fast_settle_late_down_boost_contact_max: 0
+guard_final_servo_square_fast_settle_late_down_boost_min_phase_steps: 28

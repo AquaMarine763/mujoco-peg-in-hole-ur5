@@ -1,6 +1,6 @@
 # Project Plan And Status
 
-Last updated: 2026-06-03
+Last updated: 2026-06-05
 
 This file records the current project status, known metrics, and next planned steps. Keep it current when a milestone changes.
 
@@ -23,9 +23,45 @@ The immediate objective on `feature/multi-geometry` is to keep the single-geomet
 - Latest local single-geometry milestone: `v0.6.50-single-geometry` / `4a0f65f Promote strict single-geometry high-start baseline`
 - Latest pushed multi-geometry milestone: `v0.7.4-v8-adapter-finalstart100`
 - Latest local multi-geometry boundary milestone: `v0.7.2-early-final-servo-boundary`
-- Current version-promotion target: `v0.7.6-square-escape-dynamic-xycap`
-- Latest promoted contact-aware approach milestone: `v0.7.5-square-pose-yaw-align`
-- Current contact-aware candidate: default-off `guard_final_servo_square_recovery_escape_*` with deployable pre-lift and dynamic low-Z `square_fast_settle` XY limiting; validated on hard `square_square` stress as v164.
+- Current version-promotion target: none. v221 has been promoted and pushed.
+- Latest promoted contact-aware milestone: `v0.7.7-hard-square-clean3-escape55`
+- Current contact-aware status: v221 is the current pushed contact-aware hard `square_square` recovery milestone; it passed the focused 5x30 gate on seeds `924500/927500/928500/929500/931500` with zero collision and zero timeout.
+
+## Current Hard-Square Recovery Diagnostics
+
+The current-code replay no longer cleanly reproduces the older v198 `931500=30/30` result. A fresh serial v198 replay on `931500` reached only `26/30` with three collisions and one timeout, so do not promote from old v198 result files without fresh validation.
+
+Recent diagnostic results:
+
+- v198 fresh serial recheck on `931500`: `26/30`, three collisions, one timeout. Direct fast-settle was disabled, so this exposed current-code residual low-Z pop risk.
+- v200 direct finish after clean escape fixed `929500=30/30`, but `931500=29/30` with one collision. Rejected.
+- v201 high-Z-only direct finish kept `929500=30/30`, but `931500=29/30` with one collision. Rejected.
+- v202 v198 plus `square_recovery_escape_pre_lift_on_trigger=true` improved current-code `931500` to `29/30`, but still had one collision. Rejected.
+- v203 v202 plus low-Z contact relief attempts `2 -> 3` passed `929500=30/30` and `931500=30/30`, but focused gate regressed: `924500=29/30`, `927500=28/30`, `928500=30/30`. Rejected.
+- v204 v203 plus late-only direct finish did not improve `927500`; still `28/30`. Rejected.
+- v205 v204 plus low-Z contact relief attempts `3 -> 4` improved `927500` to `29/30`, zero timeout but one collision. Rejected.
+- v206 v205 plus earlier no-contact pre-pop relief phase gate `45 -> 35` removed the `927500` collision but produced `28/30` with two timeouts. Rejected.
+- v217 v216 plus recovery escape recenter XY cap `0.006` passed `924500/928500/929500/931500`, but `927500=28/30` with two timeouts. Rejected.
+- v218 v217 plus margin-gated late fast finish fixed `927500=30/30`, but `931500=29/30` with one collision. Rejected.
+- v219 added `guard_final_servo_square_fast_settle_late_down_boost_min_clean_steps=5`. It blocked the immediate post-contact fast-finish risk, but was too conservative: `927500=29/30` with one timeout and `931500=29/30` with one collision/timeout failure. Rejected.
+- v220 lowered the clean-step gate to `3`. It removed the `931500` collision but still left `927500=29/30` and `931500=29/30`, both timeout-only failures stuck in `square_recovery_escape_lift`. Rejected.
+- v221 keeps clean3 and lowers `guard_final_servo_square_recovery_escape_height` from `0.070` to `0.055`. It passed the focused hard-square gate:
+  - `924500=30/30`
+  - `927500=30/30`
+  - `928500=30/30`
+  - `929500=30/30`
+  - `931500=30/30`
+  - all zero collision and zero timeout.
+  - config: `configs\sim\ur5e_full\eval_multi_geometry_v221_v220_clean3_escape55_hard_square_30ep.yaml`
+  - result directory: `D:\peg-in-hole-6yh\v221_clean3_escape55_probe`
+
+Current interpretation:
+
+- The hard square residual was two coupled issues:
+  - late fast finish could fire too soon after wall contact and create a low-Z pop/collision;
+  - after making fast finish safer, `square_recovery_escape_lift` could consume too much of the 1000-step budget when escape started late.
+- v221's current working recipe is a short continuous no-contact gate before late fast finish plus a lower escape height (`55 mm`) so late recovery re-enters recenter/descend sooner.
+- Before calling v221 stable for the whole project, run at least one broader regression gate beyond the five hard-square seeds: old collision-sensitive buckets and a small mixed/multi-geometry matrix.
 
 ## Multi-Geometry Branch Status
 
@@ -3630,6 +3666,258 @@ python scripts\eval_guarded_policy.py `
   --guard-blend 0.75 `
   --guard-min-policy-steps 0
 ```
+
+## Contact Brake Hard Square Status
+
+Current branch: `feature/contact-aware-reinsert`.
+
+Goal: reduce hard square-square low-Z insertion failures where wall contact under
+delay/filter pushes the peg laterally after it is already near-centered.
+
+Implemented default-off diagnostics/candidates:
+
+- `guard_final_servo_square_contact_brake_enabled`: detects square wall contact
+  inside the near-hole low-Z window, lifts, recenters, and returns to
+  `square_fast_settle`.
+- `guard_final_servo_square_fast_settle_low_z_max_down_action` with
+  `guard_final_servo_square_fast_settle_low_z_down_threshold`: optional low-Z
+  down-speed cap.
+- `guard_final_servo_square_contact_brake_exhausted_escape_enabled`: optional
+  fallback from exhausted contact-brake attempts into square recovery escape.
+- `guard_final_servo_square_contact_brake_reset_attempts_after_escape_enabled`:
+  optional reset after a successful square recovery escape.
+
+Validation notes:
+
+- Focused old problem seeds
+  `921509/922510/923504/921526/921512/923511` passed `6/6` with contact brake.
+- Fresh hard square gate `921500/922500/923500`, 30 episodes each, reached
+  `89/90` with default contact brake; the remaining failure is `922504`.
+- `max_attempts=3` fixed `922504` in isolation but introduced new failures in
+  the full gate, so it is not promoted.
+- Global or broad low-Z down limiting can convert collisions into timeouts; it
+  is not a promotion candidate yet.
+- `exhausted_escape` avoids the `922504` collision but tends to create repeated
+  high escape loops and timeouts.
+- Simulator-side `square_recovery_escape_flush_control_history` reaches `5/5`
+  on the `922500` focused gate, confirming the remaining issue is mostly
+  delay/filter control-history residue. Keep it diagnostic-only because it is
+  not directly deployable on a real controller.
+- Deployable preemptive hold candidate:
+  `contact_brake_max_up=0.005`,
+  `preemptive_hold_steps=12`,
+  `preemptive_hold_max_up=0.005`.
+  This passed `921500=30/30`, `922500=30/30`, but `923500=29/30` with one
+  timeout at `923504`.
+- Adding high-Z square descend with limited XY servo fixed the `923504`
+  timeout and reached old-gate `90/90` with:
+  `high_z_stall=0`, `high_z_contact_max=4`,
+  `high_z_max_xy=0.0015`, `high_z_max_down=0.0020`,
+  `high_z_low_z_brake_wall_count=4`, `high_z_low_z_brake_z_max=0.032`.
+  However, fresh gate `924500/925500/926500` reached only `88/90`; `926500`
+  had two collision failures. This is not promotable.
+- Slower global high-Z descent (`high_z_max_down=0.0012`) fixed `926500=30/30`
+  but regressed `921500=28/30`, so the issue is not solved by a single global
+  down-speed cap.
+- Low-Z unconditional floor brake (`wall_count=0`) and low-Z XY cap
+  (`low_z_max_xy=0`) over-intervened and caused large regressions
+  (`921500/926500` fell to roughly 60-70% success). Do not use these as
+  candidates.
+- Current failure pattern: high-Z descent with delay/filter can still create a
+  one-step low-Z lateral/tilt pop before wall-contact information is available.
+  Recovery/escape after that pop may collide while trying to lift.
+- v166 added default-off staged high-Z re-descent, low-Z hold, exhausted
+  contact-brake continue, and gated expanded preemptive hold plumbing. The
+  global widened-prehold idea was rejected because it rescued several focused
+  failures but could break `926516`; the gated version only expands the
+  prehold XY window when Z is high enough and tilted clearance margin is not
+  too negative.
+- v166 single-seed probe on
+  `921507/923511/923520/924510/925517/926516` passed `6/6`, but the full
+  old+fresh 6x30 gate reached only `177/180`; failures were all in the
+  `925500` bucket (`925503` collision, `925521/925523` timeouts).
+- Failure diagnosis:
+  - `925521` was mainly an approach-adapter ownership timeout: the adapter
+    stayed active for `821` steps, leaving too little final-servo budget.
+  - `925523` was a repeated square recovery escape loop after a risky expanded
+    prehold with tilted margin around `-0.00040`.
+  - `925503` was a low-Z continuation after exhausted contact-brake attempts;
+    the peg was near-centered but then popped laterally/tilted at low Z.
+- Accepted v170 changes:
+  - add `approach_adapter_episode_max_steps=220`
+  - tighten expanded prehold margin gate from `-0.0005` to `-0.0003`
+  - raise square contact-brake attempts from `2` to `3`
+  - keep exhausted-continue tightly gated at `margin_min=-0.0003`
+  - keep broad low-Z down-speed limiting disabled, because a probe converted
+    `925503` back into collision
+  - reject the very early square escape-risk threshold
+    (`early_risk_margin=-0.00028`, `z_min=0.020`) because it removed collision
+    but regressed `925500` to `26/30` with four timeouts.
+- v169 focused validation:
+  - failed `925500` seeds `925503/925521/925523`: `3/3`, zero collision,
+    zero timeout.
+  - historical sensitive seeds
+    `921507/923511/923520/924510/925517/926516`: `6/6`, zero collision,
+    zero timeout; importantly `926516` did not trigger expanded prehold.
+- v170 full hard square-square gate:
+  - result directory: `D:\peg-in-hole-6yh\v170_A_brake3_gate_6x30`
+  - seeds `921500/922500/923500/924500/925500/926500`, 30 episodes each:
+    `180/180`, zero collision, zero timeout.
+  - seed buckets:
+    `921500=30/30`, `922500=30/30`, `923500=30/30`,
+    `924500=30/30`, `925500=30/30`, `926500=30/30`.
+  - reproducible config:
+    `configs\sim\ur5e_full\eval_multi_geometry_v170_square_contact_brake_staged_descend_hard_square_30ep.yaml`.
+- v170 fresh gate failed and is not promotable:
+  - result directory:
+    `D:\peg-in-hole-6yh\v171_v170_fresh_hard_square_3x30`
+  - seeds `927500/928500/929500`, 30 episodes each: `88/90`.
+  - failures:
+    `927525` collision after final-insert adapter intervention in late
+    `square_fast_settle`;
+    `929512` timeout after repeated square recovery escape loops, ending near
+    center but still about `20 mm` above the success Z threshold.
+  - current-code replay on 2026-06-05:
+    `D:\peg-in-hole-6yh\v172_current_code_fresh3x30`.
+    With the same v170 config and the default-off v171/v172 hooks still
+    disabled, seeds `927500/928500/929500` reached `89/90`:
+    `927500=30/30`, `928500=30/30`, `929500=29/30`. The remaining failure is
+    `929512` timeout, zero collision. This is still not promotable.
+- Rejected v171 probes:
+  - disabling the final-insert adapter fixed `927525` and `927500=30/30`, but
+    did not fix the `929512` timeout by itself.
+  - lowering global square recovery escape height from `70 mm` to `60 mm`
+    fixed `929500=30/30` but introduced a `928526` collision.
+  - lowering it to `65 mm` fixed `928500=30/30` but introduced a `929524`
+    collision.
+- Rejected v171 global fast-down candidate:
+  - keep v170 recovery height and contact-brake stack.
+  - disable the learned final-insert adapter for this hard square deployable
+    gate with `final_insert_adapter_enabled=false`.
+  - globally raising `guard_final_servo_square_fast_settle_max_down_action`
+    from `0.0020` to `0.0025` passed focused fresh/sensitive probes
+    (`927500/928500/929500/925500`, 30 episodes each) but regressed old
+    collision-sensitive buckets:
+    `921500=29/30` and `923500=29/30`.
+  - conclusion: do not promote global square-fast-settle down acceleration.
+- v171 late-down-boost / low-Z insertion probes:
+  - added a default-off narrow
+    `guard_final_servo_square_fast_settle_late_down_boost_*` hook. It only
+    applies in square `square_fast_settle` after the configured brake-attempt
+    count, phase age, tight XY window, Z window, and contact gate pass.
+  - the first narrow boost (`max_down=0.0025`, `XY<=2.5 mm`, no contact,
+    `brake_attempts>=3`) kept `927500=30/30` but left `929500=29/30`; the
+    failure remained `929512` timeout.
+  - adding a paired late-boost XY cap (`max_xy=0.0010`) changed the same
+    `929512` failure from a late pop/escape into a cleaner timeout: final
+    about `2.0 mm` XY and `22.7 mm` Z, zero collision. This is safer but still
+    not a fix.
+  - increasing late boost down to `0.0032` caused earlier low-Z contact and
+    recovery timeout on `929512`; do not use it.
+  - lowering exhausted-continue Z to `20 mm` and loosening margin to `-0.8 mm`
+    still left `929512` as timeout; widening exhausted-continue XY to `12 mm`
+    converted it to collision. Do not continue inserting after the low-Z pop.
+  - raising square contact-brake max attempts to `4` regressed `929500` to
+    `26/30` with `3` collisions and `1` timeout. Do not add more global brake
+    attempts.
+  - added a default-off
+    `guard_final_servo_square_fast_settle_clearance_hold_*` diagnostic hook
+    that locks XY, blocks down action, and allows tiny upward relief in low-Z
+    near-centered negative-margin states. On `929500` with the late boost
+    config it regressed to `28/30`, zero collision but two timeouts. Keep this
+    hook diagnostic-only for now.
+  - current failure interpretation: `929512` is not simply missing speed. The
+    peg reaches low Z with sub-2 mm XY, but narrow square tilted-clearance
+    remains slightly negative and delayed/filtered contact can create a
+    low-Z lateral pop. Full escape is safe but too slow; hard continuation and
+    extra brake attempts are unsafe.
+  - reproducible diagnostic config:
+    `configs\sim\ur5e_full\eval_multi_geometry_v171_no_final_adapter_fastdown_hard_square_30ep.yaml`.
+- Rejected v172 low-Z relief / direct-settle probes:
+  - Added default-off
+    `guard_final_servo_square_fast_settle_low_z_relief_*` plumbing with
+    `square_low_z_relief_lift` and `square_low_z_relief_recenter` phases. On
+    `929500` it reached only `28/30`; `929512` and `929518` still timed out,
+    and the relief action could create a lateral pop/escape. Keep diagnostic
+    only.
+  - Narrow fast-down with a tight XY cap was unsafe. `max_down=0.0030` and
+    `max_xy=0.0005` regressed `929500` to `27/30`, including a new `929506`
+    collision. A smaller `max_down=0.0026` rescued some single seeds but
+    converted `929508` to collision and left `929512` unresolved.
+  - Raising square yaw-align weight is not a robust fix. Weight `0.40` fixed
+    `929500=30/30` but regressed `927500=28/30`; weight `0.45` was worse on
+    fresh buckets; weight `0.35` fixed several timeout seeds but still
+    produced a `927525` collision. More yaw authority can reduce timeout but
+    increases low-Z collision risk.
+  - Globally allowing earlier/high-Z `square_fast_settle` entry is unsafe.
+    `square_fast_settle_z_max=0.085` reached only `86/90` on fresh 3x30, all
+    failures collision. `z_max=0.065` improved to `89/90` but still introduced
+    a `928528` collision.
+  - Added default-off
+    `guard_final_servo_square_recovery_escape_direct_fast_settle_*` plumbing.
+    It can rescue focused seeds after recovery escape, but fresh 3x30 still
+    failed: with yaw `0.40`, `58/60` across `927500/929500` because of
+    collisions; with base yaw `0.20`, `88/90` because `929512/929518`
+    remained timeouts. Keep diagnostic only.
+  - Down-only commit / XY-lock style insertion is not safe. Late-down boost
+    `max_down=0.0020` with `max_xy=0.0001` converted `929512`, `929518`, and
+    `927514` into collisions.
+  - Earlier escape on one wall-contact step fixed some focused timeouts, but
+    converted `929512` to collision. Do not reduce
+    `guard_final_servo_square_recovery_escape_early_contact_wall_steps` to `1`
+    globally.
+  - Cutting the approach adapter earlier is broad-regressive. Episode cap
+    `180` produced `26/30`, `29/30`, `27/30` on fresh
+    `927500/928500/929500`; cap `200` still reached only `29/30`, `29/30`,
+    `28/30`.
+- Current v172 failure interpretation:
+  - The residual hard-square issue is low-Z contact under delayed/filtered
+    control, not just descent speed.
+  - Typical bad state: `1-3 mm` XY error and `25-35 mm` Z above target, brief
+    wall contact, then a lateral pop to `10-25+ mm`.
+  - More aggressive deterministic insertion often converts timeout into
+    collision. Safer recovery avoids collision but can exhaust the 1000-step
+    budget.
+  - Stop broad scalar scans of final insert speed, yaw weight, recovery height,
+    and adapter cap unless a new mechanism changes the failure mode.
+- v173 low-Z square teacher/adapter smoke:
+  - `scripts\build_square_fast_settle_teacher_dataset.py` now supports
+    `--config` through the shared flat-YAML parser, so low-Z square failure
+    extraction can be made reproducible.
+  - Teacher smoke from
+    `D:\peg-in-hole-6yh\v172_current_code_fresh3x30\eval_v170_fresh_seed929500_30ep_failure_steps.csv`
+    selected `102` `square_fast_settle` samples from the `929512` timeout:
+    mean `2.50 mm` XY, `40.89 mm` Z, mean yaw error `0.12 deg`, mean tilted
+    margin `-0.59 mm`.
+  - Labels were `99` `hold_recenter` and `3` `clearance_lift`; the dominant
+    reason was tight top-down square clearance, not gross yaw error.
+  - A 20-epoch smoke adapter trained cleanly from the 102 samples with random
+    split train/val MAE `0.49/0.51 mm`.
+  - Closed-loop smoke on the same `929500` 30-episode bucket remained
+    `29/30`, zero collision, with `929512` still timing out. Conclusion: the
+    trace-derived dataset/training/eval path works, but a single-failure
+    adapter is not enough. Next data work must be balanced DAgger across
+    multiple low-Z failure seeds plus success-preservation samples.
+
+Current decision:
+
+- There is no promotable v171/v172 successor at this point. v170 remains the
+  last clean 6x30 old hard-square gate, but it failed the fresh gate at
+  `88/90`; the latest stable promoted tag remains
+  `v0.7.6-square-escape-dynamic-xycap`.
+- Do not push/tag a new version from this state. The new late-boost,
+  clearance-hold, low-Z relief, and direct-fast-settle hooks are useful
+  diagnostics and remain default-off.
+- Next useful work: stop hand-tuning deterministic low-Z insert actions and
+  build a safer correction path around the low-Z square lateral-pop states.
+  Preferred direction is failure-correction / DAgger data from states that
+  actually enter the bad low-Z contact regime, with labels using
+  tilted-clearance margin, contact state, yaw error, and recovery phase. Use
+  the v173 smoke path as the data pipeline skeleton, but scale it to multiple
+  failure traces and add success-preservation rows before training another
+  closed-loop candidate. Validate first on `929512`, `929518`, `927525`,
+  `927514`, `928528`, then on fresh `927500/928500/929500` and old
+  collision-sensitive buckets.
 
 ## When To Update This File
 

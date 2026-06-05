@@ -1,0 +1,21 @@
+# v194 diagnostic v190 + conservative escape release + narrow late down boost.
+#
+# v193 confirms that earlier release plus late descent can rescue v190's
+# 931509 timeout, but 8 mm release introduced two new 931500 collisions. This
+# backs the release threshold down to 7 mm and caps late XY authority more
+# tightly while preserving the low-Z no-contact down boost.
+#
+# Diagnostic only until focused and broad hard-square gates pass.
+base_config: eval_multi_geometry_v190_risk_only_nolift_brake4_down10_low_z_contact_and_stall_relief_hard_square_30ep.yaml
+
+guard_final_servo_square_recovery_escape_release_xy: 0.0070
+
+guard_final_servo_square_fast_settle_late_down_boost_enabled: true
+guard_final_servo_square_fast_settle_late_down_boost_max_down_action: 0.0020
+guard_final_servo_square_fast_settle_late_down_boost_max_xy_action: 0.0008
+guard_final_servo_square_fast_settle_late_down_boost_xy_max: 0.0022
+guard_final_servo_square_fast_settle_late_down_boost_z_min: 0.018
+guard_final_servo_square_fast_settle_late_down_boost_z_max: 0.033
+guard_final_servo_square_fast_settle_late_down_boost_min_brake_attempts: 3
+guard_final_servo_square_fast_settle_late_down_boost_contact_max: 0
+guard_final_servo_square_fast_settle_late_down_boost_min_phase_steps: 28

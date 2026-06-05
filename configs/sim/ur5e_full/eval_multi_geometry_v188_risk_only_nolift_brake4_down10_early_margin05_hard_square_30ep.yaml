@@ -1,0 +1,12 @@
+# v188 diagnostic v185 + earlier positive-margin square recovery risk.
+#
+# v185's remaining 927521 collision has no wall contact before the pop; the
+# warning sign is a sustained very-low-Z stall with tilted clearance margin
+# drifting down to about 0.47-0.50 mm. Existing low-Z relief requires wall
+# contact, so this uses the existing square recovery early-risk path with a
+# conservative positive margin threshold and the existing consecutive-step gate.
+#
+# Diagnostic only until focused and broad hard-square gates pass.
+base_config: eval_multi_geometry_v185_risk_only_nolift_brake4_down10_hard_square_30ep.yaml
+
+guard_final_servo_square_recovery_escape_early_risk_margin_threshold: 0.0005

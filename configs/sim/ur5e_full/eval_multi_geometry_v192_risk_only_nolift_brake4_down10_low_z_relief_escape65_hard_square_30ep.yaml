@@ -1,0 +1,12 @@
+# v192 diagnostic v190 + lower square recovery escape height.
+#
+# v190 fixes 931500 collisions but leaves one timeout after a late escape spends
+# too many steps lifting/recentering. v191's direct-fast-settle release made the
+# timeout worse, so this reverts to the v190 return path and only lowers the
+# square recovery escape target from 70 mm to 65 mm. It remains above the 60 mm
+# escape Z window but should reduce lift drift and recenter time.
+#
+# Diagnostic only until focused and broad hard-square gates pass.
+base_config: eval_multi_geometry_v190_risk_only_nolift_brake4_down10_low_z_contact_and_stall_relief_hard_square_30ep.yaml
+
+guard_final_servo_square_recovery_escape_height: 0.065

@@ -1,0 +1,11 @@
+# v214 diagnostic v208 + conservative late recovery-escape release relaxation.
+#
+# v213's 10 mm late release removes timeout pressure but reintroduces low-Z
+# collisions. This candidate keeps the same late-only mechanism but limits the
+# relaxed release to 8 mm.
+#
+# Diagnostic only until 924/927/928/929/931 focused gates pass.
+base_config: eval_multi_geometry_v208_v207_positive_margin_hold_hard_square_30ep.yaml
+
+guard_final_servo_square_recovery_escape_late_release_xy: 0.008
+guard_final_servo_square_recovery_escape_late_release_min_steps_since_reset: 850

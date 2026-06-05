@@ -1,0 +1,12 @@
+# v199 diagnostic v198 + lower square recovery escape height.
+#
+# v198 passes 924/927/928/931 focused buckets but leaves one safe timeout in
+# 929500 because a late square_recovery_escape returns to insertion too late.
+# v192's standalone 65 mm escape height regressed 931500, but v198's pre-pop
+# low-Z relief may now protect the late-pop case. This candidate only lowers
+# the escape height from 70 mm to 65 mm.
+#
+# Diagnostic only until focused and broad hard-square gates pass.
+base_config: eval_multi_geometry_v198_risk_only_nolift_brake4_down10_late_boost_prepop_relief_hard_square_30ep.yaml
+
+guard_final_servo_square_recovery_escape_height: 0.065

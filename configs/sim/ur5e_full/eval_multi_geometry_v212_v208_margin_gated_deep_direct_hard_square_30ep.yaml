@@ -1,0 +1,13 @@
+# v212 diagnostic v208 + margin-gated deeper direct fast-settle.
+#
+# v208 is collision-free on the hard-square focused failures but leaves late
+# timeouts. Global lower escape heights (v210/v211) save budget but regress
+# other seeds. This candidate keeps the safe 70 mm escape and only extends the
+# direct fast-settle high down action deeper into insertion when the tilted
+# clearance margin is clearly positive.
+#
+# Diagnostic only until 924/927/928/929/931 focused gates pass.
+base_config: eval_multi_geometry_v208_v207_positive_margin_hold_hard_square_30ep.yaml
+
+guard_final_servo_square_recovery_escape_direct_fast_settle_max_down_z_min: 0.020
+guard_final_servo_square_recovery_escape_direct_fast_settle_fast_down_margin_min: 0.00045

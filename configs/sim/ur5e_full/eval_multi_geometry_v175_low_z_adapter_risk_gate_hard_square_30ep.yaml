@@ -1,0 +1,27 @@
+# v175 diagnostic risk-gated low-Z square final-insert adapter.
+#
+# This keeps v170 contact-brake/staged-descend behavior and uses the v174
+# trace-derived low-Z final-insert adapter as XY-only correction. The gate is
+# conservative by default:
+# - normal activation requires stall >= 6
+# - early activation at stall >= 4 is allowed only for square risk states:
+#   large XY, low top-down clearance, negative tilted clearance, or wall contact
+#   with bad clearance
+# - inherited v138 handoff shortcuts are disabled so the adapter can actually
+#   run in the risk window
+#
+# Diagnostic only until fresh and old hard-square gates pass.
+base_config: eval_multi_geometry_v170_square_contact_brake_staged_descend_hard_square_30ep.yaml
+
+final_insert_adapter_mode: override_xy
+final_insert_adapter_min_stall_steps: 6
+final_insert_adapter_handoff_on_down_action: false
+final_insert_adapter_handoff_on_aligned_no_contact: false
+
+final_insert_adapter_square_risk_gate_enabled: true
+final_insert_adapter_square_risk_min_stall_steps: 4
+final_insert_adapter_square_risk_xy_min: 0.0065
+final_insert_adapter_square_risk_topdown_margin_max: 0.0007
+final_insert_adapter_square_risk_tilted_margin_max: -0.0003
+final_insert_adapter_square_risk_wall_topdown_margin_max: 0.0008
+final_insert_adapter_square_risk_wall_tilted_margin_max: 0.0

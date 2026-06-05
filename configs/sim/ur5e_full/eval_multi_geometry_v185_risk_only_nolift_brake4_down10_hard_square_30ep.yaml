@@ -1,0 +1,11 @@
+# v185 diagnostic v184 + one extra square contact-brake attempt.
+#
+# v184's very-low-Z down cap fixed the 924 low-Z pop and preserved 927/930,
+# but left 929512 as a safe timeout. v183's fourth brake attempt fixed 929 but
+# introduced low-Z collisions in 928/931. This combines both mechanisms: slow
+# the final very-low-Z descent and allow one extra brake attempt.
+#
+# Diagnostic only until focused and broad hard-square gates pass.
+base_config: eval_multi_geometry_v184_risk_only_nolift_very_low_z_down10_hard_square_30ep.yaml
+
+guard_final_servo_square_contact_brake_max_attempts: 4

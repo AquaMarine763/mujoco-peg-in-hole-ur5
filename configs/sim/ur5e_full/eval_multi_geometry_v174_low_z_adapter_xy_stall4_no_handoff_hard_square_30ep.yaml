@@ -1,0 +1,17 @@
+# v174 diagnostic low-Z square final-insert adapter gate.
+#
+# Base v170 is still not promotable on fresh hard-square seeds. This config
+# changes only the learned final-insert adapter gate so trace-derived low-Z
+# square labels can actually run in the failure window:
+# - adapter mode stays XY-only to avoid overriding guarded descent/lift
+# - trigger earlier at stall=4 instead of inherited stall=15
+# - disable both handoff shortcuts inherited from v138
+#
+# This is diagnostic only. Validate against 929500/930500 and fresh buckets
+# before considering any promotion.
+base_config: eval_multi_geometry_v170_square_contact_brake_staged_descend_hard_square_30ep.yaml
+
+final_insert_adapter_mode: override_xy
+final_insert_adapter_min_stall_steps: 4
+final_insert_adapter_handoff_on_down_action: false
+final_insert_adapter_handoff_on_aligned_no_contact: false

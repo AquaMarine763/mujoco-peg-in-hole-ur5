@@ -1,0 +1,16 @@
+# v183 diagnostic risk-only no-lift adapter + one extra contact-brake attempt.
+#
+# This is the first candidate that passed the current focused hard-square
+# buckets after v177-v182:
+# - risk-only final-insert adapter gate from v177
+# - square contact-brake max attempts = 4 from v179
+# - evaluate with the no-lift trace-derived adapter checkpoint:
+#   D:\peg-in-hole-6yh\v174_low_z_dagger_balanced\final_insert_adapter_v174_nolift_e80.pt
+#
+# Focused validation:
+# D:\peg-in-hole-6yh\v183_risk_only_nolift_brake4_probe
+# seeds 923500/927500/929500/930500, 30 episodes each:
+# 120/120 success, 0 collision, 0 timeout.
+#
+# Diagnostic only until old 921-926 and fresh 927-932 hard-square gates pass.
+base_config: eval_multi_geometry_v179_risk_only_brake4_hard_square_30ep.yaml

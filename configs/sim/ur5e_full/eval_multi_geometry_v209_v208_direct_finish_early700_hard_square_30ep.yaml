@@ -1,0 +1,13 @@
+# v209 diagnostic v208 + earlier timeout-pressure direct finish.
+#
+# v208 removes the v207 collision regression but leaves 931500 with two
+# timeouts after high recovery escapes. Both failures return near the hole with
+# no active collision but only reach direct fast-settle very late because v204's
+# gate waits until episode step 850. This candidate keeps the positive-margin
+# hold restriction and lets recovery escape hand off to direct fast-settle after
+# step 700.
+#
+# Diagnostic only until 924/927/928/929/931 focused gates pass.
+base_config: eval_multi_geometry_v208_v207_positive_margin_hold_hard_square_30ep.yaml
+
+guard_final_servo_square_recovery_escape_direct_fast_settle_min_steps_since_reset: 700

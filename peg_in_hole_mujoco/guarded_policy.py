@@ -346,6 +346,8 @@ class GuardedPolicyConfig:
     guard_final_servo_square_recovery_escape_z_max: float = 0.060
     guard_final_servo_square_recovery_escape_height: float = 0.080
     guard_final_servo_square_recovery_escape_release_xy: float = 0.006
+    guard_final_servo_square_recovery_escape_late_release_xy: float = 0.0
+    guard_final_servo_square_recovery_escape_late_release_min_steps_since_reset: int = 0
     guard_final_servo_square_recovery_escape_max_steps: int = 180
     guard_final_servo_square_recovery_escape_max_xy_action: float = 0.004
     guard_final_servo_square_recovery_escape_max_up_action: float = 0.005
@@ -364,6 +366,25 @@ class GuardedPolicyConfig:
     guard_final_servo_square_recovery_escape_early_risk_z_max: float = 0.060
     guard_final_servo_square_recovery_escape_early_risk_margin_threshold: float = -0.0003
     guard_final_servo_square_recovery_escape_pre_lift_steps: int = 6
+    guard_final_servo_square_recovery_escape_pre_lift_on_trigger: bool = False
+    guard_final_servo_square_recovery_escape_direct_fast_settle_enabled: bool = False
+    guard_final_servo_square_recovery_escape_direct_fast_settle_xy_max: float = 0.006
+    guard_final_servo_square_recovery_escape_direct_fast_settle_z_max: float = 0.065
+    guard_final_servo_square_recovery_escape_direct_fast_settle_contact_max: int = 0
+    guard_final_servo_square_recovery_escape_direct_fast_settle_max_steps: int = 24
+    guard_final_servo_square_recovery_escape_direct_fast_settle_min_steps_since_reset: int = 0
+    guard_final_servo_square_recovery_escape_direct_fast_settle_max_down_action: float = 0.0
+    guard_final_servo_square_recovery_escape_direct_fast_settle_max_down_z_min: float = 0.0
+    guard_final_servo_square_recovery_escape_direct_fast_settle_max_xy_action: float = 0.0
+    guard_final_servo_square_recovery_escape_direct_fast_settle_fast_down_margin_min: float = -1.0
+    guard_final_servo_square_recovery_escape_recenter_no_up_enabled: bool = False
+    guard_final_servo_square_recovery_escape_recenter_descend_enabled: bool = False
+    guard_final_servo_square_recovery_escape_recenter_descend_xy_max: float = 0.020
+    guard_final_servo_square_recovery_escape_recenter_descend_z_min: float = 0.045
+    guard_final_servo_square_recovery_escape_recenter_descend_z_max: float = 0.075
+    guard_final_servo_square_recovery_escape_recenter_descend_contact_max: int = 0
+    guard_final_servo_square_recovery_escape_recenter_descend_margin_min: float = -0.0015
+    guard_final_servo_square_recovery_escape_recenter_descend_max_down_action: float = 0.0015
     guard_final_servo_split_recovery_enabled: bool = False
     guard_final_servo_contact_reinsert_enabled: bool = False
     guard_final_servo_contact_unjam_wall_steps: int = 8
@@ -418,8 +439,108 @@ class GuardedPolicyConfig:
     guard_final_servo_square_fast_settle_max_xy_action: float = 0.008
     guard_final_servo_square_fast_settle_low_z_max_xy_action: float = 0.0
     guard_final_servo_square_fast_settle_low_z_threshold: float = 0.0
+    guard_final_servo_square_fast_settle_low_z_max_down_action: float = 0.0
+    guard_final_servo_square_fast_settle_low_z_down_threshold: float = 0.0
     guard_final_servo_square_fast_settle_max_down_action: float = 0.0020
     guard_final_servo_square_fast_settle_contact_unjam_enabled: bool = False
+    guard_final_servo_square_fast_settle_late_down_boost_enabled: bool = False
+    guard_final_servo_square_fast_settle_late_down_boost_max_down_action: float = 0.0025
+    guard_final_servo_square_fast_settle_late_down_boost_max_xy_action: float = 0.0010
+    guard_final_servo_square_fast_settle_late_down_boost_xy_max: float = 0.0025
+    guard_final_servo_square_fast_settle_late_down_boost_z_min: float = 0.020
+    guard_final_servo_square_fast_settle_late_down_boost_z_max: float = 0.060
+    guard_final_servo_square_fast_settle_late_down_boost_min_brake_attempts: int = 3
+    guard_final_servo_square_fast_settle_late_down_boost_contact_max: int = 0
+    guard_final_servo_square_fast_settle_late_down_boost_min_phase_steps: int = 10
+    guard_final_servo_square_fast_settle_late_down_boost_tilt_max_deg: float = 8.0
+    guard_final_servo_square_fast_settle_late_down_boost_margin_min: float = -1.0
+    guard_final_servo_square_fast_settle_late_down_boost_min_clean_steps: int = 0
+    guard_final_servo_square_fast_settle_clearance_hold_enabled: bool = False
+    guard_final_servo_square_fast_settle_clearance_hold_steps: int = 8
+    guard_final_servo_square_fast_settle_clearance_hold_xy_max: float = 0.0025
+    guard_final_servo_square_fast_settle_clearance_hold_z_min: float = 0.020
+    guard_final_servo_square_fast_settle_clearance_hold_z_max: float = 0.035
+    guard_final_servo_square_fast_settle_clearance_hold_margin_threshold: float = 0.0
+    guard_final_servo_square_fast_settle_clearance_hold_margin_min: float = -0.0010
+    guard_final_servo_square_fast_settle_clearance_hold_contact_max: int = 4
+    guard_final_servo_square_fast_settle_clearance_hold_min_brake_attempts: int = 3
+    guard_final_servo_square_fast_settle_clearance_hold_min_phase_steps: int = 12
+    guard_final_servo_square_fast_settle_clearance_hold_max_attempts: int = 2
+    guard_final_servo_square_fast_settle_clearance_hold_max_up_action: float = 0.0008
+    guard_final_servo_square_fast_settle_low_z_relief_enabled: bool = False
+    guard_final_servo_square_fast_settle_low_z_relief_wall_count: int = 1
+    guard_final_servo_square_fast_settle_low_z_relief_xy_max: float = 0.0025
+    guard_final_servo_square_fast_settle_low_z_relief_z_min: float = 0.020
+    guard_final_servo_square_fast_settle_low_z_relief_z_max: float = 0.035
+    guard_final_servo_square_fast_settle_low_z_relief_margin_min: float = -0.0012
+    guard_final_servo_square_fast_settle_low_z_relief_margin_threshold: float = 0.0
+    guard_final_servo_square_fast_settle_low_z_relief_contact_max: int = 4
+    guard_final_servo_square_fast_settle_low_z_relief_min_brake_attempts: int = 3
+    guard_final_servo_square_fast_settle_low_z_relief_min_phase_steps: int = 12
+    guard_final_servo_square_fast_settle_low_z_relief_max_attempts: int = 2
+    guard_final_servo_square_fast_settle_low_z_relief_lift_height: float = 0.004
+    guard_final_servo_square_fast_settle_low_z_relief_target_z_max: float = 0.040
+    guard_final_servo_square_fast_settle_low_z_relief_lift_steps: int = 8
+    guard_final_servo_square_fast_settle_low_z_relief_recenter_steps: int = 8
+    guard_final_servo_square_fast_settle_low_z_relief_release_xy: float = 0.0020
+    guard_final_servo_square_fast_settle_low_z_relief_max_up_action: float = 0.0020
+    guard_final_servo_square_fast_settle_low_z_relief_max_xy_action: float = 0.0010
+    guard_final_servo_square_fast_settle_low_z_stall_relief_enabled: bool = False
+    guard_final_servo_square_fast_settle_low_z_stall_relief_xy_max: float = 0.0025
+    guard_final_servo_square_fast_settle_low_z_stall_relief_z_min: float = 0.026
+    guard_final_servo_square_fast_settle_low_z_stall_relief_z_max: float = 0.032
+    guard_final_servo_square_fast_settle_low_z_stall_relief_margin_min: float = 0.0002
+    guard_final_servo_square_fast_settle_low_z_stall_relief_margin_threshold: float = 0.0010
+    guard_final_servo_square_fast_settle_low_z_stall_relief_contact_max: int = 0
+    guard_final_servo_square_fast_settle_low_z_stall_relief_min_brake_attempts: int = 4
+    guard_final_servo_square_fast_settle_low_z_stall_relief_min_phase_steps: int = 38
+    guard_final_servo_square_fast_settle_low_z_stall_relief_min_stall_steps: int = 12
+    guard_final_servo_square_fast_settle_low_z_stall_relief_max_attempts: int = 1
+    guard_final_servo_square_fast_settle_low_z_stall_relief_hold_enabled: bool = False
+    guard_final_servo_square_fast_settle_low_z_stall_relief_hold_steps: int = 4
+    guard_final_servo_square_fast_settle_low_z_stall_relief_hold_max_up_action: float = 0.0
+    guard_final_servo_square_contact_brake_enabled: bool = False
+    guard_final_servo_square_contact_brake_wall_steps: int = 1
+    guard_final_servo_square_contact_brake_xy_max: float = 0.008
+    guard_final_servo_square_contact_brake_z_min: float = 0.020
+    guard_final_servo_square_contact_brake_z_max: float = 0.045
+    guard_final_servo_square_contact_brake_lift_height: float = 0.012
+    guard_final_servo_square_contact_brake_lift_z_max: float = 0.060
+    guard_final_servo_square_contact_brake_release_xy: float = 0.005
+    guard_final_servo_square_contact_brake_stable_steps: int = 1
+    guard_final_servo_square_contact_brake_max_steps: int = 50
+    guard_final_servo_square_contact_brake_max_attempts: int = 2
+    guard_final_servo_square_contact_brake_max_xy_action: float = 0.003
+    guard_final_servo_square_contact_brake_max_up_action: float = 0.003
+    guard_final_servo_square_contact_brake_max_clearance: float = 0.0
+    guard_final_servo_square_contact_brake_margin_threshold: float = 0.0
+    guard_final_servo_square_contact_brake_require_bad_margin: bool = False
+    guard_final_servo_square_contact_brake_exhausted_escape_enabled: bool = False
+    guard_final_servo_square_contact_brake_reset_attempts_after_escape_enabled: bool = False
+    guard_final_servo_square_contact_brake_exhausted_continue_enabled: bool = False
+    guard_final_servo_square_contact_brake_exhausted_continue_xy_max: float = 0.010
+    guard_final_servo_square_contact_brake_exhausted_continue_z_min: float = 0.020
+    guard_final_servo_square_contact_brake_exhausted_continue_z_max: float = 0.045
+    guard_final_servo_square_contact_brake_exhausted_continue_contact_max: int = 4
+    guard_final_servo_square_contact_brake_exhausted_continue_tilt_max_deg: float = 8.0
+    guard_final_servo_square_contact_brake_exhausted_continue_margin_min: float = -0.0015
+    guard_final_servo_square_contact_brake_preemptive_hold_enabled: bool = False
+    guard_final_servo_square_contact_brake_preemptive_hold_wall_steps: int = 1
+    guard_final_servo_square_contact_brake_preemptive_hold_steps: int = 8
+    guard_final_servo_square_contact_brake_preemptive_hold_min_brake_attempts: int = 0
+    guard_final_servo_square_contact_brake_preemptive_hold_xy_max: float = 0.004
+    guard_final_servo_square_contact_brake_preemptive_hold_z_min: float = 0.020
+    guard_final_servo_square_contact_brake_preemptive_hold_z_max: float = 0.040
+    guard_final_servo_square_contact_brake_preemptive_hold_max_up_action: float = 0.003
+    guard_final_servo_square_contact_brake_preemptive_hold_max_clearance: float = 0.0
+    guard_final_servo_square_contact_brake_preemptive_hold_margin_threshold: float = 0.0
+    guard_final_servo_square_contact_brake_preemptive_hold_require_bad_margin: bool = False
+    guard_final_servo_square_contact_brake_preemptive_hold_yaw_min_deg: float = 0.0
+    guard_final_servo_square_contact_brake_preemptive_hold_expanded_xy_enabled: bool = False
+    guard_final_servo_square_contact_brake_preemptive_hold_expanded_xy_max: float = 0.008
+    guard_final_servo_square_contact_brake_preemptive_hold_expanded_z_min: float = 0.034
+    guard_final_servo_square_contact_brake_preemptive_hold_expanded_margin_min: float = -0.0005
+    guard_final_servo_square_contact_brake_preemptive_hold_expanded_yaw_max_deg: float = 0.0
     guard_final_servo_square_high_z_descend_enabled: bool = False
     guard_final_servo_square_high_z_descend_stall_steps: int = 18
     guard_final_servo_square_high_z_descend_xy_max: float = 0.0055
@@ -429,7 +550,24 @@ class GuardedPolicyConfig:
     guard_final_servo_square_high_z_descend_tilt_max_deg: float = 3.0
     guard_final_servo_square_high_z_descend_margin_min: float = -0.0015
     guard_final_servo_square_high_z_descend_max_steps: int = 90
+    guard_final_servo_square_high_z_descend_max_xy_action: float = 0.0
     guard_final_servo_square_high_z_descend_max_down_action: float = 0.0025
+    guard_final_servo_square_high_z_descend_low_z_threshold: float = 0.0
+    guard_final_servo_square_high_z_descend_low_z_max_xy_action: float = 0.0
+    guard_final_servo_square_high_z_descend_staged_enabled: bool = False
+    guard_final_servo_square_high_z_descend_mid_z_threshold: float = 0.034
+    guard_final_servo_square_high_z_descend_mid_z_max_xy_action: float = 0.0010
+    guard_final_servo_square_high_z_descend_mid_z_max_down_action: float = 0.0015
+    guard_final_servo_square_high_z_descend_low_z_max_down_action: float = 0.0
+    guard_final_servo_square_high_z_descend_low_z_hold_steps: int = 8
+    guard_final_servo_square_high_z_descend_low_z_hold_min_phase_steps: int = 2
+    guard_final_servo_square_high_z_descend_low_z_hold_max_attempts: int = 1
+    guard_final_servo_square_high_z_descend_low_z_hold_xy_max: float = 0.0055
+    guard_final_servo_square_high_z_descend_low_z_hold_max_up_action: float = 0.003
+    guard_final_servo_square_high_z_descend_contact_brake_enabled: bool = False
+    guard_final_servo_square_high_z_descend_contact_brake_wall_count: int = 4
+    guard_final_servo_square_high_z_descend_contact_brake_z_max: float = 0.030
+    guard_final_servo_square_high_z_descend_contact_brake_xy_max: float = 0.0
     guard_final_servo_square_margin_yaw_settle_enabled: bool = False
     guard_final_servo_square_margin_yaw_settle_stall_steps: int = 12
     guard_final_servo_square_margin_yaw_settle_xy_max: float = 0.008
@@ -914,6 +1052,27 @@ class GuardedPolicyConfig:
                 "guard_final_servo_square_recovery_escape_release_xy must be <= "
                 "guard_final_servo_square_recovery_escape_xy."
             )
+        if self.guard_final_servo_square_recovery_escape_late_release_xy < 0.0:
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_late_release_xy cannot "
+                "be negative."
+            )
+        if (
+            self.guard_final_servo_square_recovery_escape_late_release_xy
+            > self.guard_final_servo_square_recovery_escape_xy
+        ):
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_late_release_xy must be "
+                "<= guard_final_servo_square_recovery_escape_xy."
+            )
+        if (
+            self.guard_final_servo_square_recovery_escape_late_release_min_steps_since_reset
+            < 0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_late_release_min_steps_since_reset "
+                "cannot be negative."
+            )
         if self.guard_final_servo_square_recovery_escape_max_steps <= 0:
             raise ValueError(
                 "guard_final_servo_square_recovery_escape_max_steps must be positive."
@@ -961,6 +1120,115 @@ class GuardedPolicyConfig:
         if self.guard_final_servo_square_recovery_escape_pre_lift_steps < 0:
             raise ValueError(
                 "guard_final_servo_square_recovery_escape_pre_lift_steps "
+                "cannot be negative."
+            )
+        if self.guard_final_servo_square_recovery_escape_direct_fast_settle_xy_max <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_direct_fast_settle_xy_max "
+                "must be positive."
+            )
+        if (
+            self.guard_final_servo_square_recovery_escape_direct_fast_settle_xy_max
+            > self.guard_final_servo_square_recovery_escape_xy
+        ):
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_direct_fast_settle_xy_max "
+                "must be <= guard_final_servo_square_recovery_escape_xy."
+            )
+        if self.guard_final_servo_square_recovery_escape_direct_fast_settle_z_max <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_direct_fast_settle_z_max "
+                "must be positive."
+            )
+        if self.guard_final_servo_square_recovery_escape_direct_fast_settle_contact_max < 0:
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_direct_fast_settle_contact_max "
+                "cannot be negative."
+            )
+        if self.guard_final_servo_square_recovery_escape_direct_fast_settle_max_steps <= 0:
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_direct_fast_settle_max_steps "
+                "must be positive."
+            )
+        if (
+            self.guard_final_servo_square_recovery_escape_direct_fast_settle_min_steps_since_reset
+            < 0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_direct_fast_settle_min_steps_since_reset "
+                "cannot be negative."
+            )
+        if (
+            self.guard_final_servo_square_recovery_escape_direct_fast_settle_max_down_action
+            < 0.0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_direct_fast_settle_max_down_action "
+                "cannot be negative."
+            )
+        if (
+            self.guard_final_servo_square_recovery_escape_direct_fast_settle_max_xy_action
+            < 0.0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_direct_fast_settle_max_xy_action "
+                "cannot be negative."
+            )
+        if (
+            self.guard_final_servo_square_recovery_escape_direct_fast_settle_max_down_z_min
+            < 0.0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_direct_fast_settle_max_down_z_min "
+                "cannot be negative."
+            )
+        if (
+            self.guard_final_servo_square_recovery_escape_recenter_descend_xy_max
+            <= 0.0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_recenter_descend_xy_max "
+                "must be positive."
+            )
+        if (
+            self.guard_final_servo_square_recovery_escape_recenter_descend_z_min
+            < 0.0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_recenter_descend_z_min "
+                "cannot be negative."
+            )
+        if (
+            self.guard_final_servo_square_recovery_escape_recenter_descend_z_max
+            <= 0.0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_recenter_descend_z_max "
+                "must be positive."
+            )
+        if (
+            self.guard_final_servo_square_recovery_escape_recenter_descend_z_min
+            > self.guard_final_servo_square_recovery_escape_recenter_descend_z_max
+        ):
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_recenter_descend_z_min "
+                "must be <= "
+                "guard_final_servo_square_recovery_escape_recenter_descend_z_max."
+            )
+        if (
+            self.guard_final_servo_square_recovery_escape_recenter_descend_contact_max
+            < 0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_recenter_descend_contact_max "
+                "cannot be negative."
+            )
+        if (
+            self.guard_final_servo_square_recovery_escape_recenter_descend_max_down_action
+            < 0.0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_recovery_escape_recenter_descend_max_down_action "
                 "cannot be negative."
             )
         if self.guard_final_servo_square_recovery_escape_early_risk_steps <= 0:
@@ -1224,9 +1492,599 @@ class GuardedPolicyConfig:
                 "guard_final_servo_square_fast_settle_low_z_threshold must be positive "
                 "when low-z XY action limiting is enabled."
             )
+        if self.guard_final_servo_square_fast_settle_low_z_max_down_action < 0.0:
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_max_down_action "
+                "cannot be negative."
+            )
+        if self.guard_final_servo_square_fast_settle_low_z_down_threshold < 0.0:
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_down_threshold "
+                "cannot be negative."
+            )
+        if (
+            self.guard_final_servo_square_fast_settle_low_z_max_down_action > 0.0
+            and self.guard_final_servo_square_fast_settle_low_z_down_threshold <= 0.0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_down_threshold must be "
+                "positive when low-z down action limiting is enabled."
+            )
         if self.guard_final_servo_square_fast_settle_max_down_action < 0.0:
             raise ValueError(
                 "guard_final_servo_square_fast_settle_max_down_action cannot be negative."
+            )
+        if (
+            self.guard_final_servo_square_fast_settle_late_down_boost_max_down_action
+            <= 0.0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_late_down_boost_max_down_action "
+                "must be positive."
+            )
+        if (
+            self.guard_final_servo_square_fast_settle_late_down_boost_max_xy_action
+            <= 0.0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_late_down_boost_max_xy_action "
+                "must be positive."
+            )
+        if self.guard_final_servo_square_fast_settle_late_down_boost_xy_max <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_late_down_boost_xy_max "
+                "must be positive."
+            )
+        if self.guard_final_servo_square_fast_settle_late_down_boost_z_min < 0.0:
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_late_down_boost_z_min "
+                "cannot be negative."
+            )
+        if self.guard_final_servo_square_fast_settle_late_down_boost_z_max <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_late_down_boost_z_max "
+                "must be positive."
+            )
+        if (
+            self.guard_final_servo_square_fast_settle_late_down_boost_z_min
+            > self.guard_final_servo_square_fast_settle_late_down_boost_z_max
+        ):
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_late_down_boost_z_min "
+                "must be <= late_down_boost_z_max."
+            )
+        if (
+            self.guard_final_servo_square_fast_settle_late_down_boost_min_brake_attempts
+            < 0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_late_down_boost_min_brake_attempts "
+                "cannot be negative."
+            )
+        if self.guard_final_servo_square_fast_settle_late_down_boost_contact_max < 0:
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_late_down_boost_contact_max "
+                "cannot be negative."
+            )
+        if (
+            self.guard_final_servo_square_fast_settle_late_down_boost_min_phase_steps
+            < 0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_late_down_boost_min_phase_steps "
+                "cannot be negative."
+            )
+        if self.guard_final_servo_square_fast_settle_late_down_boost_tilt_max_deg < 0.0:
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_late_down_boost_tilt_max_deg "
+                "cannot be negative."
+            )
+        if self.guard_final_servo_square_fast_settle_late_down_boost_margin_min < -1.0:
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_late_down_boost_margin_min "
+                "must be >= -1.0."
+            )
+        if self.guard_final_servo_square_fast_settle_late_down_boost_min_clean_steps < 0:
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_late_down_boost_min_clean_steps "
+                "cannot be negative."
+            )
+        if self.guard_final_servo_square_fast_settle_clearance_hold_steps <= 0:
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_clearance_hold_steps "
+                "must be positive."
+            )
+        if self.guard_final_servo_square_fast_settle_clearance_hold_xy_max <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_clearance_hold_xy_max "
+                "must be positive."
+            )
+        if self.guard_final_servo_square_fast_settle_clearance_hold_z_min < 0.0:
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_clearance_hold_z_min "
+                "cannot be negative."
+            )
+        if self.guard_final_servo_square_fast_settle_clearance_hold_z_max <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_clearance_hold_z_max "
+                "must be positive."
+            )
+        if (
+            self.guard_final_servo_square_fast_settle_clearance_hold_z_min
+            > self.guard_final_servo_square_fast_settle_clearance_hold_z_max
+        ):
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_clearance_hold_z_min "
+                "must be <= clearance_hold_z_max."
+            )
+        if (
+            self.guard_final_servo_square_fast_settle_clearance_hold_margin_min
+            > self.guard_final_servo_square_fast_settle_clearance_hold_margin_threshold
+        ):
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_clearance_hold_margin_min "
+                "must be <= clearance_hold_margin_threshold."
+            )
+        if self.guard_final_servo_square_fast_settle_clearance_hold_contact_max < 0:
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_clearance_hold_contact_max "
+                "cannot be negative."
+            )
+        if (
+            self.guard_final_servo_square_fast_settle_clearance_hold_min_brake_attempts
+            < 0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_clearance_hold_min_brake_attempts "
+                "cannot be negative."
+            )
+        if (
+            self.guard_final_servo_square_fast_settle_clearance_hold_min_phase_steps
+            < 0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_clearance_hold_min_phase_steps "
+                "cannot be negative."
+            )
+        if self.guard_final_servo_square_fast_settle_clearance_hold_max_attempts < 0:
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_clearance_hold_max_attempts "
+                "cannot be negative."
+            )
+        if self.guard_final_servo_square_fast_settle_clearance_hold_max_up_action < 0.0:
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_clearance_hold_max_up_action "
+                "cannot be negative."
+            )
+        if self.guard_final_servo_square_fast_settle_low_z_relief_wall_count <= 0:
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_relief_wall_count "
+                "must be positive."
+            )
+        if self.guard_final_servo_square_fast_settle_low_z_relief_xy_max <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_relief_xy_max "
+                "must be positive."
+            )
+        if self.guard_final_servo_square_fast_settle_low_z_relief_z_min < 0.0:
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_relief_z_min "
+                "cannot be negative."
+            )
+        if self.guard_final_servo_square_fast_settle_low_z_relief_z_max <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_relief_z_max "
+                "must be positive."
+            )
+        if (
+            self.guard_final_servo_square_fast_settle_low_z_relief_z_min
+            > self.guard_final_servo_square_fast_settle_low_z_relief_z_max
+        ):
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_relief_z_min "
+                "must be <= low_z_relief_z_max."
+            )
+        if (
+            self.guard_final_servo_square_fast_settle_low_z_relief_margin_min
+            > self.guard_final_servo_square_fast_settle_low_z_relief_margin_threshold
+        ):
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_relief_margin_min "
+                "must be <= low_z_relief_margin_threshold."
+            )
+        if self.guard_final_servo_square_fast_settle_low_z_relief_contact_max < 0:
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_relief_contact_max "
+                "cannot be negative."
+            )
+        if (
+            self.guard_final_servo_square_fast_settle_low_z_relief_min_brake_attempts
+            < 0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_relief_min_brake_attempts "
+                "cannot be negative."
+            )
+        if (
+            self.guard_final_servo_square_fast_settle_low_z_relief_min_phase_steps
+            < 0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_relief_min_phase_steps "
+                "cannot be negative."
+            )
+        if self.guard_final_servo_square_fast_settle_low_z_relief_max_attempts < 0:
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_relief_max_attempts "
+                "cannot be negative."
+            )
+        if self.guard_final_servo_square_fast_settle_low_z_relief_lift_height <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_relief_lift_height "
+                "must be positive."
+            )
+        if (
+            self.guard_final_servo_square_fast_settle_low_z_relief_target_z_max
+            <= 0.0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_relief_target_z_max "
+                "must be positive."
+            )
+        if (
+            self.guard_final_servo_square_fast_settle_low_z_relief_target_z_max
+            < self.guard_final_servo_square_fast_settle_low_z_relief_z_min
+        ):
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_relief_target_z_max "
+                "must be >= low_z_relief_z_min."
+            )
+        if self.guard_final_servo_square_fast_settle_low_z_relief_lift_steps <= 0:
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_relief_lift_steps "
+                "must be positive."
+            )
+        if self.guard_final_servo_square_fast_settle_low_z_relief_recenter_steps <= 0:
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_relief_recenter_steps "
+                "must be positive."
+            )
+        if self.guard_final_servo_square_fast_settle_low_z_relief_release_xy <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_relief_release_xy "
+                "must be positive."
+            )
+        if (
+            self.guard_final_servo_square_fast_settle_low_z_relief_release_xy
+            > self.guard_final_servo_square_fast_settle_low_z_relief_xy_max
+        ):
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_relief_release_xy "
+                "must be <= low_z_relief_xy_max."
+            )
+        if self.guard_final_servo_square_fast_settle_low_z_relief_max_up_action <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_relief_max_up_action "
+                "must be positive."
+            )
+        if self.guard_final_servo_square_fast_settle_low_z_relief_max_xy_action <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_relief_max_xy_action "
+                "must be positive."
+            )
+        if (
+            self.guard_final_servo_square_fast_settle_low_z_stall_relief_xy_max
+            <= 0.0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_stall_relief_xy_max "
+                "must be positive."
+            )
+        if (
+            self.guard_final_servo_square_fast_settle_low_z_stall_relief_z_min
+            < 0.0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_stall_relief_z_min "
+                "cannot be negative."
+            )
+        if (
+            self.guard_final_servo_square_fast_settle_low_z_stall_relief_z_max
+            <= 0.0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_stall_relief_z_max "
+                "must be positive."
+            )
+        if (
+            self.guard_final_servo_square_fast_settle_low_z_stall_relief_z_min
+            > self.guard_final_servo_square_fast_settle_low_z_stall_relief_z_max
+        ):
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_stall_relief_z_min "
+                "must be <= low_z_stall_relief_z_max."
+            )
+        if (
+            self.guard_final_servo_square_fast_settle_low_z_stall_relief_margin_min
+            > self.guard_final_servo_square_fast_settle_low_z_stall_relief_margin_threshold
+        ):
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_stall_relief_margin_min "
+                "must be <= low_z_stall_relief_margin_threshold."
+            )
+        if (
+            self.guard_final_servo_square_fast_settle_low_z_stall_relief_contact_max
+            < 0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_stall_relief_contact_max "
+                "cannot be negative."
+            )
+        if (
+            self.guard_final_servo_square_fast_settle_low_z_stall_relief_min_brake_attempts
+            < 0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_stall_relief_min_brake_attempts "
+                "cannot be negative."
+            )
+        if (
+            self.guard_final_servo_square_fast_settle_low_z_stall_relief_min_phase_steps
+            < 0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_stall_relief_min_phase_steps "
+                "cannot be negative."
+            )
+        if (
+            self.guard_final_servo_square_fast_settle_low_z_stall_relief_min_stall_steps
+            < 0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_stall_relief_min_stall_steps "
+                "cannot be negative."
+            )
+        if (
+            self.guard_final_servo_square_fast_settle_low_z_stall_relief_max_attempts
+            < 0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_stall_relief_max_attempts "
+                "cannot be negative."
+            )
+        if (
+            self.guard_final_servo_square_fast_settle_low_z_stall_relief_hold_steps
+            <= 0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_stall_relief_hold_steps "
+                "must be positive."
+            )
+        if (
+            self.guard_final_servo_square_fast_settle_low_z_stall_relief_hold_max_up_action
+            < 0.0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_fast_settle_low_z_stall_relief_hold_max_up_action "
+                "cannot be negative."
+            )
+        if self.guard_final_servo_square_contact_brake_wall_steps <= 0:
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_wall_steps must be positive."
+            )
+        if self.guard_final_servo_square_contact_brake_xy_max <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_xy_max must be positive."
+            )
+        if self.guard_final_servo_square_contact_brake_z_min < 0.0:
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_z_min cannot be negative."
+            )
+        if self.guard_final_servo_square_contact_brake_z_max <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_z_max must be positive."
+            )
+        if (
+            self.guard_final_servo_square_contact_brake_z_min
+            > self.guard_final_servo_square_contact_brake_z_max
+        ):
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_z_min must be <= "
+                "guard_final_servo_square_contact_brake_z_max."
+            )
+        if self.guard_final_servo_square_contact_brake_lift_height <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_lift_height must be positive."
+            )
+        if self.guard_final_servo_square_contact_brake_lift_z_max <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_lift_z_max must be positive."
+            )
+        if (
+            self.guard_final_servo_square_contact_brake_lift_z_max
+            < self.guard_final_servo_square_contact_brake_z_max
+        ):
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_lift_z_max must be >= "
+                "guard_final_servo_square_contact_brake_z_max."
+            )
+        if self.guard_final_servo_square_contact_brake_release_xy <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_release_xy must be positive."
+            )
+        if (
+            self.guard_final_servo_square_contact_brake_release_xy
+            > self.guard_final_servo_square_contact_brake_xy_max
+        ):
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_release_xy must be <= "
+                "guard_final_servo_square_contact_brake_xy_max."
+            )
+        if self.guard_final_servo_square_contact_brake_stable_steps <= 0:
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_stable_steps must be positive."
+            )
+        if self.guard_final_servo_square_contact_brake_max_steps <= 0:
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_max_steps must be positive."
+            )
+        if self.guard_final_servo_square_contact_brake_max_attempts < 0:
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_max_attempts cannot be negative."
+            )
+        if self.guard_final_servo_square_contact_brake_max_xy_action <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_max_xy_action must be positive."
+            )
+        if self.guard_final_servo_square_contact_brake_max_up_action <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_max_up_action must be positive."
+            )
+        if self.guard_final_servo_square_contact_brake_max_clearance < 0.0:
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_max_clearance cannot be negative."
+            )
+        if (
+            self.guard_final_servo_square_contact_brake_exhausted_continue_xy_max
+            <= 0.0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_exhausted_continue_xy_max "
+                "must be positive."
+            )
+        if (
+            self.guard_final_servo_square_contact_brake_exhausted_continue_z_min
+            < 0.0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_exhausted_continue_z_min "
+                "cannot be negative."
+            )
+        if (
+            self.guard_final_servo_square_contact_brake_exhausted_continue_z_max
+            <= 0.0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_exhausted_continue_z_max "
+                "must be positive."
+            )
+        if (
+            self.guard_final_servo_square_contact_brake_exhausted_continue_z_min
+            > self.guard_final_servo_square_contact_brake_exhausted_continue_z_max
+        ):
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_exhausted_continue_z_min "
+                "must be <= exhausted_continue_z_max."
+            )
+        if (
+            self.guard_final_servo_square_contact_brake_exhausted_continue_contact_max
+            < 0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_exhausted_continue_contact_max "
+                "cannot be negative."
+            )
+        if (
+            self.guard_final_servo_square_contact_brake_exhausted_continue_tilt_max_deg
+            <= 0.0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_exhausted_continue_tilt_max_deg "
+                "must be positive."
+            )
+        if self.guard_final_servo_square_contact_brake_preemptive_hold_wall_steps <= 0:
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_preemptive_hold_wall_steps "
+                "must be positive."
+            )
+        if self.guard_final_servo_square_contact_brake_preemptive_hold_steps <= 0:
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_preemptive_hold_steps "
+                "must be positive."
+            )
+        if (
+            self.guard_final_servo_square_contact_brake_preemptive_hold_min_brake_attempts
+            < 0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_preemptive_hold_min_brake_attempts "
+                "cannot be negative."
+            )
+        if self.guard_final_servo_square_contact_brake_preemptive_hold_xy_max <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_preemptive_hold_xy_max "
+                "must be positive."
+            )
+        if self.guard_final_servo_square_contact_brake_preemptive_hold_z_min < 0.0:
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_preemptive_hold_z_min "
+                "cannot be negative."
+            )
+        if self.guard_final_servo_square_contact_brake_preemptive_hold_z_max <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_preemptive_hold_z_max "
+                "must be positive."
+            )
+        if (
+            self.guard_final_servo_square_contact_brake_preemptive_hold_z_min
+            > self.guard_final_servo_square_contact_brake_preemptive_hold_z_max
+        ):
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_preemptive_hold_z_min "
+                "must be <= guard_final_servo_square_contact_brake_preemptive_hold_z_max."
+            )
+        if (
+            self.guard_final_servo_square_contact_brake_preemptive_hold_max_up_action
+            <= 0.0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_preemptive_hold_max_up_action "
+                "must be positive."
+            )
+        if (
+            self.guard_final_servo_square_contact_brake_preemptive_hold_max_clearance
+            < 0.0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_preemptive_hold_max_clearance "
+                "cannot be negative."
+            )
+        if self.guard_final_servo_square_contact_brake_preemptive_hold_yaw_min_deg < 0.0:
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_preemptive_hold_yaw_min_deg "
+                "cannot be negative."
+            )
+        if (
+            self.guard_final_servo_square_contact_brake_preemptive_hold_expanded_xy_max
+            <= 0.0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_preemptive_hold_expanded_xy_max "
+                "must be positive."
+            )
+        if (
+            self.guard_final_servo_square_contact_brake_preemptive_hold_expanded_xy_max
+            < self.guard_final_servo_square_contact_brake_preemptive_hold_xy_max
+        ):
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_preemptive_hold_expanded_xy_max "
+                "must be >= preemptive_hold_xy_max."
+            )
+        if (
+            self.guard_final_servo_square_contact_brake_preemptive_hold_expanded_z_min
+            < 0.0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_preemptive_hold_expanded_z_min "
+                "cannot be negative."
+            )
+        if (
+            self.guard_final_servo_square_contact_brake_preemptive_hold_expanded_yaw_max_deg
+            < 0.0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_contact_brake_preemptive_hold_expanded_yaw_max_deg "
+                "cannot be negative."
             )
         if self.guard_final_servo_square_high_z_descend_stall_steps < 0:
             raise ValueError(
@@ -1268,9 +2126,107 @@ class GuardedPolicyConfig:
             raise ValueError(
                 "guard_final_servo_square_high_z_descend_max_steps must be positive."
             )
+        if self.guard_final_servo_square_high_z_descend_max_xy_action < 0.0:
+            raise ValueError(
+                "guard_final_servo_square_high_z_descend_max_xy_action cannot be "
+                "negative."
+            )
         if self.guard_final_servo_square_high_z_descend_max_down_action < 0.0:
             raise ValueError(
                 "guard_final_servo_square_high_z_descend_max_down_action cannot be negative."
+            )
+        if self.guard_final_servo_square_high_z_descend_low_z_threshold < 0.0:
+            raise ValueError(
+                "guard_final_servo_square_high_z_descend_low_z_threshold cannot be "
+                "negative."
+            )
+        if self.guard_final_servo_square_high_z_descend_low_z_max_xy_action < 0.0:
+            raise ValueError(
+                "guard_final_servo_square_high_z_descend_low_z_max_xy_action cannot "
+                "be negative."
+            )
+        if self.guard_final_servo_square_high_z_descend_mid_z_threshold < 0.0:
+            raise ValueError(
+                "guard_final_servo_square_high_z_descend_mid_z_threshold cannot "
+                "be negative."
+            )
+        if (
+            self.guard_final_servo_square_high_z_descend_staged_enabled
+            and self.guard_final_servo_square_high_z_descend_low_z_threshold <= 0.0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_high_z_descend_low_z_threshold must be "
+                "positive when staged high-Z descend is enabled."
+            )
+        if (
+            self.guard_final_servo_square_high_z_descend_staged_enabled
+            and self.guard_final_servo_square_high_z_descend_mid_z_threshold
+            < self.guard_final_servo_square_high_z_descend_low_z_threshold
+        ):
+            raise ValueError(
+                "guard_final_servo_square_high_z_descend_mid_z_threshold must be "
+                ">= low_z_threshold when staged high-Z descend is enabled."
+            )
+        if self.guard_final_servo_square_high_z_descend_mid_z_max_xy_action < 0.0:
+            raise ValueError(
+                "guard_final_servo_square_high_z_descend_mid_z_max_xy_action "
+                "cannot be negative."
+            )
+        if self.guard_final_servo_square_high_z_descend_mid_z_max_down_action < 0.0:
+            raise ValueError(
+                "guard_final_servo_square_high_z_descend_mid_z_max_down_action "
+                "cannot be negative."
+            )
+        if self.guard_final_servo_square_high_z_descend_low_z_max_down_action < 0.0:
+            raise ValueError(
+                "guard_final_servo_square_high_z_descend_low_z_max_down_action "
+                "cannot be negative."
+            )
+        if self.guard_final_servo_square_high_z_descend_low_z_hold_steps <= 0:
+            raise ValueError(
+                "guard_final_servo_square_high_z_descend_low_z_hold_steps must "
+                "be positive."
+            )
+        if (
+            self.guard_final_servo_square_high_z_descend_low_z_hold_min_phase_steps
+            < 0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_high_z_descend_low_z_hold_min_phase_steps "
+                "cannot be negative."
+            )
+        if self.guard_final_servo_square_high_z_descend_low_z_hold_max_attempts < 0:
+            raise ValueError(
+                "guard_final_servo_square_high_z_descend_low_z_hold_max_attempts "
+                "cannot be negative."
+            )
+        if self.guard_final_servo_square_high_z_descend_low_z_hold_xy_max <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_high_z_descend_low_z_hold_xy_max must "
+                "be positive."
+            )
+        if (
+            self.guard_final_servo_square_high_z_descend_low_z_hold_max_up_action
+            <= 0.0
+        ):
+            raise ValueError(
+                "guard_final_servo_square_high_z_descend_low_z_hold_max_up_action "
+                "must be positive."
+            )
+        if self.guard_final_servo_square_high_z_descend_contact_brake_wall_count < 0:
+            raise ValueError(
+                "guard_final_servo_square_high_z_descend_contact_brake_wall_count "
+                "cannot be negative."
+            )
+        if self.guard_final_servo_square_high_z_descend_contact_brake_z_max <= 0.0:
+            raise ValueError(
+                "guard_final_servo_square_high_z_descend_contact_brake_z_max "
+                "must be positive."
+            )
+        if self.guard_final_servo_square_high_z_descend_contact_brake_xy_max < 0.0:
+            raise ValueError(
+                "guard_final_servo_square_high_z_descend_contact_brake_xy_max "
+                "cannot be negative."
             )
         if self.guard_final_servo_square_margin_yaw_settle_stall_steps < 0:
             raise ValueError(
@@ -1521,6 +2477,20 @@ class GuardedPolicyStep:
     guard_final_servo_square_recovery_escape_triggered: bool = False
     guard_final_servo_square_recovery_escape_early_contact_steps: int = 0
     guard_final_servo_square_recovery_escape_early_risk_steps: int = 0
+    guard_final_servo_square_contact_brake_active: bool = False
+    guard_final_servo_square_contact_brake_triggered: bool = False
+    guard_final_servo_square_contact_brake_wall_steps: int = 0
+    guard_final_servo_square_contact_brake_attempts: int = 0
+    guard_final_servo_square_contact_brake_preemptive_hold_active: bool = False
+    guard_final_servo_square_contact_brake_preemptive_hold_triggered: bool = False
+    guard_final_servo_square_contact_brake_preemptive_hold_wall_steps: int = 0
+    guard_final_servo_square_contact_brake_preemptive_hold_expanded_xy: bool = False
+    guard_final_servo_square_fast_settle_clearance_hold_attempts: int = 0
+    guard_final_servo_square_fast_settle_clean_steps: int = 0
+    guard_final_servo_square_fast_settle_low_z_relief_attempts: int = 0
+    guard_final_servo_square_fast_settle_low_z_stall_relief_attempts: int = 0
+    guard_final_servo_square_high_z_descend_low_z_hold_active: bool = False
+    guard_final_servo_square_high_z_descend_low_z_hold_attempts: int = 0
     guard_final_servo_contact_unjam_wall_steps: int = 0
     guard_final_servo_near_miss_steps: int = 0
     guard_final_servo_contact_reinsert_micro_align_best_dist_xy: float = float("inf")
@@ -1582,6 +2552,19 @@ class GuardedPolicyController:
         self.guard_final_servo_square_tilt_reinsert_attempts = 0
         self.guard_final_servo_square_recovery_escape_early_contact_steps = 0
         self.guard_final_servo_square_recovery_escape_early_risk_steps = 0
+        self.guard_final_servo_square_recovery_escape_direct_fast_settle_active = False
+        self.guard_final_servo_square_contact_brake_wall_steps = 0
+        self.guard_final_servo_square_contact_brake_attempts = 0
+        self.guard_final_servo_square_contact_brake_triggered = False
+        self.guard_final_servo_square_contact_brake_preemptive_hold_wall_steps = 0
+        self.guard_final_servo_square_contact_brake_preemptive_hold_triggered = False
+        self.guard_final_servo_square_contact_brake_preemptive_hold_expanded_xy = False
+        self.guard_final_servo_square_contact_brake_preemptive_hold_expanded_xy_pending = False
+        self.guard_final_servo_square_fast_settle_clearance_hold_attempts = 0
+        self.guard_final_servo_square_fast_settle_clean_steps = 0
+        self.guard_final_servo_square_fast_settle_low_z_relief_attempts = 0
+        self.guard_final_servo_square_fast_settle_low_z_stall_relief_attempts = 0
+        self.guard_final_servo_square_high_z_descend_low_z_hold_attempts = 0
         self.guard_final_servo_contact_unjam_wall_steps = 0
         self.guard_final_servo_contact_unjam_relief_xy = np.zeros(2, dtype=np.float64)
         self.guard_final_servo_near_miss_steps = 0
@@ -1645,6 +2628,19 @@ class GuardedPolicyController:
         self.guard_final_servo_square_tilt_reinsert_attempts = 0
         self.guard_final_servo_square_recovery_escape_early_contact_steps = 0
         self.guard_final_servo_square_recovery_escape_early_risk_steps = 0
+        self.guard_final_servo_square_recovery_escape_direct_fast_settle_active = False
+        self.guard_final_servo_square_contact_brake_wall_steps = 0
+        self.guard_final_servo_square_contact_brake_attempts = 0
+        self.guard_final_servo_square_contact_brake_triggered = False
+        self.guard_final_servo_square_contact_brake_preemptive_hold_wall_steps = 0
+        self.guard_final_servo_square_contact_brake_preemptive_hold_triggered = False
+        self.guard_final_servo_square_contact_brake_preemptive_hold_expanded_xy = False
+        self.guard_final_servo_square_contact_brake_preemptive_hold_expanded_xy_pending = False
+        self.guard_final_servo_square_fast_settle_clearance_hold_attempts = 0
+        self.guard_final_servo_square_fast_settle_clean_steps = 0
+        self.guard_final_servo_square_fast_settle_low_z_relief_attempts = 0
+        self.guard_final_servo_square_fast_settle_low_z_stall_relief_attempts = 0
+        self.guard_final_servo_square_high_z_descend_low_z_hold_attempts = 0
         self.guard_final_servo_contact_unjam_wall_steps = 0
         self.guard_final_servo_contact_unjam_relief_xy = np.zeros(2, dtype=np.float64)
         self.guard_final_servo_near_miss_steps = 0
@@ -2213,6 +3209,48 @@ class GuardedPolicyController:
                 guard_final_servo_square_recovery_escape_early_risk_steps=(
                     self.guard_final_servo_square_recovery_escape_early_risk_steps
                 ),
+                guard_final_servo_square_contact_brake_active=(
+                    self._final_servo_square_contact_brake_phase_active()
+                ),
+                guard_final_servo_square_contact_brake_triggered=(
+                    self.guard_final_servo_square_contact_brake_triggered
+                ),
+                guard_final_servo_square_contact_brake_wall_steps=(
+                    self.guard_final_servo_square_contact_brake_wall_steps
+                ),
+                guard_final_servo_square_contact_brake_attempts=(
+                    self.guard_final_servo_square_contact_brake_attempts
+                ),
+                guard_final_servo_square_contact_brake_preemptive_hold_active=(
+                    self._final_servo_square_contact_brake_preemptive_hold_phase_active()
+                ),
+                guard_final_servo_square_contact_brake_preemptive_hold_triggered=(
+                    self.guard_final_servo_square_contact_brake_preemptive_hold_triggered
+                ),
+                guard_final_servo_square_contact_brake_preemptive_hold_wall_steps=(
+                    self.guard_final_servo_square_contact_brake_preemptive_hold_wall_steps
+                ),
+                guard_final_servo_square_contact_brake_preemptive_hold_expanded_xy=(
+                    self.guard_final_servo_square_contact_brake_preemptive_hold_expanded_xy
+                ),
+                guard_final_servo_square_fast_settle_clearance_hold_attempts=(
+                    self.guard_final_servo_square_fast_settle_clearance_hold_attempts
+                ),
+                guard_final_servo_square_fast_settle_clean_steps=(
+                    self.guard_final_servo_square_fast_settle_clean_steps
+                ),
+                guard_final_servo_square_fast_settle_low_z_relief_attempts=(
+                    self.guard_final_servo_square_fast_settle_low_z_relief_attempts
+                ),
+                guard_final_servo_square_fast_settle_low_z_stall_relief_attempts=(
+                    self.guard_final_servo_square_fast_settle_low_z_stall_relief_attempts
+                ),
+                guard_final_servo_square_high_z_descend_low_z_hold_active=(
+                    self._final_servo_square_high_z_descend_low_z_hold_phase_active()
+                ),
+                guard_final_servo_square_high_z_descend_low_z_hold_attempts=(
+                    self.guard_final_servo_square_high_z_descend_low_z_hold_attempts
+                ),
                 guard_final_servo_contact_unjam_wall_steps=(
                     self.guard_final_servo_contact_unjam_wall_steps
                 ),
@@ -2423,6 +3461,19 @@ class GuardedPolicyController:
         self.guard_final_servo_square_tilt_reinsert_attempts = 0
         self.guard_final_servo_square_recovery_escape_early_contact_steps = 0
         self.guard_final_servo_square_recovery_escape_early_risk_steps = 0
+        self.guard_final_servo_square_recovery_escape_direct_fast_settle_active = False
+        self.guard_final_servo_square_contact_brake_wall_steps = 0
+        self.guard_final_servo_square_contact_brake_attempts = 0
+        self.guard_final_servo_square_contact_brake_triggered = False
+        self.guard_final_servo_square_contact_brake_preemptive_hold_wall_steps = 0
+        self.guard_final_servo_square_contact_brake_preemptive_hold_triggered = False
+        self.guard_final_servo_square_contact_brake_preemptive_hold_expanded_xy = False
+        self.guard_final_servo_square_contact_brake_preemptive_hold_expanded_xy_pending = False
+        self.guard_final_servo_square_fast_settle_clearance_hold_attempts = 0
+        self.guard_final_servo_square_fast_settle_clean_steps = 0
+        self.guard_final_servo_square_fast_settle_low_z_relief_attempts = 0
+        self.guard_final_servo_square_fast_settle_low_z_stall_relief_attempts = 0
+        self.guard_final_servo_square_high_z_descend_low_z_hold_attempts = 0
         self.guard_final_servo_contact_unjam_wall_steps = 0
         self.guard_final_servo_contact_unjam_relief_xy = np.zeros(2, dtype=np.float64)
         self.guard_final_servo_near_miss_steps = 0
@@ -2453,6 +3504,7 @@ class GuardedPolicyController:
         self.guard_insert_latch_steps = 0
 
     def _set_final_servo_phase(self, phase: str) -> None:
+        previous_phase = self.guard_final_servo_phase
         self.guard_final_servo_phase = phase
         self.guard_final_servo_phase_steps = 0
         if phase != "low_recenter":
@@ -2470,6 +3522,28 @@ class GuardedPolicyController:
         ):
             self.guard_final_servo_square_recovery_escape_early_contact_steps = 0
             self.guard_final_servo_square_recovery_escape_early_risk_steps = 0
+        if phase != "square_fast_settle":
+            self.guard_final_servo_square_recovery_escape_direct_fast_settle_active = False
+            self.guard_final_servo_square_fast_settle_clean_steps = 0
+        if (
+            previous_phase
+            in (
+                "square_fast_settle",
+                "square_contact_brake_preemptive_hold",
+                "square_contact_brake_lift",
+                "square_contact_brake_recenter",
+            )
+            and phase != previous_phase
+        ):
+            self.guard_final_servo_square_contact_brake_wall_steps = 0
+        if phase not in ("square_fast_settle", "square_contact_brake_preemptive_hold"):
+            self.guard_final_servo_square_contact_brake_preemptive_hold_wall_steps = 0
+            self.guard_final_servo_square_contact_brake_preemptive_hold_expanded_xy_pending = False
+        if phase != "square_contact_brake_lift":
+            self.guard_final_servo_square_contact_brake_triggered = False
+        if phase != "square_contact_brake_preemptive_hold":
+            self.guard_final_servo_square_contact_brake_preemptive_hold_triggered = False
+            self.guard_final_servo_square_contact_brake_preemptive_hold_expanded_xy = False
         if not phase.startswith("contact_unjam"):
             self.guard_final_servo_contact_unjam_wall_steps = 0
         if phase != "near_miss_descend":
@@ -2930,6 +4004,19 @@ class GuardedPolicyController:
             )
         return self.config.guard_final_servo_stable_xy
 
+    def _final_servo_square_recovery_escape_release_xy(self) -> float:
+        release_xy = self.config.guard_final_servo_square_recovery_escape_release_xy
+        late_release_xy = (
+            self.config.guard_final_servo_square_recovery_escape_late_release_xy
+        )
+        if (
+            late_release_xy > 0.0
+            and self.steps_since_reset
+            >= self.config.guard_final_servo_square_recovery_escape_late_release_min_steps_since_reset
+        ):
+            release_xy = max(release_xy, late_release_xy)
+        return release_xy
+
     def _start_final_servo_recovery(self, z_above_target: float) -> bool:
         if self.guard_final_servo_retry_count >= self.config.guard_final_servo_max_retries:
             self.guard_final_servo_exhausted = True
@@ -3033,11 +4120,228 @@ class GuardedPolicyController:
         self._set_final_servo_phase("square_fast_settle")
         return True
 
+    def _start_final_servo_square_recovery_escape_direct_fast_settle(
+        self,
+        z_above_target: float,
+    ) -> bool:
+        started = self._start_final_servo_square_fast_settle(z_above_target)
+        if started:
+            self.guard_final_servo_square_recovery_escape_direct_fast_settle_active = True
+        return started
+
+    def _square_recovery_escape_direct_fast_settle_condition(
+        self,
+        state: GuardedDeploymentState,
+        dist_xy: float,
+        z_above_target: float,
+    ) -> bool:
+        if (
+            not self.config.guard_final_servo_square_recovery_escape_direct_fast_settle_enabled
+        ):
+            return False
+        if not self.config.guard_final_servo_square_fast_settle_enabled:
+            return False
+        if state.peg_shape != "square":
+            return False
+        if (
+            self.steps_since_reset
+            < self.config.guard_final_servo_square_recovery_escape_direct_fast_settle_min_steps_since_reset
+        ):
+            return False
+        if (
+            dist_xy
+            > self.config.guard_final_servo_square_recovery_escape_direct_fast_settle_xy_max
+        ):
+            return False
+        if (
+            z_above_target
+            > self.config.guard_final_servo_square_recovery_escape_direct_fast_settle_z_max
+        ):
+            return False
+        contact_count = (
+            state.peg_hole_contact_wall_count + state.peg_hole_contact_plate_count
+        )
+        if (
+            contact_count
+            > self.config.guard_final_servo_square_recovery_escape_direct_fast_settle_contact_max
+        ):
+            return False
+        tilt = state.peg_tilt_angle_deg
+        return not (
+            tilt is not None
+            and np.isfinite(tilt)
+            and tilt
+            > self.config.guard_final_servo_square_fast_settle_late_down_boost_tilt_max_deg
+        )
+
+    def _square_recovery_escape_recenter_clean_high_z_condition(
+        self,
+        state: GuardedDeploymentState,
+        dist_xy: float,
+        z_above_target: float,
+    ) -> bool:
+        if state.peg_shape != "square":
+            return False
+        if (
+            dist_xy
+            > self.config.guard_final_servo_square_recovery_escape_recenter_descend_xy_max
+        ):
+            return False
+        if (
+            z_above_target
+            < self.config.guard_final_servo_square_recovery_escape_recenter_descend_z_min
+            or z_above_target
+            > self.config.guard_final_servo_square_recovery_escape_recenter_descend_z_max
+        ):
+            return False
+        contact_count = (
+            state.peg_hole_contact_wall_count + state.peg_hole_contact_plate_count
+        )
+        if (
+            contact_count
+            > self.config.guard_final_servo_square_recovery_escape_recenter_descend_contact_max
+        ):
+            return False
+        margin = state.square_peg_tilted_clearance_margin
+        if margin is None or not np.isfinite(margin):
+            return False
+        if (
+            margin
+            < self.config.guard_final_servo_square_recovery_escape_recenter_descend_margin_min
+        ):
+            return False
+        tilt = state.peg_tilt_angle_deg
+        return not (
+            tilt is not None
+            and np.isfinite(tilt)
+            and tilt
+            > self.config.guard_final_servo_square_fast_settle_late_down_boost_tilt_max_deg
+        )
+
+    def _square_recovery_escape_recenter_descend_condition(
+        self,
+        state: GuardedDeploymentState,
+        dist_xy: float,
+        z_above_target: float,
+    ) -> bool:
+        return (
+            self.config.guard_final_servo_square_recovery_escape_recenter_descend_enabled
+            and self._square_recovery_escape_recenter_clean_high_z_condition(
+                state,
+                dist_xy,
+                z_above_target,
+            )
+        )
+
+    def _square_recovery_escape_recenter_no_up_condition(
+        self,
+        state: GuardedDeploymentState,
+        dist_xy: float,
+        z_above_target: float,
+    ) -> bool:
+        return (
+            self.config.guard_final_servo_square_recovery_escape_recenter_no_up_enabled
+            and self._square_recovery_escape_recenter_clean_high_z_condition(
+                state,
+                dist_xy,
+                z_above_target,
+            )
+        )
+
+    def _start_final_servo_square_contact_brake(
+        self,
+        z_above_target: float,
+    ) -> bool:
+        if (
+            self.guard_final_servo_square_contact_brake_attempts
+            >= self.config.guard_final_servo_square_contact_brake_max_attempts
+        ):
+            return False
+        self.guard_final_servo_square_contact_brake_attempts += 1
+        self.guard_final_servo_square_contact_brake_triggered = True
+        self.guard_final_servo_stable_steps = 0
+        self.guard_final_servo_stall_steps = 0
+        self.guard_final_servo_best_z_above = float("inf")
+        self.guard_final_servo_recovery_start_z_above = z_above_target
+        self.guard_final_servo_recovery_target_z_above = min(
+            z_above_target
+            + self.config.guard_final_servo_square_contact_brake_lift_height,
+            self.config.guard_final_servo_square_contact_brake_lift_z_max,
+        )
+        self._set_final_servo_phase("square_contact_brake_lift")
+        return True
+
+    def _start_final_servo_square_contact_brake_preemptive_hold(
+        self,
+        *,
+        expanded_xy: bool = False,
+    ) -> bool:
+        self.guard_final_servo_square_contact_brake_preemptive_hold_triggered = True
+        self.guard_final_servo_square_contact_brake_preemptive_hold_expanded_xy = (
+            expanded_xy
+        )
+        self.guard_final_servo_stable_steps = 0
+        self.guard_final_servo_stall_steps = 0
+        self.guard_final_servo_best_z_above = float("inf")
+        self._set_final_servo_phase("square_contact_brake_preemptive_hold")
+        return True
+
+    def _start_final_servo_square_fast_settle_clearance_hold(self) -> bool:
+        self.guard_final_servo_square_fast_settle_clearance_hold_attempts += 1
+        self.guard_final_servo_stall_steps = 0
+        self._set_final_servo_phase("square_fast_settle_clearance_hold")
+        return True
+
+    def _start_final_servo_square_fast_settle_low_z_relief(
+        self,
+        z_above_target: float,
+    ) -> bool:
+        self.guard_final_servo_square_fast_settle_low_z_relief_attempts += 1
+        self.guard_final_servo_stall_steps = 0
+        self.guard_final_servo_best_z_above = float("inf")
+        self.guard_final_servo_recovery_start_z_above = z_above_target
+        self.guard_final_servo_recovery_target_z_above = min(
+            z_above_target
+            + self.config.guard_final_servo_square_fast_settle_low_z_relief_lift_height,
+            self.config.guard_final_servo_square_fast_settle_low_z_relief_target_z_max,
+        )
+        self._set_final_servo_phase("square_low_z_relief_lift")
+        return True
+
+    def _start_final_servo_square_fast_settle_low_z_stall_relief(
+        self,
+        z_above_target: float,
+    ) -> bool:
+        self.guard_final_servo_square_fast_settle_low_z_stall_relief_attempts += 1
+        self.guard_final_servo_stall_steps = 0
+        self.guard_final_servo_best_z_above = float("inf")
+        self.guard_final_servo_recovery_start_z_above = z_above_target
+        self.guard_final_servo_recovery_target_z_above = min(
+            z_above_target
+            + self.config.guard_final_servo_square_fast_settle_low_z_relief_lift_height,
+            self.config.guard_final_servo_square_fast_settle_low_z_relief_target_z_max,
+        )
+        phase = "square_low_z_relief_lift"
+        if (
+            self.config.guard_final_servo_square_fast_settle_low_z_stall_relief_hold_enabled
+        ):
+            phase = "square_low_z_stall_relief_hold"
+        self._set_final_servo_phase(phase)
+        return True
+
     def _start_final_servo_square_high_z_descend(self, z_above_target: float) -> bool:
         self.guard_final_servo_stable_steps = 0
         self.guard_final_servo_stall_steps = 0
         self.guard_final_servo_best_z_above = z_above_target
         self._set_final_servo_phase("square_high_z_descend")
+        return True
+
+    def _start_final_servo_square_high_z_descend_low_z_hold(self) -> bool:
+        self.guard_final_servo_square_high_z_descend_low_z_hold_attempts += 1
+        self.guard_final_servo_stable_steps = 0
+        self.guard_final_servo_stall_steps = 0
+        self.guard_final_servo_best_z_above = float("inf")
+        self._set_final_servo_phase("square_high_z_descend_low_z_hold")
         return True
 
     def _start_final_servo_square_margin_yaw_settle(
@@ -3110,6 +4414,27 @@ class GuardedPolicyController:
 
     def _final_servo_square_recovery_escape_phase_active(self) -> bool:
         return self.guard_final_servo_phase.startswith("square_recovery_escape")
+
+    def _final_servo_square_contact_brake_phase_active(self) -> bool:
+        return self.guard_final_servo_phase in (
+            "square_contact_brake_preemptive_hold",
+            "square_contact_brake_lift",
+            "square_contact_brake_recenter",
+        )
+
+    def _final_servo_square_contact_brake_preemptive_hold_phase_active(self) -> bool:
+        return self.guard_final_servo_phase == "square_contact_brake_preemptive_hold"
+
+    def _final_servo_square_fast_settle_clearance_hold_phase_active(self) -> bool:
+        return self.guard_final_servo_phase == "square_fast_settle_clearance_hold"
+
+    def _final_servo_square_fast_settle_low_z_relief_phase_active(self) -> bool:
+        return self.guard_final_servo_phase.startswith(
+            "square_low_z_relief"
+        ) or self.guard_final_servo_phase == "square_low_z_stall_relief_hold"
+
+    def _final_servo_square_high_z_descend_low_z_hold_phase_active(self) -> bool:
+        return self.guard_final_servo_phase == "square_high_z_descend_low_z_hold"
 
     def _split_recovery_enabled_for_state(self, state: GuardedDeploymentState) -> bool:
         return (
@@ -3197,6 +4522,274 @@ class GuardedPolicyController:
             or tilt <= self.config.guard_final_servo_square_tilt_reinsert_release_tilt_deg
         )
 
+    def _square_contact_brake_window_ok(
+        self,
+        state: GuardedDeploymentState,
+        dist_xy: float,
+        z_above_target: float,
+    ) -> bool:
+        if not self.config.guard_final_servo_square_contact_brake_enabled:
+            self.guard_final_servo_square_contact_brake_wall_steps = 0
+            return False
+        if state.peg_shape != "square":
+            self.guard_final_servo_square_contact_brake_wall_steps = 0
+            return False
+        if self.guard_final_servo_phase != "square_fast_settle":
+            self.guard_final_servo_square_contact_brake_wall_steps = 0
+            return False
+        if (
+            dist_xy > self.config.guard_final_servo_square_contact_brake_xy_max
+            or z_above_target
+            < self.config.guard_final_servo_square_contact_brake_z_min
+            or z_above_target
+            > self.config.guard_final_servo_square_contact_brake_z_max
+        ):
+            self.guard_final_servo_square_contact_brake_wall_steps = 0
+            return False
+        max_clearance = self.config.guard_final_servo_square_contact_brake_max_clearance
+        if max_clearance > 0.0:
+            clearance = state.hole_clearance
+            if clearance is None or not np.isfinite(clearance) or clearance > max_clearance:
+                self.guard_final_servo_square_contact_brake_wall_steps = 0
+                return False
+        margin = state.square_peg_tilted_clearance_margin
+        bad_margin = margin is not None and np.isfinite(margin) and (
+            margin
+            <= self.config.guard_final_servo_square_contact_brake_margin_threshold
+        )
+        if (
+            self.config.guard_final_servo_square_contact_brake_require_bad_margin
+            and not bad_margin
+        ):
+            self.guard_final_servo_square_contact_brake_wall_steps = 0
+            return False
+        return True
+
+    def _square_contact_brake_condition(
+        self,
+        state: GuardedDeploymentState,
+        dist_xy: float,
+        z_above_target: float,
+    ) -> bool:
+        if not self._square_contact_brake_window_ok(
+            state,
+            dist_xy,
+            z_above_target,
+        ):
+            return False
+        if (
+            self.guard_final_servo_square_contact_brake_attempts
+            >= self.config.guard_final_servo_square_contact_brake_max_attempts
+        ):
+            self.guard_final_servo_square_contact_brake_wall_steps = 0
+            return False
+        if state.peg_hole_contact_wall_count > 0:
+            self.guard_final_servo_square_contact_brake_wall_steps += 1
+        else:
+            self.guard_final_servo_square_contact_brake_wall_steps = 0
+        return (
+            self.guard_final_servo_square_contact_brake_wall_steps
+            >= self.config.guard_final_servo_square_contact_brake_wall_steps
+        )
+
+    def _square_contact_brake_preemptive_hold_condition(
+        self,
+        state: GuardedDeploymentState,
+        dist_xy: float,
+        z_above_target: float,
+    ) -> bool:
+        self.guard_final_servo_square_contact_brake_preemptive_hold_expanded_xy_pending = False
+        if not self.config.guard_final_servo_square_contact_brake_preemptive_hold_enabled:
+            self.guard_final_servo_square_contact_brake_preemptive_hold_wall_steps = 0
+            return False
+        if state.peg_shape != "square":
+            self.guard_final_servo_square_contact_brake_preemptive_hold_wall_steps = 0
+            return False
+        if self.guard_final_servo_phase != "square_fast_settle":
+            self.guard_final_servo_square_contact_brake_preemptive_hold_wall_steps = 0
+            return False
+        if (
+            self.guard_final_servo_square_contact_brake_attempts
+            < self.config.guard_final_servo_square_contact_brake_preemptive_hold_min_brake_attempts
+        ):
+            self.guard_final_servo_square_contact_brake_preemptive_hold_wall_steps = 0
+            return False
+
+        contact_brake_available = (
+            self.config.guard_final_servo_square_contact_brake_enabled
+            and self.guard_final_servo_square_contact_brake_attempts
+            < self.config.guard_final_servo_square_contact_brake_max_attempts
+        )
+        escape_available = (
+            self.config.guard_final_servo_square_contact_brake_exhausted_escape_enabled
+        )
+        if not (contact_brake_available or escape_available):
+            self.guard_final_servo_square_contact_brake_preemptive_hold_wall_steps = 0
+            return False
+
+        if (
+            z_above_target
+            < self.config.guard_final_servo_square_contact_brake_preemptive_hold_z_min
+            or z_above_target
+            > self.config.guard_final_servo_square_contact_brake_preemptive_hold_z_max
+        ):
+            self.guard_final_servo_square_contact_brake_preemptive_hold_wall_steps = 0
+            return False
+        xy_max = self.config.guard_final_servo_square_contact_brake_preemptive_hold_xy_max
+        expanded_xy_used = False
+        if dist_xy > xy_max:
+            if (
+                not self.config.guard_final_servo_square_contact_brake_preemptive_hold_expanded_xy_enabled
+                or dist_xy
+                > self.config.guard_final_servo_square_contact_brake_preemptive_hold_expanded_xy_max
+                or z_above_target
+                < self.config.guard_final_servo_square_contact_brake_preemptive_hold_expanded_z_min
+            ):
+                self.guard_final_servo_square_contact_brake_preemptive_hold_wall_steps = 0
+                return False
+            expanded_margin_min = (
+                self.config.guard_final_servo_square_contact_brake_preemptive_hold_expanded_margin_min
+            )
+            margin = state.square_peg_tilted_clearance_margin
+            if (
+                margin is None
+                or not np.isfinite(margin)
+                or margin < expanded_margin_min
+            ):
+                self.guard_final_servo_square_contact_brake_preemptive_hold_wall_steps = 0
+                return False
+            expanded_yaw_max = (
+                self.config.guard_final_servo_square_contact_brake_preemptive_hold_expanded_yaw_max_deg
+            )
+            if expanded_yaw_max > 0.0:
+                yaw = state.square_peg_yaw_error_deg
+                if yaw is None or not np.isfinite(yaw) or yaw > expanded_yaw_max:
+                    self.guard_final_servo_square_contact_brake_preemptive_hold_wall_steps = 0
+                    return False
+            expanded_xy_used = True
+        max_clearance = (
+            self.config.guard_final_servo_square_contact_brake_preemptive_hold_max_clearance
+        )
+        if max_clearance > 0.0:
+            clearance = state.hole_clearance
+            if clearance is None or not np.isfinite(clearance) or clearance > max_clearance:
+                self.guard_final_servo_square_contact_brake_preemptive_hold_wall_steps = 0
+                return False
+        margin = state.square_peg_tilted_clearance_margin
+        bad_margin = margin is not None and np.isfinite(margin) and (
+            margin
+            <= self.config.guard_final_servo_square_contact_brake_preemptive_hold_margin_threshold
+        )
+        if (
+            self.config.guard_final_servo_square_contact_brake_preemptive_hold_require_bad_margin
+            and not bad_margin
+        ):
+            self.guard_final_servo_square_contact_brake_preemptive_hold_wall_steps = 0
+            return False
+        yaw_min = (
+            self.config.guard_final_servo_square_contact_brake_preemptive_hold_yaw_min_deg
+        )
+        if yaw_min > 0.0:
+            yaw = state.square_peg_yaw_error_deg
+            if yaw is None or not np.isfinite(yaw) or yaw < yaw_min:
+                self.guard_final_servo_square_contact_brake_preemptive_hold_wall_steps = 0
+                return False
+        if state.peg_hole_contact_wall_count > 0:
+            self.guard_final_servo_square_contact_brake_preemptive_hold_wall_steps += 1
+        else:
+            self.guard_final_servo_square_contact_brake_preemptive_hold_wall_steps = 0
+        triggered = (
+            self.guard_final_servo_square_contact_brake_preemptive_hold_wall_steps
+            >= self.config.guard_final_servo_square_contact_brake_preemptive_hold_wall_steps
+        )
+        self.guard_final_servo_square_contact_brake_preemptive_hold_expanded_xy_pending = (
+            bool(triggered and expanded_xy_used)
+        )
+        return triggered
+
+    def _square_contact_brake_exhausted_escape_condition(
+        self,
+        state: GuardedDeploymentState,
+        dist_xy: float,
+        z_above_target: float,
+    ) -> bool:
+        if not self.config.guard_final_servo_square_contact_brake_exhausted_escape_enabled:
+            return False
+        if self.config.guard_final_servo_square_contact_brake_max_attempts <= 0:
+            return False
+        if (
+            self.guard_final_servo_square_contact_brake_attempts
+            < self.config.guard_final_servo_square_contact_brake_max_attempts
+        ):
+            return False
+        if not self._square_contact_brake_window_ok(
+            state,
+            dist_xy,
+            z_above_target,
+        ):
+            return False
+        return state.peg_hole_contact_wall_count > 0
+
+    def _square_contact_brake_exhausted_continue_condition(
+        self,
+        state: GuardedDeploymentState,
+        dist_xy: float,
+        z_above_target: float,
+    ) -> bool:
+        if (
+            not self.config.guard_final_servo_square_contact_brake_exhausted_continue_enabled
+        ):
+            return False
+        if self.guard_final_servo_phase != "square_fast_settle":
+            return False
+        if state.peg_shape != "square":
+            return False
+        if not self.config.guard_final_servo_square_contact_brake_enabled:
+            return False
+        if self.config.guard_final_servo_square_contact_brake_max_attempts <= 0:
+            return False
+        if (
+            self.guard_final_servo_square_contact_brake_attempts
+            < self.config.guard_final_servo_square_contact_brake_max_attempts
+        ):
+            return False
+        if (
+            dist_xy
+            > self.config.guard_final_servo_square_contact_brake_exhausted_continue_xy_max
+        ):
+            return False
+        if not (
+            self.config.guard_final_servo_square_contact_brake_exhausted_continue_z_min
+            <= z_above_target
+            <= self.config.guard_final_servo_square_contact_brake_exhausted_continue_z_max
+        ):
+            return False
+        contact_count = (
+            state.peg_hole_contact_wall_count + state.peg_hole_contact_plate_count
+        )
+        if (
+            contact_count
+            > self.config.guard_final_servo_square_contact_brake_exhausted_continue_contact_max
+        ):
+            return False
+        tilt = state.peg_tilt_angle_deg
+        if (
+            tilt is not None
+            and np.isfinite(tilt)
+            and tilt
+            > self.config.guard_final_servo_square_contact_brake_exhausted_continue_tilt_max_deg
+        ):
+            return False
+        margin = state.square_peg_tilted_clearance_margin
+        if (
+            margin is not None
+            and np.isfinite(margin)
+            and margin
+            < self.config.guard_final_servo_square_contact_brake_exhausted_continue_margin_min
+        ):
+            return False
+        return True
+
     def _square_high_z_descend_low_risk(
         self,
         state: GuardedDeploymentState,
@@ -3229,6 +4822,14 @@ class GuardedPolicyController:
         if self.guard_final_servo_phase != "square_fast_settle":
             return False
         if (
+            self.config.guard_final_servo_square_high_z_descend_staged_enabled
+            and self.config.guard_final_servo_square_high_z_descend_low_z_hold_max_attempts
+            > 0
+            and self.guard_final_servo_square_high_z_descend_low_z_hold_attempts
+            >= self.config.guard_final_servo_square_high_z_descend_low_z_hold_max_attempts
+        ):
+            return False
+        if (
             self.guard_final_servo_stall_steps
             < self.config.guard_final_servo_square_high_z_descend_stall_steps
         ):
@@ -3242,6 +4843,93 @@ class GuardedPolicyController:
         ):
             return False
         return self._square_high_z_descend_low_risk(state)
+
+    def _square_high_z_descend_low_z_hold_condition(
+        self,
+        state: GuardedDeploymentState,
+        dist_xy: float,
+        z_above_target: float,
+    ) -> bool:
+        if not self.config.guard_final_servo_square_high_z_descend_staged_enabled:
+            return False
+        if self.guard_final_servo_phase not in (
+            "square_high_z_descend",
+            "square_high_z_descend_low_z_hold",
+        ):
+            return False
+        if state.peg_shape != "square":
+            return False
+        if (
+            self.config.guard_final_servo_square_high_z_descend_low_z_hold_max_attempts
+            <= 0
+        ):
+            return False
+        if (
+            self.guard_final_servo_square_high_z_descend_low_z_hold_attempts
+            >= self.config.guard_final_servo_square_high_z_descend_low_z_hold_max_attempts
+        ):
+            return False
+        if (
+            self.guard_final_servo_phase_steps
+            < self.config.guard_final_servo_square_high_z_descend_low_z_hold_min_phase_steps
+        ):
+            return False
+        low_z_threshold = (
+            self.config.guard_final_servo_square_high_z_descend_low_z_threshold
+        )
+        if low_z_threshold <= 0.0 or z_above_target > low_z_threshold:
+            return False
+        if (
+            z_above_target
+            < self.config.guard_final_servo_square_contact_brake_z_min
+        ):
+            return False
+        if (
+            dist_xy
+            > self.config.guard_final_servo_square_high_z_descend_low_z_hold_xy_max
+        ):
+            return False
+        return self._square_high_z_descend_low_risk(state)
+
+    def _square_high_z_descend_contact_brake_condition(
+        self,
+        state: GuardedDeploymentState,
+        dist_xy: float,
+        z_above_target: float,
+    ) -> bool:
+        if not self.config.guard_final_servo_square_high_z_descend_contact_brake_enabled:
+            return False
+        if not self.config.guard_final_servo_square_contact_brake_enabled:
+            return False
+        if self.guard_final_servo_phase != "square_high_z_descend":
+            return False
+        if state.peg_shape != "square":
+            return False
+        if (
+            self.guard_final_servo_square_contact_brake_attempts
+            >= self.config.guard_final_servo_square_contact_brake_max_attempts
+        ):
+            return False
+        min_wall_count = (
+            self.config.guard_final_servo_square_high_z_descend_contact_brake_wall_count
+        )
+        if min_wall_count > 0 and state.peg_hole_contact_wall_count < min_wall_count:
+            return False
+        if z_above_target > (
+            self.config.guard_final_servo_square_high_z_descend_contact_brake_z_max
+        ):
+            return False
+        if (
+            z_above_target
+            < self.config.guard_final_servo_square_contact_brake_z_min
+        ):
+            return False
+        xy_max = (
+            self.config.guard_final_servo_square_high_z_descend_contact_brake_xy_max
+        )
+        if xy_max <= 0.0:
+            xy_max = self.config.guard_final_servo_square_high_z_descend_xy_max
+        return dist_xy <= xy_max
 
     def _square_margin_yaw_settle_bad_pose(
         self,
@@ -3441,6 +5129,12 @@ class GuardedPolicyController:
             return False
         if state.peg_shape != "square":
             return False
+        if self._square_contact_brake_exhausted_continue_condition(
+            state,
+            dist_xy,
+            z_above_target,
+        ):
+            return False
         max_clearance = self.config.guard_final_servo_square_recovery_escape_max_clearance
         if max_clearance > 0.0:
             clearance = state.hole_clearance
@@ -3470,6 +5164,13 @@ class GuardedPolicyController:
             self.guard_final_servo_square_recovery_escape_early_contact_steps = 0
             return False
         if state.peg_shape != "square":
+            self.guard_final_servo_square_recovery_escape_early_contact_steps = 0
+            return False
+        if self._square_contact_brake_exhausted_continue_condition(
+            state,
+            dist_xy,
+            z_above_target,
+        ):
             self.guard_final_servo_square_recovery_escape_early_contact_steps = 0
             return False
         max_clearance = self.config.guard_final_servo_square_recovery_escape_max_clearance
@@ -3527,6 +5228,13 @@ class GuardedPolicyController:
         if state.peg_shape != "square":
             self.guard_final_servo_square_recovery_escape_early_risk_steps = 0
             return False
+        if self._square_contact_brake_exhausted_continue_condition(
+            state,
+            dist_xy,
+            z_above_target,
+        ):
+            self.guard_final_servo_square_recovery_escape_early_risk_steps = 0
+            return False
         max_clearance = self.config.guard_final_servo_square_recovery_escape_max_clearance
         if max_clearance > 0.0:
             clearance = state.hole_clearance
@@ -3577,15 +5285,284 @@ class GuardedPolicyController:
             "rectangular_key",
         ):
             return False
-        if (
-            dist_xy > self.config.guard_final_servo_square_fast_settle_xy_max
-            or z_above_target > self.config.guard_final_servo_square_fast_settle_z_max
+        if self._square_contact_brake_exhausted_continue_condition(
+            state,
+            dist_xy,
+            z_above_target,
         ):
+            return True
+        z_max = self.config.guard_final_servo_square_fast_settle_z_max
+        if (
+            self.guard_final_servo_square_recovery_escape_direct_fast_settle_active
+            and self.guard_final_servo_phase == "square_fast_settle"
+            and self.guard_final_servo_phase_steps
+            <= self.config.guard_final_servo_square_recovery_escape_direct_fast_settle_max_steps
+        ):
+            z_max = max(
+                z_max,
+                self.config.guard_final_servo_square_recovery_escape_direct_fast_settle_z_max,
+            )
+        if dist_xy > self.config.guard_final_servo_square_fast_settle_xy_max:
+            return False
+        if z_above_target > z_max:
             return False
         contact_count = (
             state.peg_hole_contact_wall_count + state.peg_hole_contact_plate_count
         )
         if contact_count > self.config.guard_final_servo_square_fast_settle_contact_max:
+            return False
+        tilt = state.peg_tilt_angle_deg
+        return not (
+            tilt is not None
+            and np.isfinite(tilt)
+            and tilt > self.config.guard_final_servo_square_fast_settle_tilt_max_deg
+        )
+
+    def _square_fast_settle_late_down_boost_condition(
+        self,
+        state: GuardedDeploymentState,
+        dist_xy: float,
+        z_above_target: float,
+    ) -> bool:
+        if (
+            not self.config.guard_final_servo_square_fast_settle_late_down_boost_enabled
+        ):
+            return False
+        if self.guard_final_servo_phase != "square_fast_settle":
+            return False
+        if state.peg_shape != "square":
+            return False
+        if (
+            self.guard_final_servo_square_contact_brake_attempts
+            < self.config.guard_final_servo_square_fast_settle_late_down_boost_min_brake_attempts
+        ):
+            return False
+        if (
+            self.guard_final_servo_phase_steps
+            < self.config.guard_final_servo_square_fast_settle_late_down_boost_min_phase_steps
+        ):
+            return False
+        if (
+            self.guard_final_servo_square_fast_settle_clean_steps
+            < self.config.guard_final_servo_square_fast_settle_late_down_boost_min_clean_steps
+        ):
+            return False
+        if (
+            dist_xy
+            > self.config.guard_final_servo_square_fast_settle_late_down_boost_xy_max
+        ):
+            return False
+        if (
+            z_above_target
+            < self.config.guard_final_servo_square_fast_settle_late_down_boost_z_min
+            or z_above_target
+            > self.config.guard_final_servo_square_fast_settle_late_down_boost_z_max
+        ):
+            return False
+        contact_count = (
+            state.peg_hole_contact_wall_count + state.peg_hole_contact_plate_count
+        )
+        if (
+            contact_count
+            > self.config.guard_final_servo_square_fast_settle_late_down_boost_contact_max
+        ):
+            return False
+        margin_min = (
+            self.config.guard_final_servo_square_fast_settle_late_down_boost_margin_min
+        )
+        if margin_min > -1.0:
+            margin = state.square_peg_tilted_clearance_margin
+            if margin is None or not np.isfinite(margin) or margin < margin_min:
+                return False
+        tilt = state.peg_tilt_angle_deg
+        return not (
+            tilt is not None
+            and np.isfinite(tilt)
+            and tilt > self.config.guard_final_servo_square_fast_settle_tilt_max_deg
+        )
+
+    def _square_fast_settle_clearance_hold_condition(
+        self,
+        state: GuardedDeploymentState,
+        dist_xy: float,
+        z_above_target: float,
+    ) -> bool:
+        if not self.config.guard_final_servo_square_fast_settle_clearance_hold_enabled:
+            return False
+        if self.guard_final_servo_phase != "square_fast_settle":
+            return False
+        if state.peg_shape != "square":
+            return False
+        if (
+            self.guard_final_servo_square_fast_settle_clearance_hold_attempts
+            >= self.config.guard_final_servo_square_fast_settle_clearance_hold_max_attempts
+        ):
+            return False
+        if (
+            self.guard_final_servo_square_contact_brake_attempts
+            < self.config.guard_final_servo_square_fast_settle_clearance_hold_min_brake_attempts
+        ):
+            return False
+        if (
+            self.guard_final_servo_phase_steps
+            < self.config.guard_final_servo_square_fast_settle_clearance_hold_min_phase_steps
+        ):
+            return False
+        if (
+            dist_xy
+            > self.config.guard_final_servo_square_fast_settle_clearance_hold_xy_max
+        ):
+            return False
+        if not (
+            self.config.guard_final_servo_square_fast_settle_clearance_hold_z_min
+            <= z_above_target
+            <= self.config.guard_final_servo_square_fast_settle_clearance_hold_z_max
+        ):
+            return False
+        contact_count = (
+            state.peg_hole_contact_wall_count + state.peg_hole_contact_plate_count
+        )
+        if (
+            contact_count
+            > self.config.guard_final_servo_square_fast_settle_clearance_hold_contact_max
+        ):
+            return False
+        margin = state.square_peg_tilted_clearance_margin
+        if margin is None or not np.isfinite(margin):
+            return False
+        return (
+            self.config.guard_final_servo_square_fast_settle_clearance_hold_margin_min
+            <= margin
+            <= self.config.guard_final_servo_square_fast_settle_clearance_hold_margin_threshold
+        )
+
+    def _square_fast_settle_low_z_relief_condition(
+        self,
+        state: GuardedDeploymentState,
+        dist_xy: float,
+        z_above_target: float,
+    ) -> bool:
+        if (
+            not self.config.guard_final_servo_square_fast_settle_low_z_relief_enabled
+        ):
+            return False
+        if self.guard_final_servo_phase != "square_fast_settle":
+            return False
+        if state.peg_shape != "square":
+            return False
+        if (
+            self.guard_final_servo_square_fast_settle_low_z_relief_attempts
+            >= self.config.guard_final_servo_square_fast_settle_low_z_relief_max_attempts
+        ):
+            return False
+        if (
+            self.guard_final_servo_square_contact_brake_attempts
+            < self.config.guard_final_servo_square_fast_settle_low_z_relief_min_brake_attempts
+        ):
+            return False
+        if (
+            self.guard_final_servo_phase_steps
+            < self.config.guard_final_servo_square_fast_settle_low_z_relief_min_phase_steps
+        ):
+            return False
+        if dist_xy > self.config.guard_final_servo_square_fast_settle_low_z_relief_xy_max:
+            return False
+        if not (
+            self.config.guard_final_servo_square_fast_settle_low_z_relief_z_min
+            <= z_above_target
+            <= self.config.guard_final_servo_square_fast_settle_low_z_relief_z_max
+        ):
+            return False
+        if (
+            state.peg_hole_contact_wall_count
+            < self.config.guard_final_servo_square_fast_settle_low_z_relief_wall_count
+        ):
+            return False
+        contact_count = (
+            state.peg_hole_contact_wall_count + state.peg_hole_contact_plate_count
+        )
+        if (
+            contact_count
+            > self.config.guard_final_servo_square_fast_settle_low_z_relief_contact_max
+        ):
+            return False
+        margin = state.square_peg_tilted_clearance_margin
+        if margin is None or not np.isfinite(margin):
+            return False
+        if not (
+            self.config.guard_final_servo_square_fast_settle_low_z_relief_margin_min
+            <= margin
+            <= self.config.guard_final_servo_square_fast_settle_low_z_relief_margin_threshold
+        ):
+            return False
+        tilt = state.peg_tilt_angle_deg
+        return not (
+            tilt is not None
+            and np.isfinite(tilt)
+            and tilt > self.config.guard_final_servo_square_fast_settle_tilt_max_deg
+        )
+
+    def _square_fast_settle_low_z_stall_relief_condition(
+        self,
+        state: GuardedDeploymentState,
+        dist_xy: float,
+        z_above_target: float,
+    ) -> bool:
+        if (
+            not self.config.guard_final_servo_square_fast_settle_low_z_stall_relief_enabled
+        ):
+            return False
+        if self.guard_final_servo_phase != "square_fast_settle":
+            return False
+        if state.peg_shape != "square":
+            return False
+        if (
+            self.guard_final_servo_square_fast_settle_low_z_stall_relief_attempts
+            >= self.config.guard_final_servo_square_fast_settle_low_z_stall_relief_max_attempts
+        ):
+            return False
+        if (
+            self.guard_final_servo_square_contact_brake_attempts
+            < self.config.guard_final_servo_square_fast_settle_low_z_stall_relief_min_brake_attempts
+        ):
+            return False
+        if (
+            self.guard_final_servo_phase_steps
+            < self.config.guard_final_servo_square_fast_settle_low_z_stall_relief_min_phase_steps
+        ):
+            return False
+        if (
+            self.guard_final_servo_stall_steps
+            < self.config.guard_final_servo_square_fast_settle_low_z_stall_relief_min_stall_steps
+        ):
+            return False
+        if (
+            dist_xy
+            > self.config.guard_final_servo_square_fast_settle_low_z_stall_relief_xy_max
+        ):
+            return False
+        if not (
+            self.config.guard_final_servo_square_fast_settle_low_z_stall_relief_z_min
+            <= z_above_target
+            <= self.config.guard_final_servo_square_fast_settle_low_z_stall_relief_z_max
+        ):
+            return False
+        contact_count = (
+            state.peg_hole_contact_wall_count + state.peg_hole_contact_plate_count
+        )
+        if (
+            contact_count
+            > self.config.guard_final_servo_square_fast_settle_low_z_stall_relief_contact_max
+        ):
+            return False
+        margin = state.square_peg_tilted_clearance_margin
+        if margin is None or not np.isfinite(margin):
+            return False
+        if not (
+            self.config.guard_final_servo_square_fast_settle_low_z_stall_relief_margin_min
+            <= margin
+            <= self.config.guard_final_servo_square_fast_settle_low_z_stall_relief_margin_threshold
+        ):
             return False
         tilt = state.peg_tilt_angle_deg
         return not (
@@ -4233,7 +6210,66 @@ class GuardedPolicyController:
                     )
 
         elif self.guard_final_servo_phase == "square_fast_settle":
-            if self._square_recovery_escape_early_contact_condition(
+            if self._square_fast_settle_low_z_stall_relief_condition(
+                state,
+                dist_xy,
+                z_above_target,
+            ):
+                recovery_triggered = (
+                    self._start_final_servo_square_fast_settle_low_z_stall_relief(
+                        z_above_target,
+                    )
+                )
+            elif self._square_fast_settle_low_z_relief_condition(
+                state,
+                dist_xy,
+                z_above_target,
+            ):
+                recovery_triggered = (
+                    self._start_final_servo_square_fast_settle_low_z_relief(
+                        z_above_target,
+                    )
+                )
+            elif self._square_fast_settle_clearance_hold_condition(
+                state,
+                dist_xy,
+                z_above_target,
+            ):
+                recovery_triggered = (
+                    self._start_final_servo_square_fast_settle_clearance_hold()
+                )
+            elif self._square_contact_brake_preemptive_hold_condition(
+                state,
+                dist_xy,
+                z_above_target,
+            ):
+                recovery_triggered = (
+                    self._start_final_servo_square_contact_brake_preemptive_hold(
+                        expanded_xy=(
+                            self.guard_final_servo_square_contact_brake_preemptive_hold_expanded_xy_pending
+                        )
+                    )
+                )
+            elif self._square_contact_brake_exhausted_escape_condition(
+                state,
+                dist_xy,
+                z_above_target,
+            ):
+                square_recovery_escape_triggered = (
+                    self._start_final_servo_square_recovery_escape(
+                        z_above_target,
+                        pre_lift=True,
+                    )
+                )
+            elif self._square_contact_brake_condition(
+                state,
+                dist_xy,
+                z_above_target,
+            ):
+                recovery_triggered = (
+                    self._start_final_servo_square_contact_brake(z_above_target)
+                )
+            elif self._square_recovery_escape_early_contact_condition(
                 state,
                 dist_xy,
                 z_above_target,
@@ -4286,7 +6322,12 @@ class GuardedPolicyController:
                 z_above_target,
             ):
                 square_recovery_escape_triggered = (
-                    self._start_final_servo_square_recovery_escape(z_above_target)
+                    self._start_final_servo_square_recovery_escape(
+                        z_above_target,
+                        pre_lift=(
+                            self.config.guard_final_servo_square_recovery_escape_pre_lift_on_trigger
+                        ),
+                    )
                 )
             elif self._square_recovery_escape_preempt_recovery_condition(
                 state,
@@ -4294,7 +6335,12 @@ class GuardedPolicyController:
                 z_above_target,
             ):
                 square_recovery_escape_triggered = (
-                    self._start_final_servo_square_recovery_escape(z_above_target)
+                    self._start_final_servo_square_recovery_escape(
+                        z_above_target,
+                        pre_lift=(
+                            self.config.guard_final_servo_square_recovery_escape_pre_lift_on_trigger
+                        ),
+                    )
                 )
             elif not self._square_fast_settle_state_ok(state, dist_xy, z_above_target):
                 recovery_triggered = self._start_final_servo_recovery(z_above_target)
@@ -4312,6 +6358,134 @@ class GuardedPolicyController:
             else:
                 self.guard_final_servo_stall_steps += 1
 
+        elif self.guard_final_servo_phase == "square_fast_settle_clearance_hold":
+            if (
+                self.guard_final_servo_phase_steps
+                >= self.config.guard_final_servo_square_fast_settle_clearance_hold_steps
+            ):
+                self._start_final_servo_square_fast_settle(z_above_target)
+            elif dist_xy > self.config.guard_final_servo_square_recovery_escape_xy:
+                square_recovery_escape_triggered = (
+                    self._start_final_servo_square_recovery_escape(
+                        z_above_target,
+                        pre_lift=(
+                            self.config.guard_final_servo_square_recovery_escape_pre_lift_on_trigger
+                        ),
+                    )
+                )
+
+        elif self.guard_final_servo_phase == "square_low_z_relief_lift":
+            target_z = self.guard_final_servo_recovery_target_z_above
+            lifted_enough = z_above_target >= (
+                target_z
+                - 2.0
+                * self.config.guard_final_servo_square_fast_settle_low_z_relief_max_up_action
+            )
+            timed_out = (
+                self.guard_final_servo_phase_steps
+                >= self.config.guard_final_servo_square_fast_settle_low_z_relief_lift_steps
+            )
+            if lifted_enough or timed_out:
+                self._set_final_servo_phase("square_low_z_relief_recenter")
+        elif self.guard_final_servo_phase == "square_low_z_relief_recenter":
+            timed_out = (
+                self.guard_final_servo_phase_steps
+                >= self.config.guard_final_servo_square_fast_settle_low_z_relief_recenter_steps
+            )
+            recentered = (
+                dist_xy
+                <= self.config.guard_final_servo_square_fast_settle_low_z_relief_release_xy
+            )
+            if timed_out or recentered:
+                self._start_final_servo_square_fast_settle(z_above_target)
+            elif dist_xy > self.config.guard_final_servo_square_recovery_escape_xy:
+                square_recovery_escape_triggered = (
+                    self._start_final_servo_square_recovery_escape(
+                        z_above_target,
+                        pre_lift=(
+                            self.config.guard_final_servo_square_recovery_escape_pre_lift_on_trigger
+                        ),
+                    )
+                )
+
+        elif self.guard_final_servo_phase == "square_low_z_stall_relief_hold":
+            if dist_xy > self.config.guard_final_servo_square_recovery_escape_xy:
+                square_recovery_escape_triggered = (
+                    self._start_final_servo_square_recovery_escape(
+                        z_above_target,
+                        pre_lift=(
+                            self.config.guard_final_servo_square_recovery_escape_pre_lift_on_trigger
+                        ),
+                    )
+                )
+            elif (
+                self.guard_final_servo_phase_steps
+                >= self.config.guard_final_servo_square_fast_settle_low_z_stall_relief_hold_steps
+            ):
+                self._start_final_servo_square_fast_settle(z_above_target)
+
+        elif self.guard_final_servo_phase == "square_contact_brake_preemptive_hold":
+            if (
+                self.guard_final_servo_phase_steps
+                >= self.config.guard_final_servo_square_contact_brake_preemptive_hold_steps
+            ):
+                if (
+                    self.config.guard_final_servo_square_contact_brake_enabled
+                    and self.guard_final_servo_square_contact_brake_attempts
+                    < self.config.guard_final_servo_square_contact_brake_max_attempts
+                ):
+                    recovery_triggered = (
+                        self._start_final_servo_square_contact_brake(z_above_target)
+                    )
+                elif (
+                    self.config.guard_final_servo_square_contact_brake_exhausted_escape_enabled
+                ):
+                    square_recovery_escape_triggered = (
+                        self._start_final_servo_square_recovery_escape(
+                            z_above_target,
+                            pre_lift=True,
+                        )
+                    )
+                else:
+                    self._start_final_servo_square_fast_settle(z_above_target)
+
+        elif self.guard_final_servo_phase == "square_contact_brake_lift":
+            target_z = self.guard_final_servo_recovery_target_z_above
+            lifted_enough = z_above_target >= (
+                target_z
+                - 2.0
+                * self.config.guard_final_servo_square_contact_brake_max_up_action
+            )
+            timed_out = (
+                self.guard_final_servo_phase_steps
+                >= self.config.guard_final_servo_square_contact_brake_max_steps
+            )
+            if lifted_enough:
+                self.guard_final_servo_stable_steps = 0
+                self._set_final_servo_phase("square_contact_brake_recenter")
+            elif timed_out:
+                self.guard_final_servo_stable_steps = 0
+                self._set_final_servo_phase("square_contact_brake_recenter")
+
+        elif self.guard_final_servo_phase == "square_contact_brake_recenter":
+            if (
+                dist_xy
+                <= self.config.guard_final_servo_square_contact_brake_release_xy
+            ):
+                self.guard_final_servo_stable_steps += 1
+                if (
+                    self.guard_final_servo_stable_steps
+                    >= self.config.guard_final_servo_square_contact_brake_stable_steps
+                ):
+                    self._start_final_servo_square_fast_settle(z_above_target)
+            else:
+                self.guard_final_servo_stable_steps = 0
+                if (
+                    self.guard_final_servo_phase_steps
+                    >= self.config.guard_final_servo_square_contact_brake_max_steps
+                ):
+                    self._start_final_servo_square_fast_settle(z_above_target)
+
         elif self.guard_final_servo_phase == "square_recovery_escape_pre_lift":
             if (
                 self.guard_final_servo_phase_steps
@@ -4320,7 +6494,37 @@ class GuardedPolicyController:
                 self._set_final_servo_phase("square_recovery_escape_lift")
 
         elif self.guard_final_servo_phase == "square_high_z_descend":
-            if not self._square_high_z_descend_low_risk(state):
+            if (
+                dist_xy
+                > self.config.guard_final_servo_square_high_z_descend_xy_max
+            ):
+                recovery_triggered = self._start_final_servo_recovery(z_above_target)
+            elif self._square_high_z_descend_contact_brake_condition(
+                state,
+                dist_xy,
+                z_above_target,
+            ):
+                if (
+                    self.config.guard_final_servo_square_contact_brake_preemptive_hold_enabled
+                ):
+                    recovery_triggered = (
+                        self._start_final_servo_square_contact_brake_preemptive_hold(
+                            expanded_xy=False
+                        )
+                    )
+                else:
+                    recovery_triggered = (
+                        self._start_final_servo_square_contact_brake(z_above_target)
+                    )
+            elif self._square_high_z_descend_low_z_hold_condition(
+                state,
+                dist_xy,
+                z_above_target,
+            ):
+                recovery_triggered = (
+                    self._start_final_servo_square_high_z_descend_low_z_hold()
+                )
+            elif not self._square_high_z_descend_low_risk(state):
                 recovery_triggered = self._start_final_servo_recovery(z_above_target)
             elif (
                 self.guard_final_servo_phase_steps
@@ -4335,6 +6539,30 @@ class GuardedPolicyController:
                 self.guard_final_servo_stall_steps = 0
             else:
                 self.guard_final_servo_stall_steps += 1
+
+        elif self.guard_final_servo_phase == "square_high_z_descend_low_z_hold":
+            if self._square_high_z_descend_contact_brake_condition(
+                state,
+                dist_xy,
+                z_above_target,
+            ):
+                if (
+                    self.config.guard_final_servo_square_contact_brake_preemptive_hold_enabled
+                ):
+                    recovery_triggered = (
+                        self._start_final_servo_square_contact_brake_preemptive_hold(
+                            expanded_xy=False
+                        )
+                    )
+                else:
+                    recovery_triggered = (
+                        self._start_final_servo_square_contact_brake(z_above_target)
+                    )
+            elif (
+                self.guard_final_servo_phase_steps
+                >= self.config.guard_final_servo_square_high_z_descend_low_z_hold_steps
+            ):
+                self._start_final_servo_square_fast_settle(z_above_target)
 
         elif self.guard_final_servo_phase == "square_margin_yaw_settle_lift":
             target_z = self.guard_final_servo_recovery_target_z_above
@@ -4536,12 +6764,29 @@ class GuardedPolicyController:
         elif self.guard_final_servo_phase == "square_recovery_escape_recenter":
             if (
                 dist_xy
-                <= self.config.guard_final_servo_square_recovery_escape_release_xy
+                <= self._final_servo_square_recovery_escape_release_xy()
             ):
                 self.guard_final_servo_best_z_above = z_above_target
                 self.guard_final_servo_stall_steps = 0
                 self.guard_final_servo_stable_steps = 0
-                self._set_final_servo_phase("align_hover")
+                if (
+                    self.config.guard_final_servo_square_contact_brake_reset_attempts_after_escape_enabled
+                ):
+                    self.guard_final_servo_square_contact_brake_attempts = 0
+                    self.guard_final_servo_square_contact_brake_wall_steps = 0
+                    self.guard_final_servo_square_contact_brake_triggered = False
+                    self.guard_final_servo_square_contact_brake_preemptive_hold_wall_steps = 0
+                    self.guard_final_servo_square_contact_brake_preemptive_hold_triggered = False
+                if self._square_recovery_escape_direct_fast_settle_condition(
+                    state,
+                    dist_xy,
+                    z_above_target,
+                ):
+                    self._start_final_servo_square_recovery_escape_direct_fast_settle(
+                        z_above_target
+                    )
+                else:
+                    self._set_final_servo_phase("align_hover")
             elif (
                 self.guard_final_servo_phase_steps
                 >= self.config.guard_final_servo_square_recovery_escape_max_steps
@@ -4783,6 +7028,14 @@ class GuardedPolicyController:
             down_blocked = False
         elif phase == "square_fast_settle":
             z_above_target = float(tip[2] - target[2])
+            contact_count = (
+                state.peg_hole_contact_wall_count
+                + state.peg_hole_contact_plate_count
+            )
+            if contact_count <= 0:
+                self.guard_final_servo_square_fast_settle_clean_steps += 1
+            else:
+                self.guard_final_servo_square_fast_settle_clean_steps = 0
             desired = np.asarray(
                 [
                     target[0],
@@ -4805,22 +7058,202 @@ class GuardedPolicyController:
             max_down_action = (
                 self.config.guard_final_servo_square_fast_settle_max_down_action
             )
+            low_z_max_down_action = (
+                self.config.guard_final_servo_square_fast_settle_low_z_max_down_action
+            )
+            low_z_down_threshold = (
+                self.config.guard_final_servo_square_fast_settle_low_z_down_threshold
+            )
+            if (
+                low_z_max_down_action > 0.0
+                and z_above_target <= low_z_down_threshold
+            ):
+                max_down_action = min(max_down_action, low_z_max_down_action)
+            late_down_boost_active = self._square_fast_settle_late_down_boost_condition(
+                state,
+                dist_xy,
+                z_above_target,
+            )
+            if late_down_boost_active:
+                max_xy_action = min(
+                    max_xy_action,
+                    self.config.guard_final_servo_square_fast_settle_late_down_boost_max_xy_action,
+                )
+                max_down_action = max(
+                    max_down_action,
+                    self.config.guard_final_servo_square_fast_settle_late_down_boost_max_down_action,
+                )
+            if (
+                self.guard_final_servo_square_recovery_escape_direct_fast_settle_active
+                and self.guard_final_servo_phase_steps
+                <= self.config.guard_final_servo_square_recovery_escape_direct_fast_settle_max_steps
+                and dist_xy
+                <= self.config.guard_final_servo_square_recovery_escape_direct_fast_settle_xy_max
+                and z_above_target
+                <= self.config.guard_final_servo_square_recovery_escape_direct_fast_settle_z_max
+            ):
+                contact_count = (
+                    state.peg_hole_contact_wall_count
+                    + state.peg_hole_contact_plate_count
+                )
+                if (
+                    contact_count
+                    <= self.config.guard_final_servo_square_recovery_escape_direct_fast_settle_contact_max
+                ):
+                    direct_max_xy_action = (
+                        self.config.guard_final_servo_square_recovery_escape_direct_fast_settle_max_xy_action
+                    )
+                    direct_max_down_action = (
+                        self.config.guard_final_servo_square_recovery_escape_direct_fast_settle_max_down_action
+                    )
+                    direct_fast_down_margin_min = (
+                        self.config.guard_final_servo_square_recovery_escape_direct_fast_settle_fast_down_margin_min
+                    )
+                    direct_fast_down_margin_ok = True
+                    if direct_fast_down_margin_min > -1.0:
+                        margin = state.square_peg_tilted_clearance_margin
+                        direct_fast_down_margin_ok = (
+                            margin is not None
+                            and np.isfinite(margin)
+                            and margin >= direct_fast_down_margin_min
+                        )
+                    if direct_max_xy_action > 0.0:
+                        max_xy_action = min(max_xy_action, direct_max_xy_action)
+                    if (
+                        direct_max_down_action > 0.0
+                        and direct_fast_down_margin_ok
+                        and z_above_target
+                        >= self.config.guard_final_servo_square_recovery_escape_direct_fast_settle_max_down_z_min
+                    ):
+                        max_down_action = max(max_down_action, direct_max_down_action)
             down_blocked = False
-        elif phase == "square_high_z_descend":
+        elif phase == "square_fast_settle_clearance_hold":
+            contact_count = (
+                state.peg_hole_contact_wall_count
+                + state.peg_hole_contact_plate_count
+            )
+            max_up_action = (
+                self.config.guard_final_servo_square_fast_settle_clearance_hold_max_up_action
+                if contact_count > 0
+                else 0.0
+            )
             desired = np.asarray(
                 [
                     control_tip[0],
                     control_tip[1],
-                    target[2],
+                    control_tip[2] + max_up_action / self.config.oracle.action_gain,
                 ],
                 dtype=np.float64,
             )
             max_xy_action = 0.0
+            max_down_action = 0.0
+            down_blocked = True
+        elif phase == "square_low_z_relief_lift":
+            desired = np.asarray(
+                [
+                    control_tip[0],
+                    control_tip[1],
+                    target[2] + self.guard_final_servo_recovery_target_z_above,
+                ],
+                dtype=np.float64,
+            )
+            max_xy_action = 0.0
+            max_down_action = 0.0
+            max_up_action = self.config.guard_final_servo_square_fast_settle_low_z_relief_max_up_action
+            down_blocked = True
+        elif phase == "square_low_z_relief_recenter":
+            desired = np.asarray(
+                [
+                    target[0],
+                    target[1],
+                    target[2] + self.guard_final_servo_recovery_target_z_above,
+                ],
+                dtype=np.float64,
+            )
+            max_xy_action = self.config.guard_final_servo_square_fast_settle_low_z_relief_max_xy_action
+            max_down_action = 0.0
+            max_up_action = self.config.guard_final_servo_square_fast_settle_low_z_relief_max_up_action
+            down_blocked = True
+        elif phase == "square_low_z_stall_relief_hold":
+            max_up_action = (
+                self.config.guard_final_servo_square_fast_settle_low_z_stall_relief_hold_max_up_action
+            )
+            desired = np.asarray(
+                [
+                    control_tip[0],
+                    control_tip[1],
+                    control_tip[2] + max_up_action / self.config.oracle.action_gain,
+                ],
+                dtype=np.float64,
+            )
+            max_xy_action = 0.0
+            max_down_action = 0.0
+            down_blocked = True
+        elif phase == "square_high_z_descend":
+            z_above_target = float(tip[2] - target[2])
+            desired = np.asarray(
+                [
+                    target[0],
+                    target[1],
+                    target[2],
+                ],
+                dtype=np.float64,
+            )
+            max_xy_action = (
+                self.config.guard_final_servo_square_high_z_descend_max_xy_action
+            )
             max_down_action = (
                 self.config.guard_final_servo_square_high_z_descend_max_down_action
             )
+            low_z_threshold = (
+                self.config.guard_final_servo_square_high_z_descend_low_z_threshold
+            )
+            if self.config.guard_final_servo_square_high_z_descend_staged_enabled:
+                mid_z_threshold = (
+                    self.config.guard_final_servo_square_high_z_descend_mid_z_threshold
+                )
+                if mid_z_threshold > 0.0 and z_above_target <= mid_z_threshold:
+                    max_xy_action = min(
+                        max_xy_action,
+                        self.config.guard_final_servo_square_high_z_descend_mid_z_max_xy_action,
+                    )
+                    max_down_action = min(
+                        max_down_action,
+                        self.config.guard_final_servo_square_high_z_descend_mid_z_max_down_action,
+                    )
+                if low_z_threshold > 0.0 and z_above_target <= low_z_threshold:
+                    max_xy_action = min(
+                        max_xy_action,
+                        self.config.guard_final_servo_square_high_z_descend_low_z_max_xy_action,
+                    )
+                    max_down_action = min(
+                        max_down_action,
+                        self.config.guard_final_servo_square_high_z_descend_low_z_max_down_action,
+                    )
+            elif low_z_threshold > 0.0 and z_above_target <= low_z_threshold:
+                max_xy_action = min(
+                    max_xy_action,
+                    self.config.guard_final_servo_square_high_z_descend_low_z_max_xy_action,
+                )
             max_up_action = 0.0
             down_blocked = False
+        elif phase == "square_high_z_descend_low_z_hold":
+            desired = np.asarray(
+                [
+                    control_tip[0],
+                    control_tip[1],
+                    control_tip[2]
+                    + self.config.guard_final_servo_square_high_z_descend_low_z_hold_max_up_action
+                    / self.config.oracle.action_gain,
+                ],
+                dtype=np.float64,
+            )
+            max_xy_action = 0.0
+            max_down_action = 0.0
+            max_up_action = (
+                self.config.guard_final_servo_square_high_z_descend_low_z_hold_max_up_action
+            )
+            down_blocked = True
         elif phase == "low_recenter":
             desired = np.asarray(
                 [
@@ -5003,6 +7436,55 @@ class GuardedPolicyController:
                 self.config.guard_final_servo_square_tilt_reinsert_max_up_action
             )
             down_blocked = True
+        elif phase == "square_contact_brake_preemptive_hold":
+            desired = np.asarray(
+                [
+                    control_tip[0],
+                    control_tip[1],
+                    control_tip[2]
+                    + self.config.guard_final_servo_square_contact_brake_preemptive_hold_max_up_action
+                    / self.config.oracle.action_gain,
+                ],
+                dtype=np.float64,
+            )
+            max_xy_action = 0.0
+            max_down_action = 0.0
+            max_up_action = (
+                self.config.guard_final_servo_square_contact_brake_preemptive_hold_max_up_action
+            )
+            down_blocked = True
+        elif phase == "square_contact_brake_lift":
+            desired = np.asarray(
+                [
+                    control_tip[0],
+                    control_tip[1],
+                    target[2] + self.guard_final_servo_recovery_target_z_above,
+                ],
+                dtype=np.float64,
+            )
+            max_xy_action = 0.0
+            max_down_action = 0.0
+            max_up_action = (
+                self.config.guard_final_servo_square_contact_brake_max_up_action
+            )
+            down_blocked = True
+        elif phase == "square_contact_brake_recenter":
+            desired = np.asarray(
+                [
+                    target[0],
+                    target[1],
+                    target[2] + self.guard_final_servo_recovery_target_z_above,
+                ],
+                dtype=np.float64,
+            )
+            max_xy_action = (
+                self.config.guard_final_servo_square_contact_brake_max_xy_action
+            )
+            max_down_action = 0.0
+            max_up_action = (
+                self.config.guard_final_servo_square_contact_brake_max_up_action
+            )
+            down_blocked = True
         elif phase == "square_recovery_escape_pre_lift":
             desired = np.asarray(
                 [
@@ -5036,22 +7518,44 @@ class GuardedPolicyController:
             )
             down_blocked = True
         elif phase == "square_recovery_escape_recenter":
+            recenter_z_above_target = float(tip[2] - target[2])
+            recenter_descend = (
+                self._square_recovery_escape_recenter_descend_condition(
+                    state,
+                    dist_xy,
+                    recenter_z_above_target,
+                )
+            )
+            desired_z = target[2] + self.guard_final_servo_recovery_target_z_above
+            max_down_action = 0.0
+            max_up_action = (
+                self.config.guard_final_servo_square_recovery_escape_max_up_action
+            )
+            if recenter_descend:
+                desired_z = target[2]
+                max_down_action = (
+                    self.config.guard_final_servo_square_recovery_escape_recenter_descend_max_down_action
+                )
+                max_up_action = 0.0
+            elif self._square_recovery_escape_recenter_no_up_condition(
+                state,
+                dist_xy,
+                recenter_z_above_target,
+            ):
+                desired_z = control_tip[2]
+                max_up_action = 0.0
             desired = np.asarray(
                 [
                     target[0],
                     target[1],
-                    target[2] + self.guard_final_servo_recovery_target_z_above,
+                    desired_z,
                 ],
                 dtype=np.float64,
             )
             max_xy_action = (
                 self.config.guard_final_servo_square_recovery_escape_max_xy_action
             )
-            max_down_action = 0.0
-            max_up_action = (
-                self.config.guard_final_servo_square_recovery_escape_max_up_action
-            )
-            down_blocked = True
+            down_blocked = not recenter_descend
         elif phase == "recover_lift":
             desired = np.asarray(
                 [

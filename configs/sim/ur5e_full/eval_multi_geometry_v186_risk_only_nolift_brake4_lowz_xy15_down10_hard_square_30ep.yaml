@@ -1,0 +1,13 @@
+# v186 diagnostic v185 + moderate very-low-Z XY cap.
+#
+# v185 passes 11/12 hard-square buckets but leaves a 927521 low-Z pop where
+# the down command is already capped to 1 mm/step and the remaining risky term
+# is a roughly 1.9 mm/step lateral reversal at about 28 mm Z. This adds a
+# moderate 1.5 mm/step XY cap in the same very-low-Z band. It is intentionally
+# less aggressive than rejected v181's 1.0 mm cap.
+#
+# Diagnostic only until focused and broad hard-square gates pass.
+base_config: eval_multi_geometry_v185_risk_only_nolift_brake4_down10_hard_square_30ep.yaml
+
+guard_final_servo_square_fast_settle_low_z_threshold: 0.032
+guard_final_servo_square_fast_settle_low_z_max_xy_action: 0.0015

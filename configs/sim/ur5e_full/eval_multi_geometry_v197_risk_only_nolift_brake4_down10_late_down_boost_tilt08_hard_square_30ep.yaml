@@ -1,0 +1,12 @@
+# v197 diagnostic v195 + strict late-boost tilt gate.
+#
+# v195 fixes the 931509 timeout but adds a no-contact low-Z lateral pop at
+# 931510. v196 softens the boost and passes 931500, but regresses the focused
+# buckets. The common pattern in the new v196/v195 failures is boost/reinsert
+# around tilt close to or above 0.9 deg. This keeps the stronger v195 descent
+# but only enables late boost while the peg is nearly upright.
+#
+# Diagnostic only until focused and broad hard-square gates pass.
+base_config: eval_multi_geometry_v195_risk_only_nolift_brake4_down10_late_down_boost_only_hard_square_30ep.yaml
+
+guard_final_servo_square_fast_settle_late_down_boost_tilt_max_deg: 0.8

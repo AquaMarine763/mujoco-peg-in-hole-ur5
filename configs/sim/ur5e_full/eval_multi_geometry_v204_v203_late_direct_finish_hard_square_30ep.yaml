@@ -1,0 +1,20 @@
+# v204 diagnostic v203 + late-only direct finish.
+#
+# v203 rescues the current-code 929500/931500 buckets but regresses 924500 and
+# 927500 with late timeouts after square recovery escape spends the last budget
+# returning through align_hover. This candidate enables direct fast-settle only
+# after 850 episode steps, so it is a timeout-pressure finish assist rather than
+# a general insertion path.
+#
+# Diagnostic only until 924/927/928/929/931 focused gates pass.
+base_config: eval_multi_geometry_v203_v202_low_z_relief_attempt3_hard_square_30ep.yaml
+
+guard_final_servo_square_recovery_escape_direct_fast_settle_enabled: true
+guard_final_servo_square_recovery_escape_direct_fast_settle_xy_max: 0.008
+guard_final_servo_square_recovery_escape_direct_fast_settle_z_max: 0.070
+guard_final_servo_square_recovery_escape_direct_fast_settle_contact_max: 0
+guard_final_servo_square_recovery_escape_direct_fast_settle_max_steps: 64
+guard_final_servo_square_recovery_escape_direct_fast_settle_min_steps_since_reset: 850
+guard_final_servo_square_recovery_escape_direct_fast_settle_max_down_action: 0.0040
+guard_final_servo_square_recovery_escape_direct_fast_settle_max_down_z_min: 0.034
+guard_final_servo_square_recovery_escape_direct_fast_settle_max_xy_action: 0.0030

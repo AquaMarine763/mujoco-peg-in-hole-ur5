@@ -1,0 +1,15 @@
+# v207 diagnostic v205 + no-contact pre-pop hold/resume.
+#
+# v206 proved that catching the pre-pop window around phase step 35 avoids the
+# 927514 collision, but it reused the full low-Z lift/recenter relief. That
+# recenter motion can create a lateral pop and force a budget-heavy recovery
+# escape. This candidate keeps the earlier no-contact trigger but routes it
+# through a short zero-XY hold that returns directly to square_fast_settle.
+#
+# Diagnostic only until 924/927/928/929/931 focused gates pass.
+base_config: eval_multi_geometry_v205_v204_low_z_relief_attempt4_hard_square_30ep.yaml
+
+guard_final_servo_square_fast_settle_low_z_stall_relief_min_phase_steps: 35
+guard_final_servo_square_fast_settle_low_z_stall_relief_hold_enabled: true
+guard_final_servo_square_fast_settle_low_z_stall_relief_hold_steps: 4
+guard_final_servo_square_fast_settle_low_z_stall_relief_hold_max_up_action: 0.0

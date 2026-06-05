@@ -1,0 +1,17 @@
+# v191 diagnostic v190 + faster return from square recovery escape.
+#
+# v190 removes the 931500 low-Z collisions but leaves one safe timeout where a
+# late square recovery escape spends too long recentering and then returns via
+# align_hover. This keeps the same escape trigger and height, but releases the
+# recenter at 8 mm and uses the existing direct-fast-settle path so the policy
+# resumes square_fast_settle immediately after a clean no-contact recenter.
+#
+# Diagnostic only until focused and broad hard-square gates pass.
+base_config: eval_multi_geometry_v190_risk_only_nolift_brake4_down10_low_z_contact_and_stall_relief_hard_square_30ep.yaml
+
+guard_final_servo_square_recovery_escape_release_xy: 0.008
+guard_final_servo_square_recovery_escape_direct_fast_settle_enabled: true
+guard_final_servo_square_recovery_escape_direct_fast_settle_xy_max: 0.008
+guard_final_servo_square_recovery_escape_direct_fast_settle_z_max: 0.070
+guard_final_servo_square_recovery_escape_direct_fast_settle_contact_max: 0
+guard_final_servo_square_recovery_escape_direct_fast_settle_max_steps: 32

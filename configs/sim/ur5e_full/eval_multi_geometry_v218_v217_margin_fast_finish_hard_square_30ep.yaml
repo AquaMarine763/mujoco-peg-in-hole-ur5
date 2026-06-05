@@ -1,0 +1,14 @@
+# v218 diagnostic v217 + margin-gated late fast finish.
+#
+# v217 passes 924/928/929/931 but leaves two 927500 timeouts in
+# square_fast_settle. Both are near-centered, positive-margin, mostly
+# no-contact final descents that run out of the 1000-step budget. This candidate
+# extends late-down-boost to lower Z and raises its down cap only when tilted
+# square clearance margin is positive.
+#
+# Diagnostic only until 924/927/928/929/931 focused gates pass.
+base_config: eval_multi_geometry_v217_v216_recenter_xy6_hard_square_30ep.yaml
+
+guard_final_servo_square_fast_settle_late_down_boost_max_down_action: 0.003
+guard_final_servo_square_fast_settle_late_down_boost_z_min: 0.010
+guard_final_servo_square_fast_settle_late_down_boost_margin_min: 0.0002

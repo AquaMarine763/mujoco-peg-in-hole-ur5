@@ -1,0 +1,24 @@
+# v200 diagnostic v198 + direct finish after clean square recovery escape.
+#
+# v198 leaves one safe timeout in the 929500 bucket: seed 929524 performs a
+# late square_recovery_escape, returns through align_hover at about step 973,
+# re-enters square_fast_settle at step 983, and then runs out of the 1000-step
+# budget while still descending from roughly 59 mm above target.
+#
+# This candidate does not broaden the escape release threshold and does not
+# lower the escape height. It only:
+# - enables the existing clean no-contact direct-fast-settle handoff after
+#   square recovery escape recenters under the normal 6 mm release gate
+# - gives that direct handoff a short high-Z finish window with faster down
+#   action while XY remains inside the square fast-settle envelope
+#
+# Diagnostic only until 929500/931500 and the focused hard-square gate pass.
+base_config: eval_multi_geometry_v198_risk_only_nolift_brake4_down10_late_boost_prepop_relief_hard_square_30ep.yaml
+
+guard_final_servo_square_recovery_escape_direct_fast_settle_enabled: true
+guard_final_servo_square_recovery_escape_direct_fast_settle_xy_max: 0.008
+guard_final_servo_square_recovery_escape_direct_fast_settle_z_max: 0.070
+guard_final_servo_square_recovery_escape_direct_fast_settle_contact_max: 0
+guard_final_servo_square_recovery_escape_direct_fast_settle_max_steps: 64
+guard_final_servo_square_recovery_escape_direct_fast_settle_max_down_action: 0.0040
+guard_final_servo_square_recovery_escape_direct_fast_settle_max_xy_action: 0.0030

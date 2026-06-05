@@ -1,0 +1,12 @@
+# v221 diagnostic v220 + shorter late escape lift.
+#
+# v220 removed the hard 931 collision but left 927/931 timeouts stuck in
+# square_recovery_escape_lift near the 1000-step limit. The 70 mm escape target
+# is too expensive when escape starts late, so this candidate exits lift around
+# 45 mm by lowering the target height to 55 mm. That still leaves enough height
+# for clean recenter-descend, whose configured Z band starts at 45 mm.
+#
+# Diagnostic only until 924/927/928/929/931 focused gates pass.
+base_config: eval_multi_geometry_v220_v218_clean3_fast_finish_hard_square_30ep.yaml
+
+guard_final_servo_square_recovery_escape_height: 0.055

@@ -1,0 +1,12 @@
+# v217 diagnostic v216 + faster high-Z recovery-escape recenter XY.
+#
+# v216 removed the v215 collision, but 931518 still timed out while
+# square_recovery_escape_recenter was high and clean at ~21 mm XY. The branch
+# was saturated at the 4 mm XY cap and simply ran out of the 1000-step budget.
+# This candidate keeps the v216 gated descent/no-up behavior and raises only the
+# recovery-escape recenter XY cap to 6 mm.
+#
+# Diagnostic only until 924/927/928/929/931 focused gates pass.
+base_config: eval_multi_geometry_v216_v208_gated_recenter_descend_hard_square_30ep.yaml
+
+guard_final_servo_square_recovery_escape_max_xy_action: 0.006

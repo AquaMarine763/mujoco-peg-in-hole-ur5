@@ -1,0 +1,24 @@
+# v189 diagnostic v185 + narrow no-contact low-Z stall relief.
+#
+# v185 is nearly clean, but 927521 collides after a delayed low-Z lateral pop:
+# square_fast_settle, 4 brake attempts exhausted, no wall contact, XY under
+# 2 mm, z around 26-32 mm, and stall steps increasing past 12. v188 tried a
+# broader early-risk escape and regressed badly, so this config adds a new
+# default-off hook that only performs a short low-Z relief lift/recenter in
+# that narrow pattern.
+#
+# Diagnostic only until 927/928/929/931/924 focused gates and full hard-square
+# gates pass.
+base_config: eval_multi_geometry_v185_risk_only_nolift_brake4_down10_hard_square_30ep.yaml
+
+guard_final_servo_square_fast_settle_low_z_stall_relief_enabled: true
+guard_final_servo_square_fast_settle_low_z_stall_relief_xy_max: 0.0025
+guard_final_servo_square_fast_settle_low_z_stall_relief_z_min: 0.026
+guard_final_servo_square_fast_settle_low_z_stall_relief_z_max: 0.0325
+guard_final_servo_square_fast_settle_low_z_stall_relief_margin_min: 0.0002
+guard_final_servo_square_fast_settle_low_z_stall_relief_margin_threshold: 0.0010
+guard_final_servo_square_fast_settle_low_z_stall_relief_contact_max: 0
+guard_final_servo_square_fast_settle_low_z_stall_relief_min_brake_attempts: 4
+guard_final_servo_square_fast_settle_low_z_stall_relief_min_phase_steps: 38
+guard_final_servo_square_fast_settle_low_z_stall_relief_min_stall_steps: 12
+guard_final_servo_square_fast_settle_low_z_stall_relief_max_attempts: 1
