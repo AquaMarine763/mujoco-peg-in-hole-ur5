@@ -63,7 +63,10 @@
     <material name="mat_floor" rgba="0.42 0.43 0.44 1"/>
     <material name="mat_table" rgba="0.22 0.25 0.27 1"/>
     <material name="mat_hole" rgba="0.55 0.55 0.52 1"/>
+    <material name="mat_hole_cavity" rgba="0.035 0.032 0.028 1"/>
     <material name="mat_peg" rgba="0.1 0.28 0.85 1"/>
+    <material name="mat_peg_tip_cap_visual" rgba="0.82 0.92 1 0.52"/>
+    <material name="mat_peg_tip_outline_visual" rgba="0.02 0.025 0.035 0.88"/>
     <material name="mat_camera" rgba="0.02 0.02 0.02 1"/>
 
     <mesh file="base_0.obj"/>
@@ -86,6 +89,35 @@
     <mesh file="wrist2_1.obj"/>
     <mesh file="wrist2_2.obj"/>
     <mesh file="wrist3.obj"/>
+    <mesh name="true_hex_wall_mesh" file="true_hex_wall_mesh.obj"/>
+    <mesh name="true_triangle_wall_mesh" file="true_triangle_wall_mesh.obj"/>
+    <mesh name="true_slot_side_wall_mesh" file="true_slot_side_wall_mesh.obj"/>
+    <mesh name="true_slot_arc_wall_mesh" file="true_slot_arc_wall_mesh.obj"/>
+    <mesh name="true_keyhole_tab_side_wall_mesh" file="true_keyhole_tab_side_wall_mesh.obj"/>
+    <mesh name="true_keyhole_tab_front_wall_mesh" file="true_keyhole_tab_front_wall_mesh.obj"/>
+    <mesh name="true_keyhole_arc_wall_mesh" file="true_keyhole_arc_wall_mesh.obj"/>
+    <mesh name="true_hex_wall_tight_yaw_mesh" file="true_hex_wall_tight_yaw_mesh.obj"/>
+    <mesh name="true_triangle_wall_tight_yaw_mesh" file="true_triangle_wall_tight_yaw_mesh.obj"/>
+    <mesh name="true_keyhole_tab_side_tight_yaw_mesh" file="true_keyhole_tab_side_tight_yaw_mesh.obj"/>
+    <mesh name="true_keyhole_tab_front_tight_yaw_mesh" file="true_keyhole_tab_front_tight_yaw_mesh.obj"/>
+    <mesh name="true_keyhole_arc_tight_yaw_mesh" file="true_keyhole_arc_tight_yaw_mesh.obj"/>
+    <mesh name="true_hex_fixture_visual_mesh" file="true_hex_fixture_visual_mesh.obj"/>
+    <mesh name="true_triangle_fixture_visual_mesh" file="true_triangle_fixture_visual_mesh.obj"/>
+    <mesh name="true_slot_fixture_visual_mesh" file="true_slot_fixture_visual_mesh.obj"/>
+    <mesh name="true_keyhole_fixture_visual_mesh" file="true_keyhole_fixture_visual_mesh.obj"/>
+    <mesh name="true_hex_fixture_visual_tight_yaw_mesh" file="true_hex_fixture_visual_tight_yaw_mesh.obj"/>
+    <mesh name="true_triangle_fixture_visual_tight_yaw_mesh" file="true_triangle_fixture_visual_tight_yaw_mesh.obj"/>
+    <mesh name="true_keyhole_fixture_visual_tight_yaw_mesh" file="true_keyhole_fixture_visual_tight_yaw_mesh.obj"/>
+    <mesh name="peg_slot_mesh" file="peg_slot_mesh.obj"/>
+    <mesh name="peg_keyhole_mesh" file="peg_keyhole_mesh.obj"/>
+    <mesh name="peg_hex_tip_cap_visual_mesh" file="peg_hex_tip_cap_visual_mesh.obj"/>
+    <mesh name="peg_hex_tip_outline_visual_mesh" file="peg_hex_tip_outline_visual_mesh.obj"/>
+    <mesh name="peg_hex_side_edge_visual_mesh" file="peg_hex_side_edge_visual_mesh.obj"/>
+    <mesh name="peg_triangle_tip_cap_visual_mesh" file="peg_triangle_tip_cap_visual_mesh.obj"/>
+    <mesh name="peg_triangle_tip_outline_visual_mesh" file="peg_triangle_tip_outline_visual_mesh.obj"/>
+    <mesh name="peg_triangle_side_edge_visual_mesh" file="peg_triangle_side_edge_visual_mesh.obj"/>
+    <mesh name="peg_keyhole_tip_cap_visual_mesh" file="peg_keyhole_tip_cap_visual_mesh.obj"/>
+    <mesh name="peg_keyhole_tip_outline_visual_mesh" file="peg_keyhole_tip_outline_visual_mesh.obj"/>
     <mesh name="peg_hex_mesh" vertex="-0.00600000 0.01039230 0.05500000 -0.01200000 0.00000000 0.05500000 -0.00600000 -0.01039230 0.05500000 0.00600000 -0.01039230 0.05500000 0.01200000 -0.00000000 0.05500000 0.00600000 0.01039230 0.05500000 -0.00600000 0.01039230 -0.05500000 -0.01200000 0.00000000 -0.05500000 -0.00600000 -0.01039230 -0.05500000 0.00600000 -0.01039230 -0.05500000 0.01200000 -0.00000000 -0.05500000 0.00600000 0.01039230 -0.05500000" face="0 1 2 0 2 3 0 3 4 0 4 5 6 8 7 6 9 8 6 10 9 6 11 10 0 1 7 0 7 6 1 2 8 1 8 7 2 3 9 2 9 8 3 4 10 3 10 9 4 5 11 4 11 10 5 0 6 5 6 11"/>
     <mesh name="peg_triangle_mesh" vertex="-0.01039230 0.00600000 0.05500000 -0.00000000 -0.01200000 0.05500000 0.01039230 0.00600000 0.05500000 -0.01039230 0.00600000 -0.05500000 -0.00000000 -0.01200000 -0.05500000 0.01039230 0.00600000 -0.05500000" face="0 1 2 3 5 4 0 1 4 0 4 3 1 2 5 1 5 4 2 0 3 2 3 5"/>
   </asset>
@@ -100,6 +132,8 @@
 
     <body name="hole_body" mocap="true" pos="0.55 0.05 0.65">
       <geom name="hole_plate" type="box" pos="0 0 -0.012" size="0.085 0.085 0.008" material="mat_hole"/>
+      <geom name="hole_cavity_visual" type="box" pos="0 0 0.040" size="0.024 0.024 0.0015" material="mat_hole_cavity" rgba="0.035 0.032 0.028 1" contype="0" conaffinity="0"/>
+      <geom name="hole_key_tab_cavity_visual" type="box" pos="0 0 -1" size="0.001 0.001 0.001" material="mat_hole_cavity" rgba="0 0 0 0" contype="0" conaffinity="0"/>
       <geom name="hole_north" type="box" pos="0 0.032 0.012" size="0.085 0.012 0.026" material="mat_hole"/>
       <geom name="hole_south" type="box" pos="0 -0.032 0.012" size="0.085 0.012 0.026" material="mat_hole"/>
       <geom name="hole_east" type="box" pos="0.032 0 0.012" size="0.012 0.020 0.026" material="mat_hole"/>
@@ -112,7 +146,27 @@
       <geom name="hole_aux_5" type="box" pos="0 0 -1" size="0.001 0.001 0.001" material="mat_hole" contype="0" conaffinity="0" rgba="0 0 0 0"/>
       <geom name="hole_aux_6" type="box" pos="0 0 -1" size="0.001 0.001 0.001" material="mat_hole" contype="0" conaffinity="0" rgba="0 0 0 0"/>
       <geom name="hole_aux_7" type="box" pos="0 0 -1" size="0.001 0.001 0.001" material="mat_hole" contype="0" conaffinity="0" rgba="0 0 0 0"/>
+      <geom name="hole_polygon_visual_0" type="box" pos="0 0 -1" size="0.001 0.001 0.001" material="mat_hole" contype="0" conaffinity="0" rgba="0 0 0 0"/>
+      <geom name="hole_polygon_visual_1" type="box" pos="0 0 -1" size="0.001 0.001 0.001" material="mat_hole" contype="0" conaffinity="0" rgba="0 0 0 0"/>
+      <geom name="hole_polygon_visual_2" type="box" pos="0 0 -1" size="0.001 0.001 0.001" material="mat_hole" contype="0" conaffinity="0" rgba="0 0 0 0"/>
+      <geom name="hole_polygon_visual_3" type="box" pos="0 0 -1" size="0.001 0.001 0.001" material="mat_hole" contype="0" conaffinity="0" rgba="0 0 0 0"/>
+      <geom name="hole_polygon_visual_4" type="box" pos="0 0 -1" size="0.001 0.001 0.001" material="mat_hole" contype="0" conaffinity="0" rgba="0 0 0 0"/>
+      <geom name="hole_polygon_visual_5" type="box" pos="0 0 -1" size="0.001 0.001 0.001" material="mat_hole" contype="0" conaffinity="0" rgba="0 0 0 0"/>
+      <geom name="true_fixture_wall_0" type="mesh" mesh="true_hex_wall_mesh" pos="0 0 -1" material="mat_hole" contype="0" conaffinity="0" rgba="0 0 0 0"/>
+      <geom name="true_fixture_wall_1" type="mesh" mesh="true_hex_wall_mesh" pos="0 0 -1" material="mat_hole" contype="0" conaffinity="0" rgba="0 0 0 0"/>
+      <geom name="true_fixture_wall_2" type="mesh" mesh="true_hex_wall_mesh" pos="0 0 -1" material="mat_hole" contype="0" conaffinity="0" rgba="0 0 0 0"/>
+      <geom name="true_fixture_wall_3" type="mesh" mesh="true_hex_wall_mesh" pos="0 0 -1" material="mat_hole" contype="0" conaffinity="0" rgba="0 0 0 0"/>
+      <geom name="true_fixture_wall_4" type="mesh" mesh="true_hex_wall_mesh" pos="0 0 -1" material="mat_hole" contype="0" conaffinity="0" rgba="0 0 0 0"/>
+      <geom name="true_fixture_wall_5" type="mesh" mesh="true_hex_wall_mesh" pos="0 0 -1" material="mat_hole" contype="0" conaffinity="0" rgba="0 0 0 0"/>
+      <geom name="true_fixture_wall_6" type="mesh" mesh="true_slot_arc_wall_mesh" pos="0 0 -1" material="mat_hole" contype="0" conaffinity="0" rgba="0 0 0 0"/>
+      <geom name="true_fixture_wall_7" type="mesh" mesh="true_slot_arc_wall_mesh" pos="0 0 -1" material="mat_hole" contype="0" conaffinity="0" rgba="0 0 0 0"/>
+      <geom name="true_fixture_wall_8" type="mesh" mesh="true_keyhole_arc_wall_mesh" pos="0 0 -1" material="mat_hole" contype="0" conaffinity="0" rgba="0 0 0 0"/>
+      <geom name="true_fixture_wall_9" type="mesh" mesh="true_keyhole_arc_wall_mesh" pos="0 0 -1" material="mat_hole" contype="0" conaffinity="0" rgba="0 0 0 0"/>
+      <geom name="true_fixture_wall_10" type="mesh" mesh="true_keyhole_arc_wall_mesh" pos="0 0 -1" material="mat_hole" contype="0" conaffinity="0" rgba="0 0 0 0"/>
+      <geom name="true_fixture_wall_11" type="mesh" mesh="true_keyhole_arc_wall_mesh" pos="0 0 -1" material="mat_hole" contype="0" conaffinity="0" rgba="0 0 0 0"/>
+      <geom name="true_fixture_visual" type="mesh" mesh="true_hex_fixture_visual_mesh" pos="0 0 -1" material="mat_hole" contype="0" conaffinity="0" rgba="0 0 0 0"/>
       <site name="hole_site" pos="0 0 0" size="0.0001" rgba="0 0 0 0"/>
+      <camera name="hole_top" pos="0 0 0.20" xyaxes="1 0 0 0 1 0" fovy="35"/>
     </body>
 
     <body name="base" pos="0.136 -0.223 0.602" childclass="ur5e">
@@ -179,6 +233,9 @@
                   <body name="tool0" pos="0 0.1 0" quat="0 1 0 0">
                     <geom name="camera_geom" type="box" pos="-0.02 0 0.055" size="0.018 0.018 0.018" material="mat_camera" density="200" contype="0" conaffinity="0"/>
                     <geom name="peg_geom" type="capsule" fromto="0 0 0 0 0 -0.11" size="0.012" material="mat_peg" density="780"/>
+                    <geom name="peg_tip_cap_visual" type="mesh" mesh="peg_hex_tip_cap_visual_mesh" pos="0 0 -0.11015" material="mat_peg_tip_cap_visual" contype="0" conaffinity="0" rgba="0 0 0 0"/>
+                    <geom name="peg_tip_outline_visual" type="mesh" mesh="peg_hex_tip_outline_visual_mesh" pos="0 0 -0.11025" material="mat_peg_tip_outline_visual" contype="0" conaffinity="0" rgba="0 0 0 0"/>
+                    <geom name="peg_side_edge_visual" type="mesh" mesh="peg_hex_side_edge_visual_mesh" pos="0 0 -0.055" material="mat_peg_tip_outline_visual" contype="0" conaffinity="0" rgba="0 0 0 0"/>
                     <site name="eef_site" pos="0 0 0" size="0.0001" rgba="0 0 0 0"/>
                     <site name="peg_tip" pos="0 0 -0.11" size="0.0001" rgba="0 0 0 0"/>
                     <camera

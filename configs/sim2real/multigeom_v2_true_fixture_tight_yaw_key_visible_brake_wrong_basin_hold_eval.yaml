@@ -1,0 +1,29 @@
+# Visible-brake baseline plus explicit wrong-yaw-basin target preservation.
+# Diagnostic only. It keeps a visual-yaw-corrected IK orientation target when
+# the rectangular-key predictor reports a stable large yaw error, then blocks
+# descent and performs mild XY recentering until yaw and XY are back in the
+# normal release band.
+
+base_config: multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch_target_hold_visible_brake_eval.yaml
+
+guard_visual_yaw_align_wrong_basin_hold_enabled: true
+guard_visual_yaw_align_wrong_basin_hold_profiles: [rectangular_key]
+guard_visual_yaw_align_wrong_basin_hold_min_pred_yaw_deg: 120.0
+guard_visual_yaw_align_wrong_basin_hold_require_visible: true
+guard_visual_yaw_align_wrong_basin_hold_require_stable_delta: true
+guard_visual_yaw_align_wrong_basin_hold_stable_window: 3
+guard_visual_yaw_align_wrong_basin_hold_max_delta_deg: 12.0
+guard_visual_yaw_align_wrong_basin_hold_steps: 180
+guard_visual_yaw_align_wrong_basin_hold_release_yaw_deg: 8.0
+guard_visual_yaw_align_wrong_basin_hold_release_xy: 0.018
+guard_visual_yaw_align_wrong_basin_hold_max_xy: 0.060
+guard_visual_yaw_align_wrong_basin_hold_min_z: 0.000
+guard_visual_yaw_align_wrong_basin_hold_max_z: 0.140
+guard_visual_yaw_align_wrong_basin_hold_max_xy_action: 0.008
+guard_visual_yaw_align_wrong_basin_hold_block_descent: true
+guard_visual_yaw_align_wrong_basin_hold_flush_history: true
+
+output_csv: results/vy_visible_brake_wrong_basin_hold/eval_latest.csv
+output_md: results/vy_visible_brake_wrong_basin_hold/eval_latest.md
+episode_output_csv: results/vy_visible_brake_wrong_basin_hold/eval_latest_episodes.csv
+step_output_csv: results/vy_visible_brake_wrong_basin_hold/eval_latest_steps.csv

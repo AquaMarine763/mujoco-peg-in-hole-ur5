@@ -1,0 +1,18 @@
+# Keyhole yaw-hold/recenter with aligned descent only.
+# This keeps the strict visual yaw/recenter behavior and adds active insertion
+# once visual yaw is tight and XY is near the hole. It intentionally leaves the
+# latch disabled because the first latch diagnostic over-held bad XY states.
+
+base_config: multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_strict_eval.yaml
+
+guard_visual_yaw_align_aligned_descent_enabled: true
+guard_visual_yaw_align_aligned_descent_yaw_deg: 1.6
+guard_visual_yaw_align_aligned_descent_xy: 0.025
+guard_visual_yaw_align_aligned_descent_min_z: 0.010
+guard_visual_yaw_align_aligned_descent_max_down_action: 0.0045
+guard_visual_yaw_align_aligned_descent_max_xy_action: 0.005
+
+output_csv: results/sim2real_multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_descent_only/eval_latest.csv
+output_md: results/sim2real_multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_descent_only/eval_latest.md
+episode_output_csv: results/sim2real_multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_descent_only/eval_latest_episodes.csv
+step_output_csv: results/sim2real_multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_descent_only/eval_latest_steps.csv

@@ -1,0 +1,24 @@
+# Stable alias for the v148/v149 same-shape multi-geometry baseline.
+#
+# This is the authoritative simulation evaluation entry for the current
+# multi-geometry sim-to-real mainline. It inherits the full v148 guarded stack:
+# high-start visual policy, control randomization, v8 approach adapter, final
+# insert adapter, square tilt reinsert, square fast settle, and square pose/yaw
+# alignment.
+#
+# Validation references:
+# - v148 original matrix:
+#   D:\peg-in-hole-6yh\v148_square_pose_yaw_align_probe\matrix_60ep_weight020_six_seed
+# - v149 fresh-seed gate:
+#   D:\peg-in-hole-6yh\v149_v148_fresh_seed_gate_906500_907500
+# Combined v148+v149: 720/720 success, 0 collision, 0 timeout.
+base_config: ../sim/ur5e_full/eval_multi_geometry_v148_square_pose_yaw_align_w020_60ep.yaml
+
+episodes: 60
+seed: 906500
+geometry_profile: mixed_same_shape
+
+output_csv: results/sim2real_multigeom_v1/eval_mixed_same_shape_60ep_seed906500.csv
+output_md: results/sim2real_multigeom_v1/eval_mixed_same_shape_60ep_seed906500.md
+episode_output_csv: results/sim2real_multigeom_v1/eval_mixed_same_shape_60ep_seed906500_episodes.csv
+step_output_csv: results/sim2real_multigeom_v1/eval_mixed_same_shape_60ep_seed906500_failure_steps.csv

@@ -2,13 +2,20 @@ from __future__ import annotations
 
 import argparse
 import csv
+import sys
 from pathlib import Path
 from typing import Any
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 import mujoco
 import numpy as np
 from stable_baselines3 import A2C, PPO, SAC
 
+from peg_in_hole_mujoco.approach_adapter import ApproachAdapterPolicy
+from peg_in_hole_mujoco.final_insert_adapter import FinalInsertAdapterPolicy
 from peg_in_hole_mujoco import (
     GuardedPolicyConfig,
     GuardedPolicyController,
@@ -18,6 +25,13 @@ from peg_in_hole_mujoco import (
     PegInHoleMujocoEnv,
 )
 from peg_in_hole_mujoco.sim_config import parse_args_with_config
+from scripts.eval_guarded_policy import (
+    apply_approach_adapter,
+    apply_final_insert_adapter,
+    apply_guard_square_pose_yaw_align,
+    final_insert_progress_features,
+    maybe_apply_final_insert_lift_pulse,
+)
 
 
 AGENTS = {
@@ -61,6 +75,18 @@ def parse_args() -> argparse.Namespace:
         nargs="+",
         default=None,
         help="Optional list of MuJoCo cameras to concatenate horizontally. Overrides --render-camera.",
+    )
+    parser.add_argument(
+        "--policy-observation-panel",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Append the policy input images, cam_image and near_hole_crop, to the rendered demo.",
+    )
+    parser.add_argument(
+        "--policy-observation-layout",
+        choices=["side", "grid_2x2"],
+        default="side",
+        help="How to arrange camera renders and policy input images when the observation panel is enabled.",
     )
     parser.add_argument("--trajectory-output", type=Path, default=None, help="Optional CSV file for rollout diagnostics.")
     parser.add_argument("--device", default="auto")
@@ -108,6 +134,12 @@ def parse_args() -> argparse.Namespace:
         ],
         default="single",
     )
+    parser.add_argument("--geometry-fixture-mode", choices=["box_wall", "true_mesh"], default="box_wall")
+    parser.add_argument(
+        "--geometry-true-fixture-variant",
+        choices=["nominal", "tight_yaw"],
+        default="nominal",
+    )
     parser.add_argument("--geometry-square-peg-half-size-range", nargs=2, type=float, default=(0.0105, 0.0125))
     parser.add_argument("--geometry-mixed-square-probability", type=float, default=0.5)
     parser.add_argument("--contact-friction-multiplier-range", nargs=2, type=float, default=(0.7, 1.3))
@@ -140,6 +172,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--guard-near-ik-orientation-weight", type=float, default=None)
     parser.add_argument("--guard-final-servo-ik-orientation-weight", type=float, default=None)
     parser.add_argument("--guard-final-servo-tip-priority-ik-enabled", action="store_true")
+    parser.add_argument("--guard-square-pose-yaw-align-enabled", action="store_true")
+    parser.add_argument(
+        "--guard-square-pose-yaw-align-ik-control-mode",
+        choices=["pose", "pose_tip_priority"],
+        default="pose_tip_priority",
+    )
+    parser.add_argument(
+        "--guard-square-pose-yaw-align-ik-orientation-weight",
+        type=float,
+        default=0.25,
+    )
     parser.add_argument("--guard-contact-unjam-ik-orientation-weight", type=float, default=None)
     parser.add_argument("--guard-contact-reinsert-orient-ik-orientation-weight", type=float, default=None)
     parser.add_argument("--guard-contact-reinsert-high-ik-orientation-weight", type=float, default=None)
@@ -160,6 +203,89 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--distance-reward-scale", type=float, default=2.0)
     parser.add_argument("--action-penalty-scale", type=float, default=0.002)
     parser.add_argument("--action-alignment-scale", type=float, default=2.0)
+    parser.add_argument("--approach-adapter", type=Path, default=None)
+    parser.add_argument("--approach-adapter-enabled", action="store_true")
+    parser.add_argument("--approach-adapter-trigger-xy", type=float, default=0.100)
+    parser.add_argument("--approach-adapter-release-xy", type=float, default=0.060)
+    parser.add_argument("--approach-adapter-min-z", type=float, default=0.120)
+    parser.add_argument("--approach-adapter-max-z", type=float, default=0.270)
+    parser.add_argument("--approach-adapter-latch-enabled", action="store_true")
+    parser.add_argument("--approach-adapter-latched-min-z", type=float, default=None)
+    parser.add_argument("--approach-adapter-max-steps", type=int, default=0)
+    parser.add_argument("--approach-adapter-episode-max-steps", type=int, default=0)
+    parser.add_argument("--approach-adapter-max-xy-residual", type=float, default=0.003)
+    parser.add_argument("--approach-adapter-max-z-residual", type=float, default=0.0)
+    parser.add_argument("--approach-adapter-scale", type=float, default=1.0)
+    parser.add_argument(
+        "--approach-adapter-mode",
+        choices=["residual", "override_xy"],
+        default="residual",
+    )
+    parser.add_argument("--approach-adapter-apply-z", action="store_true")
+    parser.add_argument("--final-insert-adapter", type=Path, default=None)
+    parser.add_argument("--final-insert-adapter-enabled", action="store_true")
+    parser.add_argument(
+        "--final-insert-adapter-mode",
+        choices=["override", "override_xy", "residual"],
+        default="override",
+    )
+    parser.add_argument("--final-insert-adapter-phase", default="square_fast_settle")
+    parser.add_argument("--final-insert-adapter-geometry-name", default="square_square")
+    parser.add_argument("--final-insert-adapter-max-xy", type=float, default=0.008)
+    parser.add_argument("--final-insert-adapter-min-z", type=float, default=0.020)
+    parser.add_argument("--final-insert-adapter-max-z", type=float, default=0.055)
+    parser.add_argument("--final-insert-adapter-min-phase-steps", type=int, default=0)
+    parser.add_argument("--final-insert-adapter-min-stall-steps", type=int, default=0)
+    parser.add_argument("--final-insert-adapter-square-risk-gate-enabled", action="store_true")
+    parser.add_argument("--final-insert-adapter-square-risk-min-stall-steps", type=int, default=0)
+    parser.add_argument("--final-insert-adapter-square-risk-xy-min", type=float, default=0.0)
+    parser.add_argument(
+        "--final-insert-adapter-square-risk-topdown-margin-max",
+        type=float,
+        default=0.0,
+    )
+    parser.add_argument(
+        "--final-insert-adapter-square-risk-tilted-margin-max",
+        type=float,
+        default=0.0,
+    )
+    parser.add_argument(
+        "--final-insert-adapter-square-risk-wall-topdown-margin-max",
+        type=float,
+        default=0.0,
+    )
+    parser.add_argument(
+        "--final-insert-adapter-square-risk-wall-tilted-margin-max",
+        type=float,
+        default=0.0,
+    )
+    parser.add_argument(
+        "--final-insert-adapter-wall-contact-required",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    parser.add_argument("--final-insert-adapter-max-xy-action", type=float, default=0.002)
+    parser.add_argument("--final-insert-adapter-max-up-action", type=float, default=0.0025)
+    parser.add_argument("--final-insert-adapter-max-down-action", type=float, default=0.0008)
+    parser.add_argument("--final-insert-adapter-max-consecutive-steps", type=int, default=0)
+    parser.add_argument("--final-insert-adapter-cooldown-steps", type=int, default=0)
+    parser.add_argument("--final-insert-adapter-handoff-on-down-action", action="store_true")
+    parser.add_argument("--final-insert-adapter-handoff-on-aligned-no-contact", action="store_true")
+    parser.add_argument("--final-insert-adapter-handoff-xy", type=float, default=0.002)
+    parser.add_argument("--final-insert-adapter-handoff-min-z", type=float, default=0.025)
+    parser.add_argument("--final-insert-adapter-handoff-max-z", type=float, default=0.060)
+    parser.add_argument(
+        "--final-insert-adapter-handoff-z-action-threshold",
+        type=float,
+        default=-0.0001,
+    )
+    parser.add_argument("--final-insert-adapter-lift-pulse-enabled", action="store_true")
+    parser.add_argument("--final-insert-adapter-lift-pulse-active-steps", type=int, default=80)
+    parser.add_argument("--final-insert-adapter-lift-pulse-stall-steps", type=int, default=80)
+    parser.add_argument("--final-insert-adapter-lift-pulse-steps", type=int, default=10)
+    parser.add_argument("--final-insert-adapter-lift-pulse-period-steps", type=int, default=120)
+    parser.add_argument("--final-insert-adapter-lift-pulse-z-action", type=float, default=0.0015)
+    parser.add_argument("--final-insert-adapter-progress-window-steps", type=int, default=20)
     parser.add_argument("--guarded-policy", action="store_true")
     parser.add_argument(
         "--guard-scenario-filter",
@@ -522,6 +648,8 @@ def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
         geometry_hole_half_size_range=tuple(args.geometry_hole_half_size_range),
         geometry_peg_radius_range=tuple(args.geometry_peg_radius_range),
         geometry_profile=args.geometry_profile,
+        geometry_fixture_mode=args.geometry_fixture_mode,
+        geometry_true_fixture_variant=args.geometry_true_fixture_variant,
         geometry_square_peg_half_size_range=tuple(args.geometry_square_peg_half_size_range),
         geometry_mixed_square_probability=args.geometry_mixed_square_probability,
         contact_friction_multiplier_range=tuple(args.contact_friction_multiplier_range),
@@ -539,14 +667,125 @@ def render_demo_frame(
     env: PegInHoleMujocoEnv,
     renderer: mujoco.Renderer,
     camera_names: list[str],
+    obs: np.ndarray | dict[str, np.ndarray] | None = None,
+    *,
+    policy_observation_panel: bool = False,
+    policy_observation_layout: str = "side",
 ) -> np.ndarray:
     camera_frames = []
     for camera_name in camera_names:
         renderer.update_scene(env.data, camera=camera_name)
         camera_frames.append(renderer.render().copy())
+    if policy_observation_panel and policy_observation_layout == "grid_2x2":
+        return make_policy_observation_grid(camera_frames, obs)
+    if policy_observation_panel:
+        frame_height, frame_width = camera_frames[0].shape[:2]
+        camera_frames.append(
+            make_policy_observation_panel(
+                obs,
+                height=frame_height,
+                width=frame_width,
+            )
+        )
     if len(camera_frames) == 1:
         return camera_frames[0]
     return np.concatenate(camera_frames, axis=1)
+
+
+def make_policy_observation_grid(
+    camera_frames: list[np.ndarray],
+    obs: np.ndarray | dict[str, np.ndarray] | None,
+) -> np.ndarray:
+    if not camera_frames:
+        raise ValueError("at least one camera frame is required for grid rendering.")
+    height, width = camera_frames[0].shape[:2]
+    blank = np.full_like(camera_frames[0], 18, dtype=np.uint8)
+    overview_frame = camera_frames[0]
+    wrist_frame = camera_frames[1] if len(camera_frames) > 1 else blank
+    cam_image = None
+    near_hole_crop = None
+    if isinstance(obs, dict):
+        cam_image = observation_image_to_gray(obs.get("cam_image"))
+        near_hole_crop = observation_image_to_gray(obs.get("near_hole_crop"))
+
+    cam_cell = make_policy_observation_cell(cam_image, height=height, width=width)
+    crop_cell = make_policy_observation_cell(near_hole_crop, height=height, width=width)
+    top_row = np.concatenate([overview_frame, cam_cell], axis=1)
+    bottom_row = np.concatenate([wrist_frame, crop_cell], axis=1)
+    return np.concatenate([top_row, bottom_row], axis=0)
+
+
+def make_policy_observation_panel(
+    obs: np.ndarray | dict[str, np.ndarray] | None,
+    *,
+    height: int,
+    width: int,
+) -> np.ndarray:
+    panel = np.full((height, width, 3), 18, dtype=np.uint8)
+    if not isinstance(obs, dict):
+        return panel
+
+    cam_image = observation_image_to_gray(obs.get("cam_image"))
+    near_hole_crop = observation_image_to_gray(obs.get("near_hole_crop"))
+    if cam_image is None and near_hole_crop is None:
+        return panel
+
+    margin = max(12, height // 20)
+    cam_size = min(height - 2 * margin, max(1, int(width * 0.56) - 2 * margin))
+    crop_available_width = max(1, width - cam_size - 3 * margin)
+    crop_size = min(height - 2 * margin, crop_available_width)
+
+    if cam_image is not None:
+        paste_square_image(panel, cam_image, x=margin, y=(height - cam_size) // 2, size=cam_size)
+    if near_hole_crop is not None:
+        crop_x = 2 * margin + cam_size
+        paste_square_image(panel, near_hole_crop, x=crop_x, y=(height - crop_size) // 2, size=crop_size)
+    return panel
+
+
+def make_policy_observation_cell(
+    gray: np.ndarray | None,
+    *,
+    height: int,
+    width: int,
+) -> np.ndarray:
+    cell = np.full((height, width, 3), 18, dtype=np.uint8)
+    if gray is None:
+        return cell
+    margin = max(12, min(height, width) // 20)
+    size = max(1, min(height, width) - 2 * margin)
+    paste_square_image(cell, gray, x=(width - size) // 2, y=(height - size) // 2, size=size)
+    return cell
+
+
+def observation_image_to_gray(value: Any) -> np.ndarray | None:
+    if value is None:
+        return None
+    image = np.asarray(value)
+    if image.ndim == 3:
+        image = image[:, :, -1]
+    elif image.ndim != 2:
+        return None
+    return np.clip(image, 0, 255).astype(np.uint8, copy=False)
+
+
+def paste_square_image(panel: np.ndarray, gray: np.ndarray, *, x: int, y: int, size: int) -> None:
+    resized = resize_nearest(gray, size=size)
+    rgb = np.repeat(resized[:, :, None], 3, axis=2)
+    panel[y : y + size, x : x + size] = rgb
+    border_color = np.asarray([210, 210, 210], dtype=np.uint8)
+    panel[y : y + 2, x : x + size] = border_color
+    panel[y + size - 2 : y + size, x : x + size] = border_color
+    panel[y : y + size, x : x + 2] = border_color
+    panel[y : y + size, x + size - 2 : x + size] = border_color
+
+
+def resize_nearest(gray: np.ndarray, *, size: int) -> np.ndarray:
+    if gray.shape == (size, size):
+        return gray
+    y_idx = np.linspace(0, gray.shape[0] - 1, size).round().astype(np.int64)
+    x_idx = np.linspace(0, gray.shape[1] - 1, size).round().astype(np.int64)
+    return gray[y_idx][:, x_idx]
 
 
 def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
@@ -1096,6 +1335,15 @@ def trajectory_row(
     guard_final_servo_retry_count: int = 0,
     guard_final_servo_descent_allowed: bool = False,
     guard_final_servo_down_blocked: bool = False,
+    approach_adapter_residual: np.ndarray | None = None,
+    approach_adapter_active: bool = False,
+    final_insert_adapter_raw_action: np.ndarray | None = None,
+    final_insert_adapter_action: np.ndarray | None = None,
+    final_insert_adapter_active: bool = False,
+    final_insert_adapter_reason: str = "inactive",
+    final_insert_adapter_lift_pulse_active: bool = False,
+    final_insert_adapter_lift_pulse_steps_remaining: int = 0,
+    guard_square_pose_yaw_align_active: bool = False,
     info: dict[str, Any],
     terminated: bool,
     truncated: bool,
@@ -1166,8 +1414,20 @@ def trajectory_row(
         "guard_final_servo_retry_count": int(guard_final_servo_retry_count),
         "guard_final_servo_descent_allowed": bool(guard_final_servo_descent_allowed),
         "guard_final_servo_down_blocked": bool(guard_final_servo_down_blocked),
+        "approach_adapter_active": bool(approach_adapter_active),
+        "final_insert_adapter_active": bool(final_insert_adapter_active),
+        "final_insert_adapter_reason": str(final_insert_adapter_reason),
+        "final_insert_adapter_lift_pulse_active": bool(final_insert_adapter_lift_pulse_active),
+        "final_insert_adapter_lift_pulse_steps_remaining": int(
+            final_insert_adapter_lift_pulse_steps_remaining
+        ),
+        "guard_square_pose_yaw_align_active": bool(guard_square_pose_yaw_align_active),
         "success": bool(info.get("insertion_success", False)),
         "collision": bool(info.get("collision", False)),
+        "geometry_profile": str(info.get("geometry_profile", "")),
+        "geometry_name": str(info.get("geometry_name", "")),
+        "peg_shape": str(info.get("peg_shape", "")),
+        "hole_shape": str(info.get("hole_shape", "")),
         "dist_xy": float(info.get("dist_xy", float("nan"))),
         "dist_z": float(info.get("dist_z", float("nan"))),
         "shaped_distance": float(info.get("shaped_distance", float("nan"))),
@@ -1201,6 +1461,9 @@ def trajectory_row(
     row.update(vector_fields("target", info.get("target_pos", (float("nan"),) * 3), 3))
     row.update(vector_fields("peg_tip", info.get("peg_tip_pos", (float("nan"),) * 3), 3))
     row.update(vector_fields("policy_action", policy_action, 3))
+    row.update(vector_fields("approach_adapter_residual", approach_adapter_residual, 3))
+    row.update(vector_fields("final_insert_adapter_raw_action", final_insert_adapter_raw_action, 3))
+    row.update(vector_fields("final_insert_adapter_action", final_insert_adapter_action, 3))
     row.update(vector_fields("guarded_action", guarded_action, 3))
     row.update(vector_fields("final_action", final_action, 3))
     row.update(vector_fields("commanded_action", info.get("commanded_action", (float("nan"),) * 3), 3))
@@ -1379,6 +1642,94 @@ def main() -> None:
         raise ValueError(
             "--guard-contact-reinsert-high-ik-orientation-weight cannot be negative."
         )
+    if args.guard_square_pose_yaw_align_ik_orientation_weight < 0.0:
+        raise ValueError(
+            "--guard-square-pose-yaw-align-ik-orientation-weight cannot be negative."
+        )
+    if args.approach_adapter_enabled:
+        if args.approach_adapter is None:
+            raise ValueError("--approach-adapter-enabled requires --approach-adapter.")
+        if args.observation_mode != "image":
+            raise ValueError("--approach-adapter-enabled requires image observations.")
+        if not args.include_near_hole_crop:
+            raise ValueError("--approach-adapter-enabled requires --include-near-hole-crop.")
+        if not args.include_control_state:
+            raise ValueError("--approach-adapter-enabled requires --include-control-state.")
+    if args.approach_adapter_trigger_xy <= 0.0:
+        raise ValueError("--approach-adapter-trigger-xy must be positive.")
+    if args.approach_adapter_release_xy <= 0.0:
+        raise ValueError("--approach-adapter-release-xy must be positive.")
+    if args.approach_adapter_release_xy >= args.approach_adapter_trigger_xy:
+        raise ValueError("--approach-adapter-release-xy must be less than trigger XY.")
+    if args.approach_adapter_min_z < 0.0:
+        raise ValueError("--approach-adapter-min-z cannot be negative.")
+    if args.approach_adapter_max_z <= args.approach_adapter_min_z:
+        raise ValueError("--approach-adapter-max-z must exceed min Z.")
+    if args.approach_adapter_latched_min_z is not None:
+        if args.approach_adapter_latched_min_z < 0.0:
+            raise ValueError("--approach-adapter-latched-min-z cannot be negative.")
+        if args.approach_adapter_latched_min_z > args.approach_adapter_min_z:
+            raise ValueError(
+                "--approach-adapter-latched-min-z must be <= --approach-adapter-min-z."
+            )
+    if args.approach_adapter_max_steps < 0:
+        raise ValueError("--approach-adapter-max-steps cannot be negative.")
+    if args.approach_adapter_episode_max_steps < 0:
+        raise ValueError("--approach-adapter-episode-max-steps cannot be negative.")
+    if args.approach_adapter_max_xy_residual < 0.0:
+        raise ValueError("--approach-adapter-max-xy-residual cannot be negative.")
+    if args.approach_adapter_max_z_residual < 0.0:
+        raise ValueError("--approach-adapter-max-z-residual cannot be negative.")
+    if args.approach_adapter_scale < 0.0:
+        raise ValueError("--approach-adapter-scale cannot be negative.")
+    if args.final_insert_adapter_enabled and args.final_insert_adapter is None:
+        raise ValueError("--final-insert-adapter-enabled requires --final-insert-adapter.")
+    if args.final_insert_adapter_max_xy <= 0.0:
+        raise ValueError("--final-insert-adapter-max-xy must be positive.")
+    if args.final_insert_adapter_min_z < 0.0:
+        raise ValueError("--final-insert-adapter-min-z cannot be negative.")
+    if args.final_insert_adapter_max_z <= args.final_insert_adapter_min_z:
+        raise ValueError("--final-insert-adapter-max-z must exceed min Z.")
+    if args.final_insert_adapter_min_phase_steps < 0:
+        raise ValueError("--final-insert-adapter-min-phase-steps cannot be negative.")
+    if args.final_insert_adapter_min_stall_steps < 0:
+        raise ValueError("--final-insert-adapter-min-stall-steps cannot be negative.")
+    if args.final_insert_adapter_square_risk_min_stall_steps < 0:
+        raise ValueError(
+            "--final-insert-adapter-square-risk-min-stall-steps cannot be negative."
+        )
+    if args.final_insert_adapter_square_risk_xy_min < 0.0:
+        raise ValueError("--final-insert-adapter-square-risk-xy-min cannot be negative.")
+    if args.final_insert_adapter_max_xy_action < 0.0:
+        raise ValueError("--final-insert-adapter-max-xy-action cannot be negative.")
+    if args.final_insert_adapter_max_up_action < 0.0:
+        raise ValueError("--final-insert-adapter-max-up-action cannot be negative.")
+    if args.final_insert_adapter_max_down_action < 0.0:
+        raise ValueError("--final-insert-adapter-max-down-action cannot be negative.")
+    if args.final_insert_adapter_max_consecutive_steps < 0:
+        raise ValueError("--final-insert-adapter-max-consecutive-steps cannot be negative.")
+    if args.final_insert_adapter_cooldown_steps < 0:
+        raise ValueError("--final-insert-adapter-cooldown-steps cannot be negative.")
+    if args.final_insert_adapter_handoff_xy <= 0.0:
+        raise ValueError("--final-insert-adapter-handoff-xy must be positive.")
+    if args.final_insert_adapter_handoff_min_z < 0.0:
+        raise ValueError("--final-insert-adapter-handoff-min-z cannot be negative.")
+    if args.final_insert_adapter_handoff_max_z <= args.final_insert_adapter_handoff_min_z:
+        raise ValueError("--final-insert-adapter-handoff-max-z must exceed min Z.")
+    if args.final_insert_adapter_handoff_z_action_threshold > 0.0:
+        raise ValueError("--final-insert-adapter-handoff-z-action-threshold cannot be positive.")
+    if args.final_insert_adapter_lift_pulse_active_steps <= 0:
+        raise ValueError("--final-insert-adapter-lift-pulse-active-steps must be positive.")
+    if args.final_insert_adapter_lift_pulse_stall_steps <= 0:
+        raise ValueError("--final-insert-adapter-lift-pulse-stall-steps must be positive.")
+    if args.final_insert_adapter_lift_pulse_steps <= 0:
+        raise ValueError("--final-insert-adapter-lift-pulse-steps must be positive.")
+    if args.final_insert_adapter_lift_pulse_period_steps <= 0:
+        raise ValueError("--final-insert-adapter-lift-pulse-period-steps must be positive.")
+    if args.final_insert_adapter_lift_pulse_z_action <= 0.0:
+        raise ValueError("--final-insert-adapter-lift-pulse-z-action must be positive.")
+    if args.final_insert_adapter_progress_window_steps <= 0:
+        raise ValueError("--final-insert-adapter-progress-window-steps must be positive.")
     if args.guard_final_servo_align_timeout_steps < 0:
         raise ValueError("--guard-final-servo-align-timeout-steps cannot be negative.")
     if args.guard_final_servo_align_timeout_xy < 0.0:
@@ -1657,6 +2008,16 @@ def main() -> None:
         raise ValueError("--guard-final-servo-square-tilt-reinsert-max-up-action must be positive.")
     env = make_env(args)
     model = AGENTS[args.agent].load(args.model, env=env, device=args.device)
+    approach_adapter = (
+        ApproachAdapterPolicy.load(args.approach_adapter, device=args.device)
+        if args.approach_adapter_enabled and args.approach_adapter is not None
+        else None
+    )
+    final_insert_adapter = (
+        FinalInsertAdapterPolicy.load(args.final_insert_adapter, device=args.device)
+        if args.final_insert_adapter_enabled and args.final_insert_adapter is not None
+        else None
+    )
     guarded_controller = (
         GuardedPolicyController(make_guarded_config(args)) if args.guarded_policy else None
     )
@@ -1684,7 +2045,27 @@ def main() -> None:
             )
             if guarded_controller is not None:
                 guarded_controller.reset()
-            frames.append(render_demo_frame(env, demo_renderer, render_cameras))
+            episode_approach_adapter_steps = 0
+            episode_final_insert_adapter_steps = 0
+            episode_final_insert_adapter_lift_pulse_steps = 0
+            episode_guard_square_pose_yaw_align_steps = 0
+            approach_adapter_latched = False
+            approach_adapter_latch_steps = 0
+            final_insert_progress_history: list[tuple[float, float]] = []
+            final_insert_adapter_active_streak = 0
+            final_insert_adapter_cooldown_remaining = 0
+            final_insert_adapter_lift_pulse_remaining = 0
+            final_insert_adapter_last_lift_pulse_step = -10**9
+            frames.append(
+                render_demo_frame(
+                    env,
+                    demo_renderer,
+                    render_cameras,
+                    obs,
+                    policy_observation_panel=args.policy_observation_panel,
+                    policy_observation_layout=args.policy_observation_layout,
+                )
+            )
             episode_return = 0.0
             trajectory_rows.append(
                 trajectory_row(
@@ -1704,12 +2085,57 @@ def main() -> None:
                 )
             )
             while True:
-                policy_action, _ = model.predict(obs, deterministic=True)
+                pre_info = {key: value for key, value in info.items()}
+                pre_tip = np.asarray(pre_info["peg_tip_pos"], dtype=np.float64)
+                pre_target = np.asarray(pre_info["target_pos"], dtype=np.float64)
+                pre_z_above_target = float(pre_tip[2] - pre_target[2])
+                final_insert_progress_history.append(
+                    (float(pre_info["dist_xy"]), pre_z_above_target)
+                )
+                (
+                    final_insert_z_progress,
+                    final_insert_xy_progress,
+                ) = final_insert_progress_features(
+                    final_insert_progress_history,
+                    args.final_insert_adapter_progress_window_steps,
+                )
+                final_insert_adapter_raw_action = np.zeros(3, dtype=np.float32)
+                final_insert_adapter_action = np.zeros(3, dtype=np.float32)
+                final_insert_adapter_active = False
+                final_insert_adapter_reason = "inactive"
+                final_insert_adapter_lift_pulse_active = False
+                guard_square_pose_yaw_align_active = False
+
+                base_policy_action, _ = model.predict(obs, deterministic=True)
+                base_policy_action = np.asarray(base_policy_action, dtype=np.float32).reshape(3)
+                (
+                    policy_action,
+                    approach_adapter_residual,
+                    approach_adapter_active,
+                ) = apply_approach_adapter(
+                    adapter=approach_adapter,
+                    args=args,
+                    obs=obs,
+                    info=pre_info,
+                    policy_action=base_policy_action,
+                    action_low=np.asarray(env.action_space.low, dtype=np.float64),
+                    action_high=np.asarray(env.action_space.high, dtype=np.float64),
+                    latched=approach_adapter_latched,
+                    latch_steps=approach_adapter_latch_steps,
+                    episode_steps=episode_approach_adapter_steps,
+                )
+                if args.approach_adapter_latch_enabled:
+                    if approach_adapter_active:
+                        approach_adapter_latched = True
+                        approach_adapter_latch_steps += 1
+                    else:
+                        approach_adapter_latched = False
+                        approach_adapter_latch_steps = 0
                 guarded_step = None
                 if guarded_controller is not None:
                     guarded_step = guarded_controller.step_with_provider(
                         guard_state_provider,
-                        info,
+                        pre_info,
                         np.asarray(policy_action, dtype=np.float32),
                         scenario_name=args.guard_scenario_name,
                         scenario_level=args.domain_randomization_level,
@@ -1871,6 +2297,63 @@ def main() -> None:
                     guard_final_servo_retry_count = 0
                     guard_final_servo_descent_allowed = False
                     guard_final_servo_down_blocked = False
+                (
+                    action,
+                    final_insert_adapter_raw_action,
+                    final_insert_adapter_action,
+                    final_insert_adapter_active,
+                    final_insert_adapter_reason,
+                ) = apply_final_insert_adapter(
+                    adapter=final_insert_adapter,
+                    args=args,
+                    info=pre_info,
+                    step=guarded_step,
+                    action=np.asarray(action, dtype=np.float32),
+                    action_low=np.asarray(env.action_space.low, dtype=np.float64),
+                    action_high=np.asarray(env.action_space.high, dtype=np.float64),
+                    z_progress_window=final_insert_z_progress,
+                    xy_progress_window=final_insert_xy_progress,
+                    active_streak=final_insert_adapter_active_streak,
+                    cooldown_remaining=final_insert_adapter_cooldown_remaining,
+                )
+                if final_insert_adapter_cooldown_remaining > 0:
+                    final_insert_adapter_cooldown_remaining -= 1
+                if final_insert_adapter_active:
+                    final_insert_adapter_active_streak += 1
+                    if (
+                        args.final_insert_adapter_max_consecutive_steps > 0
+                        and final_insert_adapter_active_streak
+                        >= args.final_insert_adapter_max_consecutive_steps
+                    ):
+                        final_insert_adapter_cooldown_remaining = max(
+                            final_insert_adapter_cooldown_remaining,
+                            args.final_insert_adapter_cooldown_steps,
+                        )
+                else:
+                    final_insert_adapter_active_streak = 0
+                    final_insert_adapter_lift_pulse_remaining = 0
+                (
+                    action,
+                    final_insert_adapter_lift_pulse_remaining,
+                    final_insert_adapter_last_lift_pulse_step,
+                    final_insert_adapter_lift_pulse_active,
+                ) = maybe_apply_final_insert_lift_pulse(
+                    args=args,
+                    action=np.asarray(action, dtype=np.float32),
+                    step=guarded_step,
+                    step_index=int(pre_info["step_count"]),
+                    adapter_active=final_insert_adapter_active,
+                    active_streak=final_insert_adapter_active_streak,
+                    pulse_steps_remaining=final_insert_adapter_lift_pulse_remaining,
+                    last_pulse_step=final_insert_adapter_last_lift_pulse_step,
+                    action_low=np.asarray(env.action_space.low, dtype=np.float64),
+                    action_high=np.asarray(env.action_space.high, dtype=np.float64),
+                )
+                episode_approach_adapter_steps += int(approach_adapter_active)
+                episode_final_insert_adapter_steps += int(final_insert_adapter_active)
+                episode_final_insert_adapter_lift_pulse_steps += int(
+                    final_insert_adapter_lift_pulse_active
+                )
                 near_control_active = guard_near_control_active(guarded_step, args)
                 if args.guard_near_actuator_kp_enabled:
                     env.set_arm_actuator_kp_multiplier(
@@ -1879,9 +2362,27 @@ def main() -> None:
                         else episode_base_actuator_kp_multiplier
                     )
                 apply_guard_near_ik_orientation_weight(env, guarded_step, args)
+                guard_square_pose_yaw_align_active = apply_guard_square_pose_yaw_align(
+                    env,
+                    guarded_step,
+                    pre_info,
+                    args,
+                )
+                episode_guard_square_pose_yaw_align_steps += int(
+                    guard_square_pose_yaw_align_active
+                )
                 obs, reward, terminated, truncated, info = env.step(action)
                 episode_return += reward
-                frames.append(render_demo_frame(env, demo_renderer, render_cameras))
+                frames.append(
+                    render_demo_frame(
+                        env,
+                        demo_renderer,
+                        render_cameras,
+                        obs,
+                        policy_observation_panel=args.policy_observation_panel,
+                        policy_observation_layout=args.policy_observation_layout,
+                    )
+                )
                 trajectory_rows.append(
                     trajectory_row(
                         episode=episode + 1,
@@ -1954,6 +2455,21 @@ def main() -> None:
                         guard_final_servo_retry_count=guard_final_servo_retry_count,
                         guard_final_servo_descent_allowed=guard_final_servo_descent_allowed,
                         guard_final_servo_down_blocked=guard_final_servo_down_blocked,
+                        approach_adapter_residual=approach_adapter_residual,
+                        approach_adapter_active=approach_adapter_active,
+                        final_insert_adapter_raw_action=final_insert_adapter_raw_action,
+                        final_insert_adapter_action=final_insert_adapter_action,
+                        final_insert_adapter_active=final_insert_adapter_active,
+                        final_insert_adapter_reason=final_insert_adapter_reason,
+                        final_insert_adapter_lift_pulse_active=(
+                            final_insert_adapter_lift_pulse_active
+                        ),
+                        final_insert_adapter_lift_pulse_steps_remaining=(
+                            final_insert_adapter_lift_pulse_remaining
+                        ),
+                        guard_square_pose_yaw_align_active=(
+                            guard_square_pose_yaw_align_active
+                        ),
                         info=info,
                         terminated=terminated,
                         truncated=truncated,
@@ -1963,7 +2479,8 @@ def main() -> None:
                     print(
                         "episode={episode} return={ret:.3f} success={success} "
                         "collision={collision} steps={steps} guard_steps={guard_steps} "
-                        "retry_count={retry_count} dist_xy={dist_xy:.5f} dist_z={dist_z:.5f}".format(
+                        "retry_count={retry_count} adapter_steps={approach_steps}/"
+                        "{final_steps}/{yaw_steps} dist_xy={dist_xy:.5f} dist_z={dist_z:.5f}".format(
                             episode=episode + 1,
                             ret=episode_return,
                             success=info["insertion_success"],
@@ -1979,6 +2496,9 @@ def main() -> None:
                                 if guarded_controller is not None
                                 else 0
                             ),
+                            approach_steps=episode_approach_adapter_steps,
+                            final_steps=episode_final_insert_adapter_steps,
+                            yaw_steps=episode_guard_square_pose_yaw_align_steps,
                             dist_xy=info["dist_xy"],
                             dist_z=info["dist_z"],
                         )

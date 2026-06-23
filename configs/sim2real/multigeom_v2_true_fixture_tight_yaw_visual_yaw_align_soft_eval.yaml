@@ -1,0 +1,8 @@
+# Soft visual yaw-align runtime.
+# Same image estimator and gates as the hard-block prototype, but yaw correction
+# does not block descent. This tests whether visual yaw can help without adding
+# a timeout-prone supervisory stop.
+
+base_config: multigeom_v2_true_fixture_tight_yaw_visual_yaw_align_eval.yaml
+
+guard_visual_yaw_align_block_descent: false

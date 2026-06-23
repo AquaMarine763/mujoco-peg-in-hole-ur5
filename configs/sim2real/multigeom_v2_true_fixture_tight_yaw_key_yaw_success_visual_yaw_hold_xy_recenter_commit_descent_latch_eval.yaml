@@ -1,0 +1,17 @@
+# Keyhole yaw-hold/recenter with safe commit descent plus bounded latch.
+# The latch is only armed after the visual-yaw/XY/Z commit gate is stable for
+# several steps. It is intentionally narrow so it cannot keep inserting from a
+# badly off-center state.
+
+base_config: multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_safe_eval.yaml
+
+guard_visual_yaw_align_aligned_descent_latch_steps: 90
+guard_visual_yaw_align_aligned_descent_latch_release_xy: 0.020
+guard_visual_yaw_align_aligned_descent_latch_release_yaw_deg: 8.0
+guard_visual_yaw_align_aligned_descent_latch_min_z: 0.000
+guard_visual_yaw_align_aligned_descent_latch_max_z: 0.095
+
+output_csv: results/sim2real_multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch/eval_latest.csv
+output_md: results/sim2real_multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch/eval_latest.md
+episode_output_csv: results/sim2real_multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch/eval_latest_episodes.csv
+step_output_csv: results/sim2real_multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch/eval_latest_steps.csv

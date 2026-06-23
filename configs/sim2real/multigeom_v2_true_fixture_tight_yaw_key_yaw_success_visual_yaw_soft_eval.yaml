@@ -1,0 +1,13 @@
+# Keyhole yaw-sensitive evaluation with soft visual yaw correction.
+# Visual yaw correction is allowed to steer wrist yaw, but it does not stop
+# descent. This is the first runtime check for visually driven key-tab alignment.
+
+base_config: multigeom_v2_true_fixture_tight_yaw_visual_yaw_align_soft_eval.yaml
+
+success_shape_yaw_tolerance_deg: 10.0
+success_shape_yaw_profiles: [rectangular_key]
+
+output_csv: results/sim2real_multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_soft/eval_latest.csv
+output_md: results/sim2real_multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_soft/eval_latest.md
+episode_output_csv: results/sim2real_multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_soft/eval_latest_episodes.csv
+step_output_csv: results/sim2real_multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_soft/eval_latest_steps.csv

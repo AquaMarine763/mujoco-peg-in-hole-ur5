@@ -1,0 +1,3 @@
+file,seed,episode,outcome,scoped_rows,visible_delta_rows,yaw_candidate_rows,descent_candidate_rows,sign_mismatch_rows,high_error_rows,max_abs_error_deg,first_scoped_step,last_step
+D:\peg-in-hole-6yh\_promotion_v075_square_pose_yaw_align_20260603213104\results\vy_visible_brake_wrong_basin_reacquire_narrow_gated_seed906500_908500_40ep\visual_yaw_align_rectangular_key_20ep_seed906500_steps.csv,906517,17,timeout,96,20,0,0,12,0,44.236,720,856
+D:\peg-in-hole-6yh\_promotion_v075_square_pose_yaw_align_20260603213104\results\vy_visible_brake_wrong_basin_reacquire_narrow_gated_seed906500_908500_40ep\visual_yaw_align_rectangular_key_20ep_seed908500_steps.csv,908516,16,timeout,205,201,8,147,0,1,47.286,286,490

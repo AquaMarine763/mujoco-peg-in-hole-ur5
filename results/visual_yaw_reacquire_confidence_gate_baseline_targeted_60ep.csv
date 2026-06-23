@@ -1,0 +1,6 @@
+gate,rows,coverage,mean_abs_error_deg,max_abs_error_deg,bad_error_rate,high_error_rate,sign_mismatch_rate,mean_true_abs_deg,mean_pred_abs_deg
+all_reacquire,0,nan,nan,nan,nan,nan,nan,nan,nan
+visible_reacquire,0,nan,nan,nan,nan,nan,nan,nan,nan
+visible_reacquire_pred_delta_stable,0,nan,nan,nan,nan,nan,nan,nan,nan
+visible_reacquire_pred_sign_stable,0,nan,nan,nan,nan,nan,nan,nan,nan
+visible_reacquire_pred_delta_and_sign_stable,0,nan,nan,nan,nan,nan,nan,nan,nan

@@ -1,0 +1,12 @@
+# Training config for the larger yaw-stratified key-focused dataset.
+
+dataset: datasets/visual_yaw_v1_tight_yaw_key_focus_8k_stratified_crop_wider.npz
+output: results/visual_yaw_estimator_v1_tight_yaw_key_focus_8k_stratified_crop_wider.pt
+output_md: results/visual_yaw_estimator_v1_tight_yaw_key_focus_8k_stratified_crop_wider.md
+epochs: 40
+batch_size: 32
+learning_rate: 0.001
+weight_decay: 0.00001
+validation_split: 0.25
+seed: 910100
+device: auto

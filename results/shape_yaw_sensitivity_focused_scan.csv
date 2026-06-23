@@ -1,0 +1,385 @@
+profile,clearance_mm,yaw_error_deg,canonical_yaw_error_deg,period_deg,passes_geometry,min_margin_mm,clearance_reference
+rectangular_key,0.5,0.0,0.0,360.0,True,0.153940444762456,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,0.5,0.5,0.5,360.0,True,0.11412933351477063,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,0.5,1.0,1.0,360.0,True,0.06919970340051214,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,0.5,1.5,1.5,360.0,True,0.017439831426559714,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,0.5,2.0,2.0,360.0,False,-0.14259482409174734,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,0.5,2.5,2.5,360.0,False,-0.30219977416800525,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,0.5,3.0,3.0,360.0,False,-0.4613628642673303,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,0.5,4.0,4.0,360.0,False,-0.7783150155654395,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,0.5,5.0,5.0,360.0,False,-1.0933547312904044,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,0.5,6.0,6.0,360.0,False,-1.406386047292956,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,0.5,8.0,8.0,360.0,False,-2.0260427114690622,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,0.5,10.0,10.0,360.0,False,-2.636530051899252,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,0.75,0.0,0.0,360.0,True,0.19314312786404725,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,0.75,0.5,0.5,360.0,True,0.14906978790511954,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,0.75,1.0,1.0,360.0,True,0.1431301593175418,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,0.75,1.5,1.5,360.0,True,0.1431301593175418,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,0.75,2.0,2.0,360.0,True,0.10642900949489435,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,0.75,2.5,2.5,360.0,False,-0.052199774168005045,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,0.75,3.0,3.0,360.0,False,-0.21136286426733011,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,0.75,4.0,4.0,360.0,False,-0.5283150155654392,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,0.75,5.0,5.0,360.0,False,-0.8433547312904043,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,0.75,6.0,6.0,360.0,False,-1.1563860472929557,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,0.75,8.0,8.0,360.0,False,-1.7760427114690618,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,0.75,10.0,10.0,360.0,False,-2.3865300518992516,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.0,0.0,0.0,360.0,True,0.2301694070684004,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.0,0.5,0.5,360.0,True,0.2186908282156251,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.0,1.0,1.0,360.0,True,0.2186908282156251,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.0,1.5,1.5,360.0,True,0.19011245281035788,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.0,2.0,2.0,360.0,True,0.14333967851249546,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.0,2.5,2.5,360.0,True,0.13130831867837373,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.0,3.0,3.0,360.0,True,0.038637135732670115,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.0,4.0,4.0,360.0,False,-0.27831501556543903,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.0,5.0,5.0,360.0,False,-0.5933547312904041,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.0,6.0,6.0,360.0,False,-0.9063860472929555,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.0,8.0,8.0,360.0,False,-1.5260427114690616,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.0,10.0,10.0,360.0,False,-2.1365300518992516,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.25,0.0,0.0,360.0,True,0.2938201743620441,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.25,0.5,0.5,360.0,True,0.2938201743620441,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.25,1.0,1.0,360.0,True,0.274986941526301,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.25,1.5,1.5,360.0,True,0.22907076544829813,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.25,2.0,2.0,360.0,True,0.20622852083056545,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.25,2.5,2.5,360.0,True,0.2062285208305637,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.25,3.0,3.0,360.0,True,0.18065457403437962,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.25,4.0,4.0,360.0,False,-0.028315015565438806,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.25,5.0,5.0,360.0,False,-0.34335473129040384,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.25,6.0,6.0,360.0,False,-0.6563860472929552,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.25,8.0,8.0,360.0,False,-1.2760427114690613,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.25,10.0,10.0,360.0,False,-1.8865300518992514,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.5,0.0,0.0,360.0,True,0.3685354294163147,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.5,0.5,0.5,360.0,True,0.3609292962804094,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.5,1.0,1.0,360.0,True,0.31590211326124396,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.5,1.5,1.5,360.0,True,0.2807429188562329,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.5,2.0,2.0,360.0,True,0.28074291885623115,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.5,2.5,2.5,360.0,True,0.2700846838598215,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.5,3.0,3.0,360.0,True,0.22133856061180324,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.5,4.0,4.0,360.0,True,0.19285295687241147,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.5,5.0,5.0,360.0,False,-0.09335473129040359,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.5,6.0,6.0,360.0,False,-0.406386047292955,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.5,8.0,8.0,360.0,False,-1.0260427114690611,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.5,10.0,10.0,360.0,False,-1.6365300518992512,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.75,0.0,0.0,360.0,True,0.44285295687241166,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.75,0.5,0.5,360.0,True,0.4037152825782653,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.75,1.0,1.0,360.0,True,0.3586664211357865,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.75,1.5,1.5,360.0,True,0.35486746169925354,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.75,2.0,2.0,360.0,True,0.35486746169925354,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.75,2.5,2.5,360.0,True,0.31269726588284075,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.75,3.0,3.0,360.0,True,0.26678830355904815,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.75,4.0,4.0,360.0,True,0.2580871959256253,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.75,5.0,5.0,360.0,True,0.15664526870959578,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.75,6.0,6.0,360.0,False,-0.1563860472929557,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.75,8.0,8.0,360.0,False,-0.7760427114690618,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,1.75,10.0,10.0,360.0,False,-1.3865300518992518,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,2.0,0.0,0.0,360.0,True,0.4923962358605368,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,2.0,0.5,0.5,360.0,True,0.4482831511166286,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,2.0,1.0,1.0,360.0,True,0.42861730608795623,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,2.0,1.5,1.5,360.0,True,0.42861730608795623,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,2.0,2.0,2.0,360.0,True,0.40504626146425393,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,2.0,2.5,2.5,360.0,True,0.3570917301463656,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,2.0,3.0,3.0,360.0,True,0.34035624771410616,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,2.0,4.0,4.0,360.0,True,0.3021999908947304,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,2.0,5.0,5.0,360.0,True,0.2520068629895921,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,2.0,6.0,6.0,360.0,True,0.09361395270704453,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,2.0,8.0,8.0,360.0,False,-0.5260427114690616,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,2.0,10.0,10.0,360.0,False,-1.1365300518992516,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,2.5,0.0,0.0,360.0,True,0.5866426371200356,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,2.5,0.5,0.5,360.0,True,0.5750498409993112,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,2.5,1.0,1.0,360.0,True,0.5750498409993112,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,2.5,1.5,1.5,360.0,True,0.5461629643382214,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,2.5,2.0,2.0,360.0,True,0.4990614423502522,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,2.5,2.5,2.5,360.0,True,0.4864454648330161,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,2.5,3.0,3.0,360.0,True,0.4864454648330161,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,2.5,4.0,4.0,360.0,True,0.39775928688211976,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,2.5,5.0,5.0,360.0,True,0.3849990440951446,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,2.5,6.0,6.0,360.0,True,0.30899284079828443,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,2.5,8.0,8.0,360.0,False,-0.026042711469062042,uniform 2D offset of keyhole radius/tab dimensions
+rectangular_key,2.5,10.0,10.0,360.0,False,-0.636530051899252,uniform 2D offset of keyhole radius/tab dimensions
+square_square,0.5,0.0,0.0,90.0,True,0.4999999999999987,hole half-size - peg half-size
+square_square,0.5,0.5,0.5,90.0,True,0.39573849724945825,hole half-size - peg half-size
+square_square,0.5,1.0,1.0,90.0,True,0.29239878087590315,hole half-size - peg half-size
+square_square,0.5,1.5,1.5,90.0,True,0.18998872059883437,hole half-size - peg half-size
+square_square,0.5,2.0,2.0,90.0,True,0.0885161153408396,hole half-size - peg half-size
+square_square,0.5,2.5,2.5,90.0,False,-0.012011307366324372,hole half-size - peg half-size
+square_square,0.5,3.0,3.0,90.0,False,-0.11158589197021208,hole half-size - peg half-size
+square_square,0.5,4.0,4.0,90.0,False,-0.3078462880473937,hole half-size - peg half-size
+square_square,0.5,5.0,5.0,90.0,False,-0.5002052900728443,hole half-size - peg half-size
+square_square,0.5,6.0,6.0,90.0,False,-0.6886043036311209,hole half-size - peg half-size
+square_square,0.5,8.0,8.0,90.0,False,-1.0532940364196293,hole half-size - peg half-size
+square_square,0.5,10.0,10.0,90.0,False,-1.4014711681496606,hole half-size - peg half-size
+square_square,0.75,0.0,0.0,90.0,True,0.7499999999999989,hole half-size - peg half-size
+square_square,0.75,0.5,0.5,90.0,True,0.6457384972494585,hole half-size - peg half-size
+square_square,0.75,1.0,1.0,90.0,True,0.5423987808759033,hole half-size - peg half-size
+square_square,0.75,1.5,1.5,90.0,True,0.4399887205988346,hole half-size - peg half-size
+square_square,0.75,2.0,2.0,90.0,True,0.3385161153408398,hole half-size - peg half-size
+square_square,0.75,2.5,2.5,90.0,True,0.23798869263367584,hole half-size - peg half-size
+square_square,0.75,3.0,3.0,90.0,True,0.13841410802978815,hole half-size - peg half-size
+square_square,0.75,4.0,4.0,90.0,False,-0.057846288047393515,hole half-size - peg half-size
+square_square,0.75,5.0,5.0,90.0,False,-0.2502052900728441,hole half-size - peg half-size
+square_square,0.75,6.0,6.0,90.0,False,-0.4386043036311207,hole half-size - peg half-size
+square_square,0.75,8.0,8.0,90.0,False,-0.803294036419629,hole half-size - peg half-size
+square_square,0.75,10.0,10.0,90.0,False,-1.1514711681496603,hole half-size - peg half-size
+square_square,1.0,0.0,0.0,90.0,True,0.9999999999999991,hole half-size - peg half-size
+square_square,1.0,0.5,0.5,90.0,True,0.8957384972494588,hole half-size - peg half-size
+square_square,1.0,1.0,1.0,90.0,True,0.7923987808759035,hole half-size - peg half-size
+square_square,1.0,1.5,1.5,90.0,True,0.6899887205988349,hole half-size - peg half-size
+square_square,1.0,2.0,2.0,90.0,True,0.58851611534084,hole half-size - peg half-size
+square_square,1.0,2.5,2.5,90.0,True,0.48798869263367606,hole half-size - peg half-size
+square_square,1.0,3.0,3.0,90.0,True,0.3884141080297884,hole half-size - peg half-size
+square_square,1.0,4.0,4.0,90.0,True,0.19215371195260672,hole half-size - peg half-size
+square_square,1.0,5.0,5.0,90.0,False,-0.0002052900728438667,hole half-size - peg half-size
+square_square,1.0,6.0,6.0,90.0,False,-0.18860430363112046,hole half-size - peg half-size
+square_square,1.0,8.0,8.0,90.0,False,-0.5532940364196288,hole half-size - peg half-size
+square_square,1.0,10.0,10.0,90.0,False,-0.90147116814966,hole half-size - peg half-size
+square_square,1.25,0.0,0.0,90.0,True,1.2499999999999976,hole half-size - peg half-size
+square_square,1.25,0.5,0.5,90.0,True,1.1457384972494573,hole half-size - peg half-size
+square_square,1.25,1.0,1.0,90.0,True,1.042398780875902,hole half-size - peg half-size
+square_square,1.25,1.5,1.5,90.0,True,0.9399887205988333,hole half-size - peg half-size
+square_square,1.25,2.0,2.0,90.0,True,0.8385161153408385,hole half-size - peg half-size
+square_square,1.25,2.5,2.5,90.0,True,0.7379886926336745,hole half-size - peg half-size
+square_square,1.25,3.0,3.0,90.0,True,0.6384141080297868,hole half-size - peg half-size
+square_square,1.25,4.0,4.0,90.0,True,0.4421537119526052,hole half-size - peg half-size
+square_square,1.25,5.0,5.0,90.0,True,0.24979470992715463,hole half-size - peg half-size
+square_square,1.25,6.0,6.0,90.0,True,0.06139569636887804,hole half-size - peg half-size
+square_square,1.25,8.0,8.0,90.0,False,-0.30329403641963026,hole half-size - peg half-size
+square_square,1.25,10.0,10.0,90.0,False,-0.6514711681496616,hole half-size - peg half-size
+square_square,1.5,0.0,0.0,90.0,True,1.4999999999999978,hole half-size - peg half-size
+square_square,1.5,0.5,0.5,90.0,True,1.3957384972494573,hole half-size - peg half-size
+square_square,1.5,1.0,1.0,90.0,True,1.2923987808759023,hole half-size - peg half-size
+square_square,1.5,1.5,1.5,90.0,True,1.1899887205988335,hole half-size - peg half-size
+square_square,1.5,2.0,2.0,90.0,True,1.0885161153408387,hole half-size - peg half-size
+square_square,1.5,2.5,2.5,90.0,True,0.9879886926336747,hole half-size - peg half-size
+square_square,1.5,3.0,3.0,90.0,True,0.888414108029787,hole half-size - peg half-size
+square_square,1.5,4.0,4.0,90.0,True,0.6921537119526054,hole half-size - peg half-size
+square_square,1.5,5.0,5.0,90.0,True,0.49979470992715486,hole half-size - peg half-size
+square_square,1.5,6.0,6.0,90.0,True,0.31139569636887826,hole half-size - peg half-size
+square_square,1.5,8.0,8.0,90.0,False,-0.05329403641963007,hole half-size - peg half-size
+square_square,1.5,10.0,10.0,90.0,False,-0.40147116814966133,hole half-size - peg half-size
+square_square,1.75,0.0,0.0,90.0,True,1.749999999999998,hole half-size - peg half-size
+square_square,1.75,0.5,0.5,90.0,True,1.6457384972494578,hole half-size - peg half-size
+square_square,1.75,1.0,1.0,90.0,True,1.5423987808759025,hole half-size - peg half-size
+square_square,1.75,1.5,1.5,90.0,True,1.4399887205988338,hole half-size - peg half-size
+square_square,1.75,2.0,2.0,90.0,True,1.338516115340839,hole half-size - peg half-size
+square_square,1.75,2.5,2.5,90.0,True,1.237988692633675,hole half-size - peg half-size
+square_square,1.75,3.0,3.0,90.0,True,1.1384141080297874,hole half-size - peg half-size
+square_square,1.75,4.0,4.0,90.0,True,0.9421537119526057,hole half-size - peg half-size
+square_square,1.75,5.0,5.0,90.0,True,0.749794709927155,hole half-size - peg half-size
+square_square,1.75,6.0,6.0,90.0,True,0.5613956963688784,hole half-size - peg half-size
+square_square,1.75,8.0,8.0,90.0,True,0.19670596358037015,hole half-size - peg half-size
+square_square,1.75,10.0,10.0,90.0,False,-0.1514711681496611,hole half-size - peg half-size
+square_square,2.0,0.0,0.0,90.0,True,1.9999999999999982,hole half-size - peg half-size
+square_square,2.0,0.5,0.5,90.0,True,1.8957384972494578,hole half-size - peg half-size
+square_square,2.0,1.0,1.0,90.0,True,1.7923987808759028,hole half-size - peg half-size
+square_square,2.0,1.5,1.5,90.0,True,1.689988720598834,hole half-size - peg half-size
+square_square,2.0,2.0,2.0,90.0,True,1.5885161153408391,hole half-size - peg half-size
+square_square,2.0,2.5,2.5,90.0,True,1.4879886926336752,hole half-size - peg half-size
+square_square,2.0,3.0,3.0,90.0,True,1.3884141080297876,hole half-size - peg half-size
+square_square,2.0,4.0,4.0,90.0,True,1.1921537119526058,hole half-size - peg half-size
+square_square,2.0,5.0,5.0,90.0,True,0.9997947099271552,hole half-size - peg half-size
+square_square,2.0,6.0,6.0,90.0,True,0.8113956963688786,hole half-size - peg half-size
+square_square,2.0,8.0,8.0,90.0,True,0.4467059635803704,hole half-size - peg half-size
+square_square,2.0,10.0,10.0,90.0,True,0.09852883185033912,hole half-size - peg half-size
+square_square,2.5,0.0,0.0,90.0,True,2.4999999999999987,hole half-size - peg half-size
+square_square,2.5,0.5,0.5,90.0,True,2.395738497249458,hole half-size - peg half-size
+square_square,2.5,1.0,1.0,90.0,True,2.292398780875903,hole half-size - peg half-size
+square_square,2.5,1.5,1.5,90.0,True,2.1899887205988344,hole half-size - peg half-size
+square_square,2.5,2.0,2.0,90.0,True,2.08851611534084,hole half-size - peg half-size
+square_square,2.5,2.5,2.5,90.0,True,1.9879886926336756,hole half-size - peg half-size
+square_square,2.5,3.0,3.0,90.0,True,1.888414108029788,hole half-size - peg half-size
+square_square,2.5,4.0,4.0,90.0,True,1.6921537119526062,hole half-size - peg half-size
+square_square,2.5,5.0,5.0,90.0,True,1.4997947099271558,hole half-size - peg half-size
+square_square,2.5,6.0,6.0,90.0,True,1.311395696368879,hole half-size - peg half-size
+square_square,2.5,8.0,8.0,90.0,True,0.9467059635803708,hole half-size - peg half-size
+square_square,2.5,10.0,10.0,90.0,True,0.5985288318503396,hole half-size - peg half-size
+triangle_triangle,0.5,0.0,0.0,120.0,True,0.4999999999999983,hole apothem - peg apothem
+triangle_triangle,0.5,0.5,0.5,120.0,True,0.40953964447155006,hole apothem - peg apothem
+triangle_triangle,0.5,1.0,1.0,120.0,True,0.31954310107934975,hole apothem - peg apothem
+triangle_triangle,0.5,1.5,1.5,120.0,True,0.23001722340861416,hole apothem - peg apothem
+triangle_triangle,0.5,2.0,2.0,120.0,True,0.14096882920154055,hole apothem - peg apothem
+triangle_triangle,0.5,2.5,2.5,120.0,True,0.0524046998381142,hole apothem - peg apothem
+triangle_triangle,0.5,3.0,3.0,120.0,False,-0.03566842018032468,hole apothem - peg apothem
+triangle_triangle,0.5,4.0,4.0,120.0,False,-0.21031484164896205,hole apothem - peg apothem
+triangle_triangle,0.5,5.0,5.0,120.0,False,-0.3829172362125529,hole apothem - peg apothem
+triangle_triangle,0.5,6.0,6.0,120.0,False,-0.5534230275096775,hole apothem - peg apothem
+triangle_triangle,0.5,8.0,8.0,120.0,False,-0.8879377039078998,hole apothem - peg apothem
+triangle_triangle,0.5,10.0,10.0,120.0,False,-1.2134513162384715,hole apothem - peg apothem
+triangle_triangle,0.75,0.0,0.0,120.0,True,0.7499999999999978,hole apothem - peg apothem
+triangle_triangle,0.75,0.5,0.5,120.0,True,0.6595396444715497,hole apothem - peg apothem
+triangle_triangle,0.75,1.0,1.0,120.0,True,0.5695431010793494,hole apothem - peg apothem
+triangle_triangle,0.75,1.5,1.5,120.0,True,0.48001722340861375,hole apothem - peg apothem
+triangle_triangle,0.75,2.0,2.0,120.0,True,0.3909688292015402,hole apothem - peg apothem
+triangle_triangle,0.75,2.5,2.5,120.0,True,0.3024046998381136,hole apothem - peg apothem
+triangle_triangle,0.75,3.0,3.0,120.0,True,0.21433157981967493,hole apothem - peg apothem
+triangle_triangle,0.75,4.0,4.0,120.0,True,0.039685158351037544,hole apothem - peg apothem
+triangle_triangle,0.75,5.0,5.0,120.0,False,-0.13291723621255336,hole apothem - peg apothem
+triangle_triangle,0.75,6.0,6.0,120.0,False,-0.303423027509678,hole apothem - peg apothem
+triangle_triangle,0.75,8.0,8.0,120.0,False,-0.6379377039079002,hole apothem - peg apothem
+triangle_triangle,0.75,10.0,10.0,120.0,False,-0.9634513162384724,hole apothem - peg apothem
+triangle_triangle,1.0,0.0,0.0,120.0,True,0.9999999999999979,hole apothem - peg apothem
+triangle_triangle,1.0,0.5,0.5,120.0,True,0.9095396444715492,hole apothem - peg apothem
+triangle_triangle,1.0,1.0,1.0,120.0,True,0.819543101079349,hole apothem - peg apothem
+triangle_triangle,1.0,1.5,1.5,120.0,True,0.7300172234086134,hole apothem - peg apothem
+triangle_triangle,1.0,2.0,2.0,120.0,True,0.6409688292015396,hole apothem - peg apothem
+triangle_triangle,1.0,2.5,2.5,120.0,True,0.5524046998381134,hole apothem - peg apothem
+triangle_triangle,1.0,3.0,3.0,120.0,True,0.4643315798196746,hole apothem - peg apothem
+triangle_triangle,1.0,4.0,4.0,120.0,True,0.28968515835103725,hole apothem - peg apothem
+triangle_triangle,1.0,5.0,5.0,120.0,True,0.11708276378744627,hole apothem - peg apothem
+triangle_triangle,1.0,6.0,6.0,120.0,False,-0.053423027509678325,hole apothem - peg apothem
+triangle_triangle,1.0,8.0,8.0,120.0,False,-0.38793770390790056,hole apothem - peg apothem
+triangle_triangle,1.0,10.0,10.0,120.0,False,-0.7134513162384722,hole apothem - peg apothem
+triangle_triangle,1.25,0.0,0.0,120.0,True,1.2499999999999984,hole apothem - peg apothem
+triangle_triangle,1.25,0.5,0.5,120.0,True,1.1595396444715498,hole apothem - peg apothem
+triangle_triangle,1.25,1.0,1.0,120.0,True,1.0695431010793495,hole apothem - peg apothem
+triangle_triangle,1.25,1.5,1.5,120.0,True,0.9800172234086137,hole apothem - peg apothem
+triangle_triangle,1.25,2.0,2.0,120.0,True,0.8909688292015403,hole apothem - peg apothem
+triangle_triangle,1.25,2.5,2.5,120.0,True,0.8024046998381139,hole apothem - peg apothem
+triangle_triangle,1.25,3.0,3.0,120.0,True,0.714331579819675,hole apothem - peg apothem
+triangle_triangle,1.25,4.0,4.0,120.0,True,0.5396851583510377,hole apothem - peg apothem
+triangle_triangle,1.25,5.0,5.0,120.0,True,0.3670827637874468,hole apothem - peg apothem
+triangle_triangle,1.25,6.0,6.0,120.0,True,0.19657697249032222,hole apothem - peg apothem
+triangle_triangle,1.25,8.0,8.0,120.0,False,-0.13793770390789997,hole apothem - peg apothem
+triangle_triangle,1.25,10.0,10.0,120.0,False,-0.4634513162384719,hole apothem - peg apothem
+triangle_triangle,1.5,0.0,0.0,120.0,True,1.4999999999999976,hole apothem - peg apothem
+triangle_triangle,1.5,0.5,0.5,120.0,True,1.4095396444715493,hole apothem - peg apothem
+triangle_triangle,1.5,1.0,1.0,120.0,True,1.319543101079349,hole apothem - peg apothem
+triangle_triangle,1.5,1.5,1.5,120.0,True,1.2300172234086133,hole apothem - peg apothem
+triangle_triangle,1.5,2.0,2.0,120.0,True,1.1409688292015399,hole apothem - peg apothem
+triangle_triangle,1.5,2.5,2.5,120.0,True,1.0524046998381131,hole apothem - peg apothem
+triangle_triangle,1.5,3.0,3.0,120.0,True,0.9643315798196747,hole apothem - peg apothem
+triangle_triangle,1.5,4.0,4.0,120.0,True,0.7896851583510373,hole apothem - peg apothem
+triangle_triangle,1.5,5.0,5.0,120.0,True,0.6170827637874463,hole apothem - peg apothem
+triangle_triangle,1.5,6.0,6.0,120.0,True,0.44657697249032174,hole apothem - peg apothem
+triangle_triangle,1.5,8.0,8.0,120.0,True,0.1120622960920996,hole apothem - peg apothem
+triangle_triangle,1.5,10.0,10.0,120.0,False,-0.21345131623847244,hole apothem - peg apothem
+triangle_triangle,1.75,0.0,0.0,120.0,True,1.749999999999998,hole apothem - peg apothem
+triangle_triangle,1.75,0.5,0.5,120.0,True,1.659539644471549,hole apothem - peg apothem
+triangle_triangle,1.75,1.0,1.0,120.0,True,1.569543101079349,hole apothem - peg apothem
+triangle_triangle,1.75,1.5,1.5,120.0,True,1.4800172234086133,hole apothem - peg apothem
+triangle_triangle,1.75,2.0,2.0,120.0,True,1.3909688292015394,hole apothem - peg apothem
+triangle_triangle,1.75,2.5,2.5,120.0,True,1.3024046998381131,hole apothem - peg apothem
+triangle_triangle,1.75,3.0,3.0,120.0,True,1.214331579819674,hole apothem - peg apothem
+triangle_triangle,1.75,4.0,4.0,120.0,True,1.039685158351037,hole apothem - peg apothem
+triangle_triangle,1.75,5.0,5.0,120.0,True,0.867082763787446,hole apothem - peg apothem
+triangle_triangle,1.75,6.0,6.0,120.0,True,0.6965769724903215,hole apothem - peg apothem
+triangle_triangle,1.75,8.0,8.0,120.0,True,0.36206229609209933,hole apothem - peg apothem
+triangle_triangle,1.75,10.0,10.0,120.0,True,0.03654868376152739,hole apothem - peg apothem
+triangle_triangle,2.0,0.0,0.0,120.0,True,1.9999999999999978,hole apothem - peg apothem
+triangle_triangle,2.0,0.5,0.5,120.0,True,1.9095396444715487,hole apothem - peg apothem
+triangle_triangle,2.0,1.0,1.0,120.0,True,1.8195431010793484,hole apothem - peg apothem
+triangle_triangle,2.0,1.5,1.5,120.0,True,1.7300172234086126,hole apothem - peg apothem
+triangle_triangle,2.0,2.0,2.0,120.0,True,1.640968829201539,hole apothem - peg apothem
+triangle_triangle,2.0,2.5,2.5,120.0,True,1.552404699838113,hole apothem - peg apothem
+triangle_triangle,2.0,3.0,3.0,120.0,True,1.4643315798196739,hole apothem - peg apothem
+triangle_triangle,2.0,4.0,4.0,120.0,True,1.2896851583510365,hole apothem - peg apothem
+triangle_triangle,2.0,5.0,5.0,120.0,True,1.1170827637874459,hole apothem - peg apothem
+triangle_triangle,2.0,6.0,6.0,120.0,True,0.9465769724903211,hole apothem - peg apothem
+triangle_triangle,2.0,8.0,8.0,120.0,True,0.612062296092099,hole apothem - peg apothem
+triangle_triangle,2.0,10.0,10.0,120.0,True,0.28654868376152715,hole apothem - peg apothem
+triangle_triangle,2.5,0.0,0.0,120.0,True,2.4999999999999982,hole apothem - peg apothem
+triangle_triangle,2.5,0.5,0.5,120.0,True,2.40953964447155,hole apothem - peg apothem
+triangle_triangle,2.5,1.0,1.0,120.0,True,2.3195431010793492,hole apothem - peg apothem
+triangle_triangle,2.5,1.5,1.5,120.0,True,2.230017223408614,hole apothem - peg apothem
+triangle_triangle,2.5,2.0,2.0,120.0,True,2.1409688292015403,hole apothem - peg apothem
+triangle_triangle,2.5,2.5,2.5,120.0,True,2.0524046998381134,hole apothem - peg apothem
+triangle_triangle,2.5,3.0,3.0,120.0,True,1.9643315798196745,hole apothem - peg apothem
+triangle_triangle,2.5,4.0,4.0,120.0,True,1.7896851583510371,hole apothem - peg apothem
+triangle_triangle,2.5,5.0,5.0,120.0,True,1.6170827637874465,hole apothem - peg apothem
+triangle_triangle,2.5,6.0,6.0,120.0,True,1.446576972490322,hole apothem - peg apothem
+triangle_triangle,2.5,8.0,8.0,120.0,True,1.1120622960920994,hole apothem - peg apothem
+triangle_triangle,2.5,10.0,10.0,120.0,True,0.7865486837615279,hole apothem - peg apothem
+hex_hex,0.5,0.0,0.0,60.0,True,0.4999999999999986,hole apothem - peg apothem
+hex_hex,0.5,0.5,0.5,60.0,True,0.4480364941344675,hole apothem - peg apothem
+hex_hex,0.5,1.0,1.0,60.0,True,0.3968683597405137,hole apothem - peg apothem
+hex_hex,0.5,1.5,1.5,60.0,True,0.34649949346967845,hole apothem - peg apothem
+hex_hex,0.5,2.0,2.0,60.0,True,0.29693373110614013,hole apothem - peg apothem
+hex_hex,0.5,2.5,2.5,60.0,True,0.24817484727460273,hole apothem - peg apothem
+hex_hex,0.5,3.0,3.0,60.0,True,0.20022655515284937,hole apothem - peg apothem
+hex_hex,0.5,4.0,4.0,60.0,True,0.10677628982326065,hole apothem - peg apothem
+hex_hex,0.5,5.0,5.0,60.0,True,0.01661140097346402,hole apothem - peg apothem
+hex_hex,0.5,6.0,6.0,60.0,False,-0.07024064629794677,hole apothem - peg apothem
+hex_hex,0.5,8.0,8.0,60.0,False,-0.23390140938818543,hole apothem - peg apothem
+hex_hex,0.5,10.0,10.0,60.0,False,-0.3840066040176373,hole apothem - peg apothem
+hex_hex,0.75,0.0,0.0,60.0,True,0.7499999999999989,hole apothem - peg apothem
+hex_hex,0.75,0.5,0.5,60.0,True,0.6980364941344678,hole apothem - peg apothem
+hex_hex,0.75,1.0,1.0,60.0,True,0.6468683597405139,hole apothem - peg apothem
+hex_hex,0.75,1.5,1.5,60.0,True,0.5964994934696788,hole apothem - peg apothem
+hex_hex,0.75,2.0,2.0,60.0,True,0.5469337311061404,hole apothem - peg apothem
+hex_hex,0.75,2.5,2.5,60.0,True,0.498174847274603,hole apothem - peg apothem
+hex_hex,0.75,3.0,3.0,60.0,True,0.45022655515284965,hole apothem - peg apothem
+hex_hex,0.75,4.0,4.0,60.0,True,0.35677628982326093,hole apothem - peg apothem
+hex_hex,0.75,5.0,5.0,60.0,True,0.26661140097346425,hole apothem - peg apothem
+hex_hex,0.75,6.0,6.0,60.0,True,0.1797593537020536,hole apothem - peg apothem
+hex_hex,0.75,8.0,8.0,60.0,True,0.01609859061181482,hole apothem - peg apothem
+hex_hex,0.75,10.0,10.0,60.0,False,-0.13400660401763698,hole apothem - peg apothem
+hex_hex,1.0,0.0,0.0,60.0,True,0.9999999999999989,hole apothem - peg apothem
+hex_hex,1.0,0.5,0.5,60.0,True,0.9480364941344681,hole apothem - peg apothem
+hex_hex,1.0,1.0,1.0,60.0,True,0.8968683597405144,hole apothem - peg apothem
+hex_hex,1.0,1.5,1.5,60.0,True,0.8464994934696791,hole apothem - peg apothem
+hex_hex,1.0,2.0,2.0,60.0,True,0.7969337311061407,hole apothem - peg apothem
+hex_hex,1.0,2.5,2.5,60.0,True,0.7481748472746033,hole apothem - peg apothem
+hex_hex,1.0,3.0,3.0,60.0,True,0.7002265551528499,hole apothem - peg apothem
+hex_hex,1.0,4.0,4.0,60.0,True,0.606776289823261,hole apothem - peg apothem
+hex_hex,1.0,5.0,5.0,60.0,True,0.5166114009734646,hole apothem - peg apothem
+hex_hex,1.0,6.0,6.0,60.0,True,0.42975935370205387,hole apothem - peg apothem
+hex_hex,1.0,8.0,8.0,60.0,True,0.26609859061181507,hole apothem - peg apothem
+hex_hex,1.0,10.0,10.0,60.0,True,0.11599339598236322,hole apothem - peg apothem
+hex_hex,1.25,0.0,0.0,60.0,True,1.2499999999999971,hole apothem - peg apothem
+hex_hex,1.25,0.5,0.5,60.0,True,1.1980364941344668,hole apothem - peg apothem
+hex_hex,1.25,1.0,1.0,60.0,True,1.1468683597405132,hole apothem - peg apothem
+hex_hex,1.25,1.5,1.5,60.0,True,1.096499493469678,hole apothem - peg apothem
+hex_hex,1.25,2.0,2.0,60.0,True,1.0469337311061395,hole apothem - peg apothem
+hex_hex,1.25,2.5,2.5,60.0,True,0.9981748472746019,hole apothem - peg apothem
+hex_hex,1.25,3.0,3.0,60.0,True,0.9502265551528486,hole apothem - peg apothem
+hex_hex,1.25,4.0,4.0,60.0,True,0.8567762898232598,hole apothem - peg apothem
+hex_hex,1.25,5.0,5.0,60.0,True,0.766611400973463,hole apothem - peg apothem
+hex_hex,1.25,6.0,6.0,60.0,True,0.6797593537020526,hole apothem - peg apothem
+hex_hex,1.25,8.0,8.0,60.0,True,0.5160985906118136,hole apothem - peg apothem
+hex_hex,1.25,10.0,10.0,60.0,True,0.36599339598236186,hole apothem - peg apothem
+hex_hex,1.5,0.0,0.0,60.0,True,1.4999999999999976,hole apothem - peg apothem
+hex_hex,1.5,0.5,0.5,60.0,True,1.4480364941344661,hole apothem - peg apothem
+hex_hex,1.5,1.0,1.0,60.0,True,1.3968683597405125,hole apothem - peg apothem
+hex_hex,1.5,1.5,1.5,60.0,True,1.3464994934696775,hole apothem - peg apothem
+hex_hex,1.5,2.0,2.0,60.0,True,1.296933731106139,hole apothem - peg apothem
+hex_hex,1.5,2.5,2.5,60.0,True,1.2481748472746015,hole apothem - peg apothem
+hex_hex,1.5,3.0,3.0,60.0,True,1.2002265551528484,hole apothem - peg apothem
+hex_hex,1.5,4.0,4.0,60.0,True,1.1067762898232594,hole apothem - peg apothem
+hex_hex,1.5,5.0,5.0,60.0,True,1.016611400973463,hole apothem - peg apothem
+hex_hex,1.5,6.0,6.0,60.0,True,0.9297593537020522,hole apothem - peg apothem
+hex_hex,1.5,8.0,8.0,60.0,True,0.7660985906118137,hole apothem - peg apothem
+hex_hex,1.5,10.0,10.0,60.0,True,0.6159933959823617,hole apothem - peg apothem
+hex_hex,1.75,0.0,0.0,60.0,True,1.749999999999998,hole apothem - peg apothem
+hex_hex,1.75,0.5,0.5,60.0,True,1.6980364941344666,hole apothem - peg apothem
+hex_hex,1.75,1.0,1.0,60.0,True,1.6468683597405132,hole apothem - peg apothem
+hex_hex,1.75,1.5,1.5,60.0,True,1.5964994934696781,hole apothem - peg apothem
+hex_hex,1.75,2.0,2.0,60.0,True,1.5469337311061395,hole apothem - peg apothem
+hex_hex,1.75,2.5,2.5,60.0,True,1.498174847274602,hole apothem - peg apothem
+hex_hex,1.75,3.0,3.0,60.0,True,1.4502265551528486,hole apothem - peg apothem
+hex_hex,1.75,4.0,4.0,60.0,True,1.3567762898232598,hole apothem - peg apothem
+hex_hex,1.75,5.0,5.0,60.0,True,1.2666114009734633,hole apothem - peg apothem
+hex_hex,1.75,6.0,6.0,60.0,True,1.1797593537020532,hole apothem - peg apothem
+hex_hex,1.75,8.0,8.0,60.0,True,1.0160985906118138,hole apothem - peg apothem
+hex_hex,1.75,10.0,10.0,60.0,True,0.8659933959823625,hole apothem - peg apothem
+hex_hex,2.0,0.0,0.0,60.0,True,1.9999999999999978,hole apothem - peg apothem
+hex_hex,2.0,0.5,0.5,60.0,True,1.9480364941344672,hole apothem - peg apothem
+hex_hex,2.0,1.0,1.0,60.0,True,1.8968683597405134,hole apothem - peg apothem
+hex_hex,2.0,1.5,1.5,60.0,True,1.8464994934696783,hole apothem - peg apothem
+hex_hex,2.0,2.0,2.0,60.0,True,1.7969337311061397,hole apothem - peg apothem
+hex_hex,2.0,2.5,2.5,60.0,True,1.748174847274602,hole apothem - peg apothem
+hex_hex,2.0,3.0,3.0,60.0,True,1.700226555152849,hole apothem - peg apothem
+hex_hex,2.0,4.0,4.0,60.0,True,1.60677628982326,hole apothem - peg apothem
+hex_hex,2.0,5.0,5.0,60.0,True,1.5166114009734635,hole apothem - peg apothem
+hex_hex,2.0,6.0,6.0,60.0,True,1.4297593537020534,hole apothem - peg apothem
+hex_hex,2.0,8.0,8.0,60.0,True,1.2660985906118143,hole apothem - peg apothem
+hex_hex,2.0,10.0,10.0,60.0,True,1.1159933959823627,hole apothem - peg apothem
+hex_hex,2.5,0.0,0.0,60.0,True,2.4999999999999987,hole apothem - peg apothem
+hex_hex,2.5,0.5,0.5,60.0,True,2.448036494134468,hole apothem - peg apothem
+hex_hex,2.5,1.0,1.0,60.0,True,2.396868359740514,hole apothem - peg apothem
+hex_hex,2.5,1.5,1.5,60.0,True,2.3464994934696786,hole apothem - peg apothem
+hex_hex,2.5,2.0,2.0,60.0,True,2.29693373110614,hole apothem - peg apothem
+hex_hex,2.5,2.5,2.5,60.0,True,2.248174847274603,hole apothem - peg apothem
+hex_hex,2.5,3.0,3.0,60.0,True,2.2002265551528493,hole apothem - peg apothem
+hex_hex,2.5,4.0,4.0,60.0,True,2.1067762898232605,hole apothem - peg apothem
+hex_hex,2.5,5.0,5.0,60.0,True,2.016611400973464,hole apothem - peg apothem
+hex_hex,2.5,6.0,6.0,60.0,True,1.9297593537020539,hole apothem - peg apothem
+hex_hex,2.5,8.0,8.0,60.0,True,1.7660985906118147,hole apothem - peg apothem
+hex_hex,2.5,10.0,10.0,60.0,True,1.6159933959823634,hole apothem - peg apothem

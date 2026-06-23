@@ -1,0 +1,28 @@
+# Conservative relaxed-yaw diagnostic plus stateful descent-abort.
+# This is a safer replacement for scalar large-XY/low-Z threshold scanning:
+# when rectangular_key is low in Z but still far from the hole center, the
+# controller aborts descent, lifts to a high-Z recenter phase, then releases
+# only after XY is back inside the near-hole gate.
+
+base_config: multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch_target_hold_visible_brake_reacquire_confident_relaxed_yaw_eval.yaml
+
+guard_visual_yaw_align_descent_abort_enabled: true
+guard_visual_yaw_align_descent_abort_profiles: [rectangular_key]
+guard_visual_yaw_align_descent_abort_max_attempts: 2
+guard_visual_yaw_align_descent_abort_min_step: 250
+guard_visual_yaw_align_descent_abort_require_unreliable_visual: false
+guard_visual_yaw_align_descent_abort_min_xy: 0.060
+guard_visual_yaw_align_descent_abort_max_z: 0.080
+guard_visual_yaw_align_descent_abort_lift_target_z: 0.105
+guard_visual_yaw_align_descent_abort_lift_z_tolerance: 0.006
+guard_visual_yaw_align_descent_abort_lift_max_steps: 60
+guard_visual_yaw_align_descent_abort_recenter_max_steps: 220
+guard_visual_yaw_align_descent_abort_recenter_release_xy: 0.018
+guard_visual_yaw_align_descent_abort_max_up_action: 0.008
+guard_visual_yaw_align_descent_abort_max_xy_action: 0.010
+guard_visual_yaw_align_descent_abort_flush_history: true
+
+output_csv: results/vy_conf_relax_descent_abort/eval_latest.csv
+output_md: results/vy_conf_relax_descent_abort/eval_latest.md
+episode_output_csv: results/vy_conf_relax_descent_abort/eval_latest_episodes.csv
+step_output_csv: results/vy_conf_relax_descent_abort/eval_latest_steps.csv

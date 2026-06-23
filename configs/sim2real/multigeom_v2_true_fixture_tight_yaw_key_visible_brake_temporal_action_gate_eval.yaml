@@ -1,0 +1,21 @@
+# Visible-brake baseline plus temporal visual-yaw action gate.
+# Large yaw predictions are common in both successful and failed keyhole
+# traces, so this diagnostic does not ban high yaw. It only delays large
+# visual-yaw IK target updates until the recent signed-yaw prediction is
+# temporally stable, then keeps the existing visible-brake descent safety.
+
+base_config: multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch_target_hold_visible_brake_eval.yaml
+
+guard_visual_yaw_align_temporal_action_gate_enabled: true
+guard_visual_yaw_align_temporal_action_gate_profiles: [rectangular_key]
+guard_visual_yaw_align_temporal_action_gate_window: 3
+guard_visual_yaw_align_temporal_action_gate_max_delta_deg: 12.0
+guard_visual_yaw_align_temporal_action_gate_min_pred_yaw_deg: 30.0
+guard_visual_yaw_align_temporal_action_gate_max_pred_yaw_deg: 181.0
+guard_visual_yaw_align_temporal_action_gate_block_descent: true
+guard_visual_yaw_align_temporal_action_gate_reset_target: false
+
+output_csv: results/vy_visible_brake_temporal_action_gate/eval_latest.csv
+output_md: results/vy_visible_brake_temporal_action_gate/eval_latest.md
+episode_output_csv: results/vy_visible_brake_temporal_action_gate/eval_latest_episodes.csv
+step_output_csv: results/vy_visible_brake_temporal_action_gate/eval_latest_steps.csv

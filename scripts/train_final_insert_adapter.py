@@ -30,6 +30,16 @@ def parse_args() -> argparse.Namespace:
         default=[],
         help="Additional NPZ datasets with the same feature_names.",
     )
+    parser.add_argument(
+        "--dataset-weights",
+        nargs="*",
+        type=float,
+        default=None,
+        help=(
+            "Optional per-dataset weights for --dataset followed by "
+            "--extra-datasets. Defaults to 1.0 for every dataset."
+        ),
+    )
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--metadata-output", type=Path, default=None)
     parser.add_argument("--epochs", type=int, default=300)
@@ -76,16 +86,29 @@ def parse_args() -> argparse.Namespace:
 
 def load_arrays(args: argparse.Namespace) -> dict[str, np.ndarray]:
     dataset_paths = [args.dataset, *args.extra_datasets]
+    if args.dataset_weights is None or len(args.dataset_weights) == 0:
+        dataset_weights = [1.0 for _ in dataset_paths]
+    else:
+        dataset_weights = [float(weight) for weight in args.dataset_weights]
+        if len(dataset_weights) != len(dataset_paths):
+            raise ValueError(
+                "--dataset-weights must match --dataset plus --extra-datasets count."
+            )
+        if any(weight <= 0.0 for weight in dataset_weights):
+            raise ValueError("--dataset-weights values must be positive.")
+
     feature_parts: list[np.ndarray] = []
     target_parts: list[np.ndarray] = []
     label_parts: list[np.ndarray] = []
     source_parts: list[np.ndarray] = []
+    dataset_path_parts: list[np.ndarray] = []
+    dataset_weight_parts: list[np.ndarray] = []
     episode_parts: list[np.ndarray] = []
     seed_parts: list[np.ndarray] = []
     step_parts: list[np.ndarray] = []
     feature_names: tuple[str, ...] | None = None
 
-    for path in dataset_paths:
+    for path, dataset_weight in zip(dataset_paths, dataset_weights):
         with np.load(path, allow_pickle=False) as dataset:
             if "features" not in dataset or "target_actions" not in dataset:
                 raise ValueError(f"{path}: expected features and target_actions arrays.")
@@ -115,6 +138,12 @@ def load_arrays(args: argparse.Namespace) -> dict[str, np.ndarray]:
             source_parts.append(
                 np.asarray(dataset.get("source_trace", np.full(len(features), str(path)))).astype(str)[mask]
             )
+            dataset_path_parts.append(
+                np.asarray([str(path)] * int(np.sum(mask)), dtype=object)
+            )
+            dataset_weight_parts.append(
+                np.full(int(np.sum(mask)), float(dataset_weight), dtype=np.float32)
+            )
             episode_parts.append(
                 np.asarray(dataset.get("episode", np.arange(len(features)))).astype(str)[mask]
             )
@@ -132,6 +161,8 @@ def load_arrays(args: argparse.Namespace) -> dict[str, np.ndarray]:
         "targets": np.concatenate(target_parts, axis=0),
         "label_phase": np.concatenate(label_parts, axis=0),
         "source_trace": np.concatenate(source_parts, axis=0),
+        "dataset_path": np.concatenate(dataset_path_parts, axis=0),
+        "dataset_weight": np.concatenate(dataset_weight_parts, axis=0),
         "episode": np.concatenate(episode_parts, axis=0),
         "seed": np.concatenate(seed_parts, axis=0),
         "step": np.concatenate(step_parts, axis=0),
@@ -181,14 +212,18 @@ def make_splits(
     return train_indices, val_indices, sorted(val_groups)
 
 
-def make_sample_weights(label_phase: np.ndarray, train_indices: np.ndarray, balance: bool) -> np.ndarray:
-    weights = np.ones(len(label_phase), dtype=np.float32)
-    if not balance:
-        return weights
-    train_labels = label_phase[train_indices]
-    counts = Counter(str(label) for label in train_labels)
-    for index, label in enumerate(label_phase):
-        weights[index] = 1.0 / max(1, counts[str(label)])
+def make_sample_weights(
+    label_phase: np.ndarray,
+    dataset_weight: np.ndarray,
+    train_indices: np.ndarray,
+    balance: bool,
+) -> np.ndarray:
+    weights = np.asarray(dataset_weight, dtype=np.float32).copy()
+    if balance:
+        train_labels = label_phase[train_indices]
+        counts = Counter(str(label) for label in train_labels)
+        for index, label in enumerate(label_phase):
+            weights[index] *= 1.0 / max(1, counts[str(label)])
     mean_weight = float(weights[train_indices].mean())
     if mean_weight > 0.0:
         weights /= mean_weight
@@ -263,6 +298,19 @@ def count_dict(values: np.ndarray) -> dict[str, int]:
     return {str(key): int(value) for key, value in Counter(str(v) for v in values).items()}
 
 
+def dataset_weight_summary(dataset_path: np.ndarray, dataset_weight: np.ndarray) -> dict[str, dict[str, float]]:
+    summary: dict[str, dict[str, float]] = {}
+    string_paths = dataset_path.astype(str)
+    for path in np.unique(string_paths):
+        mask = string_paths == str(path)
+        weights = np.asarray(dataset_weight[mask], dtype=np.float32)
+        summary[str(path)] = {
+            "samples": int(np.sum(mask)),
+            "weight": float(weights[0]) if len(weights) else float("nan"),
+        }
+    return summary
+
+
 def main() -> None:
     args = parse_args()
     if args.epochs <= 0:
@@ -284,6 +332,8 @@ def main() -> None:
     features_raw = np.asarray(arrays["features"], dtype=np.float32)
     targets = np.asarray(arrays["targets"], dtype=np.float32)
     label_phase = np.asarray(arrays["label_phase"]).astype(str)
+    dataset_path = np.asarray(arrays["dataset_path"]).astype(str)
+    dataset_weight = np.asarray(arrays["dataset_weight"], dtype=np.float32)
     feature_names = tuple(str(name) for name in arrays["feature_names"])
 
     train_indices, val_indices, val_groups = make_splits(
@@ -305,7 +355,12 @@ def main() -> None:
         float(args.feature_clip),
     ).astype(np.float32)
     targets_scaled = (targets * float(args.target_scale)).astype(np.float32)
-    weights = make_sample_weights(label_phase, train_indices, args.balance_label_phases)
+    weights = make_sample_weights(
+        label_phase,
+        dataset_weight,
+        train_indices,
+        args.balance_label_phases,
+    )
 
     device = torch.device(args.device)
     config = FinalInsertAdapterConfig(
@@ -395,6 +450,12 @@ def main() -> None:
     metadata = {
         "dataset": str(args.dataset),
         "extra_datasets": [str(path) for path in args.extra_datasets],
+        "dataset_weights": (
+            [float(weight) for weight in args.dataset_weights]
+            if args.dataset_weights
+            else [1.0 for _ in [args.dataset, *args.extra_datasets]]
+        ),
+        "dataset_weight_summary": dataset_weight_summary(dataset_path, dataset_weight),
         "samples": int(len(features)),
         "train_samples": int(len(train_indices)),
         "val_samples": int(len(val_indices)),
@@ -403,6 +464,10 @@ def main() -> None:
         "validation_groups": val_groups,
         "label_phase_filter": [str(value) for value in args.label_phase],
         "balance_label_phases": bool(args.balance_label_phases),
+        "sample_weight_mean": float(np.mean(weights)),
+        "train_sample_weight_mean": float(np.mean(weights[train_indices])),
+        "train_sample_weight_min": float(np.min(weights[train_indices])),
+        "train_sample_weight_max": float(np.max(weights[train_indices])),
         "label_phase_counts": count_dict(label_phase),
         "train_label_phase_counts": count_dict(label_phase[train_indices]),
         "val_label_phase_counts": count_dict(label_phase[val_indices]),

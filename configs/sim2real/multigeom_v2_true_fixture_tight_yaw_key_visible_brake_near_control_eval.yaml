@@ -1,0 +1,13 @@
+# Visible-brake baseline with earlier near-control visual-yaw activation.
+# Diagnostic only. This tests whether the rectangular-key wrong-yaw-basin tail
+# is caused by the visual-yaw correction entering too late / leaving too early
+# under the final-servo-only activation gate.
+
+base_config: multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch_target_hold_visible_brake_eval.yaml
+
+guard_visual_yaw_align_activation_mode: near_control
+
+output_csv: results/vy_visible_brake_near_control/eval_latest.csv
+output_md: results/vy_visible_brake_near_control/eval_latest.md
+episode_output_csv: results/vy_visible_brake_near_control/eval_latest_episodes.csv
+step_output_csv: results/vy_visible_brake_near_control/eval_latest_steps.csv

@@ -13,9 +13,25 @@ The model keeps the current peg-in-hole task interface:
 - Actuators: `shoulder_pan_ctrl`, `shoulder_lift_ctrl`, `elbow_ctrl`,
   `wrist_1_ctrl`, `wrist_2_ctrl`, `wrist_3_ctrl`
 - Bodies/sites/cameras: `tool0`, `eef_site`, `peg_tip`, `wrist_cam`,
-  `hole_body`, `hole_site`, `overview`
+  `hole_body`, `hole_site`, `overview`, `hole_top`
 - Task geoms: `peg_geom`, `table_top`, `hole_plate`, `hole_north`,
-  `hole_south`, `hole_east`, `hole_west`
+  `hole_south`, `hole_east`, `hole_west`, `hole_cavity_visual`
+
+`hole_cavity_visual` is a visual-only dark opening marker. It has no collision
+response and is resized by `PegInHoleMujocoEnv` to follow the active geometry
+profile. `hole_top` is an inspection camera for demo GIFs.
+
+The XML also contains default-hidden helper geoms and OBJ mesh assets for the
+experimental `geometry_fixture_mode=true_mesh` path: hex, triangle, slot, and
+keyhole fixture visuals/collision walls plus slot/keyhole peg meshes. These are
+activated dynamically by `PegInHoleMujocoEnv`; the default box-wall path remains
+unchanged.
+For keyhole demos, `hole_cavity_visual` and `hole_key_tab_cavity_visual` are
+used as a visual-only dark bottom marker for the round body and protruding tab.
+The key peg itself also has visual-only bottom-face helpers,
+`peg_keyhole_tip_cap_visual_mesh` and
+`peg_keyhole_tip_outline_visual_mesh`, matching the existing hex/triangle peg
+tip visualization path. These helper geoms are non-colliding.
 
 Use it explicitly with:
 

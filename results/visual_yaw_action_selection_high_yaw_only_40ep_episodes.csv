@@ -1,0 +1,2 @@
+file,seed,episode,outcome,scoped_rows,visible_delta_rows,yaw_candidate_rows,descent_candidate_rows,sign_mismatch_rows,high_error_rows,max_abs_error_deg,first_scoped_step,last_step
+D:\peg-in-hole-6yh\_promotion_v075_square_pose_yaw_align_20260603213104\results\vy_visible_brake_reacquire_high_yaw_action_selection_seed906500_908500_40ep\visual_yaw_align_rectangular_key_20ep_seed908500_steps.csv,908516,16,timeout,205,201,8,147,0,1,47.283,286,490

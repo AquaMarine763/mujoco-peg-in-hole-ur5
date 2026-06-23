@@ -1,0 +1,14 @@
+# Experimental v2 entry for true per-shape mesh fixtures.
+# This intentionally inherits the v1 policy/guard stack and changes only the
+# fixture geometry mode for early hex/triangle/slot validation.
+base_config: multigeom_v1_eval.yaml
+
+geometry_fixture_mode: true_mesh
+
+# The first v2 mesh fixture assets are fixed-size. Keep ranges fixed until
+# size-bucketed meshes or validated mesh scaling are added.
+# In true_mesh mode, triangle_triangle clamps the triangular hole
+# circumdiameter to at most 2x the peg diameter.
+geometry_hole_half_size_range: [0.016, 0.016]
+geometry_peg_radius_range: [0.012, 0.012]
+geometry_square_peg_half_size_range: [0.012, 0.012]

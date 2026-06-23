@@ -1,0 +1,11 @@
+# Supervised visual yaw estimator default config for the current key-focused baseline.
+
+dataset: datasets/visual_yaw_v1_tight_yaw_key_focus_2k_crop_wider.npz
+output: results/visual_yaw_estimator_v1_tight_yaw_key_focus_2k_crop_wider.pt
+epochs: 30
+batch_size: 16
+learning_rate: 0.001
+weight_decay: 0.00001
+validation_split: 0.25
+seed: 909100
+device: auto

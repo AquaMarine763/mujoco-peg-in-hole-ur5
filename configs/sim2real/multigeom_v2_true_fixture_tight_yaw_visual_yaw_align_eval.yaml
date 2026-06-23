@@ -1,0 +1,45 @@
+# Experimental visual yaw-align runtime.
+# This uses the v2 tight-yaw true fixture stack and enables the image-based yaw
+# estimator only for rectangular_key. Square keeps the existing square
+# pose-yaw align path until the square visual yaw runtime distribution is fixed.
+
+base_config: multigeom_v2_true_fixture_tight_yaw_eval.yaml
+
+guard_square_pose_yaw_align_enabled: true
+
+observation_mode: image
+width: 100
+height: 100
+include_near_hole_crop: true
+near_hole_crop_size: 64
+near_hole_crop_source_size: 80
+near_hole_crop_offset: [-18, 0]
+image_frame_stack: 1
+wrist_camera_pos_offset: [-0.04, -0.04, 0.0]
+wrist_camera_rot_offset_deg: [0.0, 0.0, 0.0]
+wrist_camera_fovy: 100.0
+enable_peg_tip_visual_helpers: false
+
+guard_visual_yaw_align_enabled: true
+guard_visual_yaw_align_model: results/visual_yaw_estimator_v1_tight_yaw_key_focus_8k_stratified_crop_wider.pt
+guard_visual_yaw_align_device: auto
+guard_visual_yaw_align_profiles: [rectangular_key]
+guard_visual_yaw_align_activation_mode: final_servo
+guard_visual_yaw_align_max_xy: 0.014
+guard_visual_yaw_align_min_z: 0.010
+guard_visual_yaw_align_max_z: 0.080
+guard_visual_yaw_align_max_wall_contact: 0
+guard_visual_yaw_align_min_raw_norm: 0.08
+guard_visual_yaw_align_min_cam_std: 18.0
+guard_visual_yaw_align_min_crop_std: 16.0
+guard_visual_yaw_align_deadband_deg: 2.0
+guard_visual_yaw_align_max_correction_deg: 10.0
+guard_visual_yaw_align_block_descent: true
+guard_visual_yaw_align_block_descent_deg: 6.0
+guard_visual_yaw_align_ik_control_mode: pose_tip_priority
+guard_visual_yaw_align_ik_orientation_weight: 0.18
+
+output_csv: results/sim2real_multigeom_v2_true_fixture_tight_yaw_visual_yaw_align/eval_latest.csv
+output_md: results/sim2real_multigeom_v2_true_fixture_tight_yaw_visual_yaw_align/eval_latest.md
+episode_output_csv: results/sim2real_multigeom_v2_true_fixture_tight_yaw_visual_yaw_align/eval_latest_episodes.csv
+step_output_csv: results/sim2real_multigeom_v2_true_fixture_tight_yaw_visual_yaw_align/eval_latest_steps.csv

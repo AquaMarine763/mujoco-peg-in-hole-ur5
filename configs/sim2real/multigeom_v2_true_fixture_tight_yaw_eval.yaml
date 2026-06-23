@@ -1,0 +1,17 @@
+# Experimental v2 tight-yaw entry.
+# This keeps the v2 true fixture stack but switches to tighter per-shape
+# fixture meshes/geometry buckets where yaw alignment becomes necessary.
+base_config: multigeom_v2_true_fixture_eval.yaml
+
+geometry_true_fixture_variant: tight_yaw
+
+# The tight_yaw variant overrides same-shape clearances internally:
+# - rectangular_key: about 1.0 mm radial/key-tab clearance
+# - square_square: about 0.75 mm half-width clearance
+# - triangle_triangle: about 0.75 mm apothem clearance
+# - hex_hex: about 0.50 mm apothem clearance
+#
+# Keep these ranges fixed; they remain here as explicit non-randomized defaults.
+geometry_hole_half_size_range: [0.016, 0.016]
+geometry_peg_radius_range: [0.012, 0.012]
+geometry_square_peg_half_size_range: [0.012, 0.012]

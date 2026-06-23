@@ -1,0 +1,13 @@
+# Keyhole yaw-sensitive evaluation.
+# This keeps the same tight-yaw true fixture/control stack, but rectangular_key
+# only counts as success when the peg's key tab yaw is aligned with the keyhole.
+
+base_config: multigeom_v2_true_fixture_tight_yaw_eval.yaml
+
+success_shape_yaw_tolerance_deg: 10.0
+success_shape_yaw_profiles: [rectangular_key]
+
+output_csv: results/sim2real_multigeom_v2_true_fixture_tight_yaw_key_yaw_success/eval_latest.csv
+output_md: results/sim2real_multigeom_v2_true_fixture_tight_yaw_key_yaw_success/eval_latest.md
+episode_output_csv: results/sim2real_multigeom_v2_true_fixture_tight_yaw_key_yaw_success/eval_latest_episodes.csv
+step_output_csv: results/sim2real_multigeom_v2_true_fixture_tight_yaw_key_yaw_success/eval_latest_steps.csv

@@ -1,10 +1,477 @@
 # Commands
 
 This file keeps the current recommended commands in one place. Run commands
-from the repository root:
+from the repository root. In the current workspace:
 
 ```powershell
-cd D:\peg-in-hole-6yh\mujoco_peg_in_hole
+cd D:\peg-in-hole-6yh\_promotion_v075_square_pose_yaw_align_20260603213104
+```
+
+## Sim2Real Multi-Geometry v1
+
+The cleaned v148/v149 multi-geometry entry points are documented in:
+
+```powershell
+SIM2REAL_MULTIGEOM_V1.md
+```
+
+Default mixed same-shape evaluation:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v1.ps1
+```
+
+Fixed-shape evaluation:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v1.ps1 -Profile hex_hex -Seeds 906500,907500 -Episodes 60
+```
+
+Demo GIF:
+
+```powershell
+.\scripts\sim2real\demo_multigeom_v1.ps1 -Profile mixed_same_shape -Seed 906500
+```
+
+Policy-observation demo:
+
+```powershell
+.\scripts\sim2real\demo_multigeom_v1.ps1 -Profile square_square -Seed 906500 -ResultDir results\sim2real_multigeom_v1_demo_grid2x2_smoke
+```
+
+The default demo renders a `2560x1440` 2x2 GIF: upper-left `overview`,
+lower-left `wrist_cam`, upper-right `cam_image`, lower-right `near_hole_crop`.
+Use `-RenderCameras overview -NoPolicyObservationPanel` for a single external
+overview output.
+
+Real-interface checks:
+
+```powershell
+.\scripts\sim2real\preflight_multigeom_v1.ps1
+.\scripts\sim2real\dryrun_multigeom_v1.ps1 -ZeroPolicy
+```
+
+## Sim2Real Multi-Geometry v2 True Fixtures
+
+This is the experimental branch for true per-shape fixture meshes. Keep v1 as
+the stable sim-to-real entry until v2 covers all target shapes and passes a
+larger gate.
+
+```powershell
+SIM2REAL_MULTIGEOM_V2_TRUE_FIXTURES.md
+```
+
+Hex true-fixture smoke:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_true_fixture.ps1 -Profile hex_hex -Episodes 10 -Seeds 906500 -ResultDir results\sim2real_multigeom_v2_true_fixture_10ep_probe_visual_ring_tri_clamp
+```
+
+Triangle true-fixture smoke:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_true_fixture.ps1 -Profile triangle_triangle -Episodes 10 -Seeds 906500 -ResultDir results\sim2real_multigeom_v2_true_fixture_10ep_probe_visual_ring_tri_clamp
+```
+
+Slot true-fixture smoke:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_true_fixture.ps1 -Profile slot_slot -Episodes 10 -Seeds 906500 -ResultDir results\sim2real_multigeom_v2_true_fixture_10ep_probe_visual_ring_tri_clamp
+```
+
+Keyhole true-fixture smoke:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_true_fixture.ps1 -Profile rectangular_key -Episodes 10 -Seeds 906500 -ResultDir results\sim2real_multigeom_v2_true_fixture_10ep_keyhole_peg_tip_visual
+```
+
+Demo GIFs:
+
+```powershell
+.\scripts\sim2real\demo_multigeom_v2_true_fixture.ps1 -Profile hex_hex -Seed 906500 -Episodes 1 -ResultDir results\sim2real_multigeom_v2_true_fixture_demo_visual_ring_tri_clamp
+.\scripts\sim2real\demo_multigeom_v2_true_fixture.ps1 -Profile triangle_triangle -Seed 906500 -Episodes 1 -ResultDir results\sim2real_multigeom_v2_true_fixture_demo_visual_ring_tri_clamp
+.\scripts\sim2real\demo_multigeom_v2_true_fixture.ps1 -Profile slot_slot -Seed 906500 -Episodes 1 -ResultDir results\sim2real_multigeom_v2_true_fixture_demo_visual_ring_tri_clamp
+.\scripts\sim2real\demo_multigeom_v2_true_fixture.ps1 -Profile rectangular_key -Seed 906500 -Episodes 1 -ResultDir results\sim2real_multigeom_v2_true_fixture_demo_keyhole_peg_tip_visual
+```
+
+Current v2 smoke result on seed `906500`: `hex_hex=10/10`,
+`triangle_triangle=10/10`, `slot_slot=10/10`, and
+`rectangular_key=10/10`, zero collision and zero timeout. The mode is selected
+with `--geometry-fixture-mode true_mesh`;
+unsupported shapes still fall back to the v1 box-wall fixture.
+The rendered v2 fixture uses visual-only ring meshes. For
+`triangle_triangle`, the true fixture clamps the triangular hole
+circumdiameter to at most `2x` the peg diameter. Polygon pegs now also use
+visual-only tip cap, tip outline, and side-edge highlight meshes in demos; the
+highlight geoms are non-colliding. `rectangular_key` now uses a keyhole visual
+ring, segmented keyhole collision walls, a visual-only dark bottom marker for
+the hole opening, and visual-only key peg tip cap/outline helpers in
+`true_mesh` mode.
+
+Key peg tip visual check:
+
+```powershell
+.\scripts\sim2real\demo_multigeom_v2_true_fixture.ps1 -Profile rectangular_key -Seed 906500 -Episodes 1 -ResultDir results\sim2real_multigeom_v2_true_fixture_demo_keyhole_peg_tip_visual
+.\scripts\sim2real\eval_multigeom_v2_true_fixture.ps1 -Profile rectangular_key -Episodes 10 -Seeds 906500 -ResultDir results\sim2real_multigeom_v2_true_fixture_10ep_keyhole_peg_tip_visual
+```
+
+Latest key peg tip visual smoke on seed `906500`: `rectangular_key=10/10`,
+zero collision and zero timeout.
+
+Shape yaw sensitivity scan:
+
+```powershell
+python scripts\scan_shape_yaw_sensitivity.py `
+  --output-csv results\shape_yaw_sensitivity_scan.csv `
+  --output-md results\shape_yaw_sensitivity_scan.md
+
+python scripts\scan_shape_yaw_sensitivity.py `
+  --yaw-deg 0,0.5,1,1.5,2,2.5,3,4,5,6,8,10 `
+  --clearance-mm 0.5,0.75,1.0,1.25,1.5,1.75,2.0,2.5 `
+  --output-csv results\shape_yaw_sensitivity_focused_scan.csv `
+  --output-md results\shape_yaw_sensitivity_focused_scan.md
+```
+
+This scan is analytic 2D geometry only. It does not use visual-only peg tip
+highlights and does not run the policy. Focused first-pass clearance candidates
+for visual yaw-alignment validation are: `rectangular_key=0.75-1.25mm`,
+`square_square=0.5-1.0mm`, `triangle_triangle=0.5-1.0mm`, and
+`hex_hex=0.5mm`.
+
+Tight-yaw physical fixture smoke:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_true_fixture_tight_yaw.ps1 -Profile rectangular_key -Episodes 5 -Seeds 906500
+.\scripts\sim2real\eval_multigeom_v2_true_fixture_tight_yaw.ps1 -Profile square_square -Episodes 5 -Seeds 906500
+.\scripts\sim2real\eval_multigeom_v2_true_fixture_tight_yaw.ps1 -Profile triangle_triangle -Episodes 5 -Seeds 906500
+.\scripts\sim2real\eval_multigeom_v2_true_fixture_tight_yaw.ps1 -Profile hex_hex -Episodes 5 -Seeds 906500
+```
+
+The wrapper uses
+`configs\sim2real\multigeom_v2_true_fixture_tight_yaw_eval.yaml`, resolves the
+policy checkpoint from either the current worktree or the sibling
+`D:\peg-in-hole-6yh\mujoco_peg_in_hole` worktree, and writes summary,
+per-episode, and failure-step CSV files. Current 5ep seed `906500` tight-yaw
+baseline: `rectangular_key=5/5`, `square_square=1/5`,
+`triangle_triangle=5/5`, `hex_hex=5/5`. Square failures are timeout-dominant
+near-hole stalls, not immediate collision failures.
+
+Visual yaw-label dataset collection, with peg-tip debug highlights disabled:
+
+```powershell
+python scripts\collect_visual_yaw_dataset.py `
+  --config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_visual_yaw_dataset.yaml `
+  --output datasets\visual_yaw_v1_tight_yaw_key_focus_2k_crop_wider.npz `
+  --output-md results\visual_yaw_v1_tight_yaw_key_focus_2k_crop_wider.md
+```
+
+Train the first supervised visual yaw estimator:
+
+```powershell
+python scripts\train_visual_yaw_estimator.py `
+  --config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_visual_yaw_train.yaml `
+  --output-md results\visual_yaw_estimator_v1_tight_yaw_key_focus_2k_crop_wider.md
+```
+
+View/crop scan:
+
+```powershell
+python scripts\scan_visual_yaw_views.py `
+  --samples-per-candidate 128 `
+  --epochs 8 `
+  --batch-size 64 `
+  --seed 908000
+```
+
+Current result:
+
+- 1k balanced baseline: best validation mean yaw error `28.5 deg`, p95
+  `81.1 deg`; `rectangular_key` mean error `53.1 deg`.
+- View/crop scan: `crop_wider` keeps the current wrist camera pose and changes
+  only `near_hole_crop_source_size 64 -> 80`; it improves key error almost as
+  much as the slightly raised camera candidate while being lower risk for
+  sim-to-real.
+- Current key-focused 2k crop-wider estimator:
+  overall mean yaw error `13.7 deg`, p95 `47.4 deg`;
+  `square_square=5.8 deg`, `triangle_triangle=8.4 deg`,
+  `hex_hex=6.4 deg`, `rectangular_key=20.1 deg` mean error.
+  This is much better, but the key p95 remains `56.5 deg`, so do not connect it
+  directly to guarded yaw-align yet.
+
+Held-out yaw estimator diagnostics:
+
+```powershell
+python scripts\eval_visual_yaw_estimator.py `
+  --config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_visual_yaw_eval.yaml
+```
+
+This writes:
+
+- `results\visual_yaw_estimator_v1_tight_yaw_key_focus_2k_crop_wider_eval.md`
+- `results\visual_yaw_estimator_v1_tight_yaw_key_focus_2k_crop_wider_eval.json`
+- `results\visual_yaw_estimator_v1_tight_yaw_key_focus_2k_crop_wider_eval_worst_key.png`
+
+Current diagnostic on the validation split: overall mean `13.7 deg`, p95
+`47.4 deg`; `rectangular_key` mean `20.1 deg`, p95 `56.5 deg`, bad fraction
+`0.477` for the `>15 deg` threshold. The worst key bins are concentrated at
+`-60..-30 deg` and `-120..-90 deg`, so the next data run should be
+yaw-stratified rather than only larger.
+
+Next larger key-focused stratified yaw run:
+
+```powershell
+python scripts\collect_visual_yaw_dataset.py `
+  --config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_visual_yaw_dataset_key_focus_8k_stratified.yaml
+
+python scripts\train_visual_yaw_estimator.py `
+  --config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_visual_yaw_train_key_focus_8k_stratified.yaml
+
+python scripts\eval_visual_yaw_estimator.py `
+  --config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_visual_yaw_eval_key_focus_8k_stratified.yaml
+```
+
+8k stratified result:
+
+- Dataset: `datasets\visual_yaw_v1_tight_yaw_key_focus_8k_stratified_crop_wider.npz`
+- Model: `results\visual_yaw_estimator_v1_tight_yaw_key_focus_8k_stratified_crop_wider.pt`
+- Eval report: `results\visual_yaw_estimator_v1_tight_yaw_key_focus_8k_stratified_crop_wider_eval.md`
+- Worst-case sheet: `results\visual_yaw_estimator_v1_tight_yaw_key_focus_8k_stratified_crop_wider_eval_worst_key.png`
+- Validation overall: mean `2.10 deg`, p95 `5.74 deg`, bad fraction
+  `0.006` for `>15 deg`.
+- Validation by profile: `square_square` mean/p95 `1.39/3.80 deg`,
+  `triangle_triangle` `1.90/5.04 deg`, `hex_hex` `1.24/3.32 deg`,
+  `rectangular_key` `2.71/6.78 deg`.
+- Previous key hard bins improved strongly: `-60..-30 deg` p95 now
+  `4.79 deg`; `-120..-90 deg` p95 now `4.98 deg`.
+
+This version is good enough for a guarded yaw-align prototype with confidence
+and visibility gates. It is still not a final deployment component because a
+few severe occlusion outliers remain.
+
+Key yaw-sensitive success-gate checks:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_true_fixture_tight_yaw.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_yaw_success_eval.yaml `
+  -Profile rectangular_key -Episodes 5 -Seeds 906500 `
+  -ResultDir results\sim2real_multigeom_v2_true_fixture_tight_yaw_key_yaw_success_smoke
+
+.\scripts\sim2real\eval_multigeom_v2_true_fixture_tight_yaw_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch_target_hold_visible_brake_eval.yaml `
+  -Profile rectangular_key -Episodes 20 -Seeds 906500,907500,908500,909500,910500,911500 `
+  -ResultDir results\sim2real_multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch_target_hold_visible_brake_multiseed_120ep
+
+.\scripts\sim2real\eval_multigeom_v2_true_fixture_tight_yaw_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch_target_hold_visible_brake_reacquire_eval.yaml `
+  -Profile rectangular_key -Episodes 20 -Seeds 908500,909500,910500 `
+  -ResultDir results\sim2real_multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch_target_hold_visible_brake_reacquire_early350_targeted_60ep
+
+.\scripts\sim2real\eval_multigeom_v2_true_fixture_tight_yaw_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch_target_hold_visible_brake_reacquire_descent_eval.yaml `
+  -Profile rectangular_key -Episodes 5 -Seeds 908500,909500 `
+  -ResultDir results\sim2real_multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch_target_hold_visible_brake_reacquire_descent_smoke5
+```
+
+Current key yaw-sensitive smoke:
+
+- Baseline with yaw success gate and no visual yaw-align: `0/5`.
+- Soft visual yaw correction without descent blocking: `0/5`.
+- Current strict visual yaw hold/recenter recheck: `4/10`, collision `1/10`,
+  timeout `5/10`.
+- Bounded `commit_descent_latch` without target hold: `15/30`, collision `0`,
+  timeout `15/30` across seeds `906500/907500/908500`.
+- Current best diagnostic is `commit_descent_latch_target_hold`: `27/30`,
+  collision `0`, timeout `3/30` across seeds `906500/907500/908500`
+  (`10/10`, `9/10`, `8/10` respectively).
+- Extended 60ep check of the more aggressive target-hold reached `55/60`,
+  but had `2/60` collision. Prefer the safer
+  `commit_descent_latch_target_hold_visible` for sim-to-real-oriented work:
+  `54/60`, collision `0`, timeout `6/60` across
+  `906500/907500/908500/909500/910500/911500`.
+- Larger 120ep check of the visible variant exposed a `2/120` collision tail
+  and reached `103/120`. Current safest diagnostic is
+  `commit_descent_latch_target_hold_visible_brake`: `104/120`, collision `0`,
+  timeout `16/120` across the same six seeds.
+- The 2 cm commit latch only arms after consecutive visual yaw/XY/Z stability,
+  then briefly continues descent while holding XY. Target hold preserves the
+  last visually aligned IK orientation target during short raw-norm/XY gate
+  dropouts, which prevents most returns to the `~180 deg` wrong yaw basin.
+- The safer visible variant additionally requires the current visual yaw
+  estimate to pass visibility gates before active descent, and releases
+  target-hold when the live predicted yaw error exceeds `8 deg`.
+- The brake variant additionally lifts and flushes control-history when visual
+  yaw visibility is poor, live predicted yaw is large, XY is still off-center,
+  and the peg is already low. This removes the observed delayed-action plate
+  collision tail.
+- Bounded re-acquire/retry diagnostic
+  `commit_descent_latch_target_hold_visible_brake_reacquire` adds a high-Z
+  lift/recenter state for late wrong-yaw-basin timeouts. The current safer
+  setting triggers from step `350`, allows two attempts, and uses long
+  high-Z recentering while keeping relaxed yaw correction disabled. Targeted
+  60ep on the hardest seeds `908500/909500/910500` reached `49/60`,
+  collision `0`, timeout `11/60`; the comparable brake subset was `47/60`,
+  collision `0`, timeout `13/60`. This is a small improvement, not yet a
+  promotion candidate.
+- Relaxed yaw correction inside re-acquire is implemented as a default-off
+  diagnostic, but the first 10ep smoke regressed `909500` from `5/5` to `4/5`
+  by pushing a near-recovered case back to large XY. Keep it disabled until a
+  better confidence gate is designed.
+- Re-acquire descent is also implemented as a default-off diagnostic:
+  `configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch_target_hold_visible_brake_reacquire_descent_eval.yaml`.
+  It permits slow descent during re-acquire only under same-step visible yaw,
+  small predicted yaw, bounded XY, and high enough Z. The 10ep smoke reached
+  `908500=4/5`, `909500=5/5`, collision `0`; the lone failure was not clearly
+  caused by the descent gate, but the feature did not show enough benefit to
+  promote.
+- Offline visual-yaw re-acquire confidence analysis:
+
+```powershell
+$traces = Get-ChildItem -Path results\sim2real_multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch_target_hold_visible_brake_reacquire_early350_targeted_60ep -Filter '*_steps.csv' | ForEach-Object { $_.FullName }
+python scripts\analyze_visual_yaw_reacquire_traces.py @traces `
+  --output-md results\sim2real_multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch_target_hold_visible_brake_reacquire_early350_targeted_60ep\visual_yaw_reacquire_confidence_analysis.md `
+  --output-csv results\sim2real_multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch_target_hold_visible_brake_reacquire_early350_targeted_60ep\visual_yaw_reacquire_confidence_analysis.csv
+```
+
+  Targeted 60ep diagnostic: all re-acquire rows have mean pred-vs-truth yaw
+  error `20.0 deg`, high-error rate `8.1%`, and opposite-sign rate `39.3%`.
+  The runtime visibility gate reduces opposite-sign rate to `17.5%` and
+  high-error rate to `4.1%` but covers only `31.1%` of re-acquire rows. A
+  simple temporal-delta-stable gate reduces high-error tail to `1.4%` at
+  `19.7%` coverage, while simple sign-stability is not safe because it can
+  keep a stable but wrong sign. Use this as evidence for redesigning
+  visual-yaw confidence/action selection; do not promote it as a controller
+  change by itself.
+- Conservative confident relaxed-yaw diagnostic:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_true_fixture_tight_yaw_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch_target_hold_visible_brake_reacquire_confident_relaxed_yaw_eval.yaml `
+  -Profile rectangular_key -Episodes 5 -Seeds 908500,909500,910500 `
+  -ResultDir results\sim2real_multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch_target_hold_visible_brake_reacquire_confident_relaxed_yaw_fixed_smoke5
+
+$traces = Get-ChildItem -Path results\sim2real_multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch_target_hold_visible_brake_reacquire_confident_relaxed_yaw_fixed_smoke5 -Filter '*_steps.csv' | ForEach-Object { $_.FullName }
+python scripts\analyze_visual_yaw_reacquire_traces.py @traces `
+  --output-md results\sim2real_multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch_target_hold_visible_brake_reacquire_confident_relaxed_yaw_fixed_smoke5\visual_yaw_reacquire_confidence_analysis.md `
+  --output-csv results\sim2real_multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch_target_hold_visible_brake_reacquire_confident_relaxed_yaw_fixed_smoke5\visual_yaw_reacquire_confidence_analysis.csv
+```
+
+  This config enables relaxed-yaw only when visibility statistics pass and the
+  recent signed-yaw predictions are temporally stable; it also allows a visible
+  re-apply with a conservative `30 deg` correction cap. Fixed smoke result:
+  `908500=5/5`, `909500=5/5`, `910500=4/5`, collision `0`. The matching
+  default re-acquire recheck on `908500/909500` was `5/5` and `4/5`, collision
+  `0`. The confident smoke triggered `reacquire_relaxed_yaw` on `8/13/29`
+  rows by seed. Offline analysis over the 15ep smoke: all re-acquire rows
+  sign-mismatch rate `13.2%`; visible rows `5.7%`; visible+temporal-delta
+  high-error rate `1.1%`. This is promising but not promoted until it passes
+  a larger targeted 60ep and then the six-seed 120ep gate.
+- Targeted 60ep confident relaxed-yaw check:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_true_fixture_tight_yaw_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch_target_hold_visible_brake_reacquire_confident_relaxed_yaw_eval.yaml `
+  -Profile rectangular_key -Episodes 20 -Seeds 908500,909500,910500 `
+  -ResultDir results\vy_conf_relax_60ep
+
+$traces = Get-ChildItem -Path results\vy_conf_relax_60ep -Filter '*_steps.csv' | ForEach-Object { $_.FullName }
+python scripts\analyze_visual_yaw_reacquire_traces.py @traces `
+  --output-md results\vy_conf_relax_60ep\visual_yaw_reacquire_confidence_analysis.md `
+  --output-csv results\vy_conf_relax_60ep\visual_yaw_reacquire_confidence_analysis.csv
+```
+
+  Result: `51/60`, collision `1/60`, timeout `8/60`
+  (`908500=16/20` with one collision, `909500=17/20`, `910500=18/20`).
+  Default re-acquire targeted 60ep was `49/60`, collision `0/60`, timeout
+  `11/60`. The candidate rescued four baseline timeouts
+  (`908501/909511/909517/910500`) but regressed two baseline successes
+  (`908518/910512`) to timeouts and changed `908516` from a timeout into a
+  plate collision. The collision episode had no `reacquire_relaxed_yaw` rows
+  and ended with large XY (`~9.8 cm`) while Z was already below target under
+  `z_gate`; this points to a missing large-XY/low-Z safety brake. Do not
+  promote this candidate until that collision class is eliminated.
+- Large-XY/low-Z brake diagnostic on top of confident relaxed-yaw:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_true_fixture_tight_yaw_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch_target_hold_visible_brake_reacquire_confident_relaxed_yaw_large_xy_low_z_brake_eval.yaml `
+  -Profile rectangular_key -Episodes 20 -Seeds 906500,907500,908500,909500,910500,911500 `
+  -ResultDir results\vy_conf_relax_lzbrake_z80_120ep
+```
+
+  The `z80` version triggers the brake at XY `>=6 cm` and Z `<=8 cm`. It
+  passed the targeted hard 60ep set with `52/60`, collision `0`, timeout `8`
+  (`908500=16/20`, `909500=17/20`, `910500=19/20`), but failed the six-seed
+  120ep gate: `105/120`, collision `1/120`, timeout `14/120`. The new
+  collision was `906500`, where the wide safety brake triggered early around
+  XY `7-9 cm`, Z `~8 cm`, prevented the original safest-brake success path,
+  and later still ended in a plate collision. Keep this config diagnostic-only.
+  Current safest sim-to-real-oriented key-yaw result remains the low-visibility
+  brake baseline: `104/120`, collision `0/120`.
+- Stateful descent-abort diagnostics:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_true_fixture_tight_yaw_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_vy_conf_relax_descent_abort_eval.yaml `
+  -Profile rectangular_key -Episodes 20 -Seeds 906500,908500 `
+  -ResultDir results\vy_conf_relax_descent_abort_probe_40ep
+
+.\scripts\sim2real\eval_multigeom_v2_true_fixture_tight_yaw_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_vy_reacquire_descent_abort_unreliable_eval.yaml `
+  -Profile rectangular_key -Episodes 20 -Seeds 906500,908500 `
+  -ResultDir results\vy_reacquire_descent_abort_unreliable_probe_40ep
+```
+
+  `guard_visual_yaw_align_descent_abort_*` is implemented as a default-off
+  stateful lift/recenter hook with trace fields and control-history flush. It
+  should stay diagnostic-only. Results so far:
+  confident relaxed-yaw + descent-abort can rescue `908516` in 1ep smoke, but
+  40ep variants introduced either timeout/collision on `906500` or collision
+  on `908500`; bounded re-acquire + low-Z unreliable descent-abort produced
+  `906500=18/20`, collision `0`, and `908500=17/20`, collision `1`; adding a
+  large-predicted-yaw trigger produced `906500=18/20`, collision `1`, and
+  `908500=15/20`, collision `0`. Do not promote either config.
+- Temporal visual-yaw descent gate diagnostic:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_true_fixture_tight_yaw_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_temporal_action_gate_eval.yaml `
+  -Profile rectangular_key -Episodes 20 -Seeds 908500,909500,910500 `
+  -ResultDir results\vy_visible_brake_temporal_descent_gate_targeted_60ep
+```
+
+  `guard_visual_yaw_align_temporal_action_gate_*` is implemented as a
+  default-off post-visual-yaw gate. The first hard reset-target version
+  regressed all 1ep smoke seeds to timeout. The current diagnostic keeps the
+  yaw target active but blocks descent while large yaw predictions are not
+  temporally stable. It preserved zero collision but did not improve the hard
+  gate: `908500=16/20`, `909500=14/20`, `910500=17/20`, total `47/60`,
+  collision `0`, timeout `13`. Do not promote; current visible-brake baseline
+  remains safer overall.
+- The over-narrow `commit_descent` and wider `xy30` variants are diagnostics,
+  not defaults.
+- These successes satisfy the new XY/Z/yaw gate rather than the old
+  XY/Z-only success condition. This is still diagnostic; remaining failures are
+  still mixed wrong-yaw-basin timeouts and late low-Z collision risks. The next
+  useful work is a better visual-yaw confidence/action gate or a deliberate
+  high-Z retreat/recenter controller, not broader scalar safety patches.
+
+Quick stratified collector smoke:
+
+```powershell
+python scripts\collect_visual_yaw_dataset.py `
+  --config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_visual_yaw_dataset_key_focus_8k_stratified.yaml `
+  --samples 96 `
+  --output datasets\visual_yaw_v1_tight_yaw_stratified_smoke_96.npz `
+  --output-md results\visual_yaw_v1_tight_yaw_stratified_smoke_96.md
+```
+
+Polygon peg highlight check:
+
+```powershell
+.\scripts\sim2real\demo_multigeom_v2_true_fixture.ps1 -Profile hex_hex -Seed 906500 -Episodes 1 -ResultDir results\sim2real_multigeom_v2_true_fixture_demo_polygon_peg_highlight
+.\scripts\sim2real\demo_multigeom_v2_true_fixture.ps1 -Profile triangle_triangle -Seed 906500 -Episodes 1 -ResultDir results\sim2real_multigeom_v2_true_fixture_demo_polygon_peg_highlight
+.\scripts\sim2real\eval_multigeom_v2_true_fixture.ps1 -Profile hex_hex -Episodes 10 -Seeds 906500 -ResultDir results\sim2real_multigeom_v2_true_fixture_10ep_polygon_peg_highlight
+.\scripts\sim2real\eval_multigeom_v2_true_fixture.ps1 -Profile triangle_triangle -Episodes 10 -Seeds 906500 -ResultDir results\sim2real_multigeom_v2_true_fixture_10ep_polygon_peg_highlight
 ```
 
 ## Install
@@ -9553,3 +10020,161 @@ Current diagnostic summary:
 Before promoting any successor, require a fresh focused gate on
 `924500/927500/928500/929500/931500`, 30 episodes each, with zero collision and
 zero timeout.
+
+## Keyhole Tight-Yaw Failure-Mode Analysis
+
+Use this when deciding whether the remaining rectangular-key failures are yaw
+estimation failures or low-level insertion failures. It reads existing
+`*_episodes.csv` and `*_steps.csv`; it does not rerun MuJoCo.
+
+```powershell
+python scripts\analyze_key_yaw_failure_modes.py `
+  --run visible_brake=results\sim2real_multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch_target_hold_visible_brake_multiseed_120ep `
+  --run temporal_gate=results\vy_visible_brake_temporal_descent_gate_targeted_60ep `
+  --output-md results\key_yaw_failure_mode_analysis.md `
+  --output-csv results\key_yaw_failure_mode_analysis.csv
+```
+
+Latest local output:
+
+- local visible-brake subset: `70/80`, collision `0`, timeout `10`
+- temporal descent gate targeted set: `47/60`, collision `0`, timeout `13`
+- main residual failure class: `timeout_wrong_yaw_basin`
+
+Rejected near-control activation smoke:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_true_fixture_tight_yaw_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_near_control_eval.yaml `
+  -Profile rectangular_key -Episodes 1 -Seeds 908508,908516,910500 `
+  -ResultDir results\vy_visible_brake_near_control_smoke3
+```
+
+Result: `0/3`, collision `2`, timeout `1`. Do not promote; global
+`near_control` activation destabilizes hard seeds.
+
+High-yaw target-hold diagnostics:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_true_fixture_tight_yaw_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_high_yaw_arm_target_hold_eval.yaml `
+  -Profile rectangular_key -Episodes 1 -Seeds 906500,908500,908516 `
+  -ResultDir results\vy_visible_brake_high_yaw_arm_target_hold_protocol_smoke3
+
+.\scripts\sim2real\eval_multigeom_v2_true_fixture_tight_yaw_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_high_yaw_arm_target_hold_eval.yaml `
+  -Profile rectangular_key -Episodes 20 -Seeds 906500,908500 `
+  -ResultDir results\vy_visible_brake_high_yaw_arm_target_hold_seed906500_908500_40ep
+
+python scripts\analyze_key_yaw_failure_modes.py `
+  --run high_yaw_arm=results\vy_visible_brake_high_yaw_arm_target_hold_seed906500_908500_40ep `
+  --output-md results\key_yaw_high_yaw_arm_failure_analysis.md `
+  --output-csv results\key_yaw_high_yaw_arm_failure_analysis.csv
+```
+
+Result: smoke `2/3`, collision `0`; 40ep `35/40`, collision `0`, timeout `5`.
+Do not promote; `908500=15/20` is not better than the visible-brake baseline.
+
+Wrong-basin hold diagnostic:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_true_fixture_tight_yaw_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_wrong_basin_hold_eval.yaml `
+  -Profile rectangular_key -Episodes 1 -Seeds 906500,908500,908516 `
+  -ResultDir results\vy_visible_brake_wrong_basin_hold_xy60_smoke3
+
+.\scripts\sim2real\eval_multigeom_v2_true_fixture_tight_yaw_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_wrong_basin_hold_eval.yaml `
+  -Profile rectangular_key -Episodes 20 -Seeds 906500,908500 `
+  -ResultDir results\vy_visible_brake_wrong_basin_hold_xy60_seed906500_908500_40ep
+
+python scripts\analyze_key_yaw_failure_modes.py `
+  --run baseline=results\vy_visible_brake_baseline_seed906500_908500_40ep `
+  --run wrong_basin_hold_xy60=results\vy_visible_brake_wrong_basin_hold_xy60_seed906500_908500_40ep `
+  --run wrong_basin_hold_wide=results\vy_visible_brake_wrong_basin_hold_seed906500_908500_40ep `
+  --output-md results\key_yaw_wrong_basin_hold_failure_analysis.md `
+  --output-csv results\key_yaw_wrong_basin_hold_failure_analysis.csv
+```
+
+Result: baseline `35/40`, wide hold `33/40`, 6 cm hold `34/40`, all collision
+`0`. Keep the hook/config default-off for diagnostics; do not promote.
+
+Narrow wrong-basin re-acquire diagnostic:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_true_fixture_tight_yaw_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_wrong_basin_reacquire_narrow_eval.yaml `
+  -Profile rectangular_key -Episodes 1 -Seeds 906500,908500,908516 `
+  -ResultDir results\vy_visible_brake_wrong_basin_reacquire_narrow_gated_lzbrake_smoke3
+
+.\scripts\sim2real\eval_multigeom_v2_true_fixture_tight_yaw_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_wrong_basin_reacquire_narrow_eval.yaml `
+  -Profile rectangular_key -Episodes 20 -Seeds 906500,908500 `
+  -ResultDir results\vy_visible_brake_wrong_basin_reacquire_narrow_gated_seed906500_908500_40ep
+
+python scripts\analyze_key_yaw_failure_modes.py `
+  --run baseline=results\vy_visible_brake_baseline_seed906500_908500_40ep `
+  --run hold_xy60=results\vy_visible_brake_wrong_basin_hold_xy60_seed906500_908500_40ep `
+  --run reacquire_narrow=results\vy_visible_brake_wrong_basin_reacquire_narrow_seed906500_908500_40ep `
+  --run reacquire_narrow_gated=results\vy_visible_brake_wrong_basin_reacquire_narrow_gated_seed906500_908500_40ep `
+  --output-md results\key_yaw_wrong_basin_reacquire_narrow_analysis.md `
+  --output-csv results\key_yaw_wrong_basin_reacquire_narrow_analysis.csv
+```
+
+Result: visible-brake baseline `35/40`, hold 6 cm `34/40`, ungated narrow
+re-acquire `35/40` with `1` collision, gated narrow re-acquire `34/40` with
+collision `0`. Do not promote; use this only as diagnostic evidence.
+
+Low-Z lateral-pop recovery diagnostic:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_true_fixture_tight_yaw_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_lateral_pop_recovery_eval.yaml `
+  -Profile rectangular_key -Episodes 1 -Seeds 906500,908500,908516 `
+  -ResultDir results\vy_visible_brake_wrong_basin_reacquire_narrow_low_z_lateral_pop_recovery_smoke3
+```
+
+Result: recovery-only smoke `2/3`, collision `0`, timeout `1`; it triggers too
+late to rescue `908516`. The late-finish/freeze-XY variant was rejected because
+it regressed `906500` to timeout and changed `908516` into collision. Report:
+`results\key_yaw_low_z_lateral_pop_recovery_analysis.md`. Do not promote.
+
+Visual-yaw action-selection analysis:
+
+```powershell
+$files = Get-ChildItem results\vy_visible_brake_wrong_basin_reacquire_narrow_gated_seed906500_908500_40ep -Filter *_steps.csv | ForEach-Object { $_.FullName }
+python scripts\analyze_visual_yaw_action_selection.py @files `
+  --output-md results\visual_yaw_action_selection_narrow_gated_40ep.md `
+  --output-csv results\visual_yaw_action_selection_narrow_gated_40ep.csv `
+  --episode-output-csv results\visual_yaw_action_selection_narrow_gated_40ep_episodes.csv
+```
+
+Key result: `visible + temporal-delta-stable` rows have zero sign mismatch and
+zero high-error rows, but descent based on near-zero predicted yaw is still not
+reliable. Even `pred<=2deg` and `XY<=8mm` averages about `12deg` true yaw in
+the re-acquire timeout traces.
+
+High-yaw-only action-selection diagnostic:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_true_fixture_tight_yaw_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_reacquire_high_yaw_action_selection_eval.yaml `
+  -Profile rectangular_key -Episodes 1 -Seeds 906500,908500,908516 `
+  -ResultDir results\vy_visible_brake_reacquire_high_yaw_action_selection_smoke3
+
+.\scripts\sim2real\eval_multigeom_v2_true_fixture_tight_yaw_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_reacquire_high_yaw_action_selection_eval.yaml `
+  -Profile rectangular_key -Episodes 20 -Seeds 906500,908500 `
+  -ResultDir results\vy_visible_brake_reacquire_high_yaw_action_selection_seed906500_908500_40ep
+
+python scripts\analyze_key_yaw_failure_modes.py `
+  --run baseline=results\vy_visible_brake_baseline_seed906500_908500_40ep `
+  --run reacquire_narrow_gated=results\vy_visible_brake_wrong_basin_reacquire_narrow_gated_seed906500_908500_40ep `
+  --run high_yaw_action_selection=results\vy_visible_brake_reacquire_high_yaw_action_selection_seed906500_908500_40ep `
+  --output-md results\key_yaw_high_yaw_action_selection_analysis.md `
+  --output-csv results\key_yaw_high_yaw_action_selection_analysis.csv
+```
+
+Result: smoke `2/3`, collision `0`; same-seed 40ep `34/40`, collision `0`,
+timeout `6`. This ties gated narrow re-acquire but is below the visible-brake
+baseline `35/40`, so do not promote.

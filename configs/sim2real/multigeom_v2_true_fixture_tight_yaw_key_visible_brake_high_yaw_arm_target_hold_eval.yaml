@@ -1,0 +1,20 @@
+# Visible-brake baseline with high-yaw arming but normal yaw release.
+# Diagnostic only. This is narrower than high_yaw_target_hold: large visual yaw
+# corrections can arm target preservation, but the hold only applies while the
+# current prediction is unavailable or already back inside the normal 8 deg
+# release threshold.
+
+base_config: multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch_target_hold_visible_brake_eval.yaml
+
+guard_visual_yaw_align_hold_target_steps: 360
+guard_visual_yaw_align_hold_target_arm_yaw_deg: 180.0
+guard_visual_yaw_align_hold_target_release_yaw_deg: 8.0
+guard_visual_yaw_align_hold_target_release_xy: 0.180
+guard_visual_yaw_align_hold_target_min_z: 0.000
+guard_visual_yaw_align_hold_target_max_z: 0.160
+guard_visual_yaw_align_hold_target_block_descent: true
+
+output_csv: results/vy_visible_brake_high_yaw_arm_target_hold/eval_latest.csv
+output_md: results/vy_visible_brake_high_yaw_arm_target_hold/eval_latest.md
+episode_output_csv: results/vy_visible_brake_high_yaw_arm_target_hold/eval_latest_episodes.csv
+step_output_csv: results/vy_visible_brake_high_yaw_arm_target_hold/eval_latest_steps.csv

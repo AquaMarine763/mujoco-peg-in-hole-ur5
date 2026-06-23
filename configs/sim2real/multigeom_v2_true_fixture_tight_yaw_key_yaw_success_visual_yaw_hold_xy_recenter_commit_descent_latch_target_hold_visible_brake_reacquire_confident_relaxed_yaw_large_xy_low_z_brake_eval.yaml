@@ -1,0 +1,17 @@
+# Conservative re-acquire relaxed-yaw diagnostic plus large-XY/low-Z safety brake.
+# This keeps the confident relaxed-yaw candidate default-off and adds a safety
+# brake for the observed plate-collision class where the peg is still far from
+# the hole in XY but has drifted down to/under the target height.
+
+base_config: multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch_target_hold_visible_brake_reacquire_confident_relaxed_yaw_eval.yaml
+
+guard_visual_yaw_align_large_xy_low_z_brake_enabled: true
+guard_visual_yaw_align_large_xy_low_z_brake_min_xy: 0.060
+guard_visual_yaw_align_large_xy_low_z_brake_max_z: 0.080
+guard_visual_yaw_align_large_xy_low_z_brake_up_action: 0.008
+guard_visual_yaw_align_large_xy_low_z_brake_flush_history: true
+
+output_csv: results/vy_conf_relax_large_xy_low_z_brake/eval_latest.csv
+output_md: results/vy_conf_relax_large_xy_low_z_brake/eval_latest.md
+episode_output_csv: results/vy_conf_relax_large_xy_low_z_brake/eval_latest_episodes.csv
+step_output_csv: results/vy_conf_relax_large_xy_low_z_brake/eval_latest_steps.csv

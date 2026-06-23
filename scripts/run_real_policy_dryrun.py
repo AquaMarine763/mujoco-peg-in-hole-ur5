@@ -237,6 +237,8 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         guard_min_policy_steps=args.guard_min_policy_steps,
         guard_block_down_when_unaligned=args.guard_block_down_when_unaligned,
         guard_release_on_high=args.guard_release_on_high,
+        guard_final_servo_hover_height=0.025,
+        guard_final_servo_square_recovery_lift_height=0.050,
         oracle=OracleControllerConfig(
             mode="guarded_two_stage",
             action_gain=args.guard_action_gain,

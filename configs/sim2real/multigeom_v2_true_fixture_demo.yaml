@@ -1,0 +1,12 @@
+# Experimental v2 demo entry for true per-shape mesh fixtures.
+base_config: multigeom_v1_demo.yaml
+
+geometry_fixture_mode: true_mesh
+# In true_mesh mode, triangle_triangle clamps the triangular hole
+# circumdiameter to at most 2x the peg diameter.
+geometry_hole_half_size_range: [0.016, 0.016]
+geometry_peg_radius_range: [0.012, 0.012]
+geometry_square_peg_half_size_range: [0.012, 0.012]
+
+output: results/sim2real_multigeom_v2_true_fixture/demo_mixed_same_shape_seed906500.gif
+trajectory_output: results/sim2real_multigeom_v2_true_fixture/demo_mixed_same_shape_seed906500_trace.csv

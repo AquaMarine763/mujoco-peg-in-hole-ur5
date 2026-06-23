@@ -28,6 +28,11 @@ from peg_in_hole_mujoco import (
     oracle_action_from_state,
 )
 from peg_in_hole_mujoco.sim_config import parse_args_with_config
+from peg_in_hole_mujoco.visual_yaw_runtime import (
+    PROFILE_PERIOD_DEG,
+    VisualYawPrediction,
+    VisualYawRuntime,
+)
 
 
 AGENTS = {
@@ -93,7 +98,11 @@ CORE_SCENARIOS = (
 SQUARE_POSE_YAW_ALIGN_PHASES = frozenset(
     (
         "square_fast_settle",
+        "square_fast_settle_pre_pop_guard_hold",
         "square_fast_settle_clearance_hold",
+        "square_fast_settle_contact_soft_hold",
+        "square_fast_settle_contact_soft_hold_release_continue",
+        "square_fast_settle_contact_soft_hold_release_pop_hold",
         "square_low_z_relief_lift",
         "square_low_z_relief_recenter",
         "square_high_z_descend",
@@ -102,6 +111,8 @@ SQUARE_POSE_YAW_ALIGN_PHASES = frozenset(
         "square_margin_yaw_settle_recenter",
         "square_tilt_reinsert_lift",
         "square_tilt_reinsert_recenter",
+        "square_contact_pop_hold",
+        "square_no_contact_pop_hold",
         "square_contact_brake_preemptive_hold",
         "square_contact_brake_lift",
         "square_contact_brake_recenter",
@@ -117,6 +128,39 @@ HARD_BUCKET_SCENARIO = Scenario(
     control_action_delay_range=(2, 2),
     control_action_filter_alpha_range=(0.55, 0.70),
 )
+
+
+@dataclass(frozen=True)
+class VisualYawAlignResult:
+    active: bool = False
+    applied: bool = False
+    blocked_down: bool = False
+    aligned_descent: bool = False
+    aligned_descent_stable_steps: int = 0
+    low_z_late_finish_descent: bool = False
+    target_hold: bool = False
+    low_visibility_brake: bool = False
+    large_xy_low_z_brake: bool = False
+    descent_abort_active: bool = False
+    descent_abort_triggered: bool = False
+    descent_abort_phase: str = "inactive"
+    descent_abort_attempts: int = 0
+    reacquire_active: bool = False
+    reacquire_triggered: bool = False
+    reacquire_phase: str = "inactive"
+    reacquire_attempts: int = 0
+    wrong_basin_hold_active: bool = False
+    wrong_basin_hold_triggered: bool = False
+    wrong_basin_hold_steps_remaining: int = 0
+    wrong_basin_hold_attempts: int = 0
+    low_z_lateral_pop_recovery_active: bool = False
+    low_z_lateral_pop_recovery_triggered: bool = False
+    low_z_lateral_pop_recovery_phase: str = "inactive"
+    low_z_lateral_pop_recovery_attempts: int = 0
+    low_z_lateral_pop_recovery_steps_remaining: int = 0
+    reason: str = "disabled"
+    prediction: VisualYawPrediction | None = None
+    correction_deg: float = 0.0
 
 
 def make_hard_bucket_scenario(args: argparse.Namespace) -> Scenario:
@@ -253,6 +297,7 @@ STEP_TRACE_FIELDNAMES = [
     "guard_final_servo_recovery_triggered",
     "guard_final_servo_exhausted",
     "guard_final_servo_phase",
+    "guard_final_servo_phase_transition_reason",
     "guard_final_servo_phase_steps",
     "guard_final_servo_stable_steps",
     "guard_final_servo_stall_steps",
@@ -271,6 +316,8 @@ STEP_TRACE_FIELDNAMES = [
     "guard_final_servo_square_recovery_escape_triggered",
     "guard_final_servo_square_recovery_escape_early_contact_steps",
     "guard_final_servo_square_recovery_escape_early_risk_steps",
+    "guard_final_servo_square_recovery_escape_direct_fast_settle_active",
+    "guard_final_servo_square_recovery_escape_late_recenter_descend_active",
     "guard_final_servo_square_contact_brake_active",
     "guard_final_servo_square_contact_brake_triggered",
     "guard_final_servo_square_contact_brake_wall_steps",
@@ -283,6 +330,21 @@ STEP_TRACE_FIELDNAMES = [
     "guard_final_servo_square_fast_settle_clean_steps",
     "guard_final_servo_square_fast_settle_low_z_relief_attempts",
     "guard_final_servo_square_fast_settle_low_z_stall_relief_attempts",
+    "guard_final_servo_square_fast_settle_contact_soft_hold_active",
+    "guard_final_servo_square_fast_settle_contact_soft_hold_attempts",
+    "guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_active",
+    "guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_attempts",
+    "guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_active",
+    "guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_attempts",
+    "guard_final_servo_square_fast_settle_contact_pop_hold_active",
+    "guard_final_servo_square_fast_settle_contact_pop_hold_attempts",
+    "guard_final_servo_square_fast_settle_no_contact_pop_hold_active",
+    "guard_final_servo_square_fast_settle_no_contact_pop_hold_attempts",
+    "guard_final_servo_square_fast_settle_pre_pop_guard_active",
+    "guard_final_servo_square_fast_settle_pre_pop_guard_attempts",
+    "guard_final_servo_square_fast_settle_pre_pop_limit_active",
+    "guard_final_servo_square_fast_settle_severe_pop_reapproach_active",
+    "guard_final_servo_square_fast_settle_severe_pop_reapproach_attempts",
     "guard_final_servo_square_high_z_descend_low_z_hold_active",
     "guard_final_servo_square_high_z_descend_low_z_hold_attempts",
     "guard_final_servo_contact_unjam_wall_steps",
@@ -341,6 +403,40 @@ STEP_TRACE_FIELDNAMES = [
     "pose_ik_target_raw_yaw_deg",
     "pose_ik_target_square_yaw_error_deg",
     "guard_square_pose_yaw_align_active",
+    "guard_visual_yaw_align_active",
+    "guard_visual_yaw_align_applied",
+    "guard_visual_yaw_align_blocked_down",
+    "guard_visual_yaw_align_aligned_descent",
+    "guard_visual_yaw_align_aligned_descent_stable_steps",
+    "guard_visual_yaw_align_low_z_late_finish_descent",
+    "guard_visual_yaw_align_target_hold",
+    "guard_visual_yaw_align_low_visibility_brake",
+    "guard_visual_yaw_align_large_xy_low_z_brake",
+    "guard_visual_yaw_align_descent_abort_active",
+    "guard_visual_yaw_align_descent_abort_triggered",
+    "guard_visual_yaw_align_descent_abort_phase",
+    "guard_visual_yaw_align_descent_abort_attempts",
+    "guard_visual_yaw_align_reacquire_active",
+    "guard_visual_yaw_align_reacquire_triggered",
+    "guard_visual_yaw_align_reacquire_phase",
+    "guard_visual_yaw_align_reacquire_attempts",
+    "guard_visual_yaw_align_wrong_basin_hold_active",
+    "guard_visual_yaw_align_wrong_basin_hold_triggered",
+    "guard_visual_yaw_align_wrong_basin_hold_steps_remaining",
+    "guard_visual_yaw_align_wrong_basin_hold_attempts",
+    "guard_visual_yaw_align_low_z_lateral_pop_recovery_active",
+    "guard_visual_yaw_align_low_z_lateral_pop_recovery_triggered",
+    "guard_visual_yaw_align_low_z_lateral_pop_recovery_phase",
+    "guard_visual_yaw_align_low_z_lateral_pop_recovery_attempts",
+    "guard_visual_yaw_align_low_z_lateral_pop_recovery_steps_remaining",
+    "guard_visual_yaw_align_reason",
+    "guard_visual_yaw_align_profile",
+    "guard_visual_yaw_align_pred_signed_error_deg",
+    "guard_visual_yaw_align_pred_abs_error_deg",
+    "guard_visual_yaw_align_correction_deg",
+    "guard_visual_yaw_align_raw_norm",
+    "guard_visual_yaw_align_cam_std",
+    "guard_visual_yaw_align_crop_std",
     "ik_iterations",
     "peg_tilt_angle_deg",
     "joint_limit_min_normalized_margin",
@@ -357,6 +453,13 @@ STEP_TRACE_FIELDNAMES = [
     "hole_half_size",
     "peg_radius",
     "hole_clearance",
+    "success_shape_yaw_required",
+    "success_shape_yaw_ok",
+    "success_shape_yaw_error_deg",
+    "success_shape_yaw_tolerance_deg",
+    "shape_yaw_clearance",
+    "shape_yaw_signed_error_deg",
+    "shape_yaw_error_deg",
     "square_peg_raw_yaw_deg",
     "square_peg_yaw_error_deg",
     "square_peg_topdown_half_width_x",
@@ -642,6 +745,231 @@ def build_parser(
         type=float,
         default=0.25,
     )
+    parser.add_argument("--guard-visual-yaw-align-enabled", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-model", type=Path, default=None)
+    parser.add_argument("--guard-visual-yaw-align-device", default="auto")
+    parser.add_argument(
+        "--guard-visual-yaw-align-profiles",
+        nargs="+",
+        default=["square_square", "triangle_triangle", "hex_hex", "rectangular_key"],
+    )
+    parser.add_argument(
+        "--guard-visual-yaw-align-activation-mode",
+        choices=["final_servo", "near_control"],
+        default="final_servo",
+    )
+    parser.add_argument("--guard-visual-yaw-align-max-xy", type=float, default=0.014)
+    parser.add_argument("--guard-visual-yaw-align-min-z", type=float, default=0.010)
+    parser.add_argument("--guard-visual-yaw-align-max-z", type=float, default=0.080)
+    parser.add_argument("--guard-visual-yaw-align-max-wall-contact", type=int, default=0)
+    parser.add_argument("--guard-visual-yaw-align-min-raw-norm", type=float, default=0.08)
+    parser.add_argument("--guard-visual-yaw-align-min-cam-std", type=float, default=18.0)
+    parser.add_argument("--guard-visual-yaw-align-min-crop-std", type=float, default=16.0)
+    parser.add_argument("--guard-visual-yaw-align-deadband-deg", type=float, default=2.0)
+    parser.add_argument("--guard-visual-yaw-align-max-correction-deg", type=float, default=10.0)
+    parser.add_argument("--guard-visual-yaw-align-temporal-action-gate-enabled", action="store_true")
+    parser.add_argument(
+        "--guard-visual-yaw-align-temporal-action-gate-profiles",
+        nargs="+",
+        default=["rectangular_key"],
+    )
+    parser.add_argument("--guard-visual-yaw-align-temporal-action-gate-window", type=int, default=3)
+    parser.add_argument("--guard-visual-yaw-align-temporal-action-gate-max-delta-deg", type=float, default=12.0)
+    parser.add_argument("--guard-visual-yaw-align-temporal-action-gate-min-pred-yaw-deg", type=float, default=30.0)
+    parser.add_argument("--guard-visual-yaw-align-temporal-action-gate-max-pred-yaw-deg", type=float, default=120.0)
+    parser.add_argument("--guard-visual-yaw-align-temporal-action-gate-block-descent", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-temporal-action-gate-reset-target", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-block-descent", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-block-descent-deg", type=float, default=6.0)
+    parser.add_argument("--guard-visual-yaw-align-hold-z-enabled", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-hold-z-min", type=float, default=0.045)
+    parser.add_argument("--guard-visual-yaw-align-hold-up-action", type=float, default=0.003)
+    parser.add_argument("--guard-visual-yaw-align-hold-xy-enabled", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-hold-xy-tolerance", type=float, default=0.003)
+    parser.add_argument("--guard-visual-yaw-align-hold-max-xy-action", type=float, default=0.003)
+    parser.add_argument("--guard-visual-yaw-align-hold-target-enabled", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-hold-target-steps", type=int, default=0)
+    parser.add_argument("--guard-visual-yaw-align-hold-target-arm-yaw-deg", type=float, default=3.0)
+    parser.add_argument("--guard-visual-yaw-align-hold-target-release-yaw-deg", type=float, default=180.0)
+    parser.add_argument("--guard-visual-yaw-align-hold-target-release-xy", type=float, default=0.18)
+    parser.add_argument("--guard-visual-yaw-align-hold-target-min-z", type=float, default=0.0)
+    parser.add_argument("--guard-visual-yaw-align-hold-target-max-z", type=float, default=0.18)
+    parser.add_argument("--guard-visual-yaw-align-hold-target-block-descent", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-low-visibility-brake-enabled", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-low-visibility-brake-min-pred-yaw-deg", type=float, default=12.0)
+    parser.add_argument("--guard-visual-yaw-align-low-visibility-brake-min-xy", type=float, default=0.020)
+    parser.add_argument("--guard-visual-yaw-align-low-visibility-brake-max-z", type=float, default=0.080)
+    parser.add_argument("--guard-visual-yaw-align-low-visibility-brake-up-action", type=float, default=0.008)
+    parser.add_argument("--guard-visual-yaw-align-low-visibility-brake-flush-history", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-large-xy-low-z-brake-enabled", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-large-xy-low-z-brake-min-xy", type=float, default=0.060)
+    parser.add_argument("--guard-visual-yaw-align-large-xy-low-z-brake-max-z", type=float, default=0.010)
+    parser.add_argument("--guard-visual-yaw-align-large-xy-low-z-brake-up-action", type=float, default=0.008)
+    parser.add_argument("--guard-visual-yaw-align-large-xy-low-z-brake-flush-history", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-low-z-lateral-pop-recovery-enabled", action="store_true")
+    parser.add_argument(
+        "--guard-visual-yaw-align-low-z-lateral-pop-recovery-profiles",
+        nargs="+",
+        default=["rectangular_key"],
+    )
+    parser.add_argument("--guard-visual-yaw-align-low-z-lateral-pop-recovery-max-attempts", type=int, default=0)
+    parser.add_argument("--guard-visual-yaw-align-low-z-lateral-pop-recovery-trigger-min-step", type=int, default=700)
+    parser.add_argument("--guard-visual-yaw-align-low-z-lateral-pop-recovery-trigger-min-xy", type=float, default=0.040)
+    parser.add_argument("--guard-visual-yaw-align-low-z-lateral-pop-recovery-trigger-max-z", type=float, default=0.045)
+    parser.add_argument("--guard-visual-yaw-align-low-z-lateral-pop-recovery-trigger-prev-xy", type=float, default=0.008)
+    parser.add_argument("--guard-visual-yaw-align-low-z-lateral-pop-recovery-trigger-xy-jump", type=float, default=0.012)
+    parser.add_argument("--guard-visual-yaw-align-low-z-lateral-pop-recovery-lift-target-z", type=float, default=0.075)
+    parser.add_argument("--guard-visual-yaw-align-low-z-lateral-pop-recovery-lift-z-tolerance", type=float, default=0.006)
+    parser.add_argument("--guard-visual-yaw-align-low-z-lateral-pop-recovery-lift-max-steps", type=int, default=30)
+    parser.add_argument("--guard-visual-yaw-align-low-z-lateral-pop-recovery-recenter-release-xy", type=float, default=0.014)
+    parser.add_argument("--guard-visual-yaw-align-low-z-lateral-pop-recovery-recenter-max-steps", type=int, default=80)
+    parser.add_argument("--guard-visual-yaw-align-low-z-lateral-pop-recovery-max-up-action", type=float, default=0.008)
+    parser.add_argument("--guard-visual-yaw-align-low-z-lateral-pop-recovery-max-xy-action", type=float, default=0.010)
+    parser.add_argument("--guard-visual-yaw-align-low-z-lateral-pop-recovery-flush-history", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-descent-abort-enabled", action="store_true")
+    parser.add_argument(
+        "--guard-visual-yaw-align-descent-abort-profiles",
+        nargs="+",
+        default=["rectangular_key"],
+    )
+    parser.add_argument("--guard-visual-yaw-align-descent-abort-max-attempts", type=int, default=0)
+    parser.add_argument("--guard-visual-yaw-align-descent-abort-min-step", type=int, default=0)
+    parser.add_argument(
+        "--guard-visual-yaw-align-descent-abort-require-unreliable-visual",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--guard-visual-yaw-align-descent-abort-allow-large-pred-yaw",
+        action="store_true",
+    )
+    parser.add_argument("--guard-visual-yaw-align-descent-abort-large-pred-yaw-deg", type=float, default=45.0)
+    parser.add_argument("--guard-visual-yaw-align-descent-abort-min-xy", type=float, default=0.060)
+    parser.add_argument("--guard-visual-yaw-align-descent-abort-max-z", type=float, default=0.080)
+    parser.add_argument("--guard-visual-yaw-align-descent-abort-lift-target-z", type=float, default=0.105)
+    parser.add_argument("--guard-visual-yaw-align-descent-abort-lift-z-tolerance", type=float, default=0.006)
+    parser.add_argument("--guard-visual-yaw-align-descent-abort-lift-max-steps", type=int, default=60)
+    parser.add_argument("--guard-visual-yaw-align-descent-abort-recenter-max-steps", type=int, default=220)
+    parser.add_argument("--guard-visual-yaw-align-descent-abort-recenter-release-xy", type=float, default=0.018)
+    parser.add_argument("--guard-visual-yaw-align-descent-abort-max-up-action", type=float, default=0.008)
+    parser.add_argument("--guard-visual-yaw-align-descent-abort-max-xy-action", type=float, default=0.010)
+    parser.add_argument("--guard-visual-yaw-align-descent-abort-flush-history", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-reacquire-enabled", action="store_true")
+    parser.add_argument(
+        "--guard-visual-yaw-align-reacquire-profiles",
+        nargs="+",
+        default=["rectangular_key"],
+    )
+    parser.add_argument("--guard-visual-yaw-align-reacquire-max-attempts", type=int, default=0)
+    parser.add_argument("--guard-visual-yaw-align-reacquire-min-step", type=int, default=700)
+    parser.add_argument("--guard-visual-yaw-align-reacquire-trigger-min-xy", type=float, default=0.020)
+    parser.add_argument("--guard-visual-yaw-align-reacquire-trigger-max-xy", type=float, default=0.180)
+    parser.add_argument("--guard-visual-yaw-align-reacquire-trigger-min-z", type=float, default=0.000)
+    parser.add_argument("--guard-visual-yaw-align-reacquire-trigger-max-z", type=float, default=0.090)
+    parser.add_argument("--guard-visual-yaw-align-reacquire-trigger-min-pred-yaw-deg", type=float, default=45.0)
+    parser.add_argument("--guard-visual-yaw-align-reacquire-trigger-require-visible", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-reacquire-trigger-require-stable-delta", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-reacquire-trigger-stable-window", type=int, default=3)
+    parser.add_argument("--guard-visual-yaw-align-reacquire-trigger-max-delta-deg", type=float, default=12.0)
+    parser.add_argument("--guard-visual-yaw-align-reacquire-xy-gate-trigger-enabled", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-reacquire-xy-gate-min-xy", type=float, default=0.080)
+    parser.add_argument("--guard-visual-yaw-align-reacquire-lift-target-z", type=float, default=0.115)
+    parser.add_argument("--guard-visual-yaw-align-reacquire-lift-z-tolerance", type=float, default=0.006)
+    parser.add_argument("--guard-visual-yaw-align-reacquire-lift-max-steps", type=int, default=45)
+    parser.add_argument("--guard-visual-yaw-align-reacquire-recenter-max-steps", type=int, default=90)
+    parser.add_argument("--guard-visual-yaw-align-reacquire-recenter-release-xy", type=float, default=0.014)
+    parser.add_argument("--guard-visual-yaw-align-reacquire-max-up-action", type=float, default=0.006)
+    parser.add_argument("--guard-visual-yaw-align-reacquire-max-xy-action", type=float, default=0.006)
+    parser.add_argument("--guard-visual-yaw-align-reacquire-flush-history", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-reacquire-relaxed-yaw-enabled", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-reacquire-relaxed-yaw-min-pred-yaw-deg", type=float, default=30.0)
+    parser.add_argument("--guard-visual-yaw-align-reacquire-relaxed-yaw-max-correction-deg", type=float, default=45.0)
+    parser.add_argument("--guard-visual-yaw-align-reacquire-relaxed-yaw-min-z", type=float, default=0.050)
+    parser.add_argument("--guard-visual-yaw-align-reacquire-relaxed-yaw-max-z", type=float, default=0.130)
+    parser.add_argument("--guard-visual-yaw-align-reacquire-relaxed-yaw-require-visible", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-reacquire-relaxed-yaw-require-stable-delta", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-reacquire-relaxed-yaw-stable-window", type=int, default=3)
+    parser.add_argument("--guard-visual-yaw-align-reacquire-relaxed-yaw-max-delta-deg", type=float, default=12.0)
+    parser.add_argument("--guard-visual-yaw-align-reacquire-relaxed-yaw-allow-visible-reapply", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-reacquire-descent-enabled", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-reacquire-descent-yaw-deg", type=float, default=8.0)
+    parser.add_argument("--guard-visual-yaw-align-reacquire-descent-xy", type=float, default=0.035)
+    parser.add_argument("--guard-visual-yaw-align-reacquire-descent-min-z", type=float, default=0.025)
+    parser.add_argument("--guard-visual-yaw-align-reacquire-descent-max-z", type=float, default=0.130)
+    parser.add_argument("--guard-visual-yaw-align-reacquire-descent-max-down-action", type=float, default=0.003)
+    parser.add_argument("--guard-visual-yaw-align-wrong-basin-hold-enabled", action="store_true")
+    parser.add_argument(
+        "--guard-visual-yaw-align-wrong-basin-hold-profiles",
+        nargs="+",
+        default=["rectangular_key"],
+    )
+    parser.add_argument("--guard-visual-yaw-align-wrong-basin-hold-min-pred-yaw-deg", type=float, default=120.0)
+    parser.add_argument("--guard-visual-yaw-align-wrong-basin-hold-require-visible", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-wrong-basin-hold-require-stable-delta", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-wrong-basin-hold-stable-window", type=int, default=3)
+    parser.add_argument("--guard-visual-yaw-align-wrong-basin-hold-max-delta-deg", type=float, default=12.0)
+    parser.add_argument("--guard-visual-yaw-align-wrong-basin-hold-steps", type=int, default=160)
+    parser.add_argument("--guard-visual-yaw-align-wrong-basin-hold-release-yaw-deg", type=float, default=8.0)
+    parser.add_argument("--guard-visual-yaw-align-wrong-basin-hold-release-xy", type=float, default=0.018)
+    parser.add_argument("--guard-visual-yaw-align-wrong-basin-hold-max-xy", type=float, default=0.030)
+    parser.add_argument("--guard-visual-yaw-align-wrong-basin-hold-min-z", type=float, default=0.000)
+    parser.add_argument("--guard-visual-yaw-align-wrong-basin-hold-max-z", type=float, default=0.140)
+    parser.add_argument("--guard-visual-yaw-align-wrong-basin-hold-max-xy-action", type=float, default=0.008)
+    parser.add_argument("--guard-visual-yaw-align-wrong-basin-hold-block-descent", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-wrong-basin-hold-flush-history", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-recenter-after-yaw-enabled", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-recenter-release-xy", type=float, default=0.006)
+    parser.add_argument("--guard-visual-yaw-align-recenter-block-descent", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-latch-enabled", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-latch-steps", type=int, default=80)
+    parser.add_argument("--guard-visual-yaw-align-latch-max-xy", type=float, default=0.18)
+    parser.add_argument("--guard-visual-yaw-align-latch-min-z", type=float, default=0.0)
+    parser.add_argument("--guard-visual-yaw-align-latch-max-z", type=float, default=0.18)
+    parser.add_argument("--guard-visual-yaw-align-aligned-descent-enabled", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-aligned-descent-yaw-deg", type=float, default=1.0)
+    parser.add_argument("--guard-visual-yaw-align-aligned-descent-xy", type=float, default=0.020)
+    parser.add_argument("--guard-visual-yaw-align-aligned-descent-min-z", type=float, default=0.010)
+    parser.add_argument("--guard-visual-yaw-align-aligned-descent-max-z", type=float, default=0.180)
+    parser.add_argument("--guard-visual-yaw-align-aligned-descent-required-steps", type=int, default=1)
+    parser.add_argument("--guard-visual-yaw-align-aligned-descent-require-visible", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-aligned-descent-latch-steps", type=int, default=0)
+    parser.add_argument(
+        "--guard-visual-yaw-align-aligned-descent-latch-release-xy",
+        type=float,
+        default=0.020,
+    )
+    parser.add_argument(
+        "--guard-visual-yaw-align-aligned-descent-latch-release-yaw-deg",
+        type=float,
+        default=8.0,
+    )
+    parser.add_argument("--guard-visual-yaw-align-aligned-descent-latch-min-z", type=float, default=0.0)
+    parser.add_argument("--guard-visual-yaw-align-aligned-descent-latch-max-z", type=float, default=0.180)
+    parser.add_argument("--guard-visual-yaw-align-aligned-descent-max-down-action", type=float, default=0.004)
+    parser.add_argument("--guard-visual-yaw-align-aligned-descent-max-xy-action", type=float, default=0.005)
+    parser.add_argument("--guard-visual-yaw-align-low-z-late-finish-descent-enabled", action="store_true")
+    parser.add_argument(
+        "--guard-visual-yaw-align-low-z-late-finish-descent-profiles",
+        nargs="+",
+        default=["rectangular_key"],
+    )
+    parser.add_argument("--guard-visual-yaw-align-low-z-late-finish-descent-min-step", type=int, default=850)
+    parser.add_argument("--guard-visual-yaw-align-low-z-late-finish-descent-max-xy", type=float, default=0.006)
+    parser.add_argument("--guard-visual-yaw-align-low-z-late-finish-descent-min-z", type=float, default=0.015)
+    parser.add_argument("--guard-visual-yaw-align-low-z-late-finish-descent-max-z", type=float, default=0.045)
+    parser.add_argument("--guard-visual-yaw-align-low-z-late-finish-descent-max-yaw-deg", type=float, default=8.0)
+    parser.add_argument("--guard-visual-yaw-align-low-z-late-finish-descent-max-xy-action", type=float, default=0.001)
+    parser.add_argument("--guard-visual-yaw-align-low-z-late-finish-descent-max-down-action", type=float, default=0.003)
+    parser.add_argument("--guard-visual-yaw-align-low-z-late-finish-descent-flush-history", action="store_true")
+    parser.add_argument(
+        "--guard-visual-yaw-align-ik-control-mode",
+        choices=["pose", "pose_tip_priority"],
+        default="pose_tip_priority",
+    )
+    parser.add_argument(
+        "--guard-visual-yaw-align-ik-orientation-weight",
+        type=float,
+        default=0.18,
+    )
     parser.add_argument("--guard-contact-unjam-ik-orientation-weight", type=float, default=None)
     parser.add_argument("--guard-contact-reinsert-orient-ik-orientation-weight", type=float, default=None)
     parser.add_argument("--guard-contact-reinsert-high-ik-orientation-weight", type=float, default=None)
@@ -651,6 +979,12 @@ def build_parser(
     parser.add_argument("--ik-max-iterations", type=int, default=24)
     parser.add_argument("--success-xy-tolerance", type=float, default=0.005)
     parser.add_argument("--success-z-tolerance", type=float, default=0.01)
+    parser.add_argument("--success-shape-yaw-tolerance-deg", type=float, default=None)
+    parser.add_argument(
+        "--success-shape-yaw-profiles",
+        nargs="+",
+        default=["square_square", "triangle_triangle", "hex_hex", "slot_slot", "rectangular_key"],
+    )
     parser.add_argument("--geometry-hole-half-size-range", nargs=2, type=float, default=(0.017, 0.021))
     parser.add_argument("--geometry-peg-radius-range", nargs=2, type=float, default=(0.0115, 0.0125))
     parser.add_argument("--geometry-hole-center-xy-jitter", nargs=2, type=float, default=None)
@@ -672,8 +1006,15 @@ def build_parser(
         ],
         default="single",
     )
+    parser.add_argument("--geometry-fixture-mode", choices=["box_wall", "true_mesh"], default="box_wall")
+    parser.add_argument(
+        "--geometry-true-fixture-variant",
+        choices=["nominal", "tight_yaw"],
+        default="nominal",
+    )
     parser.add_argument("--geometry-square-peg-half-size-range", nargs=2, type=float, default=(0.0105, 0.0125))
     parser.add_argument("--geometry-mixed-square-probability", type=float, default=0.5)
+    parser.add_argument("--enable-peg-tip-visual-helpers", action="store_true")
     parser.add_argument("--hard-control-scale-range", nargs=2, type=float, default=None)
     parser.add_argument("--hard-control-noise-std-range", nargs=2, type=float, default=None)
     parser.add_argument("--hard-control-delay-range", nargs=2, type=int, default=None)
@@ -896,6 +1237,9 @@ def build_parser(
     parser.add_argument("--guard-final-servo-square-recovery-escape-z-min", type=float, default=0.020)
     parser.add_argument("--guard-final-servo-square-recovery-escape-z-max", type=float, default=0.060)
     parser.add_argument("--guard-final-servo-square-recovery-escape-height", type=float, default=0.080)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-late-height-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-recovery-escape-late-height", type=float, default=0.055)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-late-height-min-steps-since-reset", type=int, default=0)
     parser.add_argument("--guard-final-servo-square-recovery-escape-release-xy", type=float, default=0.006)
     parser.add_argument("--guard-final-servo-square-recovery-escape-late-release-xy", type=float, default=0.0)
     parser.add_argument("--guard-final-servo-square-recovery-escape-late-release-min-steps-since-reset", type=int, default=0)
@@ -923,10 +1267,14 @@ def build_parser(
     parser.add_argument("--guard-final-servo-square-recovery-escape-pre-lift-on-trigger", action="store_true")
     parser.add_argument("--guard-final-servo-square-recovery-escape-direct-fast-settle-enabled", action="store_true")
     parser.add_argument("--guard-final-servo-square-recovery-escape-direct-fast-settle-xy-max", type=float, default=0.006)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-direct-fast-settle-z-min", type=float, default=0.0)
     parser.add_argument("--guard-final-servo-square-recovery-escape-direct-fast-settle-z-max", type=float, default=0.065)
     parser.add_argument("--guard-final-servo-square-recovery-escape-direct-fast-settle-contact-max", type=int, default=0)
     parser.add_argument("--guard-final-servo-square-recovery-escape-direct-fast-settle-max-steps", type=int, default=24)
     parser.add_argument("--guard-final-servo-square-recovery-escape-direct-fast-settle-min-steps-since-reset", type=int, default=0)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-direct-fast-settle-max-steps-since-reset", type=int, default=0)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-direct-fast-settle-from-escape-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-recovery-escape-direct-fast-settle-from-escape-min-phase-steps", type=int, default=1)
     parser.add_argument("--guard-final-servo-square-recovery-escape-direct-fast-settle-max-down-action", type=float, default=0.0)
     parser.add_argument("--guard-final-servo-square-recovery-escape-direct-fast-settle-max-down-z-min", type=float, default=0.0)
     parser.add_argument("--guard-final-servo-square-recovery-escape-direct-fast-settle-max-xy-action", type=float, default=0.0)
@@ -939,6 +1287,51 @@ def build_parser(
     parser.add_argument("--guard-final-servo-square-recovery-escape-recenter-descend-contact-max", type=int, default=0)
     parser.add_argument("--guard-final-servo-square-recovery-escape-recenter-descend-margin-min", type=float, default=-0.0015)
     parser.add_argument("--guard-final-servo-square-recovery-escape-recenter-descend-max-down-action", type=float, default=0.0015)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-recenter-drift-lift-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-recovery-escape-recenter-drift-lift-min-phase-steps", type=int, default=4)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-recenter-drift-lift-xy-min", type=float, default=0.020)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-recenter-drift-lift-z-min", type=float, default=0.035)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-recenter-drift-lift-z-max", type=float, default=0.050)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-recenter-drift-lift-contact-max", type=int, default=0)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-recenter-drift-lift-yaw-min-deg", type=float, default=3.4)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-recenter-drift-lift-tilt-min-deg", type=float, default=999999.0)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-late-recenter-descend-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-recovery-escape-late-recenter-descend-min-steps-since-reset", type=int, default=0)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-late-recenter-descend-min-phase-steps", type=int, default=0)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-late-recenter-descend-xy-max", type=float, default=0.009)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-late-recenter-descend-z-min", type=float, default=0.040)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-late-recenter-descend-z-max", type=float, default=0.055)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-late-recenter-descend-contact-max", type=int, default=0)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-late-recenter-descend-margin-min", type=float, default=-0.0030)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-late-recenter-descend-margin-max", type=float, default=-0.0003)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-late-recenter-descend-tilt-max-deg", type=float, default=2.5)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-late-recenter-descend-max-down-action", type=float, default=0.0015)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-late-recenter-descend-max-xy-action", type=float, default=0.0040)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-late-recenter-descend-hold-release-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-recovery-escape-late-recenter-descend-hold-z-min", type=float, default=0.0)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-late-clean-direct-finish-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-recovery-escape-late-clean-direct-finish-min-steps-since-reset", type=int, default=940)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-late-clean-direct-finish-min-phase-steps", type=int, default=5)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-late-clean-direct-finish-min-brake-attempts", type=int, default=4)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-late-clean-direct-finish-xy-max", type=float, default=0.0025)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-late-clean-direct-finish-z-min", type=float, default=0.038)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-late-clean-direct-finish-z-max", type=float, default=0.048)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-late-clean-direct-finish-contact-max", type=int, default=0)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-late-clean-direct-finish-margin-min", type=float, default=-0.0015)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-late-clean-direct-finish-topdown-margin-min", type=float, default=0.0003)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-late-clean-direct-finish-yaw-max-deg", type=float, default=5.5)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-late-clean-direct-finish-tilt-max-deg", type=float, default=2.2)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-no-contact-xy-pop-recenter-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-recovery-escape-no-contact-xy-pop-recenter-xy-min", type=float, default=0.014)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-no-contact-xy-pop-recenter-xy-max", type=float, default=0.035)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-no-contact-xy-pop-recenter-z-min", type=float, default=0.035)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-no-contact-xy-pop-recenter-z-max", type=float, default=0.055)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-no-contact-xy-pop-recenter-contact-max", type=int, default=0)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-no-contact-xy-pop-recenter-max-contact-pop-hold-attempts", type=int, default=999999)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-no-contact-xy-pop-recenter-margin-min", type=float, default=-1.0)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-no-contact-xy-pop-recenter-topdown-margin-min", type=float, default=-1.0)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-no-contact-xy-pop-recenter-yaw-max-deg", type=float, default=180.0)
+    parser.add_argument("--guard-final-servo-square-recovery-escape-no-contact-xy-pop-recenter-tilt-max-deg", type=float, default=180.0)
     parser.add_argument("--guard-final-servo-square-recovery-escape-flush-control-history", action="store_true")
     parser.add_argument("--guard-final-servo-split-recovery-enabled", action="store_true")
     parser.add_argument("--guard-final-servo-contact-reinsert-enabled", action="store_true")
@@ -1010,6 +1403,119 @@ def build_parser(
     parser.add_argument("--guard-final-servo-square-fast-settle-late-down-boost-tilt-max-deg", type=float, default=8.0)
     parser.add_argument("--guard-final-servo-square-fast-settle-late-down-boost-margin-min", type=float, default=-1.0)
     parser.add_argument("--guard-final-servo-square-fast-settle-late-down-boost-min-clean-steps", type=int, default=0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-very-late-clean-tail-boost-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-fast-settle-very-late-clean-tail-boost-min-steps-since-reset", type=int, default=960)
+    parser.add_argument("--guard-final-servo-square-fast-settle-very-late-clean-tail-boost-min-brake-attempts", type=int, default=4)
+    parser.add_argument("--guard-final-servo-square-fast-settle-very-late-clean-tail-boost-min-phase-steps", type=int, default=8)
+    parser.add_argument("--guard-final-servo-square-fast-settle-very-late-clean-tail-boost-min-clean-steps", type=int, default=8)
+    parser.add_argument("--guard-final-servo-square-fast-settle-very-late-clean-tail-boost-xy-max", type=float, default=0.0025)
+    parser.add_argument("--guard-final-servo-square-fast-settle-very-late-clean-tail-boost-z-min", type=float, default=0.010)
+    parser.add_argument("--guard-final-servo-square-fast-settle-very-late-clean-tail-boost-z-max", type=float, default=0.024)
+    parser.add_argument("--guard-final-servo-square-fast-settle-very-late-clean-tail-boost-contact-max", type=int, default=0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-very-late-clean-tail-boost-margin-min", type=float, default=0.0002)
+    parser.add_argument("--guard-final-servo-square-fast-settle-very-late-clean-tail-boost-topdown-margin-min", type=float, default=0.0006)
+    parser.add_argument("--guard-final-servo-square-fast-settle-very-late-clean-tail-boost-yaw-max-deg", type=float, default=1.0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-very-late-clean-tail-boost-tilt-max-deg", type=float, default=1.5)
+    parser.add_argument("--guard-final-servo-square-fast-settle-very-late-clean-tail-boost-max-down-action", type=float, default=0.0035)
+    parser.add_argument("--guard-final-servo-square-fast-settle-very-late-clean-tail-boost-max-xy-action", type=float, default=0.0010)
+    parser.add_argument("--guard-final-servo-square-fast-settle-low-z-contact-down-guard-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-fast-settle-low-z-contact-down-guard-min-steps-since-reset", type=int, default=0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-low-z-contact-down-guard-wall-count", type=int, default=1)
+    parser.add_argument("--guard-final-servo-square-fast-settle-low-z-contact-down-guard-xy-max", type=float, default=0.004)
+    parser.add_argument("--guard-final-servo-square-fast-settle-low-z-contact-down-guard-z-max", type=float, default=0.030)
+    parser.add_argument("--guard-final-servo-square-fast-settle-low-z-contact-down-guard-min-brake-attempts", type=int, default=4)
+    parser.add_argument("--guard-final-servo-square-fast-settle-low-z-contact-down-guard-max-up-action", type=float, default=0.0010)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-hold-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-hold-steps", type=int, default=4)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-hold-wall-count", type=int, default=1)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-hold-xy-min", type=float, default=0.010)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-hold-xy-max", type=float, default=0.024)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-hold-z-min", type=float, default=0.020)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-hold-z-max", type=float, default=0.042)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-hold-contact-max", type=int, default=8)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-hold-min-phase-steps", type=int, default=0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-hold-min-brake-attempts", type=int, default=0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-hold-max-attempts", type=int, default=2)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-hold-max-up-action", type=float, default=0.0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-hold-recenter-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-hold-recenter-min-phase-steps", type=int, default=2)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-hold-recenter-xy-min", type=float, default=0.016)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-hold-recenter-xy-max", type=float, default=0.026)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-hold-recenter-z-min", type=float, default=0.036)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-hold-recenter-z-max", type=float, default=0.045)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-hold-recenter-contact-max", type=int, default=2)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-hold-recenter-margin-min", type=float, default=-0.0015)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-hold-recenter-topdown-margin-min", type=float, default=0.0005)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-hold-recenter-yaw-max-deg", type=float, default=1.25)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-hold-recenter-tilt-max-deg", type=float, default=3.5)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-exhausted-recenter-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-exhausted-recenter-min-attempts", type=int, default=3)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-exhausted-recenter-xy-min", type=float, default=0.008)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-exhausted-recenter-xy-max", type=float, default=0.016)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-exhausted-recenter-z-min", type=float, default=0.034)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-exhausted-recenter-z-max", type=float, default=0.044)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-exhausted-recenter-contact-max", type=int, default=2)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-exhausted-recenter-margin-min", type=float, default=0.0004)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-exhausted-recenter-topdown-margin-min", type=float, default=0.0010)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-exhausted-recenter-yaw-max-deg", type=float, default=1.6)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-pop-exhausted-recenter-tilt-max-deg", type=float, default=1.6)
+    parser.add_argument("--guard-final-servo-square-fast-settle-no-contact-pop-hold-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-fast-settle-no-contact-pop-hold-steps", type=int, default=4)
+    parser.add_argument("--guard-final-servo-square-fast-settle-no-contact-pop-hold-xy-min", type=float, default=0.014)
+    parser.add_argument("--guard-final-servo-square-fast-settle-no-contact-pop-hold-xy-max", type=float, default=0.035)
+    parser.add_argument("--guard-final-servo-square-fast-settle-no-contact-pop-hold-z-min", type=float, default=0.035)
+    parser.add_argument("--guard-final-servo-square-fast-settle-no-contact-pop-hold-z-max", type=float, default=0.055)
+    parser.add_argument("--guard-final-servo-square-fast-settle-no-contact-pop-hold-contact-max", type=int, default=0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-no-contact-pop-hold-min-brake-attempts", type=int, default=4)
+    parser.add_argument("--guard-final-servo-square-fast-settle-no-contact-pop-hold-max-contact-pop-hold-attempts", type=int, default=999999)
+    parser.add_argument("--guard-final-servo-square-fast-settle-no-contact-pop-hold-min-contact-pop-hold-phase-steps", type=int, default=1)
+    parser.add_argument("--guard-final-servo-square-fast-settle-no-contact-pop-hold-max-attempts", type=int, default=1)
+    parser.add_argument("--guard-final-servo-square-fast-settle-no-contact-pop-hold-margin-min", type=float, default=-0.0045)
+    parser.add_argument("--guard-final-servo-square-fast-settle-no-contact-pop-hold-topdown-margin-min", type=float, default=0.0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-no-contact-pop-hold-yaw-max-deg", type=float, default=5.0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-no-contact-pop-hold-tilt-max-deg", type=float, default=5.0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-no-contact-pop-hold-max-up-action", type=float, default=0.0015)
+    parser.add_argument("--guard-final-servo-square-fast-settle-pre-pop-guard-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-fast-settle-pre-pop-guard-steps", type=int, default=3)
+    parser.add_argument("--guard-final-servo-square-fast-settle-pre-pop-guard-xy-max", type=float, default=0.0030)
+    parser.add_argument("--guard-final-servo-square-fast-settle-pre-pop-guard-z-min", type=float, default=0.024)
+    parser.add_argument("--guard-final-servo-square-fast-settle-pre-pop-guard-z-max", type=float, default=0.033)
+    parser.add_argument("--guard-final-servo-square-fast-settle-pre-pop-guard-contact-max", type=int, default=4)
+    parser.add_argument("--guard-final-servo-square-fast-settle-pre-pop-guard-min-phase-steps", type=int, default=8)
+    parser.add_argument("--guard-final-servo-square-fast-settle-pre-pop-guard-max-phase-steps", type=int, default=0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-pre-pop-guard-min-brake-attempts", type=int, default=4)
+    parser.add_argument("--guard-final-servo-square-fast-settle-pre-pop-guard-min-soft-hold-attempts", type=int, default=1)
+    parser.add_argument("--guard-final-servo-square-fast-settle-pre-pop-guard-max-attempts", type=int, default=2)
+    parser.add_argument("--guard-final-servo-square-fast-settle-pre-pop-guard-margin-min", type=float, default=0.0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-pre-pop-guard-margin-max", type=float, default=0.00075)
+    parser.add_argument("--guard-final-servo-square-fast-settle-pre-pop-guard-topdown-margin-min", type=float, default=0.0007)
+    parser.add_argument("--guard-final-servo-square-fast-settle-pre-pop-guard-topdown-margin-max", type=float, default=0.0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-pre-pop-guard-yaw-max-deg", type=float, default=1.0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-pre-pop-guard-tilt-min-deg", type=float, default=0.0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-pre-pop-guard-tilt-max-deg", type=float, default=1.3)
+    parser.add_argument("--guard-final-servo-square-fast-settle-pre-pop-guard-max-up-action", type=float, default=0.0010)
+    parser.add_argument("--guard-final-servo-square-fast-settle-pre-pop-limit-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-fast-settle-pre-pop-limit-max-xy-action", type=float, default=0.0010)
+    parser.add_argument("--guard-final-servo-square-fast-settle-pre-pop-limit-max-down-action", type=float, default=0.0006)
+    parser.add_argument("--guard-final-servo-square-fast-settle-severe-pop-reapproach-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-fast-settle-severe-pop-reapproach-xy-min", type=float, default=0.018)
+    parser.add_argument("--guard-final-servo-square-fast-settle-severe-pop-reapproach-xy-max", type=float, default=0.035)
+    parser.add_argument("--guard-final-servo-square-fast-settle-severe-pop-reapproach-z-min", type=float, default=0.035)
+    parser.add_argument("--guard-final-servo-square-fast-settle-severe-pop-reapproach-z-max", type=float, default=0.055)
+    parser.add_argument("--guard-final-servo-square-fast-settle-severe-pop-reapproach-contact-max", type=int, default=2)
+    parser.add_argument("--guard-final-servo-square-fast-settle-severe-pop-reapproach-min-brake-attempts", type=int, default=4)
+    parser.add_argument("--guard-final-servo-square-fast-settle-severe-pop-reapproach-min-steps-since-reset", type=int, default=0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-severe-pop-reapproach-max-attempts", type=int, default=1)
+    parser.add_argument("--guard-final-servo-square-fast-settle-severe-pop-reapproach-height", type=float, default=0.070)
+    parser.add_argument(
+        "--guard-final-servo-square-fast-settle-severe-pop-reapproach-pre-lift-enabled",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    parser.add_argument("--guard-final-servo-square-fast-settle-severe-pop-reapproach-margin-min", type=float, default=-0.006)
+    parser.add_argument("--guard-final-servo-square-fast-settle-severe-pop-reapproach-topdown-margin-min", type=float, default=0.0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-severe-pop-reapproach-yaw-max-deg", type=float, default=6.0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-severe-pop-reapproach-tilt-max-deg", type=float, default=6.0)
     parser.add_argument("--guard-final-servo-square-fast-settle-clearance-hold-enabled", action="store_true")
     parser.add_argument("--guard-final-servo-square-fast-settle-clearance-hold-steps", type=int, default=8)
     parser.add_argument("--guard-final-servo-square-fast-settle-clearance-hold-xy-max", type=float, default=0.0025)
@@ -1017,6 +1523,7 @@ def build_parser(
     parser.add_argument("--guard-final-servo-square-fast-settle-clearance-hold-z-max", type=float, default=0.035)
     parser.add_argument("--guard-final-servo-square-fast-settle-clearance-hold-margin-threshold", type=float, default=0.0)
     parser.add_argument("--guard-final-servo-square-fast-settle-clearance-hold-margin-min", type=float, default=-0.0010)
+    parser.add_argument("--guard-final-servo-square-fast-settle-clearance-hold-wall-count", type=int, default=0)
     parser.add_argument("--guard-final-servo-square-fast-settle-clearance-hold-contact-max", type=int, default=4)
     parser.add_argument("--guard-final-servo-square-fast-settle-clearance-hold-min-brake-attempts", type=int, default=3)
     parser.add_argument("--guard-final-servo-square-fast-settle-clearance-hold-min-phase-steps", type=int, default=12)
@@ -1040,6 +1547,40 @@ def build_parser(
     parser.add_argument("--guard-final-servo-square-fast-settle-low-z-relief-release-xy", type=float, default=0.0020)
     parser.add_argument("--guard-final-servo-square-fast-settle-low-z-relief-max-up-action", type=float, default=0.0020)
     parser.add_argument("--guard-final-servo-square-fast-settle-low-z-relief-max-xy-action", type=float, default=0.0010)
+    parser.add_argument(
+        "--guard-final-servo-square-fast-settle-low-z-relief-wide-recenter-enabled",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-fast-settle-low-z-relief-wide-recenter-start-z-min",
+        type=float,
+        default=0.0,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-fast-settle-low-z-relief-wide-recenter-xy-max",
+        type=float,
+        default=0.035,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-fast-settle-low-z-relief-wide-recenter-z-max",
+        type=float,
+        default=0.050,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-fast-settle-low-z-relief-wide-recenter-max-steps",
+        type=int,
+        default=24,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-fast-settle-low-z-relief-wide-recenter-contact-pop-min-attempts",
+        type=int,
+        default=999999,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-fast-settle-low-z-relief-wide-recenter-contact-pop-xy-max",
+        type=float,
+        default=0.035,
+    )
     parser.add_argument("--guard-final-servo-square-fast-settle-low-z-stall-relief-enabled", action="store_true")
     parser.add_argument("--guard-final-servo-square-fast-settle-low-z-stall-relief-xy-max", type=float, default=0.0025)
     parser.add_argument("--guard-final-servo-square-fast-settle-low-z-stall-relief-z-min", type=float, default=0.026)
@@ -1054,6 +1595,99 @@ def build_parser(
     parser.add_argument("--guard-final-servo-square-fast-settle-low-z-stall-relief-hold-enabled", action="store_true")
     parser.add_argument("--guard-final-servo-square-fast-settle-low-z-stall-relief-hold-steps", type=int, default=4)
     parser.add_argument("--guard-final-servo-square-fast-settle-low-z-stall-relief-hold-max-up-action", type=float, default=0.0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-low-z-stall-relief-hold-min-contact-pop-hold-attempts", type=int, default=0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-steps", type=int, default=4)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-xy-max", type=float, default=0.0040)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-z-min", type=float, default=0.020)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-z-max", type=float, default=0.040)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-margin-min", type=float, default=0.0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-margin-max", type=float, default=1.0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-yaw-max-deg", type=float, default=1.5)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-tilt-max-deg", type=float, default=2.0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-wall-count", type=int, default=1)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-contact-max", type=int, default=8)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-min-phase-steps", type=int, default=8)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-min-steps-since-reset", type=int, default=0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-subsequent-min-phase-steps", type=int, default=8)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-subsequent-min-steps-since-reset", type=int, default=0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-subsequent-z-max", type=float, default=0.0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-subsequent-margin-min", type=float, default=-1.0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-max-attempts", type=int, default=3)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-max-up-action", type=float, default=0.0010)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-extend-until-clear-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-extend-until-clear-contact-max", type=int, default=0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-extend-until-clear-max-steps", type=int, default=8)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-extend-until-clear-min-steps-since-reset", type=int, default=0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-continue-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-continue-steps", type=int, default=20)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-continue-xy-max", type=float, default=0.0035)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-continue-z-min", type=float, default=0.018)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-continue-z-max", type=float, default=0.040)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-continue-margin-min", type=float, default=0.0002)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-continue-yaw-max-deg", type=float, default=1.5)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-continue-tilt-max-deg", type=float, default=2.0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-continue-contact-max", type=int, default=0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-continue-max-xy-action", type=float, default=0.0010)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-continue-max-down-action", type=float, default=0.0010)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-contact-brake-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-contact-brake-wall-count", type=int, default=1)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-contact-brake-xy-min", type=float, default=0.0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-contact-brake-xy-max", type=float, default=0.0040)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-contact-brake-z-min", type=float, default=0.020)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-contact-brake-z-max", type=float, default=0.040)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-contact-brake-contact-max", type=int, default=8)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-contact-brake-margin-min", type=float, default=-1.0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-contact-brake-yaw-max-deg", type=float, default=2.0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-contact-brake-tilt-max-deg", type=float, default=2.5)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-contact-brake-max-phase-steps", type=int, default=0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-contact-brake-min-soft-hold-attempts", type=int, default=0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-contact-brake-soft-hold-first-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-pop-hold-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-pop-hold-steps", type=int, default=3)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-pop-hold-wall-count", type=int, default=1)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-pop-hold-xy-min", type=float, default=0.009)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-pop-hold-xy-max", type=float, default=0.014)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-pop-hold-z-min", type=float, default=0.030)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-pop-hold-z-max", type=float, default=0.037)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-pop-hold-contact-max", type=int, default=8)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-pop-hold-margin-min", type=float, default=-1.0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-pop-hold-yaw-max-deg", type=float, default=1.0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-pop-hold-tilt-max-deg", type=float, default=3.0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-pop-hold-max-phase-steps", type=int, default=2)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-pop-hold-min-soft-hold-attempts", type=int, default=2)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-pop-hold-max-attempts", type=int, default=1)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-release-pop-hold-max-up-action", type=float, default=0.0005)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-large-pop-recenter-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-large-pop-recenter-xy-min", type=float, default=0.018)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-large-pop-recenter-xy-max", type=float, default=0.035)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-large-pop-recenter-z-min", type=float, default=0.035)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-large-pop-recenter-z-max", type=float, default=0.050)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-large-pop-recenter-contact-max", type=int, default=0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-large-pop-recenter-margin-min", type=float, default=-0.0015)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-large-pop-recenter-topdown-margin-min", type=float, default=0.0010)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-large-pop-recenter-yaw-max-deg", type=float, default=1.25)
+    parser.add_argument("--guard-final-servo-square-fast-settle-contact-soft-hold-large-pop-recenter-tilt-max-deg", type=float, default=3.2)
+    parser.add_argument("--guard-final-servo-square-fast-settle-late-finish-continue-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-fast-settle-late-finish-continue-min-steps-since-reset", type=int, default=850)
+    parser.add_argument("--guard-final-servo-square-fast-settle-late-finish-continue-xy-max", type=float, default=0.0030)
+    parser.add_argument("--guard-final-servo-square-fast-settle-late-finish-continue-z-min", type=float, default=0.018)
+    parser.add_argument("--guard-final-servo-square-fast-settle-late-finish-continue-z-max", type=float, default=0.034)
+    parser.add_argument("--guard-final-servo-square-fast-settle-late-finish-continue-margin-min", type=float, default=0.0002)
+    parser.add_argument("--guard-final-servo-square-fast-settle-late-finish-continue-topdown-margin-min", type=float, default=-1.0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-late-finish-continue-yaw-max-deg", type=float, default=1.5)
+    parser.add_argument("--guard-final-servo-square-fast-settle-late-finish-continue-tilt-max-deg", type=float, default=2.0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-late-finish-continue-contact-max", type=int, default=8)
+    parser.add_argument("--guard-final-servo-square-fast-settle-late-escape-veto-enabled", action="store_true")
+    parser.add_argument("--guard-final-servo-square-fast-settle-late-escape-veto-min-steps-since-reset", type=int, default=900)
+    parser.add_argument("--guard-final-servo-square-fast-settle-late-escape-veto-xy-max", type=float, default=0.012)
+    parser.add_argument("--guard-final-servo-square-fast-settle-late-escape-veto-z-min", type=float, default=0.036)
+    parser.add_argument("--guard-final-servo-square-fast-settle-late-escape-veto-z-max", type=float, default=0.040)
+    parser.add_argument("--guard-final-servo-square-fast-settle-late-escape-veto-contact-max", type=int, default=0)
+    parser.add_argument("--guard-final-servo-square-fast-settle-late-escape-veto-margin-min", type=float, default=-0.0010)
+    parser.add_argument("--guard-final-servo-square-fast-settle-late-escape-veto-topdown-margin-min", type=float, default=0.0005)
+    parser.add_argument("--guard-final-servo-square-fast-settle-late-escape-veto-yaw-max-deg", type=float, default=1.5)
+    parser.add_argument("--guard-final-servo-square-fast-settle-late-escape-veto-tilt-max-deg", type=float, default=1.6)
     parser.add_argument("--guard-final-servo-square-contact-brake-enabled", action="store_true")
     parser.add_argument("--guard-final-servo-square-contact-brake-wall-steps", type=int, default=1)
     parser.add_argument("--guard-final-servo-square-contact-brake-xy-max", type=float, default=0.008)
@@ -1074,6 +1708,54 @@ def build_parser(
         action="store_true",
     )
     parser.add_argument(
+        "--guard-final-servo-square-contact-brake-repeat-margin-gate-enabled",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-repeat-margin-threshold",
+        type=float,
+        default=-0.0010,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-release-flush-enabled",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-release-flush-steps",
+        type=int,
+        default=3,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-release-flush-min-brake-attempts",
+        type=int,
+        default=2,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-release-flush-min-steps-since-reset",
+        type=int,
+        default=0,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-release-flush-xy-max",
+        type=float,
+        default=0.0040,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-release-flush-z-min",
+        type=float,
+        default=0.020,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-release-flush-z-max",
+        type=float,
+        default=0.035,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-release-flush-contact-max",
+        type=int,
+        default=8,
+    )
+    parser.add_argument(
         "--guard-final-servo-square-contact-brake-exhausted-escape-enabled",
         action="store_true",
     )
@@ -1084,6 +1766,11 @@ def build_parser(
     parser.add_argument(
         "--guard-final-servo-square-contact-brake-exhausted-continue-enabled",
         action="store_true",
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-exhausted-continue-min-steps-since-reset",
+        type=int,
+        default=0,
     )
     parser.add_argument(
         "--guard-final-servo-square-contact-brake-exhausted-continue-xy-max",
@@ -1114,6 +1801,16 @@ def build_parser(
         "--guard-final-servo-square-contact-brake-exhausted-continue-margin-min",
         type=float,
         default=-0.0015,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-exhausted-continue-topdown-margin-min",
+        type=float,
+        default=-1.0,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-exhausted-continue-yaw-max-deg",
+        type=float,
+        default=180.0,
     )
     parser.add_argument(
         "--guard-final-servo-square-contact-brake-preemptive-hold-enabled",
@@ -1196,6 +1893,153 @@ def build_parser(
         "--guard-final-servo-square-contact-brake-preemptive-hold-expanded-yaw-max-deg",
         type=float,
         default=0.0,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-preemptive-hold-clean-release-enabled",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-preemptive-hold-clean-release-max-brake-attempts",
+        type=int,
+        default=0,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-preemptive-hold-clean-release-contact-max",
+        type=int,
+        default=0,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-preemptive-hold-clean-release-xy-max",
+        type=float,
+        default=0.0045,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-preemptive-hold-clean-release-z-min",
+        type=float,
+        default=0.020,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-preemptive-hold-clean-release-z-max",
+        type=float,
+        default=0.045,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-preemptive-hold-clean-release-margin-min",
+        type=float,
+        default=0.0002,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-preemptive-hold-clean-release-tilt-max-deg",
+        type=float,
+        default=2.0,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-preemptive-hold-pop-recenter-enabled",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-preemptive-hold-pop-recenter-min-phase-steps",
+        type=int,
+        default=1,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-preemptive-hold-pop-recenter-xy-min",
+        type=float,
+        default=0.010,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-preemptive-hold-pop-recenter-xy-max",
+        type=float,
+        default=0.026,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-preemptive-hold-pop-recenter-z-min",
+        type=float,
+        default=0.036,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-preemptive-hold-pop-recenter-z-max",
+        type=float,
+        default=0.045,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-preemptive-hold-pop-recenter-contact-max",
+        type=int,
+        default=1,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-preemptive-hold-pop-recenter-margin-min",
+        type=float,
+        default=-0.0035,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-preemptive-hold-pop-recenter-topdown-margin-min",
+        type=float,
+        default=0.0005,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-preemptive-hold-pop-recenter-yaw-max-deg",
+        type=float,
+        default=1.25,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-preemptive-hold-pop-recenter-tilt-max-deg",
+        type=float,
+        default=4.6,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-late-lift-release-enabled",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-late-lift-release-min-brake-attempts",
+        type=int,
+        default=0,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-late-lift-release-min-phase-steps",
+        type=int,
+        default=1,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-late-lift-release-min-steps-since-reset",
+        type=int,
+        default=0,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-late-lift-release-contact-max",
+        type=int,
+        default=0,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-late-lift-release-xy-max",
+        type=float,
+        default=0.0030,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-late-lift-release-z-min",
+        type=float,
+        default=0.020,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-late-lift-release-z-max",
+        type=float,
+        default=0.045,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-late-lift-release-margin-min",
+        type=float,
+        default=0.0002,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-late-lift-release-yaw-max-deg",
+        type=float,
+        default=1.5,
+    )
+    parser.add_argument(
+        "--guard-final-servo-square-contact-brake-late-lift-release-tilt-max-deg",
+        type=float,
+        default=2.0,
     )
     parser.add_argument("--guard-final-servo-square-high-z-descend-enabled", action="store_true")
     parser.add_argument("--guard-final-servo-square-high-z-descend-stall-steps", type=int, default=18)
@@ -1355,6 +2199,8 @@ def make_env(args: argparse.Namespace, scenario: Scenario) -> PegInHoleMujocoEnv
         ik_max_iterations=args.ik_max_iterations,
         success_xy_tolerance=args.success_xy_tolerance,
         success_z_tolerance=args.success_z_tolerance,
+        success_shape_yaw_tolerance_deg=args.success_shape_yaw_tolerance_deg,
+        success_shape_yaw_profiles=tuple(args.success_shape_yaw_profiles),
         approach_xy_tolerance=args.approach_xy_tolerance,
         approach_height=args.approach_height,
         staged_xy_weight=args.staged_xy_weight,
@@ -1389,6 +2235,9 @@ def make_env(args: argparse.Namespace, scenario: Scenario) -> PegInHoleMujocoEnv
         geometry_hole_half_size_range=tuple(args.geometry_hole_half_size_range),
         geometry_peg_radius_range=tuple(args.geometry_peg_radius_range),
         geometry_profile=args.geometry_profile,
+        geometry_fixture_mode=args.geometry_fixture_mode,
+        geometry_true_fixture_variant=args.geometry_true_fixture_variant,
+        enable_peg_tip_visual_helpers=bool(args.enable_peg_tip_visual_helpers),
         geometry_square_peg_half_size_range=tuple(args.geometry_square_peg_half_size_range),
         geometry_mixed_square_probability=args.geometry_mixed_square_probability,
         contact_friction_multiplier_range=scenario.contact_friction_multiplier_range,
@@ -1655,6 +2504,15 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         guard_final_servo_square_recovery_escape_height=(
             args.guard_final_servo_square_recovery_escape_height
         ),
+        guard_final_servo_square_recovery_escape_late_height_enabled=(
+            args.guard_final_servo_square_recovery_escape_late_height_enabled
+        ),
+        guard_final_servo_square_recovery_escape_late_height=(
+            args.guard_final_servo_square_recovery_escape_late_height
+        ),
+        guard_final_servo_square_recovery_escape_late_height_min_steps_since_reset=(
+            args.guard_final_servo_square_recovery_escape_late_height_min_steps_since_reset
+        ),
         guard_final_servo_square_recovery_escape_release_xy=(
             args.guard_final_servo_square_recovery_escape_release_xy
         ),
@@ -1727,6 +2585,9 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         guard_final_servo_square_recovery_escape_direct_fast_settle_xy_max=(
             args.guard_final_servo_square_recovery_escape_direct_fast_settle_xy_max
         ),
+        guard_final_servo_square_recovery_escape_direct_fast_settle_z_min=(
+            args.guard_final_servo_square_recovery_escape_direct_fast_settle_z_min
+        ),
         guard_final_servo_square_recovery_escape_direct_fast_settle_z_max=(
             args.guard_final_servo_square_recovery_escape_direct_fast_settle_z_max
         ),
@@ -1738,6 +2599,15 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         ),
         guard_final_servo_square_recovery_escape_direct_fast_settle_min_steps_since_reset=(
             args.guard_final_servo_square_recovery_escape_direct_fast_settle_min_steps_since_reset
+        ),
+        guard_final_servo_square_recovery_escape_direct_fast_settle_max_steps_since_reset=(
+            args.guard_final_servo_square_recovery_escape_direct_fast_settle_max_steps_since_reset
+        ),
+        guard_final_servo_square_recovery_escape_direct_fast_settle_from_escape_enabled=(
+            args.guard_final_servo_square_recovery_escape_direct_fast_settle_from_escape_enabled
+        ),
+        guard_final_servo_square_recovery_escape_direct_fast_settle_from_escape_min_phase_steps=(
+            args.guard_final_servo_square_recovery_escape_direct_fast_settle_from_escape_min_phase_steps
         ),
         guard_final_servo_square_recovery_escape_direct_fast_settle_max_down_action=(
             args.guard_final_servo_square_recovery_escape_direct_fast_settle_max_down_action
@@ -1774,6 +2644,141 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         ),
         guard_final_servo_square_recovery_escape_recenter_descend_max_down_action=(
             args.guard_final_servo_square_recovery_escape_recenter_descend_max_down_action
+        ),
+        guard_final_servo_square_recovery_escape_recenter_drift_lift_enabled=(
+            args.guard_final_servo_square_recovery_escape_recenter_drift_lift_enabled
+        ),
+        guard_final_servo_square_recovery_escape_recenter_drift_lift_min_phase_steps=(
+            args.guard_final_servo_square_recovery_escape_recenter_drift_lift_min_phase_steps
+        ),
+        guard_final_servo_square_recovery_escape_recenter_drift_lift_xy_min=(
+            args.guard_final_servo_square_recovery_escape_recenter_drift_lift_xy_min
+        ),
+        guard_final_servo_square_recovery_escape_recenter_drift_lift_z_min=(
+            args.guard_final_servo_square_recovery_escape_recenter_drift_lift_z_min
+        ),
+        guard_final_servo_square_recovery_escape_recenter_drift_lift_z_max=(
+            args.guard_final_servo_square_recovery_escape_recenter_drift_lift_z_max
+        ),
+        guard_final_servo_square_recovery_escape_recenter_drift_lift_contact_max=(
+            args.guard_final_servo_square_recovery_escape_recenter_drift_lift_contact_max
+        ),
+        guard_final_servo_square_recovery_escape_recenter_drift_lift_yaw_min_deg=(
+            args.guard_final_servo_square_recovery_escape_recenter_drift_lift_yaw_min_deg
+        ),
+        guard_final_servo_square_recovery_escape_recenter_drift_lift_tilt_min_deg=(
+            args.guard_final_servo_square_recovery_escape_recenter_drift_lift_tilt_min_deg
+        ),
+        guard_final_servo_square_recovery_escape_late_recenter_descend_enabled=(
+            args.guard_final_servo_square_recovery_escape_late_recenter_descend_enabled
+        ),
+        guard_final_servo_square_recovery_escape_late_recenter_descend_min_steps_since_reset=(
+            args.guard_final_servo_square_recovery_escape_late_recenter_descend_min_steps_since_reset
+        ),
+        guard_final_servo_square_recovery_escape_late_recenter_descend_min_phase_steps=(
+            args.guard_final_servo_square_recovery_escape_late_recenter_descend_min_phase_steps
+        ),
+        guard_final_servo_square_recovery_escape_late_recenter_descend_xy_max=(
+            args.guard_final_servo_square_recovery_escape_late_recenter_descend_xy_max
+        ),
+        guard_final_servo_square_recovery_escape_late_recenter_descend_z_min=(
+            args.guard_final_servo_square_recovery_escape_late_recenter_descend_z_min
+        ),
+        guard_final_servo_square_recovery_escape_late_recenter_descend_z_max=(
+            args.guard_final_servo_square_recovery_escape_late_recenter_descend_z_max
+        ),
+        guard_final_servo_square_recovery_escape_late_recenter_descend_contact_max=(
+            args.guard_final_servo_square_recovery_escape_late_recenter_descend_contact_max
+        ),
+        guard_final_servo_square_recovery_escape_late_recenter_descend_margin_min=(
+            args.guard_final_servo_square_recovery_escape_late_recenter_descend_margin_min
+        ),
+        guard_final_servo_square_recovery_escape_late_recenter_descend_margin_max=(
+            args.guard_final_servo_square_recovery_escape_late_recenter_descend_margin_max
+        ),
+        guard_final_servo_square_recovery_escape_late_recenter_descend_tilt_max_deg=(
+            args.guard_final_servo_square_recovery_escape_late_recenter_descend_tilt_max_deg
+        ),
+        guard_final_servo_square_recovery_escape_late_recenter_descend_max_down_action=(
+            args.guard_final_servo_square_recovery_escape_late_recenter_descend_max_down_action
+        ),
+        guard_final_servo_square_recovery_escape_late_recenter_descend_max_xy_action=(
+            args.guard_final_servo_square_recovery_escape_late_recenter_descend_max_xy_action
+        ),
+        guard_final_servo_square_recovery_escape_late_recenter_descend_hold_release_enabled=(
+            args.guard_final_servo_square_recovery_escape_late_recenter_descend_hold_release_enabled
+        ),
+        guard_final_servo_square_recovery_escape_late_recenter_descend_hold_z_min=(
+            args.guard_final_servo_square_recovery_escape_late_recenter_descend_hold_z_min
+        ),
+        guard_final_servo_square_recovery_escape_late_clean_direct_finish_enabled=(
+            args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_enabled
+        ),
+        guard_final_servo_square_recovery_escape_late_clean_direct_finish_min_steps_since_reset=(
+            args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_min_steps_since_reset
+        ),
+        guard_final_servo_square_recovery_escape_late_clean_direct_finish_min_phase_steps=(
+            args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_min_phase_steps
+        ),
+        guard_final_servo_square_recovery_escape_late_clean_direct_finish_min_brake_attempts=(
+            args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_min_brake_attempts
+        ),
+        guard_final_servo_square_recovery_escape_late_clean_direct_finish_xy_max=(
+            args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_xy_max
+        ),
+        guard_final_servo_square_recovery_escape_late_clean_direct_finish_z_min=(
+            args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_z_min
+        ),
+        guard_final_servo_square_recovery_escape_late_clean_direct_finish_z_max=(
+            args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_z_max
+        ),
+        guard_final_servo_square_recovery_escape_late_clean_direct_finish_contact_max=(
+            args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_contact_max
+        ),
+        guard_final_servo_square_recovery_escape_late_clean_direct_finish_margin_min=(
+            args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_margin_min
+        ),
+        guard_final_servo_square_recovery_escape_late_clean_direct_finish_topdown_margin_min=(
+            args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_topdown_margin_min
+        ),
+        guard_final_servo_square_recovery_escape_late_clean_direct_finish_yaw_max_deg=(
+            args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_yaw_max_deg
+        ),
+        guard_final_servo_square_recovery_escape_late_clean_direct_finish_tilt_max_deg=(
+            args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_tilt_max_deg
+        ),
+        guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_enabled=(
+            args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_enabled
+        ),
+        guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_xy_min=(
+            args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_xy_min
+        ),
+        guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_xy_max=(
+            args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_xy_max
+        ),
+        guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_z_min=(
+            args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_z_min
+        ),
+        guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_z_max=(
+            args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_z_max
+        ),
+        guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_contact_max=(
+            args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_contact_max
+        ),
+        guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_max_contact_pop_hold_attempts=(
+            args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_max_contact_pop_hold_attempts
+        ),
+        guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_margin_min=(
+            args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_margin_min
+        ),
+        guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_topdown_margin_min=(
+            args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_topdown_margin_min
+        ),
+        guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_yaw_max_deg=(
+            args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_yaw_max_deg
+        ),
+        guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_tilt_max_deg=(
+            args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_tilt_max_deg
         ),
         guard_final_servo_split_recovery_enabled=(
             args.guard_final_servo_split_recovery_enabled
@@ -1977,6 +2982,333 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         guard_final_servo_square_fast_settle_late_down_boost_min_clean_steps=(
             args.guard_final_servo_square_fast_settle_late_down_boost_min_clean_steps
         ),
+        guard_final_servo_square_fast_settle_very_late_clean_tail_boost_enabled=(
+            args.guard_final_servo_square_fast_settle_very_late_clean_tail_boost_enabled
+        ),
+        guard_final_servo_square_fast_settle_very_late_clean_tail_boost_min_steps_since_reset=(
+            args.guard_final_servo_square_fast_settle_very_late_clean_tail_boost_min_steps_since_reset
+        ),
+        guard_final_servo_square_fast_settle_very_late_clean_tail_boost_min_brake_attempts=(
+            args.guard_final_servo_square_fast_settle_very_late_clean_tail_boost_min_brake_attempts
+        ),
+        guard_final_servo_square_fast_settle_very_late_clean_tail_boost_min_phase_steps=(
+            args.guard_final_servo_square_fast_settle_very_late_clean_tail_boost_min_phase_steps
+        ),
+        guard_final_servo_square_fast_settle_very_late_clean_tail_boost_min_clean_steps=(
+            args.guard_final_servo_square_fast_settle_very_late_clean_tail_boost_min_clean_steps
+        ),
+        guard_final_servo_square_fast_settle_very_late_clean_tail_boost_xy_max=(
+            args.guard_final_servo_square_fast_settle_very_late_clean_tail_boost_xy_max
+        ),
+        guard_final_servo_square_fast_settle_very_late_clean_tail_boost_z_min=(
+            args.guard_final_servo_square_fast_settle_very_late_clean_tail_boost_z_min
+        ),
+        guard_final_servo_square_fast_settle_very_late_clean_tail_boost_z_max=(
+            args.guard_final_servo_square_fast_settle_very_late_clean_tail_boost_z_max
+        ),
+        guard_final_servo_square_fast_settle_very_late_clean_tail_boost_contact_max=(
+            args.guard_final_servo_square_fast_settle_very_late_clean_tail_boost_contact_max
+        ),
+        guard_final_servo_square_fast_settle_very_late_clean_tail_boost_margin_min=(
+            args.guard_final_servo_square_fast_settle_very_late_clean_tail_boost_margin_min
+        ),
+        guard_final_servo_square_fast_settle_very_late_clean_tail_boost_topdown_margin_min=(
+            args.guard_final_servo_square_fast_settle_very_late_clean_tail_boost_topdown_margin_min
+        ),
+        guard_final_servo_square_fast_settle_very_late_clean_tail_boost_yaw_max_deg=(
+            args.guard_final_servo_square_fast_settle_very_late_clean_tail_boost_yaw_max_deg
+        ),
+        guard_final_servo_square_fast_settle_very_late_clean_tail_boost_tilt_max_deg=(
+            args.guard_final_servo_square_fast_settle_very_late_clean_tail_boost_tilt_max_deg
+        ),
+        guard_final_servo_square_fast_settle_very_late_clean_tail_boost_max_down_action=(
+            args.guard_final_servo_square_fast_settle_very_late_clean_tail_boost_max_down_action
+        ),
+        guard_final_servo_square_fast_settle_very_late_clean_tail_boost_max_xy_action=(
+            args.guard_final_servo_square_fast_settle_very_late_clean_tail_boost_max_xy_action
+        ),
+        guard_final_servo_square_fast_settle_low_z_contact_down_guard_enabled=(
+            args.guard_final_servo_square_fast_settle_low_z_contact_down_guard_enabled
+        ),
+        guard_final_servo_square_fast_settle_low_z_contact_down_guard_min_steps_since_reset=(
+            args.guard_final_servo_square_fast_settle_low_z_contact_down_guard_min_steps_since_reset
+        ),
+        guard_final_servo_square_fast_settle_low_z_contact_down_guard_wall_count=(
+            args.guard_final_servo_square_fast_settle_low_z_contact_down_guard_wall_count
+        ),
+        guard_final_servo_square_fast_settle_low_z_contact_down_guard_xy_max=(
+            args.guard_final_servo_square_fast_settle_low_z_contact_down_guard_xy_max
+        ),
+        guard_final_servo_square_fast_settle_low_z_contact_down_guard_z_max=(
+            args.guard_final_servo_square_fast_settle_low_z_contact_down_guard_z_max
+        ),
+        guard_final_servo_square_fast_settle_low_z_contact_down_guard_min_brake_attempts=(
+            args.guard_final_servo_square_fast_settle_low_z_contact_down_guard_min_brake_attempts
+        ),
+        guard_final_servo_square_fast_settle_low_z_contact_down_guard_max_up_action=(
+            args.guard_final_servo_square_fast_settle_low_z_contact_down_guard_max_up_action
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_hold_enabled=(
+            args.guard_final_servo_square_fast_settle_contact_pop_hold_enabled
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_hold_steps=(
+            args.guard_final_servo_square_fast_settle_contact_pop_hold_steps
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_hold_wall_count=(
+            args.guard_final_servo_square_fast_settle_contact_pop_hold_wall_count
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_hold_xy_min=(
+            args.guard_final_servo_square_fast_settle_contact_pop_hold_xy_min
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_hold_xy_max=(
+            args.guard_final_servo_square_fast_settle_contact_pop_hold_xy_max
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_hold_z_min=(
+            args.guard_final_servo_square_fast_settle_contact_pop_hold_z_min
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_hold_z_max=(
+            args.guard_final_servo_square_fast_settle_contact_pop_hold_z_max
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_hold_contact_max=(
+            args.guard_final_servo_square_fast_settle_contact_pop_hold_contact_max
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_hold_min_phase_steps=(
+            args.guard_final_servo_square_fast_settle_contact_pop_hold_min_phase_steps
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_hold_min_brake_attempts=(
+            args.guard_final_servo_square_fast_settle_contact_pop_hold_min_brake_attempts
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_hold_max_attempts=(
+            args.guard_final_servo_square_fast_settle_contact_pop_hold_max_attempts
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_hold_max_up_action=(
+            args.guard_final_servo_square_fast_settle_contact_pop_hold_max_up_action
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_hold_recenter_enabled=(
+            args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_enabled
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_hold_recenter_min_phase_steps=(
+            args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_min_phase_steps
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_hold_recenter_xy_min=(
+            args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_xy_min
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_hold_recenter_xy_max=(
+            args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_xy_max
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_hold_recenter_z_min=(
+            args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_z_min
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_hold_recenter_z_max=(
+            args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_z_max
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_hold_recenter_contact_max=(
+            args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_contact_max
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_hold_recenter_margin_min=(
+            args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_margin_min
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_hold_recenter_topdown_margin_min=(
+            args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_topdown_margin_min
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_hold_recenter_yaw_max_deg=(
+            args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_yaw_max_deg
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_hold_recenter_tilt_max_deg=(
+            args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_tilt_max_deg
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_enabled=(
+            args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_enabled
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_min_attempts=(
+            args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_min_attempts
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_xy_min=(
+            args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_xy_min
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_xy_max=(
+            args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_xy_max
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_z_min=(
+            args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_z_min
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_z_max=(
+            args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_z_max
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_contact_max=(
+            args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_contact_max
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_margin_min=(
+            args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_margin_min
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_topdown_margin_min=(
+            args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_topdown_margin_min
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_yaw_max_deg=(
+            args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_yaw_max_deg
+        ),
+        guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_tilt_max_deg=(
+            args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_tilt_max_deg
+        ),
+        guard_final_servo_square_fast_settle_no_contact_pop_hold_enabled=(
+            args.guard_final_servo_square_fast_settle_no_contact_pop_hold_enabled
+        ),
+        guard_final_servo_square_fast_settle_no_contact_pop_hold_steps=(
+            args.guard_final_servo_square_fast_settle_no_contact_pop_hold_steps
+        ),
+        guard_final_servo_square_fast_settle_no_contact_pop_hold_xy_min=(
+            args.guard_final_servo_square_fast_settle_no_contact_pop_hold_xy_min
+        ),
+        guard_final_servo_square_fast_settle_no_contact_pop_hold_xy_max=(
+            args.guard_final_servo_square_fast_settle_no_contact_pop_hold_xy_max
+        ),
+        guard_final_servo_square_fast_settle_no_contact_pop_hold_z_min=(
+            args.guard_final_servo_square_fast_settle_no_contact_pop_hold_z_min
+        ),
+        guard_final_servo_square_fast_settle_no_contact_pop_hold_z_max=(
+            args.guard_final_servo_square_fast_settle_no_contact_pop_hold_z_max
+        ),
+        guard_final_servo_square_fast_settle_no_contact_pop_hold_contact_max=(
+            args.guard_final_servo_square_fast_settle_no_contact_pop_hold_contact_max
+        ),
+        guard_final_servo_square_fast_settle_no_contact_pop_hold_min_brake_attempts=(
+            args.guard_final_servo_square_fast_settle_no_contact_pop_hold_min_brake_attempts
+        ),
+        guard_final_servo_square_fast_settle_no_contact_pop_hold_max_contact_pop_hold_attempts=(
+            args.guard_final_servo_square_fast_settle_no_contact_pop_hold_max_contact_pop_hold_attempts
+        ),
+        guard_final_servo_square_fast_settle_no_contact_pop_hold_min_contact_pop_hold_phase_steps=(
+            args.guard_final_servo_square_fast_settle_no_contact_pop_hold_min_contact_pop_hold_phase_steps
+        ),
+        guard_final_servo_square_fast_settle_no_contact_pop_hold_max_attempts=(
+            args.guard_final_servo_square_fast_settle_no_contact_pop_hold_max_attempts
+        ),
+        guard_final_servo_square_fast_settle_no_contact_pop_hold_margin_min=(
+            args.guard_final_servo_square_fast_settle_no_contact_pop_hold_margin_min
+        ),
+        guard_final_servo_square_fast_settle_no_contact_pop_hold_topdown_margin_min=(
+            args.guard_final_servo_square_fast_settle_no_contact_pop_hold_topdown_margin_min
+        ),
+        guard_final_servo_square_fast_settle_no_contact_pop_hold_yaw_max_deg=(
+            args.guard_final_servo_square_fast_settle_no_contact_pop_hold_yaw_max_deg
+        ),
+        guard_final_servo_square_fast_settle_no_contact_pop_hold_tilt_max_deg=(
+            args.guard_final_servo_square_fast_settle_no_contact_pop_hold_tilt_max_deg
+        ),
+        guard_final_servo_square_fast_settle_no_contact_pop_hold_max_up_action=(
+            args.guard_final_servo_square_fast_settle_no_contact_pop_hold_max_up_action
+        ),
+        guard_final_servo_square_fast_settle_pre_pop_guard_enabled=(
+            args.guard_final_servo_square_fast_settle_pre_pop_guard_enabled
+        ),
+        guard_final_servo_square_fast_settle_pre_pop_guard_steps=(
+            args.guard_final_servo_square_fast_settle_pre_pop_guard_steps
+        ),
+        guard_final_servo_square_fast_settle_pre_pop_guard_xy_max=(
+            args.guard_final_servo_square_fast_settle_pre_pop_guard_xy_max
+        ),
+        guard_final_servo_square_fast_settle_pre_pop_guard_z_min=(
+            args.guard_final_servo_square_fast_settle_pre_pop_guard_z_min
+        ),
+        guard_final_servo_square_fast_settle_pre_pop_guard_z_max=(
+            args.guard_final_servo_square_fast_settle_pre_pop_guard_z_max
+        ),
+        guard_final_servo_square_fast_settle_pre_pop_guard_contact_max=(
+            args.guard_final_servo_square_fast_settle_pre_pop_guard_contact_max
+        ),
+        guard_final_servo_square_fast_settle_pre_pop_guard_min_phase_steps=(
+            args.guard_final_servo_square_fast_settle_pre_pop_guard_min_phase_steps
+        ),
+        guard_final_servo_square_fast_settle_pre_pop_guard_max_phase_steps=(
+            args.guard_final_servo_square_fast_settle_pre_pop_guard_max_phase_steps
+        ),
+        guard_final_servo_square_fast_settle_pre_pop_guard_min_brake_attempts=(
+            args.guard_final_servo_square_fast_settle_pre_pop_guard_min_brake_attempts
+        ),
+        guard_final_servo_square_fast_settle_pre_pop_guard_min_soft_hold_attempts=(
+            args.guard_final_servo_square_fast_settle_pre_pop_guard_min_soft_hold_attempts
+        ),
+        guard_final_servo_square_fast_settle_pre_pop_guard_max_attempts=(
+            args.guard_final_servo_square_fast_settle_pre_pop_guard_max_attempts
+        ),
+        guard_final_servo_square_fast_settle_pre_pop_guard_margin_min=(
+            args.guard_final_servo_square_fast_settle_pre_pop_guard_margin_min
+        ),
+        guard_final_servo_square_fast_settle_pre_pop_guard_margin_max=(
+            args.guard_final_servo_square_fast_settle_pre_pop_guard_margin_max
+        ),
+        guard_final_servo_square_fast_settle_pre_pop_guard_topdown_margin_min=(
+            args.guard_final_servo_square_fast_settle_pre_pop_guard_topdown_margin_min
+        ),
+        guard_final_servo_square_fast_settle_pre_pop_guard_topdown_margin_max=(
+            args.guard_final_servo_square_fast_settle_pre_pop_guard_topdown_margin_max
+        ),
+        guard_final_servo_square_fast_settle_pre_pop_guard_yaw_max_deg=(
+            args.guard_final_servo_square_fast_settle_pre_pop_guard_yaw_max_deg
+        ),
+        guard_final_servo_square_fast_settle_pre_pop_guard_tilt_min_deg=(
+            args.guard_final_servo_square_fast_settle_pre_pop_guard_tilt_min_deg
+        ),
+        guard_final_servo_square_fast_settle_pre_pop_guard_tilt_max_deg=(
+            args.guard_final_servo_square_fast_settle_pre_pop_guard_tilt_max_deg
+        ),
+        guard_final_servo_square_fast_settle_pre_pop_guard_max_up_action=(
+            args.guard_final_servo_square_fast_settle_pre_pop_guard_max_up_action
+        ),
+        guard_final_servo_square_fast_settle_pre_pop_limit_enabled=(
+            args.guard_final_servo_square_fast_settle_pre_pop_limit_enabled
+        ),
+        guard_final_servo_square_fast_settle_pre_pop_limit_max_xy_action=(
+            args.guard_final_servo_square_fast_settle_pre_pop_limit_max_xy_action
+        ),
+        guard_final_servo_square_fast_settle_pre_pop_limit_max_down_action=(
+            args.guard_final_servo_square_fast_settle_pre_pop_limit_max_down_action
+        ),
+        guard_final_servo_square_fast_settle_severe_pop_reapproach_enabled=(
+            args.guard_final_servo_square_fast_settle_severe_pop_reapproach_enabled
+        ),
+        guard_final_servo_square_fast_settle_severe_pop_reapproach_xy_min=(
+            args.guard_final_servo_square_fast_settle_severe_pop_reapproach_xy_min
+        ),
+        guard_final_servo_square_fast_settle_severe_pop_reapproach_xy_max=(
+            args.guard_final_servo_square_fast_settle_severe_pop_reapproach_xy_max
+        ),
+        guard_final_servo_square_fast_settle_severe_pop_reapproach_z_min=(
+            args.guard_final_servo_square_fast_settle_severe_pop_reapproach_z_min
+        ),
+        guard_final_servo_square_fast_settle_severe_pop_reapproach_z_max=(
+            args.guard_final_servo_square_fast_settle_severe_pop_reapproach_z_max
+        ),
+        guard_final_servo_square_fast_settle_severe_pop_reapproach_contact_max=(
+            args.guard_final_servo_square_fast_settle_severe_pop_reapproach_contact_max
+        ),
+        guard_final_servo_square_fast_settle_severe_pop_reapproach_min_brake_attempts=(
+            args.guard_final_servo_square_fast_settle_severe_pop_reapproach_min_brake_attempts
+        ),
+        guard_final_servo_square_fast_settle_severe_pop_reapproach_min_steps_since_reset=(
+            args.guard_final_servo_square_fast_settle_severe_pop_reapproach_min_steps_since_reset
+        ),
+        guard_final_servo_square_fast_settle_severe_pop_reapproach_max_attempts=(
+            args.guard_final_servo_square_fast_settle_severe_pop_reapproach_max_attempts
+        ),
+        guard_final_servo_square_fast_settle_severe_pop_reapproach_height=(
+            args.guard_final_servo_square_fast_settle_severe_pop_reapproach_height
+        ),
+        guard_final_servo_square_fast_settle_severe_pop_reapproach_pre_lift_enabled=(
+            args.guard_final_servo_square_fast_settle_severe_pop_reapproach_pre_lift_enabled
+        ),
+        guard_final_servo_square_fast_settle_severe_pop_reapproach_margin_min=(
+            args.guard_final_servo_square_fast_settle_severe_pop_reapproach_margin_min
+        ),
+        guard_final_servo_square_fast_settle_severe_pop_reapproach_topdown_margin_min=(
+            args.guard_final_servo_square_fast_settle_severe_pop_reapproach_topdown_margin_min
+        ),
+        guard_final_servo_square_fast_settle_severe_pop_reapproach_yaw_max_deg=(
+            args.guard_final_servo_square_fast_settle_severe_pop_reapproach_yaw_max_deg
+        ),
+        guard_final_servo_square_fast_settle_severe_pop_reapproach_tilt_max_deg=(
+            args.guard_final_servo_square_fast_settle_severe_pop_reapproach_tilt_max_deg
+        ),
         guard_final_servo_square_fast_settle_clearance_hold_enabled=(
             args.guard_final_servo_square_fast_settle_clearance_hold_enabled
         ),
@@ -1997,6 +3329,9 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         ),
         guard_final_servo_square_fast_settle_clearance_hold_margin_min=(
             args.guard_final_servo_square_fast_settle_clearance_hold_margin_min
+        ),
+        guard_final_servo_square_fast_settle_clearance_hold_wall_count=(
+            args.guard_final_servo_square_fast_settle_clearance_hold_wall_count
         ),
         guard_final_servo_square_fast_settle_clearance_hold_contact_max=(
             args.guard_final_servo_square_fast_settle_clearance_hold_contact_max
@@ -2067,6 +3402,27 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         guard_final_servo_square_fast_settle_low_z_relief_max_xy_action=(
             args.guard_final_servo_square_fast_settle_low_z_relief_max_xy_action
         ),
+        guard_final_servo_square_fast_settle_low_z_relief_wide_recenter_enabled=(
+            args.guard_final_servo_square_fast_settle_low_z_relief_wide_recenter_enabled
+        ),
+        guard_final_servo_square_fast_settle_low_z_relief_wide_recenter_start_z_min=(
+            args.guard_final_servo_square_fast_settle_low_z_relief_wide_recenter_start_z_min
+        ),
+        guard_final_servo_square_fast_settle_low_z_relief_wide_recenter_xy_max=(
+            args.guard_final_servo_square_fast_settle_low_z_relief_wide_recenter_xy_max
+        ),
+        guard_final_servo_square_fast_settle_low_z_relief_wide_recenter_z_max=(
+            args.guard_final_servo_square_fast_settle_low_z_relief_wide_recenter_z_max
+        ),
+        guard_final_servo_square_fast_settle_low_z_relief_wide_recenter_max_steps=(
+            args.guard_final_servo_square_fast_settle_low_z_relief_wide_recenter_max_steps
+        ),
+        guard_final_servo_square_fast_settle_low_z_relief_wide_recenter_contact_pop_min_attempts=(
+            args.guard_final_servo_square_fast_settle_low_z_relief_wide_recenter_contact_pop_min_attempts
+        ),
+        guard_final_servo_square_fast_settle_low_z_relief_wide_recenter_contact_pop_xy_max=(
+            args.guard_final_servo_square_fast_settle_low_z_relief_wide_recenter_contact_pop_xy_max
+        ),
         guard_final_servo_square_fast_settle_low_z_stall_relief_enabled=(
             args.guard_final_servo_square_fast_settle_low_z_stall_relief_enabled
         ),
@@ -2108,6 +3464,285 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         ),
         guard_final_servo_square_fast_settle_low_z_stall_relief_hold_max_up_action=(
             args.guard_final_servo_square_fast_settle_low_z_stall_relief_hold_max_up_action
+        ),
+        guard_final_servo_square_fast_settle_low_z_stall_relief_hold_min_contact_pop_hold_attempts=(
+            args.guard_final_servo_square_fast_settle_low_z_stall_relief_hold_min_contact_pop_hold_attempts
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_enabled=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_enabled
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_steps=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_steps
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_xy_max=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_xy_max
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_z_min=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_z_min
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_z_max=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_z_max
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_margin_min=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_margin_min
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_margin_max=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_margin_max
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_yaw_max_deg=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_yaw_max_deg
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_tilt_max_deg=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_tilt_max_deg
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_wall_count=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_wall_count
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_contact_max=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_contact_max
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_min_phase_steps=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_min_phase_steps
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_min_steps_since_reset=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_min_steps_since_reset
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_subsequent_min_phase_steps=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_subsequent_min_phase_steps
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_subsequent_min_steps_since_reset=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_subsequent_min_steps_since_reset
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_subsequent_z_max=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_subsequent_z_max
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_subsequent_margin_min=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_subsequent_margin_min
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_max_attempts=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_max_attempts
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_max_up_action=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_max_up_action
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_extend_until_clear_enabled=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_extend_until_clear_enabled
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_extend_until_clear_contact_max=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_extend_until_clear_contact_max
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_extend_until_clear_max_steps=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_extend_until_clear_max_steps
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_extend_until_clear_min_steps_since_reset=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_extend_until_clear_min_steps_since_reset
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_enabled=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_enabled
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_steps=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_steps
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_xy_max=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_xy_max
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_z_min=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_z_min
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_z_max=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_z_max
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_margin_min=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_margin_min
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_yaw_max_deg=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_yaw_max_deg
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_tilt_max_deg=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_tilt_max_deg
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_contact_max=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_contact_max
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_max_xy_action=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_max_xy_action
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_max_down_action=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_max_down_action
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_enabled=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_enabled
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_wall_count=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_wall_count
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_xy_min=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_xy_min
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_xy_max=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_xy_max
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_z_min=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_z_min
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_z_max=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_z_max
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_contact_max=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_contact_max
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_margin_min=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_margin_min
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_yaw_max_deg=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_yaw_max_deg
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_tilt_max_deg=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_tilt_max_deg
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_max_phase_steps=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_max_phase_steps
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_min_soft_hold_attempts=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_min_soft_hold_attempts
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_soft_hold_first_enabled=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_soft_hold_first_enabled
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_enabled=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_enabled
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_steps=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_steps
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_wall_count=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_wall_count
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_xy_min=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_xy_min
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_xy_max=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_xy_max
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_z_min=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_z_min
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_z_max=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_z_max
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_contact_max=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_contact_max
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_margin_min=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_margin_min
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_yaw_max_deg=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_yaw_max_deg
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_tilt_max_deg=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_tilt_max_deg
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_max_phase_steps=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_max_phase_steps
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_min_soft_hold_attempts=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_min_soft_hold_attempts
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_max_attempts=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_max_attempts
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_max_up_action=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_max_up_action
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_enabled=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_enabled
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_xy_min=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_xy_min
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_xy_max=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_xy_max
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_z_min=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_z_min
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_z_max=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_z_max
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_contact_max=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_contact_max
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_margin_min=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_margin_min
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_topdown_margin_min=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_topdown_margin_min
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_yaw_max_deg=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_yaw_max_deg
+        ),
+        guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_tilt_max_deg=(
+            args.guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_tilt_max_deg
+        ),
+        guard_final_servo_square_fast_settle_late_finish_continue_enabled=(
+            args.guard_final_servo_square_fast_settle_late_finish_continue_enabled
+        ),
+        guard_final_servo_square_fast_settle_late_finish_continue_min_steps_since_reset=(
+            args.guard_final_servo_square_fast_settle_late_finish_continue_min_steps_since_reset
+        ),
+        guard_final_servo_square_fast_settle_late_finish_continue_xy_max=(
+            args.guard_final_servo_square_fast_settle_late_finish_continue_xy_max
+        ),
+        guard_final_servo_square_fast_settle_late_finish_continue_z_min=(
+            args.guard_final_servo_square_fast_settle_late_finish_continue_z_min
+        ),
+        guard_final_servo_square_fast_settle_late_finish_continue_z_max=(
+            args.guard_final_servo_square_fast_settle_late_finish_continue_z_max
+        ),
+        guard_final_servo_square_fast_settle_late_finish_continue_margin_min=(
+            args.guard_final_servo_square_fast_settle_late_finish_continue_margin_min
+        ),
+        guard_final_servo_square_fast_settle_late_finish_continue_topdown_margin_min=(
+            args.guard_final_servo_square_fast_settle_late_finish_continue_topdown_margin_min
+        ),
+        guard_final_servo_square_fast_settle_late_finish_continue_yaw_max_deg=(
+            args.guard_final_servo_square_fast_settle_late_finish_continue_yaw_max_deg
+        ),
+        guard_final_servo_square_fast_settle_late_finish_continue_tilt_max_deg=(
+            args.guard_final_servo_square_fast_settle_late_finish_continue_tilt_max_deg
+        ),
+        guard_final_servo_square_fast_settle_late_finish_continue_contact_max=(
+            args.guard_final_servo_square_fast_settle_late_finish_continue_contact_max
+        ),
+        guard_final_servo_square_fast_settle_late_escape_veto_enabled=(
+            args.guard_final_servo_square_fast_settle_late_escape_veto_enabled
+        ),
+        guard_final_servo_square_fast_settle_late_escape_veto_min_steps_since_reset=(
+            args.guard_final_servo_square_fast_settle_late_escape_veto_min_steps_since_reset
+        ),
+        guard_final_servo_square_fast_settle_late_escape_veto_xy_max=(
+            args.guard_final_servo_square_fast_settle_late_escape_veto_xy_max
+        ),
+        guard_final_servo_square_fast_settle_late_escape_veto_z_min=(
+            args.guard_final_servo_square_fast_settle_late_escape_veto_z_min
+        ),
+        guard_final_servo_square_fast_settle_late_escape_veto_z_max=(
+            args.guard_final_servo_square_fast_settle_late_escape_veto_z_max
+        ),
+        guard_final_servo_square_fast_settle_late_escape_veto_contact_max=(
+            args.guard_final_servo_square_fast_settle_late_escape_veto_contact_max
+        ),
+        guard_final_servo_square_fast_settle_late_escape_veto_margin_min=(
+            args.guard_final_servo_square_fast_settle_late_escape_veto_margin_min
+        ),
+        guard_final_servo_square_fast_settle_late_escape_veto_topdown_margin_min=(
+            args.guard_final_servo_square_fast_settle_late_escape_veto_topdown_margin_min
+        ),
+        guard_final_servo_square_fast_settle_late_escape_veto_yaw_max_deg=(
+            args.guard_final_servo_square_fast_settle_late_escape_veto_yaw_max_deg
+        ),
+        guard_final_servo_square_fast_settle_late_escape_veto_tilt_max_deg=(
+            args.guard_final_servo_square_fast_settle_late_escape_veto_tilt_max_deg
         ),
         guard_final_servo_square_contact_brake_enabled=(
             args.guard_final_servo_square_contact_brake_enabled
@@ -2157,6 +3792,36 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         guard_final_servo_square_contact_brake_require_bad_margin=(
             args.guard_final_servo_square_contact_brake_require_bad_margin
         ),
+        guard_final_servo_square_contact_brake_repeat_margin_gate_enabled=(
+            args.guard_final_servo_square_contact_brake_repeat_margin_gate_enabled
+        ),
+        guard_final_servo_square_contact_brake_repeat_margin_threshold=(
+            args.guard_final_servo_square_contact_brake_repeat_margin_threshold
+        ),
+        guard_final_servo_square_contact_brake_release_flush_enabled=(
+            args.guard_final_servo_square_contact_brake_release_flush_enabled
+        ),
+        guard_final_servo_square_contact_brake_release_flush_steps=(
+            args.guard_final_servo_square_contact_brake_release_flush_steps
+        ),
+        guard_final_servo_square_contact_brake_release_flush_min_brake_attempts=(
+            args.guard_final_servo_square_contact_brake_release_flush_min_brake_attempts
+        ),
+        guard_final_servo_square_contact_brake_release_flush_min_steps_since_reset=(
+            args.guard_final_servo_square_contact_brake_release_flush_min_steps_since_reset
+        ),
+        guard_final_servo_square_contact_brake_release_flush_xy_max=(
+            args.guard_final_servo_square_contact_brake_release_flush_xy_max
+        ),
+        guard_final_servo_square_contact_brake_release_flush_z_min=(
+            args.guard_final_servo_square_contact_brake_release_flush_z_min
+        ),
+        guard_final_servo_square_contact_brake_release_flush_z_max=(
+            args.guard_final_servo_square_contact_brake_release_flush_z_max
+        ),
+        guard_final_servo_square_contact_brake_release_flush_contact_max=(
+            args.guard_final_servo_square_contact_brake_release_flush_contact_max
+        ),
         guard_final_servo_square_contact_brake_exhausted_escape_enabled=(
             args.guard_final_servo_square_contact_brake_exhausted_escape_enabled
         ),
@@ -2165,6 +3830,9 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         ),
         guard_final_servo_square_contact_brake_exhausted_continue_enabled=(
             args.guard_final_servo_square_contact_brake_exhausted_continue_enabled
+        ),
+        guard_final_servo_square_contact_brake_exhausted_continue_min_steps_since_reset=(
+            args.guard_final_servo_square_contact_brake_exhausted_continue_min_steps_since_reset
         ),
         guard_final_servo_square_contact_brake_exhausted_continue_xy_max=(
             args.guard_final_servo_square_contact_brake_exhausted_continue_xy_max
@@ -2183,6 +3851,12 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         ),
         guard_final_servo_square_contact_brake_exhausted_continue_margin_min=(
             args.guard_final_servo_square_contact_brake_exhausted_continue_margin_min
+        ),
+        guard_final_servo_square_contact_brake_exhausted_continue_topdown_margin_min=(
+            args.guard_final_servo_square_contact_brake_exhausted_continue_topdown_margin_min
+        ),
+        guard_final_servo_square_contact_brake_exhausted_continue_yaw_max_deg=(
+            args.guard_final_servo_square_contact_brake_exhausted_continue_yaw_max_deg
         ),
         guard_final_servo_square_contact_brake_preemptive_hold_enabled=(
             args.guard_final_servo_square_contact_brake_preemptive_hold_enabled
@@ -2234,6 +3908,96 @@ def make_guarded_config(args: argparse.Namespace) -> GuardedPolicyConfig:
         ),
         guard_final_servo_square_contact_brake_preemptive_hold_expanded_yaw_max_deg=(
             args.guard_final_servo_square_contact_brake_preemptive_hold_expanded_yaw_max_deg
+        ),
+        guard_final_servo_square_contact_brake_preemptive_hold_clean_release_enabled=(
+            args.guard_final_servo_square_contact_brake_preemptive_hold_clean_release_enabled
+        ),
+        guard_final_servo_square_contact_brake_preemptive_hold_clean_release_max_brake_attempts=(
+            args.guard_final_servo_square_contact_brake_preemptive_hold_clean_release_max_brake_attempts
+        ),
+        guard_final_servo_square_contact_brake_preemptive_hold_clean_release_contact_max=(
+            args.guard_final_servo_square_contact_brake_preemptive_hold_clean_release_contact_max
+        ),
+        guard_final_servo_square_contact_brake_preemptive_hold_clean_release_xy_max=(
+            args.guard_final_servo_square_contact_brake_preemptive_hold_clean_release_xy_max
+        ),
+        guard_final_servo_square_contact_brake_preemptive_hold_clean_release_z_min=(
+            args.guard_final_servo_square_contact_brake_preemptive_hold_clean_release_z_min
+        ),
+        guard_final_servo_square_contact_brake_preemptive_hold_clean_release_z_max=(
+            args.guard_final_servo_square_contact_brake_preemptive_hold_clean_release_z_max
+        ),
+        guard_final_servo_square_contact_brake_preemptive_hold_clean_release_margin_min=(
+            args.guard_final_servo_square_contact_brake_preemptive_hold_clean_release_margin_min
+        ),
+        guard_final_servo_square_contact_brake_preemptive_hold_clean_release_tilt_max_deg=(
+            args.guard_final_servo_square_contact_brake_preemptive_hold_clean_release_tilt_max_deg
+        ),
+        guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_enabled=(
+            args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_enabled
+        ),
+        guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_min_phase_steps=(
+            args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_min_phase_steps
+        ),
+        guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_xy_min=(
+            args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_xy_min
+        ),
+        guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_xy_max=(
+            args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_xy_max
+        ),
+        guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_z_min=(
+            args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_z_min
+        ),
+        guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_z_max=(
+            args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_z_max
+        ),
+        guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_contact_max=(
+            args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_contact_max
+        ),
+        guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_margin_min=(
+            args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_margin_min
+        ),
+        guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_topdown_margin_min=(
+            args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_topdown_margin_min
+        ),
+        guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_yaw_max_deg=(
+            args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_yaw_max_deg
+        ),
+        guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_tilt_max_deg=(
+            args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_tilt_max_deg
+        ),
+        guard_final_servo_square_contact_brake_late_lift_release_enabled=(
+            args.guard_final_servo_square_contact_brake_late_lift_release_enabled
+        ),
+        guard_final_servo_square_contact_brake_late_lift_release_min_brake_attempts=(
+            args.guard_final_servo_square_contact_brake_late_lift_release_min_brake_attempts
+        ),
+        guard_final_servo_square_contact_brake_late_lift_release_min_phase_steps=(
+            args.guard_final_servo_square_contact_brake_late_lift_release_min_phase_steps
+        ),
+        guard_final_servo_square_contact_brake_late_lift_release_min_steps_since_reset=(
+            args.guard_final_servo_square_contact_brake_late_lift_release_min_steps_since_reset
+        ),
+        guard_final_servo_square_contact_brake_late_lift_release_contact_max=(
+            args.guard_final_servo_square_contact_brake_late_lift_release_contact_max
+        ),
+        guard_final_servo_square_contact_brake_late_lift_release_xy_max=(
+            args.guard_final_servo_square_contact_brake_late_lift_release_xy_max
+        ),
+        guard_final_servo_square_contact_brake_late_lift_release_z_min=(
+            args.guard_final_servo_square_contact_brake_late_lift_release_z_min
+        ),
+        guard_final_servo_square_contact_brake_late_lift_release_z_max=(
+            args.guard_final_servo_square_contact_brake_late_lift_release_z_max
+        ),
+        guard_final_servo_square_contact_brake_late_lift_release_margin_min=(
+            args.guard_final_servo_square_contact_brake_late_lift_release_margin_min
+        ),
+        guard_final_servo_square_contact_brake_late_lift_release_yaw_max_deg=(
+            args.guard_final_servo_square_contact_brake_late_lift_release_yaw_max_deg
+        ),
+        guard_final_servo_square_contact_brake_late_lift_release_tilt_max_deg=(
+            args.guard_final_servo_square_contact_brake_late_lift_release_tilt_max_deg
         ),
         guard_final_servo_square_high_z_descend_enabled=(
             args.guard_final_servo_square_high_z_descend_enabled
@@ -3259,6 +5023,7 @@ def build_step_trace_row(
     final_insert_macro_recovery_attempt: int = 0,
     final_insert_macro_recovery_steps_remaining: int = 0,
     guard_square_pose_yaw_align_active: bool = False,
+    visual_yaw_align_result: VisualYawAlignResult | None = None,
 ) -> dict[str, Any]:
     pre_tip = np.asarray(pre_info["peg_tip_pos"], dtype=np.float64)
     pre_target = np.asarray(pre_info["target_pos"], dtype=np.float64)
@@ -3291,6 +5056,8 @@ def build_step_trace_row(
         if final_insert_adapter_action is None
         else np.asarray(final_insert_adapter_action, dtype=np.float64)
     )
+    visual_yaw = visual_yaw_align_result or VisualYawAlignResult()
+    visual_yaw_pred = visual_yaw.prediction
     final_insert_macro_action = (
         np.zeros(3, dtype=np.float64)
         if final_insert_macro_recovery_action is None
@@ -3483,6 +5250,11 @@ def build_step_trace_row(
         "guard_final_servo_phase": (
             str(step.guard_final_servo_phase) if step_guard else "inactive"
         ),
+        "guard_final_servo_phase_transition_reason": (
+            str(step.guard_final_servo_phase_transition_reason)
+            if step_guard
+            else "none"
+        ),
         "guard_final_servo_phase_steps": (
             int(step.guard_final_servo_phase_steps) if step_guard else 0
         ),
@@ -3548,6 +5320,20 @@ def build_step_trace_row(
             if step_guard
             else 0
         ),
+        "guard_final_servo_square_recovery_escape_direct_fast_settle_active": (
+            bool(
+                step.guard_final_servo_square_recovery_escape_direct_fast_settle_active
+            )
+            if step_guard
+            else False
+        ),
+        "guard_final_servo_square_recovery_escape_late_recenter_descend_active": (
+            bool(
+                step.guard_final_servo_square_recovery_escape_late_recenter_descend_active
+            )
+            if step_guard
+            else False
+        ),
         "guard_final_servo_square_contact_brake_active": (
             bool(step.guard_final_servo_square_contact_brake_active)
             if step_guard
@@ -3606,6 +5392,93 @@ def build_step_trace_row(
         "guard_final_servo_square_fast_settle_low_z_stall_relief_attempts": (
             int(
                 step.guard_final_servo_square_fast_settle_low_z_stall_relief_attempts
+            )
+            if step_guard
+            else 0
+        ),
+        "guard_final_servo_square_fast_settle_contact_soft_hold_active": (
+            bool(step.guard_final_servo_square_fast_settle_contact_soft_hold_active)
+            if step_guard
+            else False
+        ),
+        "guard_final_servo_square_fast_settle_contact_soft_hold_attempts": (
+            int(step.guard_final_servo_square_fast_settle_contact_soft_hold_attempts)
+            if step_guard
+            else 0
+        ),
+        "guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_active": (
+            bool(
+                step.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_active
+            )
+            if step_guard
+            else False
+        ),
+        "guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_attempts": (
+            int(
+                step.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_attempts
+            )
+            if step_guard
+            else 0
+        ),
+        "guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_active": (
+            bool(
+                step.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_active
+            )
+            if step_guard
+            else False
+        ),
+        "guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_attempts": (
+            int(
+                step.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_attempts
+            )
+            if step_guard
+            else 0
+        ),
+        "guard_final_servo_square_fast_settle_contact_pop_hold_active": (
+            bool(step.guard_final_servo_square_fast_settle_contact_pop_hold_active)
+            if step_guard
+            else False
+        ),
+        "guard_final_servo_square_fast_settle_contact_pop_hold_attempts": (
+            int(step.guard_final_servo_square_fast_settle_contact_pop_hold_attempts)
+            if step_guard
+            else 0
+        ),
+        "guard_final_servo_square_fast_settle_no_contact_pop_hold_active": (
+            bool(step.guard_final_servo_square_fast_settle_no_contact_pop_hold_active)
+            if step_guard
+            else False
+        ),
+        "guard_final_servo_square_fast_settle_no_contact_pop_hold_attempts": (
+            int(step.guard_final_servo_square_fast_settle_no_contact_pop_hold_attempts)
+            if step_guard
+            else 0
+        ),
+        "guard_final_servo_square_fast_settle_pre_pop_guard_active": (
+            bool(step.guard_final_servo_square_fast_settle_pre_pop_guard_active)
+            if step_guard
+            else False
+        ),
+        "guard_final_servo_square_fast_settle_pre_pop_guard_attempts": (
+            int(step.guard_final_servo_square_fast_settle_pre_pop_guard_attempts)
+            if step_guard
+            else 0
+        ),
+        "guard_final_servo_square_fast_settle_pre_pop_limit_active": (
+            bool(step.guard_final_servo_square_fast_settle_pre_pop_limit_active)
+            if step_guard
+            else False
+        ),
+        "guard_final_servo_square_fast_settle_severe_pop_reapproach_active": (
+            bool(
+                step.guard_final_servo_square_fast_settle_severe_pop_reapproach_active
+            )
+            if step_guard
+            else False
+        ),
+        "guard_final_servo_square_fast_settle_severe_pop_reapproach_attempts": (
+            int(
+                step.guard_final_servo_square_fast_settle_severe_pop_reapproach_attempts
             )
             if step_guard
             else 0
@@ -3680,6 +5553,100 @@ def build_step_trace_row(
         "guard_square_pose_yaw_align_active": bool(
             guard_square_pose_yaw_align_active
         ),
+        "guard_visual_yaw_align_active": bool(visual_yaw.active),
+        "guard_visual_yaw_align_applied": bool(visual_yaw.applied),
+        "guard_visual_yaw_align_blocked_down": bool(visual_yaw.blocked_down),
+        "guard_visual_yaw_align_aligned_descent": bool(
+            visual_yaw.aligned_descent
+        ),
+        "guard_visual_yaw_align_aligned_descent_stable_steps": int(
+            visual_yaw.aligned_descent_stable_steps
+        ),
+        "guard_visual_yaw_align_low_z_late_finish_descent": bool(
+            visual_yaw.low_z_late_finish_descent
+        ),
+        "guard_visual_yaw_align_target_hold": bool(visual_yaw.target_hold),
+        "guard_visual_yaw_align_low_visibility_brake": bool(
+            visual_yaw.low_visibility_brake
+        ),
+        "guard_visual_yaw_align_large_xy_low_z_brake": bool(
+            visual_yaw.large_xy_low_z_brake
+        ),
+        "guard_visual_yaw_align_descent_abort_active": bool(
+            visual_yaw.descent_abort_active
+        ),
+        "guard_visual_yaw_align_descent_abort_triggered": bool(
+            visual_yaw.descent_abort_triggered
+        ),
+        "guard_visual_yaw_align_descent_abort_phase": str(
+            visual_yaw.descent_abort_phase
+        ),
+        "guard_visual_yaw_align_descent_abort_attempts": int(
+            visual_yaw.descent_abort_attempts
+        ),
+        "guard_visual_yaw_align_reacquire_active": bool(
+            visual_yaw.reacquire_active
+        ),
+        "guard_visual_yaw_align_reacquire_triggered": bool(
+            visual_yaw.reacquire_triggered
+        ),
+        "guard_visual_yaw_align_reacquire_phase": str(
+            visual_yaw.reacquire_phase
+        ),
+        "guard_visual_yaw_align_reacquire_attempts": int(
+            visual_yaw.reacquire_attempts
+        ),
+        "guard_visual_yaw_align_wrong_basin_hold_active": bool(
+            visual_yaw.wrong_basin_hold_active
+        ),
+        "guard_visual_yaw_align_wrong_basin_hold_triggered": bool(
+            visual_yaw.wrong_basin_hold_triggered
+        ),
+        "guard_visual_yaw_align_wrong_basin_hold_steps_remaining": int(
+            visual_yaw.wrong_basin_hold_steps_remaining
+        ),
+        "guard_visual_yaw_align_wrong_basin_hold_attempts": int(
+            visual_yaw.wrong_basin_hold_attempts
+        ),
+        "guard_visual_yaw_align_low_z_lateral_pop_recovery_active": bool(
+            visual_yaw.low_z_lateral_pop_recovery_active
+        ),
+        "guard_visual_yaw_align_low_z_lateral_pop_recovery_triggered": bool(
+            visual_yaw.low_z_lateral_pop_recovery_triggered
+        ),
+        "guard_visual_yaw_align_low_z_lateral_pop_recovery_phase": str(
+            visual_yaw.low_z_lateral_pop_recovery_phase
+        ),
+        "guard_visual_yaw_align_low_z_lateral_pop_recovery_attempts": int(
+            visual_yaw.low_z_lateral_pop_recovery_attempts
+        ),
+        "guard_visual_yaw_align_low_z_lateral_pop_recovery_steps_remaining": int(
+            visual_yaw.low_z_lateral_pop_recovery_steps_remaining
+        ),
+        "guard_visual_yaw_align_reason": str(visual_yaw.reason),
+        "guard_visual_yaw_align_profile": (
+            str(visual_yaw_pred.profile) if visual_yaw_pred is not None else ""
+        ),
+        "guard_visual_yaw_align_pred_signed_error_deg": (
+            float(visual_yaw_pred.signed_error_deg)
+            if visual_yaw_pred is not None
+            else np.nan
+        ),
+        "guard_visual_yaw_align_pred_abs_error_deg": (
+            float(visual_yaw_pred.abs_error_deg)
+            if visual_yaw_pred is not None
+            else np.nan
+        ),
+        "guard_visual_yaw_align_correction_deg": float(visual_yaw.correction_deg),
+        "guard_visual_yaw_align_raw_norm": (
+            float(visual_yaw_pred.raw_norm) if visual_yaw_pred is not None else np.nan
+        ),
+        "guard_visual_yaw_align_cam_std": (
+            float(visual_yaw_pred.cam_std) if visual_yaw_pred is not None else np.nan
+        ),
+        "guard_visual_yaw_align_crop_std": (
+            float(visual_yaw_pred.crop_std) if visual_yaw_pred is not None else np.nan
+        ),
         "ik_iterations": int(post_info.get("ik_iterations", 0)),
         "peg_tilt_angle_deg": float(post_info.get("peg_tilt_angle_deg", np.nan)),
         "joint_limit_min_normalized_margin": float(
@@ -3697,7 +5664,22 @@ def build_step_trace_row(
         "hole_shape": str(post_info.get("hole_shape", "")),
         "hole_half_size": float(post_info.get("hole_half_size", np.nan)),
         "peg_radius": float(post_info.get("peg_radius", np.nan)),
-        "hole_clearance": float(post_info.get("hole_half_size", np.nan) - post_info.get("peg_radius", np.nan)),
+        "hole_clearance": float(post_info.get("hole_clearance", np.nan)),
+        "success_shape_yaw_required": bool(
+            post_info.get("success_shape_yaw_required", False)
+        ),
+        "success_shape_yaw_ok": bool(post_info.get("success_shape_yaw_ok", True)),
+        "success_shape_yaw_error_deg": float(
+            post_info.get("success_shape_yaw_error_deg", np.nan)
+        ),
+        "success_shape_yaw_tolerance_deg": float(
+            post_info.get("success_shape_yaw_tolerance_deg", np.nan)
+        ),
+        "shape_yaw_clearance": float(post_info.get("shape_yaw_clearance", np.nan)),
+        "shape_yaw_signed_error_deg": float(
+            post_info.get("shape_yaw_signed_error_deg", np.nan)
+        ),
+        "shape_yaw_error_deg": float(post_info.get("shape_yaw_error_deg", np.nan)),
         "square_peg_raw_yaw_deg": float(post_info.get("square_peg_raw_yaw_deg", np.nan)),
         "square_peg_yaw_error_deg": float(post_info.get("square_peg_yaw_error_deg", np.nan)),
         "square_peg_topdown_half_width_x": float(
@@ -3788,6 +5770,278 @@ def apply_guard_square_pose_yaw_align(
         args.guard_square_pose_yaw_align_ik_orientation_weight
     )
     return True
+
+
+def visual_yaw_align_near_control_active(
+    step: GuardedPolicyStep | None,
+    args: argparse.Namespace,
+) -> bool:
+    if args.guard_visual_yaw_align_activation_mode == "near_control":
+        return guard_near_control_active(step, args)
+    return step is not None and bool(step.guard_final_servo_active)
+
+
+def visual_yaw_align_has_visible_prediction(reason: str) -> bool:
+    return reason in {
+        "applied",
+        "deadband",
+        "yaw_ok_recenter",
+        "target_hold_deadband",
+        "target_hold_yaw_ok_recenter",
+    }
+
+
+def visual_yaw_prediction_has_visible_stats(
+    prediction: VisualYawPrediction | None,
+    args: argparse.Namespace,
+) -> bool:
+    if prediction is None or not prediction.valid:
+        return False
+    return bool(
+        prediction.raw_norm >= args.guard_visual_yaw_align_min_raw_norm
+        and prediction.cam_std >= args.guard_visual_yaw_align_min_cam_std
+        and prediction.crop_std >= args.guard_visual_yaw_align_min_crop_std
+    )
+
+
+def wrapped_visual_yaw_delta_deg(delta_deg: float, profile: str) -> float:
+    period_deg = float(PROFILE_PERIOD_DEG.get(profile, 360.0))
+    if not np.isfinite(delta_deg) or not np.isfinite(period_deg) or period_deg <= 0.0:
+        return float("nan")
+    return float((delta_deg + 0.5 * period_deg) % period_deg - 0.5 * period_deg)
+
+
+def visual_yaw_reacquire_delta_stable(
+    history: list[float],
+    *,
+    profile: str,
+    window: int,
+    max_delta_deg: float,
+) -> bool:
+    if window <= 1:
+        return bool(history)
+    if len(history) < window:
+        return False
+    values = history[-window:]
+    for previous, current in zip(values, values[1:]):
+        delta = wrapped_visual_yaw_delta_deg(current - previous, profile)
+        if not np.isfinite(delta) or abs(delta) > max_delta_deg:
+            return False
+    return True
+
+
+def apply_guard_visual_yaw_align(
+    env: PegInHoleMujocoEnv,
+    estimator: VisualYawRuntime | None,
+    obs: Any,
+    step: GuardedPolicyStep | None,
+    pre_info: dict[str, Any],
+    args: argparse.Namespace,
+) -> VisualYawAlignResult:
+    if not args.guard_visual_yaw_align_enabled:
+        return VisualYawAlignResult(reason="disabled")
+    if estimator is None:
+        return VisualYawAlignResult(reason="missing_estimator")
+    if not isinstance(obs, dict):
+        return VisualYawAlignResult(reason="non_dict_obs")
+    profile = str(pre_info.get("geometry_name", pre_info.get("geometry_profile", "")))
+    if profile not in set(args.guard_visual_yaw_align_profiles):
+        return VisualYawAlignResult(reason=f"profile_not_enabled:{profile}")
+    if not visual_yaw_align_near_control_active(step, args):
+        return VisualYawAlignResult(reason="inactive_phase")
+
+    dist_xy = float(pre_info.get("dist_xy", np.inf))
+    target_pos = np.asarray(pre_info.get("target_pos", [np.nan, np.nan, np.nan]), dtype=np.float64)
+    peg_tip_pos = np.asarray(pre_info.get("peg_tip_pos", [np.nan, np.nan, np.nan]), dtype=np.float64)
+    z_above_target = float(peg_tip_pos[2] - target_pos[2])
+    if not np.isfinite(dist_xy) or dist_xy > args.guard_visual_yaw_align_max_xy:
+        return VisualYawAlignResult(reason="xy_gate")
+    if (
+        not np.isfinite(z_above_target)
+        or z_above_target < args.guard_visual_yaw_align_min_z
+        or z_above_target > args.guard_visual_yaw_align_max_z
+    ):
+        return VisualYawAlignResult(reason="z_gate")
+    wall_contact_count = int(pre_info.get("peg_hole_contact_wall_count", 0))
+    if wall_contact_count > args.guard_visual_yaw_align_max_wall_contact:
+        return VisualYawAlignResult(reason="contact_gate")
+
+    prediction = estimator.predict(obs, profile=profile)
+    if not prediction.valid:
+        return VisualYawAlignResult(reason=prediction.reason, prediction=prediction)
+    if prediction.raw_norm < args.guard_visual_yaw_align_min_raw_norm:
+        return VisualYawAlignResult(reason="raw_norm_gate", prediction=prediction)
+    if prediction.cam_std < args.guard_visual_yaw_align_min_cam_std:
+        return VisualYawAlignResult(reason="cam_std_gate", prediction=prediction)
+    if prediction.crop_std < args.guard_visual_yaw_align_min_crop_std:
+        return VisualYawAlignResult(reason="crop_std_gate", prediction=prediction)
+    if prediction.abs_error_deg < args.guard_visual_yaw_align_deadband_deg:
+        if (
+            args.guard_visual_yaw_align_recenter_after_yaw_enabled
+            and dist_xy > args.guard_visual_yaw_align_recenter_release_xy
+        ):
+            return VisualYawAlignResult(
+                active=True,
+                applied=False,
+                blocked_down=bool(args.guard_visual_yaw_align_recenter_block_descent),
+                reason="yaw_ok_recenter",
+                prediction=prediction,
+            )
+        return VisualYawAlignResult(reason="deadband", prediction=prediction)
+
+    correction_deg = float(
+        np.clip(
+            -prediction.signed_error_deg,
+            -args.guard_visual_yaw_align_max_correction_deg,
+            args.guard_visual_yaw_align_max_correction_deg,
+        )
+    )
+    env.set_pose_ik_target_by_planar_yaw_correction(correction_deg)
+    env.set_ik_control_mode(args.guard_visual_yaw_align_ik_control_mode)
+    env.set_ik_orientation_weight(args.guard_visual_yaw_align_ik_orientation_weight)
+    block_down = bool(
+        args.guard_visual_yaw_align_block_descent
+        and prediction.abs_error_deg >= args.guard_visual_yaw_align_block_descent_deg
+    )
+    return VisualYawAlignResult(
+        active=True,
+        applied=True,
+        blocked_down=block_down,
+        reason="applied",
+        prediction=prediction,
+        correction_deg=correction_deg,
+    )
+
+
+def should_start_guard_visual_yaw_reacquire(
+    *,
+    step: GuardedPolicyStep | None,
+    pre_info: dict[str, Any],
+    result: VisualYawAlignResult,
+    pred_history: list[float] | None,
+    attempts: int,
+    active_phase: str,
+    dist_xy: float,
+    z_above_target: float,
+    args: argparse.Namespace,
+) -> bool:
+    if not args.guard_visual_yaw_align_reacquire_enabled:
+        return False
+    if args.guard_visual_yaw_align_reacquire_max_attempts <= 0:
+        return False
+    if attempts >= args.guard_visual_yaw_align_reacquire_max_attempts:
+        return False
+    if active_phase != "inactive":
+        return False
+    profile = str(pre_info.get("geometry_name", pre_info.get("geometry_profile", "")))
+    if profile not in set(args.guard_visual_yaw_align_reacquire_profiles):
+        return False
+    if not visual_yaw_align_near_control_active(step, args):
+        return False
+    if int(pre_info.get("step_count", 0)) < args.guard_visual_yaw_align_reacquire_min_step:
+        return False
+    if not np.isfinite(dist_xy) or not np.isfinite(z_above_target):
+        return False
+    if (
+        dist_xy < args.guard_visual_yaw_align_reacquire_trigger_min_xy
+        or dist_xy > args.guard_visual_yaw_align_reacquire_trigger_max_xy
+    ):
+        return False
+    if (
+        z_above_target < args.guard_visual_yaw_align_reacquire_trigger_min_z
+        or z_above_target > args.guard_visual_yaw_align_reacquire_trigger_max_z
+    ):
+        return False
+    wall_contact_count = int(pre_info.get("peg_hole_contact_wall_count", 0))
+    if wall_contact_count > args.guard_visual_yaw_align_max_wall_contact:
+        return False
+
+    prediction = result.prediction
+    prediction_visible_ok = bool(
+        not args.guard_visual_yaw_align_reacquire_trigger_require_visible
+        or visual_yaw_prediction_has_visible_stats(prediction, args)
+    )
+    prediction_delta_ok = bool(
+        not args.guard_visual_yaw_align_reacquire_trigger_require_stable_delta
+        or visual_yaw_reacquire_delta_stable(
+            pred_history or [],
+            profile=profile,
+            window=args.guard_visual_yaw_align_reacquire_trigger_stable_window,
+            max_delta_deg=args.guard_visual_yaw_align_reacquire_trigger_max_delta_deg,
+        )
+    )
+    prediction_large = bool(
+        prediction is not None
+        and prediction.valid
+        and prediction.abs_error_deg
+        >= args.guard_visual_yaw_align_reacquire_trigger_min_pred_yaw_deg
+        and prediction_visible_ok
+        and prediction_delta_ok
+    )
+    xy_gate_large = bool(
+        args.guard_visual_yaw_align_reacquire_xy_gate_trigger_enabled
+        and prediction_visible_ok
+        and prediction_delta_ok
+        and result.reason
+        in {
+            "xy_gate",
+            "latch_xy_gate",
+            "target_hold_xy_gate",
+        }
+        and dist_xy >= args.guard_visual_yaw_align_reacquire_xy_gate_min_xy
+    )
+    return prediction_large or xy_gate_large
+
+
+def should_start_guard_visual_yaw_low_z_lateral_pop_recovery(
+    *,
+    step: GuardedPolicyStep | None,
+    pre_info: dict[str, Any],
+    attempts: int,
+    active_phase: str,
+    dist_xy: float,
+    prev_dist_xy: float,
+    z_above_target: float,
+    args: argparse.Namespace,
+) -> bool:
+    if not args.guard_visual_yaw_align_low_z_lateral_pop_recovery_enabled:
+        return False
+    if args.guard_visual_yaw_align_low_z_lateral_pop_recovery_max_attempts <= 0:
+        return False
+    if attempts >= args.guard_visual_yaw_align_low_z_lateral_pop_recovery_max_attempts:
+        return False
+    if active_phase != "inactive":
+        return False
+    profile = str(pre_info.get("geometry_name", pre_info.get("geometry_profile", "")))
+    if profile not in set(args.guard_visual_yaw_align_low_z_lateral_pop_recovery_profiles):
+        return False
+    if not visual_yaw_align_near_control_active(step, args):
+        return False
+    if (
+        int(pre_info.get("step_count", 0))
+        < args.guard_visual_yaw_align_low_z_lateral_pop_recovery_trigger_min_step
+    ):
+        return False
+    if not np.isfinite(dist_xy) or not np.isfinite(z_above_target):
+        return False
+    if (
+        z_above_target
+        > args.guard_visual_yaw_align_low_z_lateral_pop_recovery_trigger_max_z
+    ):
+        return False
+
+    current_large = bool(
+        dist_xy
+        >= args.guard_visual_yaw_align_low_z_lateral_pop_recovery_trigger_min_xy
+    )
+    sudden_pop = bool(
+        np.isfinite(prev_dist_xy)
+        and prev_dist_xy
+        <= args.guard_visual_yaw_align_low_z_lateral_pop_recovery_trigger_prev_xy
+        and dist_xy - prev_dist_xy
+        >= args.guard_visual_yaw_align_low_z_lateral_pop_recovery_trigger_xy_jump
+    )
+    return current_large or sudden_pop
 
 
 def apply_guard_near_ik_orientation_weight(
@@ -3882,6 +6136,15 @@ def evaluate_scenario(
         if args.final_insert_adapter_enabled and args.final_insert_adapter is not None
         else None
     )
+    visual_yaw_estimator = (
+        VisualYawRuntime(
+            args.guard_visual_yaw_align_model,
+            device=args.guard_visual_yaw_align_device,
+        )
+        if args.guard_visual_yaw_align_enabled
+        and args.guard_visual_yaw_align_model is not None
+        else None
+    )
     guarded_controller = GuardedPolicyController(make_guarded_config(args))
     guard_state_provider = MujocoGuardStateProvider(env)
     guard_enabled = (
@@ -3935,6 +6198,9 @@ def evaluate_scenario(
     final_insert_macro_recovery_episodes = 0
     final_insert_macro_recovery_steps: list[float] = []
     final_insert_macro_recovery_triggers: list[float] = []
+    visual_yaw_align_episodes = 0
+    visual_yaw_align_steps: list[float] = []
+    visual_yaw_align_blocked_steps: list[float] = []
     early_approach_assist_episodes = 0
     early_approach_assist_steps: list[float] = []
     early_approach_assist_triggers: list[float] = []
@@ -3995,6 +6261,28 @@ def evaluate_scenario(
             episode_final_insert_adapter_lift_pulse_steps = 0
             episode_final_insert_macro_recovery_steps = 0
             episode_final_insert_macro_recovery_triggers = 0
+            episode_visual_yaw_align_steps = 0
+            episode_visual_yaw_align_blocked_steps = 0
+            episode_visual_yaw_align_latch_steps_remaining = 0
+            episode_visual_yaw_align_aligned_descent_stable_steps = 0
+            episode_visual_yaw_align_aligned_descent_latch_steps_remaining = 0
+            episode_visual_yaw_align_hold_target_steps_remaining = 0
+            episode_visual_yaw_align_hold_target_xmat: np.ndarray | None = None
+            episode_visual_yaw_align_descent_abort_phase = "inactive"
+            episode_visual_yaw_align_descent_abort_steps_remaining = 0
+            episode_visual_yaw_align_descent_abort_attempts = 0
+            episode_visual_yaw_align_pred_history: list[float] = []
+            episode_visual_yaw_align_reacquire_phase = "inactive"
+            episode_visual_yaw_align_reacquire_steps_remaining = 0
+            episode_visual_yaw_align_reacquire_attempts = 0
+            episode_visual_yaw_align_reacquire_pred_history: list[float] = []
+            episode_visual_yaw_align_wrong_basin_hold_steps_remaining = 0
+            episode_visual_yaw_align_wrong_basin_hold_xmat: np.ndarray | None = None
+            episode_visual_yaw_align_wrong_basin_hold_attempts = 0
+            episode_visual_yaw_align_low_z_lateral_pop_recovery_phase = "inactive"
+            episode_visual_yaw_align_low_z_lateral_pop_recovery_steps_remaining = 0
+            episode_visual_yaw_align_low_z_lateral_pop_recovery_attempts = 0
+            episode_visual_yaw_align_prev_dist_xy = float("nan")
             episode_early_approach_assist_steps = 0
             episode_early_approach_assist_triggers = 0
             episode_early_approach_assist_releases = 0
@@ -4294,6 +6582,1247 @@ def evaluate_scenario(
                     pre_info,
                     args,
                 )
+                visual_yaw_align_previous_target_xmat = env.get_pose_ik_target_xmat()
+                visual_yaw_align_result = apply_guard_visual_yaw_align(
+                    env,
+                    visual_yaw_estimator,
+                    obs,
+                    step,
+                    pre_info,
+                    args,
+                )
+                target_pos = np.asarray(
+                    pre_info.get("target_pos", [np.nan, np.nan, np.nan]),
+                    dtype=np.float64,
+                )
+                peg_tip_pos = np.asarray(
+                    pre_info.get("peg_tip_pos", [np.nan, np.nan, np.nan]),
+                    dtype=np.float64,
+                )
+                dist_xy_for_visual_yaw = float(pre_info.get("dist_xy", np.inf))
+                z_above_target_for_visual_yaw = float(peg_tip_pos[2] - target_pos[2])
+                wall_contact_count_for_visual_yaw = int(
+                    pre_info.get("peg_hole_contact_wall_count", 0)
+                )
+                if args.guard_visual_yaw_align_latch_enabled:
+                    profile_for_visual_yaw = str(
+                        pre_info.get(
+                            "geometry_name",
+                            pre_info.get("geometry_profile", ""),
+                        )
+                    )
+                    latch_allowed = bool(
+                        profile_for_visual_yaw in set(args.guard_visual_yaw_align_profiles)
+                        and visual_yaw_align_near_control_active(step, args)
+                        and np.isfinite(dist_xy_for_visual_yaw)
+                        and np.isfinite(z_above_target_for_visual_yaw)
+                        and dist_xy_for_visual_yaw <= args.guard_visual_yaw_align_latch_max_xy
+                        and args.guard_visual_yaw_align_latch_min_z
+                        <= z_above_target_for_visual_yaw
+                        <= args.guard_visual_yaw_align_latch_max_z
+                    )
+                    latch_refresh = bool(
+                        visual_yaw_align_result.active
+                        or visual_yaw_align_result.applied
+                        or visual_yaw_align_result.blocked_down
+                    )
+                    if latch_refresh:
+                        episode_visual_yaw_align_latch_steps_remaining = (
+                            args.guard_visual_yaw_align_latch_steps
+                        )
+                    elif (
+                        latch_allowed
+                        and episode_visual_yaw_align_latch_steps_remaining > 0
+                        and visual_yaw_align_result.reason
+                        in {
+                            "xy_gate",
+                            "z_gate",
+                            "raw_norm_gate",
+                            "cam_std_gate",
+                            "crop_std_gate",
+                            "deadband",
+                        }
+                    ):
+                        visual_yaw_align_result = VisualYawAlignResult(
+                            active=True,
+                            applied=False,
+                            blocked_down=True,
+                            reason=f"latch_{visual_yaw_align_result.reason}",
+                            prediction=visual_yaw_align_result.prediction,
+                        )
+                        episode_visual_yaw_align_latch_steps_remaining -= 1
+                    elif not latch_allowed:
+                        episode_visual_yaw_align_latch_steps_remaining = 0
+
+                visual_yaw_prediction = visual_yaw_align_result.prediction
+                profile_for_visual_yaw_action_gate = str(
+                    pre_info.get(
+                        "geometry_name",
+                        pre_info.get("geometry_profile", ""),
+                    )
+                )
+                if (
+                    visual_yaw_prediction is not None
+                    and visual_yaw_prediction.valid
+                    and np.isfinite(visual_yaw_prediction.signed_error_deg)
+                    and visual_yaw_prediction_has_visible_stats(
+                        visual_yaw_prediction,
+                        args,
+                    )
+                ):
+                    episode_visual_yaw_align_pred_history.append(
+                        float(visual_yaw_prediction.signed_error_deg)
+                    )
+                    max_history = max(
+                        1,
+                        args.guard_visual_yaw_align_temporal_action_gate_window,
+                        args.guard_visual_yaw_align_reacquire_trigger_stable_window,
+                        args.guard_visual_yaw_align_wrong_basin_hold_stable_window,
+                    )
+                    episode_visual_yaw_align_pred_history = (
+                        episode_visual_yaw_align_pred_history[-max_history:]
+                    )
+                else:
+                    episode_visual_yaw_align_pred_history = []
+
+                if (
+                    args.guard_visual_yaw_align_temporal_action_gate_enabled
+                    and visual_yaw_align_result.applied
+                    and profile_for_visual_yaw_action_gate
+                    in set(args.guard_visual_yaw_align_temporal_action_gate_profiles)
+                    and visual_yaw_prediction is not None
+                    and visual_yaw_prediction.valid
+                ):
+                    temporal_gate_reason = ""
+                    if (
+                        visual_yaw_prediction.abs_error_deg
+                        >= args.guard_visual_yaw_align_temporal_action_gate_max_pred_yaw_deg
+                    ):
+                        temporal_gate_reason = "large_yaw"
+                    elif (
+                        visual_yaw_prediction.abs_error_deg
+                        >= args.guard_visual_yaw_align_temporal_action_gate_min_pred_yaw_deg
+                        and not visual_yaw_reacquire_delta_stable(
+                            episode_visual_yaw_align_pred_history,
+                            profile=profile_for_visual_yaw_action_gate,
+                            window=args.guard_visual_yaw_align_temporal_action_gate_window,
+                            max_delta_deg=(
+                                args.guard_visual_yaw_align_temporal_action_gate_max_delta_deg
+                            ),
+                        )
+                    ):
+                        temporal_gate_reason = "unstable_yaw"
+                    if temporal_gate_reason:
+                        if args.guard_visual_yaw_align_temporal_action_gate_reset_target:
+                            env.set_pose_ik_target_xmat(
+                                visual_yaw_align_previous_target_xmat
+                            )
+                        visual_yaw_align_result = replace(
+                            visual_yaw_align_result,
+                            active=True,
+                            applied=False,
+                            blocked_down=bool(
+                                args.guard_visual_yaw_align_temporal_action_gate_block_descent
+                            ),
+                            aligned_descent=False,
+                            target_hold=False,
+                            reason=f"temporal_action_gate_{temporal_gate_reason}",
+                            correction_deg=0.0,
+                        )
+                if args.guard_visual_yaw_align_hold_target_enabled:
+                    if visual_yaw_align_result.applied:
+                        episode_visual_yaw_align_hold_target_xmat = (
+                            env.get_pose_ik_target_xmat()
+                        )
+                    hold_target_can_arm = bool(
+                        visual_yaw_prediction is not None
+                        and visual_yaw_prediction.valid
+                        and visual_yaw_prediction.abs_error_deg
+                        <= args.guard_visual_yaw_align_hold_target_arm_yaw_deg
+                        and episode_visual_yaw_align_hold_target_xmat is not None
+                        and visual_yaw_align_result.reason
+                        in {
+                            "applied",
+                            "deadband",
+                            "yaw_ok_recenter",
+                        }
+                    )
+                    if hold_target_can_arm:
+                        episode_visual_yaw_align_hold_target_steps_remaining = (
+                            args.guard_visual_yaw_align_hold_target_steps
+                        )
+
+                    hold_target_prediction_ok = bool(
+                        visual_yaw_prediction is None
+                        or not visual_yaw_prediction.valid
+                        or visual_yaw_prediction.abs_error_deg
+                        <= args.guard_visual_yaw_align_hold_target_release_yaw_deg
+                    )
+                    hold_target_allowed = bool(
+                        episode_visual_yaw_align_hold_target_xmat is not None
+                        and visual_yaw_align_near_control_active(step, args)
+                        and np.isfinite(dist_xy_for_visual_yaw)
+                        and dist_xy_for_visual_yaw
+                        <= args.guard_visual_yaw_align_hold_target_release_xy
+                        and np.isfinite(z_above_target_for_visual_yaw)
+                        and args.guard_visual_yaw_align_hold_target_min_z
+                        <= z_above_target_for_visual_yaw
+                        <= args.guard_visual_yaw_align_hold_target_max_z
+                        and wall_contact_count_for_visual_yaw
+                        <= args.guard_visual_yaw_align_max_wall_contact
+                        and hold_target_prediction_ok
+                    )
+                    if (
+                        not visual_yaw_align_result.applied
+                        and episode_visual_yaw_align_hold_target_steps_remaining > 0
+                        and hold_target_allowed
+                    ):
+                        env.set_pose_ik_target_xmat(
+                            episode_visual_yaw_align_hold_target_xmat
+                        )
+                        env.set_ik_control_mode(
+                            args.guard_visual_yaw_align_ik_control_mode
+                        )
+                        env.set_ik_orientation_weight(
+                            args.guard_visual_yaw_align_ik_orientation_weight
+                        )
+                        visual_yaw_align_result = replace(
+                            visual_yaw_align_result,
+                            active=True,
+                            blocked_down=bool(
+                                args.guard_visual_yaw_align_hold_target_block_descent
+                            ),
+                            target_hold=True,
+                            reason=f"target_hold_{visual_yaw_align_result.reason}",
+                        )
+                        episode_visual_yaw_align_hold_target_steps_remaining -= 1
+                    elif not hold_target_allowed:
+                        episode_visual_yaw_align_hold_target_steps_remaining = 0
+
+                visual_yaw_wrong_basin_hold_triggered = False
+                if args.guard_visual_yaw_align_wrong_basin_hold_enabled:
+                    profile_for_wrong_basin_hold = profile_for_visual_yaw_action_gate
+                    wrong_basin_hold_profile_ok = bool(
+                        profile_for_wrong_basin_hold
+                        in set(args.guard_visual_yaw_align_wrong_basin_hold_profiles)
+                    )
+                    wrong_basin_hold_visible_ok = bool(
+                        not args.guard_visual_yaw_align_wrong_basin_hold_require_visible
+                        or visual_yaw_prediction_has_visible_stats(
+                            visual_yaw_prediction,
+                            args,
+                        )
+                    )
+                    wrong_basin_hold_stable_ok = bool(
+                        not args.guard_visual_yaw_align_wrong_basin_hold_require_stable_delta
+                        or visual_yaw_reacquire_delta_stable(
+                            episode_visual_yaw_align_pred_history,
+                            profile=profile_for_wrong_basin_hold,
+                            window=(
+                                args.guard_visual_yaw_align_wrong_basin_hold_stable_window
+                            ),
+                            max_delta_deg=(
+                                args.guard_visual_yaw_align_wrong_basin_hold_max_delta_deg
+                            ),
+                        )
+                    )
+                    wrong_basin_hold_allowed = bool(
+                        wrong_basin_hold_profile_ok
+                        and visual_yaw_align_near_control_active(step, args)
+                        and np.isfinite(dist_xy_for_visual_yaw)
+                        and dist_xy_for_visual_yaw
+                        <= args.guard_visual_yaw_align_wrong_basin_hold_max_xy
+                        and np.isfinite(z_above_target_for_visual_yaw)
+                        and args.guard_visual_yaw_align_wrong_basin_hold_min_z
+                        <= z_above_target_for_visual_yaw
+                        <= args.guard_visual_yaw_align_wrong_basin_hold_max_z
+                        and wall_contact_count_for_visual_yaw
+                        <= args.guard_visual_yaw_align_max_wall_contact
+                    )
+                    wrong_basin_hold_release = bool(
+                        episode_visual_yaw_align_wrong_basin_hold_xmat is not None
+                        and visual_yaw_prediction is not None
+                        and visual_yaw_prediction.valid
+                        and visual_yaw_prediction.abs_error_deg
+                        <= args.guard_visual_yaw_align_wrong_basin_hold_release_yaw_deg
+                        and np.isfinite(dist_xy_for_visual_yaw)
+                        and dist_xy_for_visual_yaw
+                        <= args.guard_visual_yaw_align_wrong_basin_hold_release_xy
+                        and np.isfinite(z_above_target_for_visual_yaw)
+                        and args.guard_visual_yaw_align_wrong_basin_hold_min_z
+                        <= z_above_target_for_visual_yaw
+                        <= args.guard_visual_yaw_align_wrong_basin_hold_max_z
+                    )
+                    if wrong_basin_hold_release or not wrong_basin_hold_allowed:
+                        episode_visual_yaw_align_wrong_basin_hold_steps_remaining = 0
+                        episode_visual_yaw_align_wrong_basin_hold_xmat = None
+                    wrong_basin_hold_can_trigger = bool(
+                        wrong_basin_hold_allowed
+                        and visual_yaw_align_result.applied
+                        and visual_yaw_prediction is not None
+                        and visual_yaw_prediction.valid
+                        and np.isfinite(visual_yaw_prediction.abs_error_deg)
+                        and visual_yaw_prediction.abs_error_deg
+                        >= args.guard_visual_yaw_align_wrong_basin_hold_min_pred_yaw_deg
+                        and wrong_basin_hold_visible_ok
+                        and wrong_basin_hold_stable_ok
+                        and args.guard_visual_yaw_align_wrong_basin_hold_steps > 0
+                    )
+                    if wrong_basin_hold_can_trigger:
+                        if (
+                            episode_visual_yaw_align_wrong_basin_hold_xmat is None
+                            or episode_visual_yaw_align_wrong_basin_hold_steps_remaining
+                            <= 0
+                        ):
+                            episode_visual_yaw_align_wrong_basin_hold_attempts += 1
+                            visual_yaw_wrong_basin_hold_triggered = True
+                        episode_visual_yaw_align_wrong_basin_hold_xmat = (
+                            env.get_pose_ik_target_xmat()
+                        )
+                        episode_visual_yaw_align_wrong_basin_hold_steps_remaining = (
+                            args.guard_visual_yaw_align_wrong_basin_hold_steps
+                        )
+
+                    if (
+                        episode_visual_yaw_align_wrong_basin_hold_xmat is not None
+                        and episode_visual_yaw_align_wrong_basin_hold_steps_remaining
+                        > 0
+                    ):
+                        env.set_pose_ik_target_xmat(
+                            episode_visual_yaw_align_wrong_basin_hold_xmat
+                        )
+                        env.set_ik_control_mode(
+                            args.guard_visual_yaw_align_ik_control_mode
+                        )
+                        env.set_ik_orientation_weight(
+                            args.guard_visual_yaw_align_ik_orientation_weight
+                        )
+                        visual_yaw_align_result = replace(
+                            visual_yaw_align_result,
+                            active=True,
+                            blocked_down=bool(
+                                args.guard_visual_yaw_align_wrong_basin_hold_block_descent
+                            ),
+                            aligned_descent=False,
+                            target_hold=False,
+                            wrong_basin_hold_active=True,
+                            wrong_basin_hold_triggered=(
+                                visual_yaw_wrong_basin_hold_triggered
+                            ),
+                            wrong_basin_hold_steps_remaining=(
+                                episode_visual_yaw_align_wrong_basin_hold_steps_remaining
+                            ),
+                            wrong_basin_hold_attempts=(
+                                episode_visual_yaw_align_wrong_basin_hold_attempts
+                            ),
+                            reason=(
+                                "wrong_basin_hold_"
+                                + f"{visual_yaw_align_result.reason}"
+                            ),
+                        )
+
+                aligned_descent_candidate = bool(
+                    args.guard_visual_yaw_align_aligned_descent_enabled
+                    and (
+                        not args.guard_visual_yaw_align_aligned_descent_require_visible
+                        or visual_yaw_align_has_visible_prediction(
+                            visual_yaw_align_result.reason
+                        )
+                    )
+                    and visual_yaw_prediction is not None
+                    and visual_yaw_prediction.valid
+                    and visual_yaw_prediction.abs_error_deg
+                    <= args.guard_visual_yaw_align_aligned_descent_yaw_deg
+                    and np.isfinite(dist_xy_for_visual_yaw)
+                    and dist_xy_for_visual_yaw
+                    <= args.guard_visual_yaw_align_aligned_descent_xy
+                    and np.isfinite(z_above_target_for_visual_yaw)
+                    and z_above_target_for_visual_yaw
+                    >= args.guard_visual_yaw_align_aligned_descent_min_z
+                    and z_above_target_for_visual_yaw
+                    <= args.guard_visual_yaw_align_aligned_descent_max_z
+                )
+                if args.guard_visual_yaw_align_aligned_descent_enabled:
+                    if aligned_descent_candidate:
+                        episode_visual_yaw_align_aligned_descent_stable_steps += 1
+                    else:
+                        episode_visual_yaw_align_aligned_descent_stable_steps = 0
+                    visual_yaw_align_result = replace(
+                        visual_yaw_align_result,
+                        aligned_descent_stable_steps=(
+                            episode_visual_yaw_align_aligned_descent_stable_steps
+                        ),
+                    )
+
+                if (
+                    aligned_descent_candidate
+                    and episode_visual_yaw_align_aligned_descent_stable_steps
+                    >= args.guard_visual_yaw_align_aligned_descent_required_steps
+                ):
+                    episode_visual_yaw_align_aligned_descent_latch_steps_remaining = (
+                        args.guard_visual_yaw_align_aligned_descent_latch_steps
+                    )
+                    visual_yaw_align_result = replace(
+                        visual_yaw_align_result,
+                        active=True,
+                        blocked_down=False,
+                        aligned_descent=True,
+                        aligned_descent_stable_steps=(
+                            episode_visual_yaw_align_aligned_descent_stable_steps
+                        ),
+                        reason="aligned_descent",
+                    )
+                elif (
+                    args.guard_visual_yaw_align_aligned_descent_enabled
+                    and episode_visual_yaw_align_aligned_descent_latch_steps_remaining
+                    > 0
+                ):
+                    latch_prediction_ok = bool(
+                        (
+                            not args.guard_visual_yaw_align_aligned_descent_require_visible
+                            or visual_yaw_align_has_visible_prediction(
+                                visual_yaw_align_result.reason
+                            )
+                        )
+                        and (
+                            visual_yaw_prediction is None
+                            or not visual_yaw_prediction.valid
+                            or visual_yaw_prediction.abs_error_deg
+                            <= args.guard_visual_yaw_align_aligned_descent_latch_release_yaw_deg
+                        )
+                    )
+                    latch_allowed = bool(
+                        visual_yaw_align_near_control_active(step, args)
+                        and np.isfinite(dist_xy_for_visual_yaw)
+                        and dist_xy_for_visual_yaw
+                        <= args.guard_visual_yaw_align_aligned_descent_latch_release_xy
+                        and np.isfinite(z_above_target_for_visual_yaw)
+                        and args.guard_visual_yaw_align_aligned_descent_latch_min_z
+                        <= z_above_target_for_visual_yaw
+                        <= args.guard_visual_yaw_align_aligned_descent_latch_max_z
+                        and wall_contact_count_for_visual_yaw
+                        <= args.guard_visual_yaw_align_max_wall_contact
+                        and latch_prediction_ok
+                    )
+                    if latch_allowed:
+                        visual_yaw_align_result = replace(
+                            visual_yaw_align_result,
+                            active=True,
+                            blocked_down=False,
+                            aligned_descent=True,
+                            aligned_descent_stable_steps=(
+                                episode_visual_yaw_align_aligned_descent_stable_steps
+                            ),
+                            reason="aligned_descent_latch",
+                        )
+                        episode_visual_yaw_align_aligned_descent_latch_steps_remaining -= 1
+                    else:
+                        episode_visual_yaw_align_aligned_descent_latch_steps_remaining = 0
+
+                low_z_late_finish_descent = bool(
+                    args.guard_visual_yaw_align_low_z_late_finish_descent_enabled
+                    and profile_for_visual_yaw_action_gate
+                    in set(args.guard_visual_yaw_align_low_z_late_finish_descent_profiles)
+                    and visual_yaw_align_near_control_active(step, args)
+                    and episode_visual_yaw_align_descent_abort_phase == "inactive"
+                    and episode_visual_yaw_align_reacquire_phase == "inactive"
+                    and int(pre_info.get("step_count", 0))
+                    >= args.guard_visual_yaw_align_low_z_late_finish_descent_min_step
+                    and visual_yaw_prediction is not None
+                    and visual_yaw_prediction.valid
+                    and np.isfinite(visual_yaw_prediction.abs_error_deg)
+                    and visual_yaw_prediction.abs_error_deg
+                    <= args.guard_visual_yaw_align_low_z_late_finish_descent_max_yaw_deg
+                    and np.isfinite(dist_xy_for_visual_yaw)
+                    and dist_xy_for_visual_yaw
+                    <= args.guard_visual_yaw_align_low_z_late_finish_descent_max_xy
+                    and np.isfinite(z_above_target_for_visual_yaw)
+                    and args.guard_visual_yaw_align_low_z_late_finish_descent_min_z
+                    <= z_above_target_for_visual_yaw
+                    <= args.guard_visual_yaw_align_low_z_late_finish_descent_max_z
+                    and wall_contact_count_for_visual_yaw
+                    <= args.guard_visual_yaw_align_max_wall_contact
+                    and (
+                        visual_yaw_align_result.aligned_descent
+                        or visual_yaw_align_result.reason
+                        in {
+                            "applied",
+                            "deadband",
+                            "yaw_ok_recenter",
+                            "target_hold_yaw_ok_recenter",
+                            "raw_norm_gate",
+                            "cam_std_gate",
+                            "crop_std_gate",
+                            "target_hold_raw_norm_gate",
+                            "target_hold_cam_std_gate",
+                            "target_hold_crop_std_gate",
+                        }
+                    )
+                )
+                if low_z_late_finish_descent:
+                    visual_yaw_align_result = replace(
+                        visual_yaw_align_result,
+                        active=True,
+                        blocked_down=False,
+                        aligned_descent=True,
+                        low_z_late_finish_descent=True,
+                        target_hold=False,
+                        reason=(
+                            "low_z_late_finish_descent_"
+                            + f"{visual_yaw_align_result.reason}"
+                        ),
+                    )
+
+                low_visibility_brake = bool(
+                    args.guard_visual_yaw_align_low_visibility_brake_enabled
+                    and visual_yaw_prediction is not None
+                    and visual_yaw_prediction.valid
+                    and visual_yaw_prediction.abs_error_deg
+                    >= args.guard_visual_yaw_align_low_visibility_brake_min_pred_yaw_deg
+                    and visual_yaw_align_result.reason
+                    in {
+                        "raw_norm_gate",
+                        "cam_std_gate",
+                        "crop_std_gate",
+                        "target_hold_raw_norm_gate",
+                        "target_hold_cam_std_gate",
+                        "target_hold_crop_std_gate",
+                    }
+                    and np.isfinite(dist_xy_for_visual_yaw)
+                    and dist_xy_for_visual_yaw
+                    >= args.guard_visual_yaw_align_low_visibility_brake_min_xy
+                    and np.isfinite(z_above_target_for_visual_yaw)
+                    and z_above_target_for_visual_yaw
+                    <= args.guard_visual_yaw_align_low_visibility_brake_max_z
+                )
+                if low_visibility_brake:
+                    visual_yaw_align_result = replace(
+                        visual_yaw_align_result,
+                        active=True,
+                        blocked_down=True,
+                        aligned_descent=False,
+                        low_visibility_brake=True,
+                        reason="low_visibility_brake",
+                    )
+
+                profile_for_visual_yaw_brake = str(
+                    pre_info.get(
+                        "geometry_name",
+                        pre_info.get("geometry_profile", ""),
+                    )
+                )
+                large_xy_low_z_brake = bool(
+                    args.guard_visual_yaw_align_large_xy_low_z_brake_enabled
+                    and args.guard_visual_yaw_align_enabled
+                    and profile_for_visual_yaw_brake
+                    in set(args.guard_visual_yaw_align_profiles)
+                    and visual_yaw_align_near_control_active(step, args)
+                    and np.isfinite(dist_xy_for_visual_yaw)
+                    and dist_xy_for_visual_yaw
+                    >= args.guard_visual_yaw_align_large_xy_low_z_brake_min_xy
+                    and np.isfinite(z_above_target_for_visual_yaw)
+                    and z_above_target_for_visual_yaw
+                    <= args.guard_visual_yaw_align_large_xy_low_z_brake_max_z
+                )
+                if large_xy_low_z_brake:
+                    visual_yaw_align_result = replace(
+                        visual_yaw_align_result,
+                        active=True,
+                        blocked_down=True,
+                        aligned_descent=False,
+                        target_hold=False,
+                        large_xy_low_z_brake=True,
+                        reason="large_xy_low_z_brake",
+                    )
+
+                visual_yaw_descent_abort_triggered = False
+                if (
+                    args.guard_visual_yaw_align_descent_abort_enabled
+                    and args.guard_visual_yaw_align_descent_abort_max_attempts > 0
+                    and episode_visual_yaw_align_descent_abort_phase == "inactive"
+                    and episode_visual_yaw_align_reacquire_phase == "inactive"
+                    and episode_visual_yaw_align_descent_abort_attempts
+                    < args.guard_visual_yaw_align_descent_abort_max_attempts
+                    and int(pre_info.get("step_count", 0))
+                    >= args.guard_visual_yaw_align_descent_abort_min_step
+                    and (
+                        not args.guard_visual_yaw_align_descent_abort_require_unreliable_visual
+                        or not visual_yaw_align_has_visible_prediction(
+                            visual_yaw_align_result.reason
+                        )
+                        or (
+                            args.guard_visual_yaw_align_descent_abort_allow_large_pred_yaw
+                            and visual_yaw_prediction is not None
+                            and visual_yaw_prediction.valid
+                            and visual_yaw_prediction.abs_error_deg
+                            >= args.guard_visual_yaw_align_descent_abort_large_pred_yaw_deg
+                        )
+                    )
+                    and profile_for_visual_yaw_brake
+                    in set(args.guard_visual_yaw_align_descent_abort_profiles)
+                    and visual_yaw_align_near_control_active(step, args)
+                    and np.isfinite(dist_xy_for_visual_yaw)
+                    and dist_xy_for_visual_yaw
+                    >= args.guard_visual_yaw_align_descent_abort_min_xy
+                    and np.isfinite(z_above_target_for_visual_yaw)
+                    and z_above_target_for_visual_yaw
+                    <= args.guard_visual_yaw_align_descent_abort_max_z
+                    and wall_contact_count_for_visual_yaw
+                    <= args.guard_visual_yaw_align_max_wall_contact
+                ):
+                    episode_visual_yaw_align_descent_abort_phase = "lift"
+                    episode_visual_yaw_align_descent_abort_steps_remaining = (
+                        args.guard_visual_yaw_align_descent_abort_lift_max_steps
+                    )
+                    episode_visual_yaw_align_descent_abort_attempts += 1
+                    visual_yaw_descent_abort_triggered = True
+                    episode_visual_yaw_align_latch_steps_remaining = 0
+                    episode_visual_yaw_align_aligned_descent_stable_steps = 0
+                    episode_visual_yaw_align_aligned_descent_latch_steps_remaining = 0
+                    episode_visual_yaw_align_hold_target_steps_remaining = 0
+                    episode_visual_yaw_align_hold_target_xmat = None
+                    episode_visual_yaw_align_wrong_basin_hold_steps_remaining = 0
+                    episode_visual_yaw_align_wrong_basin_hold_xmat = None
+                    env.reset_pose_ik_target_xmat()
+
+                if episode_visual_yaw_align_descent_abort_phase == "lift":
+                    if (
+                        z_above_target_for_visual_yaw
+                        >= args.guard_visual_yaw_align_descent_abort_lift_target_z
+                        - args.guard_visual_yaw_align_descent_abort_lift_z_tolerance
+                        or episode_visual_yaw_align_descent_abort_steps_remaining <= 0
+                    ):
+                        episode_visual_yaw_align_descent_abort_phase = "recenter"
+                        episode_visual_yaw_align_descent_abort_steps_remaining = (
+                            args.guard_visual_yaw_align_descent_abort_recenter_max_steps
+                        )
+                elif episode_visual_yaw_align_descent_abort_phase == "recenter":
+                    descent_abort_done = bool(
+                        dist_xy_for_visual_yaw
+                        <= args.guard_visual_yaw_align_descent_abort_recenter_release_xy
+                        and z_above_target_for_visual_yaw
+                        >= args.guard_visual_yaw_align_descent_abort_lift_target_z
+                        - args.guard_visual_yaw_align_descent_abort_lift_z_tolerance
+                    )
+                    if (
+                        descent_abort_done
+                        or episode_visual_yaw_align_descent_abort_steps_remaining <= 0
+                    ):
+                        episode_visual_yaw_align_descent_abort_phase = "inactive"
+                        episode_visual_yaw_align_descent_abort_steps_remaining = 0
+
+                if episode_visual_yaw_align_descent_abort_phase != "inactive":
+                    env.reset_pose_ik_target_xmat()
+                    visual_yaw_align_result = replace(
+                        visual_yaw_align_result,
+                        active=True,
+                        blocked_down=True,
+                        aligned_descent=False,
+                        target_hold=False,
+                        descent_abort_active=True,
+                        descent_abort_triggered=visual_yaw_descent_abort_triggered,
+                        descent_abort_phase=episode_visual_yaw_align_descent_abort_phase,
+                        descent_abort_attempts=episode_visual_yaw_align_descent_abort_attempts,
+                        reason=(
+                            "descent_abort_"
+                            + f"{episode_visual_yaw_align_descent_abort_phase}_"
+                            + f"{visual_yaw_align_result.reason}"
+                        ),
+                    )
+
+                visual_yaw_reacquire_triggered = False
+                visual_yaw_reacquire_descent = False
+                if (
+                    episode_visual_yaw_align_descent_abort_phase == "inactive"
+                    and should_start_guard_visual_yaw_reacquire(
+                    step=step,
+                    pre_info=pre_info,
+                    result=visual_yaw_align_result,
+                    pred_history=episode_visual_yaw_align_pred_history,
+                    attempts=episode_visual_yaw_align_reacquire_attempts,
+                    active_phase=episode_visual_yaw_align_reacquire_phase,
+                    dist_xy=dist_xy_for_visual_yaw,
+                    z_above_target=z_above_target_for_visual_yaw,
+                    args=args,
+                    )
+                ):
+                    episode_visual_yaw_align_reacquire_phase = "lift"
+                    episode_visual_yaw_align_reacquire_steps_remaining = (
+                        args.guard_visual_yaw_align_reacquire_lift_max_steps
+                    )
+                    episode_visual_yaw_align_reacquire_attempts += 1
+                    episode_visual_yaw_align_reacquire_pred_history = []
+                    visual_yaw_reacquire_triggered = True
+                    episode_visual_yaw_align_latch_steps_remaining = 0
+                    episode_visual_yaw_align_aligned_descent_stable_steps = 0
+                    episode_visual_yaw_align_aligned_descent_latch_steps_remaining = 0
+                    episode_visual_yaw_align_hold_target_steps_remaining = 0
+                    episode_visual_yaw_align_hold_target_xmat = None
+                    episode_visual_yaw_align_wrong_basin_hold_steps_remaining = 0
+                    episode_visual_yaw_align_wrong_basin_hold_xmat = None
+                    env.reset_pose_ik_target_xmat()
+
+                if episode_visual_yaw_align_reacquire_phase == "lift":
+                    if (
+                        z_above_target_for_visual_yaw
+                        >= args.guard_visual_yaw_align_reacquire_lift_target_z
+                        - args.guard_visual_yaw_align_reacquire_lift_z_tolerance
+                        or episode_visual_yaw_align_reacquire_steps_remaining <= 0
+                    ):
+                        episode_visual_yaw_align_reacquire_phase = "recenter"
+                        episode_visual_yaw_align_reacquire_steps_remaining = (
+                            args.guard_visual_yaw_align_reacquire_recenter_max_steps
+                        )
+                elif episode_visual_yaw_align_reacquire_phase == "recenter":
+                    reacquire_recenter_done = bool(
+                        dist_xy_for_visual_yaw
+                        <= args.guard_visual_yaw_align_reacquire_recenter_release_xy
+                        and z_above_target_for_visual_yaw
+                        >= args.guard_visual_yaw_align_reacquire_lift_target_z
+                        - args.guard_visual_yaw_align_reacquire_lift_z_tolerance
+                    )
+                    if (
+                        reacquire_recenter_done
+                        or episode_visual_yaw_align_reacquire_steps_remaining <= 0
+                    ):
+                        episode_visual_yaw_align_reacquire_phase = "inactive"
+                        episode_visual_yaw_align_reacquire_steps_remaining = 0
+                        episode_visual_yaw_align_reacquire_pred_history = []
+
+                if episode_visual_yaw_align_reacquire_phase != "inactive":
+                    if (
+                        visual_yaw_prediction is not None
+                        and visual_yaw_prediction.valid
+                        and np.isfinite(visual_yaw_prediction.signed_error_deg)
+                    ):
+                        episode_visual_yaw_align_reacquire_pred_history.append(
+                            float(visual_yaw_prediction.signed_error_deg)
+                        )
+                        max_history = max(
+                            1,
+                            args.guard_visual_yaw_align_reacquire_relaxed_yaw_stable_window,
+                        )
+                        episode_visual_yaw_align_reacquire_pred_history = (
+                            episode_visual_yaw_align_reacquire_pred_history[-max_history:]
+                        )
+                    else:
+                        episode_visual_yaw_align_reacquire_pred_history = []
+                    reacquire_relaxed_visible_ok = bool(
+                        not args.guard_visual_yaw_align_reacquire_relaxed_yaw_require_visible
+                        or visual_yaw_prediction_has_visible_stats(
+                            visual_yaw_prediction,
+                            args,
+                        )
+                    )
+                    reacquire_relaxed_delta_ok = bool(
+                        not args.guard_visual_yaw_align_reacquire_relaxed_yaw_require_stable_delta
+                        or visual_yaw_reacquire_delta_stable(
+                            episode_visual_yaw_align_reacquire_pred_history,
+                            profile=str(
+                                pre_info.get(
+                                    "geometry_name",
+                                    pre_info.get("geometry_profile", ""),
+                                )
+                            ),
+                            window=(
+                                args.guard_visual_yaw_align_reacquire_relaxed_yaw_stable_window
+                            ),
+                            max_delta_deg=(
+                                args.guard_visual_yaw_align_reacquire_relaxed_yaw_max_delta_deg
+                            ),
+                        )
+                    )
+                    reacquire_relaxed_reason_ok = bool(
+                        visual_yaw_align_result.reason
+                        in {
+                            "raw_norm_gate",
+                            "cam_std_gate",
+                            "crop_std_gate",
+                            "low_visibility_brake",
+                            "target_hold_raw_norm_gate",
+                            "target_hold_cam_std_gate",
+                            "target_hold_crop_std_gate",
+                        }
+                        or (
+                            args.guard_visual_yaw_align_reacquire_relaxed_yaw_allow_visible_reapply
+                            and visual_yaw_align_has_visible_prediction(
+                                visual_yaw_align_result.reason
+                            )
+                        )
+                    )
+                    if (
+                        args.guard_visual_yaw_align_reacquire_relaxed_yaw_enabled
+                        and (
+                            not visual_yaw_align_result.applied
+                            or args.guard_visual_yaw_align_reacquire_relaxed_yaw_allow_visible_reapply
+                        )
+                        and visual_yaw_prediction is not None
+                        and visual_yaw_prediction.valid
+                        and visual_yaw_prediction.abs_error_deg
+                        >= args.guard_visual_yaw_align_reacquire_relaxed_yaw_min_pred_yaw_deg
+                        and reacquire_relaxed_visible_ok
+                        and reacquire_relaxed_delta_ok
+                        and np.isfinite(z_above_target_for_visual_yaw)
+                        and args.guard_visual_yaw_align_reacquire_relaxed_yaw_min_z
+                        <= z_above_target_for_visual_yaw
+                        <= args.guard_visual_yaw_align_reacquire_relaxed_yaw_max_z
+                        and reacquire_relaxed_reason_ok
+                    ):
+                        relaxed_correction_deg = float(
+                            np.clip(
+                                -visual_yaw_prediction.signed_error_deg,
+                                -args.guard_visual_yaw_align_reacquire_relaxed_yaw_max_correction_deg,
+                                args.guard_visual_yaw_align_reacquire_relaxed_yaw_max_correction_deg,
+                            )
+                        )
+                        env.set_pose_ik_target_by_planar_yaw_correction(
+                            relaxed_correction_deg
+                        )
+                        env.set_ik_control_mode(
+                            args.guard_visual_yaw_align_ik_control_mode
+                        )
+                        env.set_ik_orientation_weight(
+                            args.guard_visual_yaw_align_ik_orientation_weight
+                        )
+                        visual_yaw_align_result = replace(
+                            visual_yaw_align_result,
+                            active=True,
+                            applied=True,
+                            blocked_down=True,
+                            aligned_descent=False,
+                            target_hold=False,
+                            reason=(
+                                "reacquire_relaxed_yaw_"
+                                f"{visual_yaw_align_result.reason}"
+                            ),
+                            correction_deg=relaxed_correction_deg,
+                        )
+                    visual_yaw_reacquire_descent = bool(
+                        args.guard_visual_yaw_align_reacquire_descent_enabled
+                        and episode_visual_yaw_align_reacquire_phase == "recenter"
+                        and visual_yaw_prediction is not None
+                        and visual_yaw_prediction.valid
+                        and visual_yaw_prediction.abs_error_deg
+                        <= args.guard_visual_yaw_align_reacquire_descent_yaw_deg
+                        and visual_yaw_align_has_visible_prediction(
+                            visual_yaw_align_result.reason
+                        )
+                        and np.isfinite(dist_xy_for_visual_yaw)
+                        and dist_xy_for_visual_yaw
+                        <= args.guard_visual_yaw_align_reacquire_descent_xy
+                        and np.isfinite(z_above_target_for_visual_yaw)
+                        and args.guard_visual_yaw_align_reacquire_descent_min_z
+                        <= z_above_target_for_visual_yaw
+                        <= args.guard_visual_yaw_align_reacquire_descent_max_z
+                    )
+                    visual_yaw_align_result = replace(
+                        visual_yaw_align_result,
+                        active=True,
+                        blocked_down=not visual_yaw_reacquire_descent,
+                        aligned_descent=visual_yaw_reacquire_descent,
+                        target_hold=False,
+                        reacquire_active=True,
+                        reacquire_triggered=visual_yaw_reacquire_triggered,
+                        reacquire_phase=episode_visual_yaw_align_reacquire_phase,
+                        reacquire_attempts=episode_visual_yaw_align_reacquire_attempts,
+                        reason=(
+                            (
+                                "reacquire_descent_"
+                                if visual_yaw_reacquire_descent
+                                else "reacquire_"
+                            )
+                            + f"{episode_visual_yaw_align_reacquire_phase}_"
+                            + f"{visual_yaw_align_result.reason}"
+                        ),
+                    )
+                else:
+                    episode_visual_yaw_align_reacquire_pred_history = []
+
+                visual_yaw_low_z_lateral_pop_recovery_triggered = False
+                if (
+                    episode_visual_yaw_align_descent_abort_phase == "inactive"
+                    and episode_visual_yaw_align_reacquire_phase == "inactive"
+                    and should_start_guard_visual_yaw_low_z_lateral_pop_recovery(
+                        step=step,
+                        pre_info=pre_info,
+                        attempts=(
+                            episode_visual_yaw_align_low_z_lateral_pop_recovery_attempts
+                        ),
+                        active_phase=(
+                            episode_visual_yaw_align_low_z_lateral_pop_recovery_phase
+                        ),
+                        dist_xy=dist_xy_for_visual_yaw,
+                        prev_dist_xy=episode_visual_yaw_align_prev_dist_xy,
+                        z_above_target=z_above_target_for_visual_yaw,
+                        args=args,
+                    )
+                ):
+                    episode_visual_yaw_align_low_z_lateral_pop_recovery_phase = "lift"
+                    episode_visual_yaw_align_low_z_lateral_pop_recovery_steps_remaining = (
+                        args.guard_visual_yaw_align_low_z_lateral_pop_recovery_lift_max_steps
+                    )
+                    episode_visual_yaw_align_low_z_lateral_pop_recovery_attempts += 1
+                    visual_yaw_low_z_lateral_pop_recovery_triggered = True
+                    episode_visual_yaw_align_latch_steps_remaining = 0
+                    episode_visual_yaw_align_aligned_descent_stable_steps = 0
+                    episode_visual_yaw_align_aligned_descent_latch_steps_remaining = 0
+                    episode_visual_yaw_align_hold_target_steps_remaining = 0
+                    episode_visual_yaw_align_hold_target_xmat = None
+                    episode_visual_yaw_align_wrong_basin_hold_steps_remaining = 0
+                    episode_visual_yaw_align_wrong_basin_hold_xmat = None
+                    env.reset_pose_ik_target_xmat()
+
+                if (
+                    episode_visual_yaw_align_low_z_lateral_pop_recovery_phase
+                    == "lift"
+                ):
+                    if (
+                        z_above_target_for_visual_yaw
+                        >= args.guard_visual_yaw_align_low_z_lateral_pop_recovery_lift_target_z
+                        - args.guard_visual_yaw_align_low_z_lateral_pop_recovery_lift_z_tolerance
+                        or episode_visual_yaw_align_low_z_lateral_pop_recovery_steps_remaining
+                        <= 0
+                    ):
+                        episode_visual_yaw_align_low_z_lateral_pop_recovery_phase = (
+                            "recenter"
+                        )
+                        episode_visual_yaw_align_low_z_lateral_pop_recovery_steps_remaining = (
+                            args.guard_visual_yaw_align_low_z_lateral_pop_recovery_recenter_max_steps
+                        )
+                elif (
+                    episode_visual_yaw_align_low_z_lateral_pop_recovery_phase
+                    == "recenter"
+                ):
+                    low_z_lateral_pop_recovery_done = bool(
+                        dist_xy_for_visual_yaw
+                        <= args.guard_visual_yaw_align_low_z_lateral_pop_recovery_recenter_release_xy
+                        and z_above_target_for_visual_yaw
+                        >= args.guard_visual_yaw_align_low_z_lateral_pop_recovery_lift_target_z
+                        - args.guard_visual_yaw_align_low_z_lateral_pop_recovery_lift_z_tolerance
+                    )
+                    if (
+                        low_z_lateral_pop_recovery_done
+                        or episode_visual_yaw_align_low_z_lateral_pop_recovery_steps_remaining
+                        <= 0
+                    ):
+                        episode_visual_yaw_align_low_z_lateral_pop_recovery_phase = (
+                            "inactive"
+                        )
+                        episode_visual_yaw_align_low_z_lateral_pop_recovery_steps_remaining = 0
+
+                if (
+                    episode_visual_yaw_align_low_z_lateral_pop_recovery_phase
+                    != "inactive"
+                ):
+                    env.reset_pose_ik_target_xmat()
+                    visual_yaw_align_result = replace(
+                        visual_yaw_align_result,
+                        active=True,
+                        blocked_down=True,
+                        aligned_descent=False,
+                        target_hold=False,
+                        low_z_lateral_pop_recovery_active=True,
+                        low_z_lateral_pop_recovery_triggered=(
+                            visual_yaw_low_z_lateral_pop_recovery_triggered
+                        ),
+                        low_z_lateral_pop_recovery_phase=(
+                            episode_visual_yaw_align_low_z_lateral_pop_recovery_phase
+                        ),
+                        low_z_lateral_pop_recovery_attempts=(
+                            episode_visual_yaw_align_low_z_lateral_pop_recovery_attempts
+                        ),
+                        low_z_lateral_pop_recovery_steps_remaining=(
+                            episode_visual_yaw_align_low_z_lateral_pop_recovery_steps_remaining
+                        ),
+                        reason=(
+                            "low_z_lateral_pop_recovery_"
+                            + f"{episode_visual_yaw_align_low_z_lateral_pop_recovery_phase}_"
+                            + f"{visual_yaw_align_result.reason}"
+                        ),
+                    )
+
+                if (
+                    visual_yaw_align_result.blocked_down
+                    or visual_yaw_align_result.aligned_descent
+                    or visual_yaw_align_result.low_visibility_brake
+                    or visual_yaw_align_result.large_xy_low_z_brake
+                    or visual_yaw_align_result.descent_abort_active
+                    or visual_yaw_align_result.reacquire_active
+                    or visual_yaw_align_result.wrong_basin_hold_active
+                    or visual_yaw_align_result.low_z_lateral_pop_recovery_active
+                ):
+                    action = np.asarray(action, dtype=np.float32).copy()
+                    if visual_yaw_align_result.descent_abort_active:
+                        xy_error = target_pos[:2] - peg_tip_pos[:2]
+                        xy_error_norm = float(np.linalg.norm(xy_error))
+                        if visual_yaw_align_result.descent_abort_phase == "recenter":
+                            if (
+                                np.all(np.isfinite(xy_error))
+                                and xy_error_norm
+                                > args.guard_visual_yaw_align_descent_abort_recenter_release_xy
+                            ):
+                                action[:2] = (
+                                    xy_error
+                                    / max(xy_error_norm, 1e-9)
+                                    * min(
+                                        args.guard_visual_yaw_align_descent_abort_max_xy_action,
+                                        xy_error_norm,
+                                    )
+                                ).astype(np.float32)
+                            else:
+                                action[:2] = 0.0
+                        else:
+                            action[:2] = 0.0
+                        if (
+                            visual_yaw_align_result.descent_abort_phase == "lift"
+                            or z_above_target_for_visual_yaw
+                            < args.guard_visual_yaw_align_descent_abort_lift_target_z
+                            - args.guard_visual_yaw_align_descent_abort_lift_z_tolerance
+                        ):
+                            action[2] = max(
+                                float(action[2]),
+                                args.guard_visual_yaw_align_descent_abort_max_up_action,
+                            )
+                        else:
+                            action[2] = max(float(action[2]), 0.0)
+                    elif visual_yaw_align_result.reacquire_active:
+                        xy_error = target_pos[:2] - peg_tip_pos[:2]
+                        xy_error_norm = float(np.linalg.norm(xy_error))
+                        if visual_yaw_align_result.reacquire_phase == "recenter":
+                            if (
+                                np.all(np.isfinite(xy_error))
+                                and xy_error_norm
+                                > args.guard_visual_yaw_align_reacquire_recenter_release_xy
+                            ):
+                                action[:2] = (
+                                    xy_error
+                                    / max(xy_error_norm, 1e-9)
+                                    * min(
+                                        args.guard_visual_yaw_align_reacquire_max_xy_action,
+                                        xy_error_norm,
+                                    )
+                                ).astype(np.float32)
+                            else:
+                                action[:2] = 0.0
+                        else:
+                            action[:2] = 0.0
+                        if (
+                            visual_yaw_align_result.reacquire_phase == "lift"
+                            or z_above_target_for_visual_yaw
+                            < args.guard_visual_yaw_align_reacquire_lift_target_z
+                            - args.guard_visual_yaw_align_reacquire_lift_z_tolerance
+                        ):
+                            action[2] = max(
+                                float(action[2]),
+                                args.guard_visual_yaw_align_reacquire_max_up_action,
+                            )
+                        elif visual_yaw_reacquire_descent:
+                            action[2] = -float(
+                                args.guard_visual_yaw_align_reacquire_descent_max_down_action
+                            )
+                        else:
+                            action[2] = max(float(action[2]), 0.0)
+                    elif visual_yaw_align_result.low_z_lateral_pop_recovery_active:
+                        xy_error = target_pos[:2] - peg_tip_pos[:2]
+                        xy_error_norm = float(np.linalg.norm(xy_error))
+                        if (
+                            visual_yaw_align_result.low_z_lateral_pop_recovery_phase
+                            == "recenter"
+                        ):
+                            if (
+                                np.all(np.isfinite(xy_error))
+                                and xy_error_norm
+                                > args.guard_visual_yaw_align_low_z_lateral_pop_recovery_recenter_release_xy
+                            ):
+                                action[:2] = (
+                                    xy_error
+                                    / max(xy_error_norm, 1e-9)
+                                    * min(
+                                        args.guard_visual_yaw_align_low_z_lateral_pop_recovery_max_xy_action,
+                                        xy_error_norm,
+                                    )
+                                ).astype(np.float32)
+                            else:
+                                action[:2] = 0.0
+                        else:
+                            action[:2] = 0.0
+                        if (
+                            visual_yaw_align_result.low_z_lateral_pop_recovery_phase
+                            == "lift"
+                            or z_above_target_for_visual_yaw
+                            < args.guard_visual_yaw_align_low_z_lateral_pop_recovery_lift_target_z
+                            - args.guard_visual_yaw_align_low_z_lateral_pop_recovery_lift_z_tolerance
+                        ):
+                            action[2] = max(
+                                float(action[2]),
+                                args.guard_visual_yaw_align_low_z_lateral_pop_recovery_max_up_action,
+                            )
+                        else:
+                            action[2] = max(float(action[2]), 0.0)
+                    elif visual_yaw_align_result.blocked_down:
+                        action[2] = max(float(action[2]), 0.0)
+                    if (
+                        not visual_yaw_align_result.descent_abort_active
+                        and not visual_yaw_align_result.reacquire_active
+                        and not visual_yaw_align_result.low_z_lateral_pop_recovery_active
+                        and (
+                            args.guard_visual_yaw_align_hold_xy_enabled
+                            or visual_yaw_align_result.aligned_descent
+                            or visual_yaw_align_result.wrong_basin_hold_active
+                        )
+                    ):
+                        xy_error = target_pos[:2] - peg_tip_pos[:2]
+                        xy_error_norm = float(np.linalg.norm(xy_error))
+                        xy_tolerance = (
+                            0.0
+                            if visual_yaw_align_result.aligned_descent
+                            else (
+                                args.guard_visual_yaw_align_wrong_basin_hold_release_xy
+                                if visual_yaw_align_result.wrong_basin_hold_active
+                                else args.guard_visual_yaw_align_hold_xy_tolerance
+                            )
+                        )
+                        xy_action_limit = (
+                            (
+                                args.guard_visual_yaw_align_low_z_late_finish_descent_max_xy_action
+                                if visual_yaw_align_result.low_z_late_finish_descent
+                                else args.guard_visual_yaw_align_aligned_descent_max_xy_action
+                            )
+                            if visual_yaw_align_result.aligned_descent
+                            else (
+                                args.guard_visual_yaw_align_wrong_basin_hold_max_xy_action
+                                if visual_yaw_align_result.wrong_basin_hold_active
+                                else args.guard_visual_yaw_align_hold_max_xy_action
+                            )
+                        )
+                        if (
+                            np.all(np.isfinite(xy_error))
+                            and xy_error_norm > xy_tolerance
+                        ):
+                            action[:2] = (
+                                xy_error
+                                / max(xy_error_norm, 1e-9)
+                                * min(
+                                    xy_action_limit,
+                                    xy_error_norm,
+                                )
+                            ).astype(np.float32)
+                        else:
+                            action[:2] = 0.0
+                    if visual_yaw_align_result.descent_abort_active:
+                        pass
+                    elif visual_yaw_align_result.reacquire_active:
+                        pass
+                    elif visual_yaw_align_result.low_z_lateral_pop_recovery_active:
+                        pass
+                    elif visual_yaw_align_result.aligned_descent:
+                        max_down_action = (
+                            args.guard_visual_yaw_align_low_z_late_finish_descent_max_down_action
+                            if visual_yaw_align_result.low_z_late_finish_descent
+                            else args.guard_visual_yaw_align_aligned_descent_max_down_action
+                        )
+                        action[2] = -float(max_down_action)
+                    elif visual_yaw_align_result.low_visibility_brake:
+                        action[2] = max(
+                            float(action[2]),
+                            args.guard_visual_yaw_align_low_visibility_brake_up_action,
+                        )
+                    elif visual_yaw_align_result.large_xy_low_z_brake:
+                        action[:2] = 0.0
+                        action[2] = max(
+                            float(action[2]),
+                            args.guard_visual_yaw_align_large_xy_low_z_brake_up_action,
+                        )
+                    elif args.guard_visual_yaw_align_hold_z_enabled:
+                        z_above_target = z_above_target_for_visual_yaw
+                        if (
+                            np.isfinite(z_above_target)
+                            and z_above_target < args.guard_visual_yaw_align_hold_z_min
+                        ):
+                            action[2] = max(
+                                float(action[2]),
+                                args.guard_visual_yaw_align_hold_up_action,
+                            )
+                    if (
+                        visual_yaw_align_result.low_visibility_brake
+                        and args.guard_visual_yaw_align_low_visibility_brake_flush_history
+                    ):
+                        env.flush_control_randomization_history(
+                            np.asarray(action, dtype=np.float32)
+                        )
+                    if (
+                        visual_yaw_align_result.large_xy_low_z_brake
+                        and args.guard_visual_yaw_align_large_xy_low_z_brake_flush_history
+                    ):
+                        env.flush_control_randomization_history(
+                            np.asarray(action, dtype=np.float32)
+                        )
+                    if (
+                        visual_yaw_align_result.descent_abort_active
+                        and args.guard_visual_yaw_align_descent_abort_flush_history
+                    ):
+                        env.flush_control_randomization_history(
+                            np.asarray(action, dtype=np.float32)
+                        )
+                    if (
+                        visual_yaw_align_result.reacquire_active
+                        and args.guard_visual_yaw_align_reacquire_flush_history
+                    ):
+                        env.flush_control_randomization_history(
+                            np.asarray(action, dtype=np.float32)
+                        )
+                    if (
+                        visual_yaw_align_result.low_z_lateral_pop_recovery_active
+                        and args.guard_visual_yaw_align_low_z_lateral_pop_recovery_flush_history
+                    ):
+                        env.flush_control_randomization_history(
+                            np.asarray(action, dtype=np.float32)
+                        )
+                    if (
+                        visual_yaw_align_result.low_z_late_finish_descent
+                        and args.guard_visual_yaw_align_low_z_late_finish_descent_flush_history
+                    ):
+                        env.flush_control_randomization_history(
+                            np.asarray(action, dtype=np.float32)
+                        )
+                    if (
+                        visual_yaw_align_result.wrong_basin_hold_active
+                        and args.guard_visual_yaw_align_wrong_basin_hold_flush_history
+                    ):
+                        env.flush_control_randomization_history(
+                            np.asarray(action, dtype=np.float32)
+                        )
+                if episode_visual_yaw_align_descent_abort_phase != "inactive":
+                    episode_visual_yaw_align_descent_abort_steps_remaining = max(
+                        episode_visual_yaw_align_descent_abort_steps_remaining - 1,
+                        0,
+                    )
+                if episode_visual_yaw_align_reacquire_phase != "inactive":
+                    episode_visual_yaw_align_reacquire_steps_remaining = max(
+                        episode_visual_yaw_align_reacquire_steps_remaining - 1,
+                        0,
+                    )
+                if (
+                    episode_visual_yaw_align_low_z_lateral_pop_recovery_phase
+                    != "inactive"
+                ):
+                    episode_visual_yaw_align_low_z_lateral_pop_recovery_steps_remaining = max(
+                        episode_visual_yaw_align_low_z_lateral_pop_recovery_steps_remaining
+                        - 1,
+                        0,
+                    )
+                if episode_visual_yaw_align_wrong_basin_hold_xmat is not None:
+                    episode_visual_yaw_align_wrong_basin_hold_steps_remaining = max(
+                        episode_visual_yaw_align_wrong_basin_hold_steps_remaining - 1,
+                        0,
+                    )
+                    if episode_visual_yaw_align_wrong_basin_hold_steps_remaining <= 0:
+                        episode_visual_yaw_align_wrong_basin_hold_xmat = None
+                episode_visual_yaw_align_steps += int(visual_yaw_align_result.applied)
+                episode_visual_yaw_align_blocked_steps += int(
+                    visual_yaw_align_result.blocked_down
+                )
+                episode_visual_yaw_align_prev_dist_xy = dist_xy_for_visual_yaw
                 if (
                     args.guard_final_servo_square_recovery_escape_flush_control_history
                     and step is not None
@@ -4362,6 +7891,7 @@ def evaluate_scenario(
                             guard_square_pose_yaw_align_active=(
                                 guard_square_pose_yaw_align_active
                             ),
+                            visual_yaw_align_result=visual_yaw_align_result,
                             step=step,
                             guard_enabled=guard_enabled,
                             guarded=guarded,
@@ -4408,6 +7938,7 @@ def evaluate_scenario(
                 episode_final_insert_macro_recovery_steps > 0
                 or episode_final_insert_macro_recovery_triggers > 0
             )
+            visual_yaw_align_episodes += int(episode_visual_yaw_align_steps > 0)
             early_approach_assist_episodes += int(
                 episode_early_approach_assist_steps > 0
                 or episode_early_approach_assist_triggers > 0
@@ -4457,6 +7988,10 @@ def evaluate_scenario(
             final_insert_macro_recovery_triggers.append(
                 float(episode_final_insert_macro_recovery_triggers)
             )
+            visual_yaw_align_steps.append(float(episode_visual_yaw_align_steps))
+            visual_yaw_align_blocked_steps.append(
+                float(episode_visual_yaw_align_blocked_steps)
+            )
             early_approach_assist_steps.append(
                 float(episode_early_approach_assist_steps)
             )
@@ -4498,6 +8033,17 @@ def evaluate_scenario(
             hole_half_size = float(info.get("hole_half_size", np.nan))
             peg_radius = float(info.get("peg_radius", np.nan))
             final_peg_tilt_angle_deg = float(info.get("peg_tilt_angle_deg", np.nan))
+            final_shape_yaw_error_deg = float(info.get("shape_yaw_error_deg", np.nan))
+            success_shape_yaw_required = bool(
+                info.get("success_shape_yaw_required", False)
+            )
+            success_shape_yaw_ok = bool(info.get("success_shape_yaw_ok", True))
+            success_shape_yaw_error_deg = float(
+                info.get("success_shape_yaw_error_deg", np.nan)
+            )
+            success_shape_yaw_tolerance_deg = float(
+                info.get("success_shape_yaw_tolerance_deg", np.nan)
+            )
             final_square_peg_yaw_error_deg = float(
                 info.get("square_peg_yaw_error_deg", np.nan)
             )
@@ -4561,6 +8107,13 @@ def evaluate_scenario(
                     "final_insert_macro_recovery_triggers": (
                         episode_final_insert_macro_recovery_triggers
                     ),
+                    "visual_yaw_align_steps": episode_visual_yaw_align_steps,
+                    "visual_yaw_align_step_fraction": (
+                        episode_visual_yaw_align_steps / max(step_count, 1)
+                    ),
+                    "visual_yaw_align_blocked_steps": (
+                        episode_visual_yaw_align_blocked_steps
+                    ),
                     "early_approach_assist_steps": episode_early_approach_assist_steps,
                     "early_approach_assist_triggers": (
                         episode_early_approach_assist_triggers
@@ -4604,8 +8157,14 @@ def evaluate_scenario(
                     "hole_shape": hole_shape,
                     "hole_half_size": hole_half_size,
                     "peg_radius": peg_radius,
-                    "hole_clearance": hole_half_size - peg_radius,
+                    "hole_clearance": float(info.get("hole_clearance", np.nan)),
+                    "success_shape_yaw_required": success_shape_yaw_required,
+                    "success_shape_yaw_ok": success_shape_yaw_ok,
+                    "success_shape_yaw_error_deg": success_shape_yaw_error_deg,
+                    "success_shape_yaw_tolerance_deg": success_shape_yaw_tolerance_deg,
+                    "shape_yaw_clearance": float(info.get("shape_yaw_clearance", np.nan)),
                     "final_peg_tilt_angle_deg": final_peg_tilt_angle_deg,
+                    "final_shape_yaw_error_deg": final_shape_yaw_error_deg,
                     "final_square_peg_yaw_error_deg": final_square_peg_yaw_error_deg,
                     "final_square_peg_topdown_clearance_margin": (
                         final_square_peg_topdown_clearance_margin
@@ -4642,6 +8201,8 @@ def evaluate_scenario(
     mean_final_insert_macro_recovery_steps = mean(
         final_insert_macro_recovery_steps
     )
+    mean_visual_yaw_align_steps = mean(visual_yaw_align_steps)
+    mean_visual_yaw_align_blocked_steps = mean(visual_yaw_align_blocked_steps)
     mean_early_approach_assist_steps = mean(early_approach_assist_steps)
     mean_stateful_recovery_steps = mean(stateful_recovery_steps)
     mean_final_servo_steps = mean(final_servo_steps)
@@ -4739,6 +8300,15 @@ def evaluate_scenario(
         "final_insert_macro_recovery_episode_rate": (
             final_insert_macro_recovery_episodes / args.episodes
         ),
+        "visual_yaw_align_enabled": bool(args.guard_visual_yaw_align_enabled),
+        "mean_visual_yaw_align_steps": mean_visual_yaw_align_steps,
+        "mean_visual_yaw_align_fraction": (
+            mean_visual_yaw_align_steps / max(mean_steps, 1e-9)
+        ),
+        "mean_visual_yaw_align_blocked_steps": (
+            mean_visual_yaw_align_blocked_steps
+        ),
+        "visual_yaw_align_episode_rate": visual_yaw_align_episodes / args.episodes,
         "mean_early_approach_assist_steps": mean_early_approach_assist_steps,
         "mean_early_approach_assist_fraction": (
             mean_early_approach_assist_steps / max(mean_steps, 1e-9)
@@ -4856,6 +8426,19 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Guard final servo IK orientation weight: `{args.guard_final_servo_ik_orientation_weight}`",
         f"- Guard final servo tip-priority IK enabled: `{args.guard_final_servo_tip_priority_ik_enabled}`",
         f"- Guard square pose yaw-align enabled/mode/weight: `{args.guard_square_pose_yaw_align_enabled}/{args.guard_square_pose_yaw_align_ik_control_mode}/{args.guard_square_pose_yaw_align_ik_orientation_weight}`",
+        f"- Guard visual yaw-align enabled/model/mode/weight: `{args.guard_visual_yaw_align_enabled}/{args.guard_visual_yaw_align_model}/{args.guard_visual_yaw_align_ik_control_mode}/{args.guard_visual_yaw_align_ik_orientation_weight}`",
+        f"- Guard visual yaw-align gates XY/Z/contact/raw/std/deadband/max correction/block: `{args.guard_visual_yaw_align_max_xy}/{args.guard_visual_yaw_align_min_z}-{args.guard_visual_yaw_align_max_z}/{args.guard_visual_yaw_align_max_wall_contact}/{args.guard_visual_yaw_align_min_raw_norm}/{args.guard_visual_yaw_align_min_cam_std}:{args.guard_visual_yaw_align_min_crop_std}/{args.guard_visual_yaw_align_deadband_deg}/{args.guard_visual_yaw_align_max_correction_deg}/{args.guard_visual_yaw_align_block_descent}:{args.guard_visual_yaw_align_block_descent_deg}`",
+        f"- Guard visual yaw-align temporal action gate enabled/profiles/window/delta/min-max yaw/block/reset: `{args.guard_visual_yaw_align_temporal_action_gate_enabled}/{','.join(args.guard_visual_yaw_align_temporal_action_gate_profiles)}/{args.guard_visual_yaw_align_temporal_action_gate_window}/{args.guard_visual_yaw_align_temporal_action_gate_max_delta_deg}/{args.guard_visual_yaw_align_temporal_action_gate_min_pred_yaw_deg}-{args.guard_visual_yaw_align_temporal_action_gate_max_pred_yaw_deg}/{args.guard_visual_yaw_align_temporal_action_gate_block_descent}:{args.guard_visual_yaw_align_temporal_action_gate_reset_target}`",
+        f"- Guard visual yaw-align target hold enabled/steps/arm yaw/release yaw/XY/Z/block: `{args.guard_visual_yaw_align_hold_target_enabled}/{args.guard_visual_yaw_align_hold_target_steps}/{args.guard_visual_yaw_align_hold_target_arm_yaw_deg}/{args.guard_visual_yaw_align_hold_target_release_yaw_deg}/{args.guard_visual_yaw_align_hold_target_release_xy}/{args.guard_visual_yaw_align_hold_target_min_z}-{args.guard_visual_yaw_align_hold_target_max_z}/{args.guard_visual_yaw_align_hold_target_block_descent}`",
+        f"- Guard visual yaw-align low-visibility brake enabled/yaw/XY/Z/up/flush: `{args.guard_visual_yaw_align_low_visibility_brake_enabled}/{args.guard_visual_yaw_align_low_visibility_brake_min_pred_yaw_deg}/{args.guard_visual_yaw_align_low_visibility_brake_min_xy}/{args.guard_visual_yaw_align_low_visibility_brake_max_z}/{args.guard_visual_yaw_align_low_visibility_brake_up_action}/{args.guard_visual_yaw_align_low_visibility_brake_flush_history}`",
+        f"- Guard visual yaw-align large-XY/low-Z brake enabled/XY/Z/up/flush: `{args.guard_visual_yaw_align_large_xy_low_z_brake_enabled}/{args.guard_visual_yaw_align_large_xy_low_z_brake_min_xy}/{args.guard_visual_yaw_align_large_xy_low_z_brake_max_z}/{args.guard_visual_yaw_align_large_xy_low_z_brake_up_action}/{args.guard_visual_yaw_align_large_xy_low_z_brake_flush_history}`",
+        f"- Guard visual yaw-align low-Z lateral-pop recovery enabled/profiles/attempts/step/trigger XY/Z/prev+jump/lift/recenter/actions/flush: `{args.guard_visual_yaw_align_low_z_lateral_pop_recovery_enabled}/{','.join(args.guard_visual_yaw_align_low_z_lateral_pop_recovery_profiles)}/{args.guard_visual_yaw_align_low_z_lateral_pop_recovery_max_attempts}/{args.guard_visual_yaw_align_low_z_lateral_pop_recovery_trigger_min_step}/{args.guard_visual_yaw_align_low_z_lateral_pop_recovery_trigger_min_xy}/{args.guard_visual_yaw_align_low_z_lateral_pop_recovery_trigger_max_z}/{args.guard_visual_yaw_align_low_z_lateral_pop_recovery_trigger_prev_xy}+{args.guard_visual_yaw_align_low_z_lateral_pop_recovery_trigger_xy_jump}/{args.guard_visual_yaw_align_low_z_lateral_pop_recovery_lift_target_z}:{args.guard_visual_yaw_align_low_z_lateral_pop_recovery_lift_z_tolerance}:{args.guard_visual_yaw_align_low_z_lateral_pop_recovery_lift_max_steps}/{args.guard_visual_yaw_align_low_z_lateral_pop_recovery_recenter_release_xy}:{args.guard_visual_yaw_align_low_z_lateral_pop_recovery_recenter_max_steps}/{args.guard_visual_yaw_align_low_z_lateral_pop_recovery_max_up_action}:{args.guard_visual_yaw_align_low_z_lateral_pop_recovery_max_xy_action}/{args.guard_visual_yaw_align_low_z_lateral_pop_recovery_flush_history}`",
+        f"- Guard visual yaw-align descent-abort enabled/profiles/attempts/step/unreliable-visual/large-yaw/trigger XYmin/Zmax/lift/recenter/actions/flush: `{args.guard_visual_yaw_align_descent_abort_enabled}/{','.join(args.guard_visual_yaw_align_descent_abort_profiles)}/{args.guard_visual_yaw_align_descent_abort_max_attempts}/{args.guard_visual_yaw_align_descent_abort_min_step}/{args.guard_visual_yaw_align_descent_abort_require_unreliable_visual}/{args.guard_visual_yaw_align_descent_abort_allow_large_pred_yaw}:{args.guard_visual_yaw_align_descent_abort_large_pred_yaw_deg}/{args.guard_visual_yaw_align_descent_abort_min_xy}:{args.guard_visual_yaw_align_descent_abort_max_z}/{args.guard_visual_yaw_align_descent_abort_lift_target_z}:{args.guard_visual_yaw_align_descent_abort_lift_z_tolerance}:{args.guard_visual_yaw_align_descent_abort_lift_max_steps}/{args.guard_visual_yaw_align_descent_abort_recenter_release_xy}:{args.guard_visual_yaw_align_descent_abort_recenter_max_steps}/{args.guard_visual_yaw_align_descent_abort_max_up_action}:{args.guard_visual_yaw_align_descent_abort_max_xy_action}/{args.guard_visual_yaw_align_descent_abort_flush_history}`",
+        f"- Guard visual yaw-align re-acquire enabled/profiles/attempts/step/trigger XY/Z/yaw/trigger visible-stable/xy-gate/lift/recenter/actions/flush/relaxed yaw/descent: `{args.guard_visual_yaw_align_reacquire_enabled}/{','.join(args.guard_visual_yaw_align_reacquire_profiles)}/{args.guard_visual_yaw_align_reacquire_max_attempts}/{args.guard_visual_yaw_align_reacquire_min_step}/{args.guard_visual_yaw_align_reacquire_trigger_min_xy}-{args.guard_visual_yaw_align_reacquire_trigger_max_xy}/{args.guard_visual_yaw_align_reacquire_trigger_min_z}-{args.guard_visual_yaw_align_reacquire_trigger_max_z}/{args.guard_visual_yaw_align_reacquire_trigger_min_pred_yaw_deg}/{args.guard_visual_yaw_align_reacquire_trigger_require_visible}:{args.guard_visual_yaw_align_reacquire_trigger_require_stable_delta}:{args.guard_visual_yaw_align_reacquire_trigger_stable_window}:{args.guard_visual_yaw_align_reacquire_trigger_max_delta_deg}/{args.guard_visual_yaw_align_reacquire_xy_gate_trigger_enabled}:{args.guard_visual_yaw_align_reacquire_xy_gate_min_xy}/{args.guard_visual_yaw_align_reacquire_lift_target_z}:{args.guard_visual_yaw_align_reacquire_lift_z_tolerance}:{args.guard_visual_yaw_align_reacquire_lift_max_steps}/{args.guard_visual_yaw_align_reacquire_recenter_release_xy}:{args.guard_visual_yaw_align_reacquire_recenter_max_steps}/{args.guard_visual_yaw_align_reacquire_max_up_action}:{args.guard_visual_yaw_align_reacquire_max_xy_action}/{args.guard_visual_yaw_align_reacquire_flush_history}/{args.guard_visual_yaw_align_reacquire_relaxed_yaw_enabled}:{args.guard_visual_yaw_align_reacquire_relaxed_yaw_min_pred_yaw_deg}:{args.guard_visual_yaw_align_reacquire_relaxed_yaw_max_correction_deg}:{args.guard_visual_yaw_align_reacquire_relaxed_yaw_min_z}-{args.guard_visual_yaw_align_reacquire_relaxed_yaw_max_z}:{args.guard_visual_yaw_align_reacquire_relaxed_yaw_require_visible}:{args.guard_visual_yaw_align_reacquire_relaxed_yaw_require_stable_delta}:{args.guard_visual_yaw_align_reacquire_relaxed_yaw_stable_window}:{args.guard_visual_yaw_align_reacquire_relaxed_yaw_max_delta_deg}:{args.guard_visual_yaw_align_reacquire_relaxed_yaw_allow_visible_reapply}/{args.guard_visual_yaw_align_reacquire_descent_enabled}:{args.guard_visual_yaw_align_reacquire_descent_yaw_deg}:{args.guard_visual_yaw_align_reacquire_descent_xy}:{args.guard_visual_yaw_align_reacquire_descent_min_z}-{args.guard_visual_yaw_align_reacquire_descent_max_z}:{args.guard_visual_yaw_align_reacquire_descent_max_down_action}`",
+        f"- Guard visual yaw-align wrong-basin hold enabled/profiles/yaw/visible/stable/steps/release XY/max XY/Z/action/block/flush: `{args.guard_visual_yaw_align_wrong_basin_hold_enabled}/{','.join(args.guard_visual_yaw_align_wrong_basin_hold_profiles)}/{args.guard_visual_yaw_align_wrong_basin_hold_min_pred_yaw_deg}/{args.guard_visual_yaw_align_wrong_basin_hold_require_visible}/{args.guard_visual_yaw_align_wrong_basin_hold_require_stable_delta}:{args.guard_visual_yaw_align_wrong_basin_hold_stable_window}:{args.guard_visual_yaw_align_wrong_basin_hold_max_delta_deg}/{args.guard_visual_yaw_align_wrong_basin_hold_steps}/{args.guard_visual_yaw_align_wrong_basin_hold_release_yaw_deg}:{args.guard_visual_yaw_align_wrong_basin_hold_release_xy}/{args.guard_visual_yaw_align_wrong_basin_hold_max_xy}/{args.guard_visual_yaw_align_wrong_basin_hold_min_z}-{args.guard_visual_yaw_align_wrong_basin_hold_max_z}/{args.guard_visual_yaw_align_wrong_basin_hold_max_xy_action}/{args.guard_visual_yaw_align_wrong_basin_hold_block_descent}/{args.guard_visual_yaw_align_wrong_basin_hold_flush_history}`",
+        f"- Guard visual yaw-align aligned descent enabled/yaw/XY/Z/steps/visible/down/XY action: `{args.guard_visual_yaw_align_aligned_descent_enabled}/{args.guard_visual_yaw_align_aligned_descent_yaw_deg}/{args.guard_visual_yaw_align_aligned_descent_xy}/{args.guard_visual_yaw_align_aligned_descent_min_z}-{args.guard_visual_yaw_align_aligned_descent_max_z}/{args.guard_visual_yaw_align_aligned_descent_required_steps}/{args.guard_visual_yaw_align_aligned_descent_require_visible}/{args.guard_visual_yaw_align_aligned_descent_max_down_action}/{args.guard_visual_yaw_align_aligned_descent_max_xy_action}`",
+        f"- Guard visual yaw-align aligned descent latch steps/release XY/yaw/Z: `{args.guard_visual_yaw_align_aligned_descent_latch_steps}/{args.guard_visual_yaw_align_aligned_descent_latch_release_xy}/{args.guard_visual_yaw_align_aligned_descent_latch_release_yaw_deg}/{args.guard_visual_yaw_align_aligned_descent_latch_min_z}-{args.guard_visual_yaw_align_aligned_descent_latch_max_z}`",
+        f"- Guard visual yaw-align low-Z late-finish descent enabled/profiles/step/XY/Z/yaw/actions/flush: `{args.guard_visual_yaw_align_low_z_late_finish_descent_enabled}/{','.join(args.guard_visual_yaw_align_low_z_late_finish_descent_profiles)}/{args.guard_visual_yaw_align_low_z_late_finish_descent_min_step}/{args.guard_visual_yaw_align_low_z_late_finish_descent_max_xy}/{args.guard_visual_yaw_align_low_z_late_finish_descent_min_z}-{args.guard_visual_yaw_align_low_z_late_finish_descent_max_z}/{args.guard_visual_yaw_align_low_z_late_finish_descent_max_yaw_deg}/{args.guard_visual_yaw_align_low_z_late_finish_descent_max_xy_action}:{args.guard_visual_yaw_align_low_z_late_finish_descent_max_down_action}/{args.guard_visual_yaw_align_low_z_late_finish_descent_flush_history}`",
         f"- Guard contact unjam IK orientation weight: `{args.guard_contact_unjam_ik_orientation_weight}`",
         f"- Guard contact reinsert orient IK orientation weight: `{args.guard_contact_reinsert_orient_ik_orientation_weight}`",
         f"- Guard contact reinsert high IK orientation weight: `{args.guard_contact_reinsert_high_ik_orientation_weight}`",
@@ -4907,9 +8490,13 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Guard final servo descend bias requires stateful recovery: `{args.guard_final_servo_descend_xy_bias_requires_stateful_recovery}`",
         f"- Guard final servo recovery mode/soft lift/min height/z tol/hold/max up: `{args.guard_final_servo_recovery_mode}/{args.guard_final_servo_soft_unjam_lift}/{args.guard_final_servo_soft_unjam_min_height}/{args.guard_final_servo_soft_unjam_z_tolerance}/{args.guard_final_servo_soft_unjam_hold_steps}/{args.guard_final_servo_soft_unjam_max_up_action}`",
         f"- Guard final servo square recovery enabled/tilt/steps/XY/Z/lift: `{args.guard_final_servo_square_recovery_enabled}/{args.guard_final_servo_square_recovery_tilt_deg}/{args.guard_final_servo_square_recovery_tilt_steps}/{args.guard_final_servo_square_recovery_xy_max}/{args.guard_final_servo_square_recovery_z_max}/{args.guard_final_servo_square_recovery_lift_height}`",
-        f"- Guard final servo square recovery escape enabled/XY/Z/height/release/late release/max steps/max XY/max up/max clearance/early/pre-lift/on-trigger/flush control history: `{args.guard_final_servo_square_recovery_escape_enabled}/{args.guard_final_servo_square_recovery_escape_xy}/{args.guard_final_servo_square_recovery_escape_z_min}-{args.guard_final_servo_square_recovery_escape_z_max}/{args.guard_final_servo_square_recovery_escape_height}/{args.guard_final_servo_square_recovery_escape_release_xy}/{args.guard_final_servo_square_recovery_escape_late_release_xy}@{args.guard_final_servo_square_recovery_escape_late_release_min_steps_since_reset}/{args.guard_final_servo_square_recovery_escape_max_steps}/{args.guard_final_servo_square_recovery_escape_max_xy_action}/{args.guard_final_servo_square_recovery_escape_max_up_action}/{args.guard_final_servo_square_recovery_escape_max_clearance}/{args.guard_final_servo_square_recovery_escape_early_contact_enabled}:{args.guard_final_servo_square_recovery_escape_early_contact_wall_steps}:{args.guard_final_servo_square_recovery_escape_early_contact_xy_max}:{args.guard_final_servo_square_recovery_escape_early_contact_z_min}-{args.guard_final_servo_square_recovery_escape_early_contact_z_max}:{args.guard_final_servo_square_recovery_escape_early_contact_margin_threshold}:require_bad_margin={args.guard_final_servo_square_recovery_escape_early_contact_require_bad_margin}/{args.guard_final_servo_square_recovery_escape_pre_lift_steps}/{args.guard_final_servo_square_recovery_escape_pre_lift_on_trigger}/{args.guard_final_servo_square_recovery_escape_flush_control_history}`",
-        f"- Guard final servo square recovery escape direct fast-settle enabled/XY/Z/contact/max steps/min episode steps/max down@Z/max XY/fast-down margin min: `{args.guard_final_servo_square_recovery_escape_direct_fast_settle_enabled}/{args.guard_final_servo_square_recovery_escape_direct_fast_settle_xy_max}/{args.guard_final_servo_square_recovery_escape_direct_fast_settle_z_max}/{args.guard_final_servo_square_recovery_escape_direct_fast_settle_contact_max}/{args.guard_final_servo_square_recovery_escape_direct_fast_settle_max_steps}/{args.guard_final_servo_square_recovery_escape_direct_fast_settle_min_steps_since_reset}/{args.guard_final_servo_square_recovery_escape_direct_fast_settle_max_down_action}@{args.guard_final_servo_square_recovery_escape_direct_fast_settle_max_down_z_min}/{args.guard_final_servo_square_recovery_escape_direct_fast_settle_max_xy_action}/{args.guard_final_servo_square_recovery_escape_direct_fast_settle_fast_down_margin_min}`",
+        f"- Guard final servo square recovery escape enabled/XY/Z/height/late height/release/late release/max steps/max XY/max up/max clearance/early/pre-lift/on-trigger/flush control history: `{args.guard_final_servo_square_recovery_escape_enabled}/{args.guard_final_servo_square_recovery_escape_xy}/{args.guard_final_servo_square_recovery_escape_z_min}-{args.guard_final_servo_square_recovery_escape_z_max}/{args.guard_final_servo_square_recovery_escape_height}/{args.guard_final_servo_square_recovery_escape_late_height_enabled}:{args.guard_final_servo_square_recovery_escape_late_height}@{args.guard_final_servo_square_recovery_escape_late_height_min_steps_since_reset}/{args.guard_final_servo_square_recovery_escape_release_xy}/{args.guard_final_servo_square_recovery_escape_late_release_xy}@{args.guard_final_servo_square_recovery_escape_late_release_min_steps_since_reset}/{args.guard_final_servo_square_recovery_escape_max_steps}/{args.guard_final_servo_square_recovery_escape_max_xy_action}/{args.guard_final_servo_square_recovery_escape_max_up_action}/{args.guard_final_servo_square_recovery_escape_max_clearance}/{args.guard_final_servo_square_recovery_escape_early_contact_enabled}:{args.guard_final_servo_square_recovery_escape_early_contact_wall_steps}:{args.guard_final_servo_square_recovery_escape_early_contact_xy_max}:{args.guard_final_servo_square_recovery_escape_early_contact_z_min}-{args.guard_final_servo_square_recovery_escape_early_contact_z_max}:{args.guard_final_servo_square_recovery_escape_early_contact_margin_threshold}:require_bad_margin={args.guard_final_servo_square_recovery_escape_early_contact_require_bad_margin}/{args.guard_final_servo_square_recovery_escape_pre_lift_steps}/{args.guard_final_servo_square_recovery_escape_pre_lift_on_trigger}/{args.guard_final_servo_square_recovery_escape_flush_control_history}`",
+        f"- Guard final servo square recovery escape direct fast-settle enabled/XY/Zmin-Zmax/contact/max steps/min-max episode steps/from escape/max down@Z/max XY/fast-down margin min: `{args.guard_final_servo_square_recovery_escape_direct_fast_settle_enabled}/{args.guard_final_servo_square_recovery_escape_direct_fast_settle_xy_max}/{args.guard_final_servo_square_recovery_escape_direct_fast_settle_z_min}-{args.guard_final_servo_square_recovery_escape_direct_fast_settle_z_max}/{args.guard_final_servo_square_recovery_escape_direct_fast_settle_contact_max}/{args.guard_final_servo_square_recovery_escape_direct_fast_settle_max_steps}/{args.guard_final_servo_square_recovery_escape_direct_fast_settle_min_steps_since_reset}-{args.guard_final_servo_square_recovery_escape_direct_fast_settle_max_steps_since_reset}/{args.guard_final_servo_square_recovery_escape_direct_fast_settle_from_escape_enabled}:{args.guard_final_servo_square_recovery_escape_direct_fast_settle_from_escape_min_phase_steps}/{args.guard_final_servo_square_recovery_escape_direct_fast_settle_max_down_action}@{args.guard_final_servo_square_recovery_escape_direct_fast_settle_max_down_z_min}/{args.guard_final_servo_square_recovery_escape_direct_fast_settle_max_xy_action}/{args.guard_final_servo_square_recovery_escape_direct_fast_settle_fast_down_margin_min}`",
         f"- Guard final servo square recovery escape recenter no-up/descend enabled/XY/Z/contact/margin/max down: `{args.guard_final_servo_square_recovery_escape_recenter_no_up_enabled}/{args.guard_final_servo_square_recovery_escape_recenter_descend_enabled}/{args.guard_final_servo_square_recovery_escape_recenter_descend_xy_max}/{args.guard_final_servo_square_recovery_escape_recenter_descend_z_min}-{args.guard_final_servo_square_recovery_escape_recenter_descend_z_max}/{args.guard_final_servo_square_recovery_escape_recenter_descend_contact_max}/{args.guard_final_servo_square_recovery_escape_recenter_descend_margin_min}/{args.guard_final_servo_square_recovery_escape_recenter_descend_max_down_action}`",
+        f"- Guard final servo square recovery escape recenter drift-lift enabled/min phase/XY/Z/contact/yaw/tilt: `{args.guard_final_servo_square_recovery_escape_recenter_drift_lift_enabled}/{args.guard_final_servo_square_recovery_escape_recenter_drift_lift_min_phase_steps}/{args.guard_final_servo_square_recovery_escape_recenter_drift_lift_xy_min}/{args.guard_final_servo_square_recovery_escape_recenter_drift_lift_z_min}-{args.guard_final_servo_square_recovery_escape_recenter_drift_lift_z_max}/{args.guard_final_servo_square_recovery_escape_recenter_drift_lift_contact_max}/{args.guard_final_servo_square_recovery_escape_recenter_drift_lift_yaw_min_deg}/{args.guard_final_servo_square_recovery_escape_recenter_drift_lift_tilt_min_deg}`",
+        f"- Guard final servo square recovery escape late recenter descend enabled/min episode/min phase/XY/Z/contact/margin/tilt/max down/max XY/hold release@Z: `{args.guard_final_servo_square_recovery_escape_late_recenter_descend_enabled}/{args.guard_final_servo_square_recovery_escape_late_recenter_descend_min_steps_since_reset}/{args.guard_final_servo_square_recovery_escape_late_recenter_descend_min_phase_steps}/{args.guard_final_servo_square_recovery_escape_late_recenter_descend_xy_max}/{args.guard_final_servo_square_recovery_escape_late_recenter_descend_z_min}-{args.guard_final_servo_square_recovery_escape_late_recenter_descend_z_max}/{args.guard_final_servo_square_recovery_escape_late_recenter_descend_contact_max}/{args.guard_final_servo_square_recovery_escape_late_recenter_descend_margin_min}-{args.guard_final_servo_square_recovery_escape_late_recenter_descend_margin_max}/{args.guard_final_servo_square_recovery_escape_late_recenter_descend_tilt_max_deg}/{args.guard_final_servo_square_recovery_escape_late_recenter_descend_max_down_action}/{args.guard_final_servo_square_recovery_escape_late_recenter_descend_max_xy_action}/{args.guard_final_servo_square_recovery_escape_late_recenter_descend_hold_release_enabled}@{args.guard_final_servo_square_recovery_escape_late_recenter_descend_hold_z_min}`",
+        f"- Guard final servo square recovery escape late clean direct finish enabled/min episode/min phase/brake/XY/Z/contact/margins/yaw/tilt: `{args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_enabled}/{args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_min_steps_since_reset}/{args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_min_phase_steps}/{args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_min_brake_attempts}/{args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_xy_max}/{args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_z_min}-{args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_z_max}/{args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_contact_max}/{args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_margin_min}:{args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_topdown_margin_min}/{args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_yaw_max_deg}/{args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_tilt_max_deg}`",
+        f"- Guard final servo square recovery escape no-contact XY-pop recenter enabled/XY/Z/contact/max pop-hold/margins/yaw/tilt: `{args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_enabled}/{args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_xy_min}-{args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_xy_max}/{args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_z_min}-{args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_z_max}/{args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_contact_max}/{args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_max_contact_pop_hold_attempts}/{args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_margin_min}:{args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_topdown_margin_min}/{args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_yaw_max_deg}/{args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_tilt_max_deg}`",
         f"- Guard final servo square recovery escape early-risk enabled/steps/XY/Z/margin: `{args.guard_final_servo_square_recovery_escape_early_risk_enabled}/{args.guard_final_servo_square_recovery_escape_early_risk_steps}/{args.guard_final_servo_square_recovery_escape_early_risk_xy_max}/{args.guard_final_servo_square_recovery_escape_early_risk_z_min}-{args.guard_final_servo_square_recovery_escape_early_risk_z_max}/{args.guard_final_servo_square_recovery_escape_early_risk_margin_threshold}`",
         f"- Guard final servo split recovery enabled: `{args.guard_final_servo_split_recovery_enabled}`",
         f"- Guard final servo contact reinsert enabled: `{args.guard_final_servo_contact_reinsert_enabled}`",
@@ -4920,11 +8507,29 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Guard final servo near-miss steps/XY/Z/contact/tilt/max steps/max down/bias: `{args.guard_final_servo_near_miss_steps}/{args.guard_final_servo_near_miss_xy_max}/{args.guard_final_servo_near_miss_z_max}/{args.guard_final_servo_near_miss_contact_max}/{args.guard_final_servo_near_miss_tilt_max_deg}/{args.guard_final_servo_near_miss_max_steps}/{args.guard_final_servo_near_miss_max_down_action}/{tuple(args.guard_final_servo_near_miss_xy_bias)}`",
         f"- Guard final servo square fast settle enabled/XY/Z/release/contact/tilt/max steps/max XY/low-Z XY@Z/max down/low-Z down@Z: `{args.guard_final_servo_square_fast_settle_enabled}/{args.guard_final_servo_square_fast_settle_xy_max}/{args.guard_final_servo_square_fast_settle_z_max}/{args.guard_final_servo_square_fast_settle_release_xy}/{args.guard_final_servo_square_fast_settle_contact_max}/{args.guard_final_servo_square_fast_settle_tilt_max_deg}/{args.guard_final_servo_square_fast_settle_max_steps}/{args.guard_final_servo_square_fast_settle_max_xy_action}/{args.guard_final_servo_square_fast_settle_low_z_max_xy_action}@{args.guard_final_servo_square_fast_settle_low_z_threshold}/{args.guard_final_servo_square_fast_settle_max_down_action}/{args.guard_final_servo_square_fast_settle_low_z_max_down_action}@{args.guard_final_servo_square_fast_settle_low_z_down_threshold}`",
         f"- Guard final servo square fast settle late down boost enabled/max down/max XY/XY/Z/brake/contact/phase/margin/clean: `{args.guard_final_servo_square_fast_settle_late_down_boost_enabled}/{args.guard_final_servo_square_fast_settle_late_down_boost_max_down_action}/{args.guard_final_servo_square_fast_settle_late_down_boost_max_xy_action}/{args.guard_final_servo_square_fast_settle_late_down_boost_xy_max}/{args.guard_final_servo_square_fast_settle_late_down_boost_z_min}-{args.guard_final_servo_square_fast_settle_late_down_boost_z_max}/{args.guard_final_servo_square_fast_settle_late_down_boost_min_brake_attempts}/{args.guard_final_servo_square_fast_settle_late_down_boost_contact_max}/{args.guard_final_servo_square_fast_settle_late_down_boost_min_phase_steps}/{args.guard_final_servo_square_fast_settle_late_down_boost_margin_min}/{args.guard_final_servo_square_fast_settle_late_down_boost_min_clean_steps}`",
-        f"- Guard final servo square fast settle clearance hold enabled/steps/XY/Z/margin/contact/brake/phase/attempts/max up: `{args.guard_final_servo_square_fast_settle_clearance_hold_enabled}/{args.guard_final_servo_square_fast_settle_clearance_hold_steps}/{args.guard_final_servo_square_fast_settle_clearance_hold_xy_max}/{args.guard_final_servo_square_fast_settle_clearance_hold_z_min}-{args.guard_final_servo_square_fast_settle_clearance_hold_z_max}/{args.guard_final_servo_square_fast_settle_clearance_hold_margin_min}-{args.guard_final_servo_square_fast_settle_clearance_hold_margin_threshold}/{args.guard_final_servo_square_fast_settle_clearance_hold_contact_max}/{args.guard_final_servo_square_fast_settle_clearance_hold_min_brake_attempts}/{args.guard_final_servo_square_fast_settle_clearance_hold_min_phase_steps}/{args.guard_final_servo_square_fast_settle_clearance_hold_max_attempts}/{args.guard_final_servo_square_fast_settle_clearance_hold_max_up_action}`",
-        f"- Guard final servo square fast settle low-Z relief enabled/wall/XY/Z/margin/contact/brake/phase/attempts/lift/steps/release/max up/max XY: `{args.guard_final_servo_square_fast_settle_low_z_relief_enabled}/{args.guard_final_servo_square_fast_settle_low_z_relief_wall_count}/{args.guard_final_servo_square_fast_settle_low_z_relief_xy_max}/{args.guard_final_servo_square_fast_settle_low_z_relief_z_min}-{args.guard_final_servo_square_fast_settle_low_z_relief_z_max}/{args.guard_final_servo_square_fast_settle_low_z_relief_margin_min}-{args.guard_final_servo_square_fast_settle_low_z_relief_margin_threshold}/{args.guard_final_servo_square_fast_settle_low_z_relief_contact_max}/{args.guard_final_servo_square_fast_settle_low_z_relief_min_brake_attempts}/{args.guard_final_servo_square_fast_settle_low_z_relief_min_phase_steps}/{args.guard_final_servo_square_fast_settle_low_z_relief_max_attempts}/{args.guard_final_servo_square_fast_settle_low_z_relief_lift_height}@{args.guard_final_servo_square_fast_settle_low_z_relief_target_z_max}/{args.guard_final_servo_square_fast_settle_low_z_relief_lift_steps}:{args.guard_final_servo_square_fast_settle_low_z_relief_recenter_steps}/{args.guard_final_servo_square_fast_settle_low_z_relief_release_xy}/{args.guard_final_servo_square_fast_settle_low_z_relief_max_up_action}/{args.guard_final_servo_square_fast_settle_low_z_relief_max_xy_action}`",
-        f"- Guard final servo square fast settle low-Z stall relief enabled/XY/Z/margin/contact/brake/phase/stall/attempts/hold: `{args.guard_final_servo_square_fast_settle_low_z_stall_relief_enabled}/{args.guard_final_servo_square_fast_settle_low_z_stall_relief_xy_max}/{args.guard_final_servo_square_fast_settle_low_z_stall_relief_z_min}-{args.guard_final_servo_square_fast_settle_low_z_stall_relief_z_max}/{args.guard_final_servo_square_fast_settle_low_z_stall_relief_margin_min}-{args.guard_final_servo_square_fast_settle_low_z_stall_relief_margin_threshold}/{args.guard_final_servo_square_fast_settle_low_z_stall_relief_contact_max}/{args.guard_final_servo_square_fast_settle_low_z_stall_relief_min_brake_attempts}/{args.guard_final_servo_square_fast_settle_low_z_stall_relief_min_phase_steps}/{args.guard_final_servo_square_fast_settle_low_z_stall_relief_min_stall_steps}/{args.guard_final_servo_square_fast_settle_low_z_stall_relief_max_attempts}/{args.guard_final_servo_square_fast_settle_low_z_stall_relief_hold_enabled}:{args.guard_final_servo_square_fast_settle_low_z_stall_relief_hold_steps}:{args.guard_final_servo_square_fast_settle_low_z_stall_relief_hold_max_up_action}`",
-        f"- Guard final servo square contact brake enabled/wall/XY/Z/lift/release/stable/max steps/max attempts/max XY/max up/clearance/margin/require bad margin/exhausted escape/reset/exhausted continue: `{args.guard_final_servo_square_contact_brake_enabled}/{args.guard_final_servo_square_contact_brake_wall_steps}/{args.guard_final_servo_square_contact_brake_xy_max}/{args.guard_final_servo_square_contact_brake_z_min}-{args.guard_final_servo_square_contact_brake_z_max}/{args.guard_final_servo_square_contact_brake_lift_height}@{args.guard_final_servo_square_contact_brake_lift_z_max}/{args.guard_final_servo_square_contact_brake_release_xy}/{args.guard_final_servo_square_contact_brake_stable_steps}/{args.guard_final_servo_square_contact_brake_max_steps}/{args.guard_final_servo_square_contact_brake_max_attempts}/{args.guard_final_servo_square_contact_brake_max_xy_action}/{args.guard_final_servo_square_contact_brake_max_up_action}/{args.guard_final_servo_square_contact_brake_max_clearance}/{args.guard_final_servo_square_contact_brake_margin_threshold}/{args.guard_final_servo_square_contact_brake_require_bad_margin}/{args.guard_final_servo_square_contact_brake_exhausted_escape_enabled}/{args.guard_final_servo_square_contact_brake_reset_attempts_after_escape_enabled}/{args.guard_final_servo_square_contact_brake_exhausted_continue_enabled}:{args.guard_final_servo_square_contact_brake_exhausted_continue_xy_max}:{args.guard_final_servo_square_contact_brake_exhausted_continue_z_min}-{args.guard_final_servo_square_contact_brake_exhausted_continue_z_max}:{args.guard_final_servo_square_contact_brake_exhausted_continue_contact_max}:{args.guard_final_servo_square_contact_brake_exhausted_continue_tilt_max_deg}:{args.guard_final_servo_square_contact_brake_exhausted_continue_margin_min}`",
-        f"- Guard final servo square contact brake preemptive hold enabled/wall/steps/min attempts/XY/Z/max up/clearance/margin/require bad margin/yaw min/expanded XY: `{args.guard_final_servo_square_contact_brake_preemptive_hold_enabled}/{args.guard_final_servo_square_contact_brake_preemptive_hold_wall_steps}/{args.guard_final_servo_square_contact_brake_preemptive_hold_steps}/{args.guard_final_servo_square_contact_brake_preemptive_hold_min_brake_attempts}/{args.guard_final_servo_square_contact_brake_preemptive_hold_xy_max}/{args.guard_final_servo_square_contact_brake_preemptive_hold_z_min}-{args.guard_final_servo_square_contact_brake_preemptive_hold_z_max}/{args.guard_final_servo_square_contact_brake_preemptive_hold_max_up_action}/{args.guard_final_servo_square_contact_brake_preemptive_hold_max_clearance}/{args.guard_final_servo_square_contact_brake_preemptive_hold_margin_threshold}/{args.guard_final_servo_square_contact_brake_preemptive_hold_require_bad_margin}/{args.guard_final_servo_square_contact_brake_preemptive_hold_yaw_min_deg}/{args.guard_final_servo_square_contact_brake_preemptive_hold_expanded_xy_enabled}:{args.guard_final_servo_square_contact_brake_preemptive_hold_expanded_xy_max}@{args.guard_final_servo_square_contact_brake_preemptive_hold_expanded_z_min}:margin>={args.guard_final_servo_square_contact_brake_preemptive_hold_expanded_margin_min}:yaw<={args.guard_final_servo_square_contact_brake_preemptive_hold_expanded_yaw_max_deg}`",
+        f"- Guard final servo square fast settle low-Z contact down guard enabled/min step/wall/XY/Z/brake/max up: `{args.guard_final_servo_square_fast_settle_low_z_contact_down_guard_enabled}/{args.guard_final_servo_square_fast_settle_low_z_contact_down_guard_min_steps_since_reset}/{args.guard_final_servo_square_fast_settle_low_z_contact_down_guard_wall_count}/{args.guard_final_servo_square_fast_settle_low_z_contact_down_guard_xy_max}/{args.guard_final_servo_square_fast_settle_low_z_contact_down_guard_z_max}/{args.guard_final_servo_square_fast_settle_low_z_contact_down_guard_min_brake_attempts}/{args.guard_final_servo_square_fast_settle_low_z_contact_down_guard_max_up_action}`",
+        f"- Guard final servo square fast settle contact-pop hold enabled/steps/wall/XY/Z/contact/phase/brake/attempts/max up: `{args.guard_final_servo_square_fast_settle_contact_pop_hold_enabled}/{args.guard_final_servo_square_fast_settle_contact_pop_hold_steps}/{args.guard_final_servo_square_fast_settle_contact_pop_hold_wall_count}/{args.guard_final_servo_square_fast_settle_contact_pop_hold_xy_min}-{args.guard_final_servo_square_fast_settle_contact_pop_hold_xy_max}/{args.guard_final_servo_square_fast_settle_contact_pop_hold_z_min}-{args.guard_final_servo_square_fast_settle_contact_pop_hold_z_max}/{args.guard_final_servo_square_fast_settle_contact_pop_hold_contact_max}/{args.guard_final_servo_square_fast_settle_contact_pop_hold_min_phase_steps}/{args.guard_final_servo_square_fast_settle_contact_pop_hold_min_brake_attempts}/{args.guard_final_servo_square_fast_settle_contact_pop_hold_max_attempts}/{args.guard_final_servo_square_fast_settle_contact_pop_hold_max_up_action}`",
+        f"- Guard final servo square fast settle contact-pop hold recenter enabled/phase/XY/Z/contact/margins/yaw/tilt: `{args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_enabled}/{args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_min_phase_steps}/{args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_xy_min}-{args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_xy_max}/{args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_z_min}-{args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_z_max}/{args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_contact_max}/{args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_margin_min}:{args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_topdown_margin_min}/{args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_yaw_max_deg}/{args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_tilt_max_deg}`",
+        f"- Guard final servo square fast settle contact-pop exhausted recenter enabled/attempts/XY/Z/contact/margins/yaw/tilt: `{args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_enabled}/{args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_min_attempts}/{args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_xy_min}-{args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_xy_max}/{args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_z_min}-{args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_z_max}/{args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_contact_max}/{args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_margin_min}:{args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_topdown_margin_min}/{args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_yaw_max_deg}/{args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_tilt_max_deg}`",
+        f"- Guard final servo square fast settle no-contact pop-hold enabled/steps/XY/Z/contact/brake/pop attempts/pop phase/attempts/margins/yaw/tilt/max up: `{args.guard_final_servo_square_fast_settle_no_contact_pop_hold_enabled}/{args.guard_final_servo_square_fast_settle_no_contact_pop_hold_steps}/{args.guard_final_servo_square_fast_settle_no_contact_pop_hold_xy_min}-{args.guard_final_servo_square_fast_settle_no_contact_pop_hold_xy_max}/{args.guard_final_servo_square_fast_settle_no_contact_pop_hold_z_min}-{args.guard_final_servo_square_fast_settle_no_contact_pop_hold_z_max}/{args.guard_final_servo_square_fast_settle_no_contact_pop_hold_contact_max}/{args.guard_final_servo_square_fast_settle_no_contact_pop_hold_min_brake_attempts}/{args.guard_final_servo_square_fast_settle_no_contact_pop_hold_max_contact_pop_hold_attempts}/{args.guard_final_servo_square_fast_settle_no_contact_pop_hold_min_contact_pop_hold_phase_steps}/{args.guard_final_servo_square_fast_settle_no_contact_pop_hold_max_attempts}/{args.guard_final_servo_square_fast_settle_no_contact_pop_hold_margin_min}:{args.guard_final_servo_square_fast_settle_no_contact_pop_hold_topdown_margin_min}/{args.guard_final_servo_square_fast_settle_no_contact_pop_hold_yaw_max_deg}/{args.guard_final_servo_square_fast_settle_no_contact_pop_hold_tilt_max_deg}/{args.guard_final_servo_square_fast_settle_no_contact_pop_hold_max_up_action}`",
+        f"- Guard final servo square fast settle pre-pop guard enabled/steps/XY/Z/contact/phase/brake/soft-hold/attempts/margins/yaw/tilt/max up: `{args.guard_final_servo_square_fast_settle_pre_pop_guard_enabled}/{args.guard_final_servo_square_fast_settle_pre_pop_guard_steps}/{args.guard_final_servo_square_fast_settle_pre_pop_guard_xy_max}/{args.guard_final_servo_square_fast_settle_pre_pop_guard_z_min}-{args.guard_final_servo_square_fast_settle_pre_pop_guard_z_max}/{args.guard_final_servo_square_fast_settle_pre_pop_guard_contact_max}/{args.guard_final_servo_square_fast_settle_pre_pop_guard_min_phase_steps}-{args.guard_final_servo_square_fast_settle_pre_pop_guard_max_phase_steps}/{args.guard_final_servo_square_fast_settle_pre_pop_guard_min_brake_attempts}/{args.guard_final_servo_square_fast_settle_pre_pop_guard_min_soft_hold_attempts}/{args.guard_final_servo_square_fast_settle_pre_pop_guard_max_attempts}/{args.guard_final_servo_square_fast_settle_pre_pop_guard_margin_min}-{args.guard_final_servo_square_fast_settle_pre_pop_guard_margin_max}:{args.guard_final_servo_square_fast_settle_pre_pop_guard_topdown_margin_min}-{args.guard_final_servo_square_fast_settle_pre_pop_guard_topdown_margin_max}/{args.guard_final_servo_square_fast_settle_pre_pop_guard_yaw_max_deg}/{args.guard_final_servo_square_fast_settle_pre_pop_guard_tilt_min_deg}-{args.guard_final_servo_square_fast_settle_pre_pop_guard_tilt_max_deg}/{args.guard_final_servo_square_fast_settle_pre_pop_guard_max_up_action}`",
+        f"- Guard final servo square fast settle pre-pop limit enabled/max XY/max down: `{args.guard_final_servo_square_fast_settle_pre_pop_limit_enabled}/{args.guard_final_servo_square_fast_settle_pre_pop_limit_max_xy_action}/{args.guard_final_servo_square_fast_settle_pre_pop_limit_max_down_action}`",
+        f"- Guard final servo square fast settle severe-pop reapproach enabled/XY/Z/contact/brake/min step/attempts/height/pre-lift/margins/yaw/tilt: `{args.guard_final_servo_square_fast_settle_severe_pop_reapproach_enabled}/{args.guard_final_servo_square_fast_settle_severe_pop_reapproach_xy_min}-{args.guard_final_servo_square_fast_settle_severe_pop_reapproach_xy_max}/{args.guard_final_servo_square_fast_settle_severe_pop_reapproach_z_min}-{args.guard_final_servo_square_fast_settle_severe_pop_reapproach_z_max}/{args.guard_final_servo_square_fast_settle_severe_pop_reapproach_contact_max}/{args.guard_final_servo_square_fast_settle_severe_pop_reapproach_min_brake_attempts}/{args.guard_final_servo_square_fast_settle_severe_pop_reapproach_min_steps_since_reset}/{args.guard_final_servo_square_fast_settle_severe_pop_reapproach_max_attempts}/{args.guard_final_servo_square_fast_settle_severe_pop_reapproach_height}/{args.guard_final_servo_square_fast_settle_severe_pop_reapproach_pre_lift_enabled}/{args.guard_final_servo_square_fast_settle_severe_pop_reapproach_margin_min}:{args.guard_final_servo_square_fast_settle_severe_pop_reapproach_topdown_margin_min}/{args.guard_final_servo_square_fast_settle_severe_pop_reapproach_yaw_max_deg}/{args.guard_final_servo_square_fast_settle_severe_pop_reapproach_tilt_max_deg}`",
+        f"- Guard final servo square fast settle clearance hold enabled/steps/XY/Z/margin/wall/contact/brake/phase/attempts/max up: `{args.guard_final_servo_square_fast_settle_clearance_hold_enabled}/{args.guard_final_servo_square_fast_settle_clearance_hold_steps}/{args.guard_final_servo_square_fast_settle_clearance_hold_xy_max}/{args.guard_final_servo_square_fast_settle_clearance_hold_z_min}-{args.guard_final_servo_square_fast_settle_clearance_hold_z_max}/{args.guard_final_servo_square_fast_settle_clearance_hold_margin_min}-{args.guard_final_servo_square_fast_settle_clearance_hold_margin_threshold}/{args.guard_final_servo_square_fast_settle_clearance_hold_wall_count}/{args.guard_final_servo_square_fast_settle_clearance_hold_contact_max}/{args.guard_final_servo_square_fast_settle_clearance_hold_min_brake_attempts}/{args.guard_final_servo_square_fast_settle_clearance_hold_min_phase_steps}/{args.guard_final_servo_square_fast_settle_clearance_hold_max_attempts}/{args.guard_final_servo_square_fast_settle_clearance_hold_max_up_action}`",
+        f"- Guard final servo square fast settle low-Z relief enabled/wall/XY/Z/margin/contact/brake/phase/attempts/lift/steps/release/max up/max XY/wide recenter: `{args.guard_final_servo_square_fast_settle_low_z_relief_enabled}/{args.guard_final_servo_square_fast_settle_low_z_relief_wall_count}/{args.guard_final_servo_square_fast_settle_low_z_relief_xy_max}/{args.guard_final_servo_square_fast_settle_low_z_relief_z_min}-{args.guard_final_servo_square_fast_settle_low_z_relief_z_max}/{args.guard_final_servo_square_fast_settle_low_z_relief_margin_min}-{args.guard_final_servo_square_fast_settle_low_z_relief_margin_threshold}/{args.guard_final_servo_square_fast_settle_low_z_relief_contact_max}/{args.guard_final_servo_square_fast_settle_low_z_relief_min_brake_attempts}/{args.guard_final_servo_square_fast_settle_low_z_relief_min_phase_steps}/{args.guard_final_servo_square_fast_settle_low_z_relief_max_attempts}/{args.guard_final_servo_square_fast_settle_low_z_relief_lift_height}@{args.guard_final_servo_square_fast_settle_low_z_relief_target_z_max}/{args.guard_final_servo_square_fast_settle_low_z_relief_lift_steps}:{args.guard_final_servo_square_fast_settle_low_z_relief_recenter_steps}/{args.guard_final_servo_square_fast_settle_low_z_relief_release_xy}/{args.guard_final_servo_square_fast_settle_low_z_relief_max_up_action}/{args.guard_final_servo_square_fast_settle_low_z_relief_max_xy_action}/{args.guard_final_servo_square_fast_settle_low_z_relief_wide_recenter_enabled}:start>={args.guard_final_servo_square_fast_settle_low_z_relief_wide_recenter_start_z_min}:xy<={args.guard_final_servo_square_fast_settle_low_z_relief_wide_recenter_xy_max}:z<={args.guard_final_servo_square_fast_settle_low_z_relief_wide_recenter_z_max}:steps={args.guard_final_servo_square_fast_settle_low_z_relief_wide_recenter_max_steps}:pop>={args.guard_final_servo_square_fast_settle_low_z_relief_wide_recenter_contact_pop_min_attempts}:popxy<={args.guard_final_servo_square_fast_settle_low_z_relief_wide_recenter_contact_pop_xy_max}`",
+        f"- Guard final servo square fast settle low-Z stall relief enabled/XY/Z/margin/contact/brake/phase/stall/attempts/hold: `{args.guard_final_servo_square_fast_settle_low_z_stall_relief_enabled}/{args.guard_final_servo_square_fast_settle_low_z_stall_relief_xy_max}/{args.guard_final_servo_square_fast_settle_low_z_stall_relief_z_min}-{args.guard_final_servo_square_fast_settle_low_z_stall_relief_z_max}/{args.guard_final_servo_square_fast_settle_low_z_stall_relief_margin_min}-{args.guard_final_servo_square_fast_settle_low_z_stall_relief_margin_threshold}/{args.guard_final_servo_square_fast_settle_low_z_stall_relief_contact_max}/{args.guard_final_servo_square_fast_settle_low_z_stall_relief_min_brake_attempts}/{args.guard_final_servo_square_fast_settle_low_z_stall_relief_min_phase_steps}/{args.guard_final_servo_square_fast_settle_low_z_stall_relief_min_stall_steps}/{args.guard_final_servo_square_fast_settle_low_z_stall_relief_max_attempts}/{args.guard_final_servo_square_fast_settle_low_z_stall_relief_hold_enabled}:{args.guard_final_servo_square_fast_settle_low_z_stall_relief_hold_steps}:{args.guard_final_servo_square_fast_settle_low_z_stall_relief_hold_max_up_action}:min_contact_pop={args.guard_final_servo_square_fast_settle_low_z_stall_relief_hold_min_contact_pop_hold_attempts}`",
+        f"- Guard final servo square fast settle contact soft-hold enabled/steps/XY/Z/margin/yaw/tilt/wall/contact/phase/episode step/subsequent phase/subsequent episode step/subsequent Z max/subsequent margin min/attempts/max up/extend: `{args.guard_final_servo_square_fast_settle_contact_soft_hold_enabled}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_steps}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_xy_max}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_z_min}-{args.guard_final_servo_square_fast_settle_contact_soft_hold_z_max}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_margin_min}-{args.guard_final_servo_square_fast_settle_contact_soft_hold_margin_max}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_yaw_max_deg}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_tilt_max_deg}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_wall_count}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_contact_max}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_min_phase_steps}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_min_steps_since_reset}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_subsequent_min_phase_steps}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_subsequent_min_steps_since_reset}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_subsequent_z_max}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_subsequent_margin_min}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_max_attempts}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_max_up_action}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_extend_until_clear_enabled}:{args.guard_final_servo_square_fast_settle_contact_soft_hold_extend_until_clear_contact_max}:{args.guard_final_servo_square_fast_settle_contact_soft_hold_extend_until_clear_max_steps}@{args.guard_final_servo_square_fast_settle_contact_soft_hold_extend_until_clear_min_steps_since_reset}`",
+        f"- Guard final servo square fast settle contact soft-hold release-continue enabled/steps/XY/Z/margin/yaw/tilt/contact/max XY/max down: `{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_enabled}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_steps}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_xy_max}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_z_min}-{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_z_max}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_margin_min}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_yaw_max_deg}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_tilt_max_deg}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_contact_max}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_max_xy_action}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_max_down_action}`",
+        f"- Guard final servo square fast settle contact soft-hold release contact-brake enabled/wall/XY/Z/contact/margin/yaw/tilt/max phase/min soft-hold/soft-hold-first: `{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_enabled}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_wall_count}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_xy_min}-{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_xy_max}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_z_min}-{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_z_max}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_contact_max}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_margin_min}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_yaw_max_deg}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_tilt_max_deg}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_max_phase_steps}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_min_soft_hold_attempts}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_soft_hold_first_enabled}`",
+        f"- Guard final servo square fast settle contact soft-hold release pop-hold enabled/steps/wall/XY/Z/contact/margin/yaw/tilt/max phase/min soft-hold/max attempts/max up: `{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_enabled}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_steps}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_wall_count}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_xy_min}-{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_xy_max}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_z_min}-{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_z_max}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_contact_max}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_margin_min}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_yaw_max_deg}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_tilt_max_deg}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_max_phase_steps}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_min_soft_hold_attempts}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_max_attempts}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_max_up_action}`",
+        f"- Guard final servo square fast settle contact soft-hold large-pop recenter enabled/XY/Z/contact/margins/yaw/tilt: `{args.guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_enabled}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_xy_min}-{args.guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_xy_max}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_z_min}-{args.guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_z_max}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_contact_max}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_margin_min}:{args.guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_topdown_margin_min}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_yaw_max_deg}/{args.guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_tilt_max_deg}`",
+        f"- Guard final servo square fast settle late finish continue enabled/step/XY/Z/margin/topdown/yaw/tilt/contact: `{args.guard_final_servo_square_fast_settle_late_finish_continue_enabled}/{args.guard_final_servo_square_fast_settle_late_finish_continue_min_steps_since_reset}/{args.guard_final_servo_square_fast_settle_late_finish_continue_xy_max}/{args.guard_final_servo_square_fast_settle_late_finish_continue_z_min}-{args.guard_final_servo_square_fast_settle_late_finish_continue_z_max}/{args.guard_final_servo_square_fast_settle_late_finish_continue_margin_min}/{args.guard_final_servo_square_fast_settle_late_finish_continue_topdown_margin_min}/{args.guard_final_servo_square_fast_settle_late_finish_continue_yaw_max_deg}/{args.guard_final_servo_square_fast_settle_late_finish_continue_tilt_max_deg}/{args.guard_final_servo_square_fast_settle_late_finish_continue_contact_max}`",
+        f"- Guard final servo square fast settle late escape veto enabled/step/XY/Z/contact/margin/topdown/yaw/tilt: `{args.guard_final_servo_square_fast_settle_late_escape_veto_enabled}/{args.guard_final_servo_square_fast_settle_late_escape_veto_min_steps_since_reset}/{args.guard_final_servo_square_fast_settle_late_escape_veto_xy_max}/{args.guard_final_servo_square_fast_settle_late_escape_veto_z_min}-{args.guard_final_servo_square_fast_settle_late_escape_veto_z_max}/{args.guard_final_servo_square_fast_settle_late_escape_veto_contact_max}/{args.guard_final_servo_square_fast_settle_late_escape_veto_margin_min}/{args.guard_final_servo_square_fast_settle_late_escape_veto_topdown_margin_min}/{args.guard_final_servo_square_fast_settle_late_escape_veto_yaw_max_deg}/{args.guard_final_servo_square_fast_settle_late_escape_veto_tilt_max_deg}`",
+        f"- Guard final servo square contact brake enabled/wall/XY/Z/lift/release/stable/max steps/max attempts/max XY/max up/clearance/margin/require bad margin/repeat margin/exhausted escape/reset/exhausted continue: `{args.guard_final_servo_square_contact_brake_enabled}/{args.guard_final_servo_square_contact_brake_wall_steps}/{args.guard_final_servo_square_contact_brake_xy_max}/{args.guard_final_servo_square_contact_brake_z_min}-{args.guard_final_servo_square_contact_brake_z_max}/{args.guard_final_servo_square_contact_brake_lift_height}@{args.guard_final_servo_square_contact_brake_lift_z_max}/{args.guard_final_servo_square_contact_brake_release_xy}/{args.guard_final_servo_square_contact_brake_stable_steps}/{args.guard_final_servo_square_contact_brake_max_steps}/{args.guard_final_servo_square_contact_brake_max_attempts}/{args.guard_final_servo_square_contact_brake_max_xy_action}/{args.guard_final_servo_square_contact_brake_max_up_action}/{args.guard_final_servo_square_contact_brake_max_clearance}/{args.guard_final_servo_square_contact_brake_margin_threshold}/{args.guard_final_servo_square_contact_brake_require_bad_margin}/{args.guard_final_servo_square_contact_brake_repeat_margin_gate_enabled}:{args.guard_final_servo_square_contact_brake_repeat_margin_threshold}/{args.guard_final_servo_square_contact_brake_exhausted_escape_enabled}/{args.guard_final_servo_square_contact_brake_reset_attempts_after_escape_enabled}/{args.guard_final_servo_square_contact_brake_exhausted_continue_enabled}:{args.guard_final_servo_square_contact_brake_exhausted_continue_min_steps_since_reset}:{args.guard_final_servo_square_contact_brake_exhausted_continue_xy_max}:{args.guard_final_servo_square_contact_brake_exhausted_continue_z_min}-{args.guard_final_servo_square_contact_brake_exhausted_continue_z_max}:{args.guard_final_servo_square_contact_brake_exhausted_continue_contact_max}:{args.guard_final_servo_square_contact_brake_exhausted_continue_tilt_max_deg}:{args.guard_final_servo_square_contact_brake_exhausted_continue_margin_min}:{args.guard_final_servo_square_contact_brake_exhausted_continue_topdown_margin_min}:{args.guard_final_servo_square_contact_brake_exhausted_continue_yaw_max_deg}`",
+        f"- Guard final servo square contact brake release flush enabled/steps/min attempts/min step/XY/Z/contact: `{args.guard_final_servo_square_contact_brake_release_flush_enabled}/{args.guard_final_servo_square_contact_brake_release_flush_steps}/{args.guard_final_servo_square_contact_brake_release_flush_min_brake_attempts}/{args.guard_final_servo_square_contact_brake_release_flush_min_steps_since_reset}/{args.guard_final_servo_square_contact_brake_release_flush_xy_max}/{args.guard_final_servo_square_contact_brake_release_flush_z_min}-{args.guard_final_servo_square_contact_brake_release_flush_z_max}/{args.guard_final_servo_square_contact_brake_release_flush_contact_max}`",
+        f"- Guard final servo square contact brake preemptive hold enabled/wall/steps/min attempts/XY/Z/max up/clearance/margin/require bad margin/yaw min/expanded XY/clean release: `{args.guard_final_servo_square_contact_brake_preemptive_hold_enabled}/{args.guard_final_servo_square_contact_brake_preemptive_hold_wall_steps}/{args.guard_final_servo_square_contact_brake_preemptive_hold_steps}/{args.guard_final_servo_square_contact_brake_preemptive_hold_min_brake_attempts}/{args.guard_final_servo_square_contact_brake_preemptive_hold_xy_max}/{args.guard_final_servo_square_contact_brake_preemptive_hold_z_min}-{args.guard_final_servo_square_contact_brake_preemptive_hold_z_max}/{args.guard_final_servo_square_contact_brake_preemptive_hold_max_up_action}/{args.guard_final_servo_square_contact_brake_preemptive_hold_max_clearance}/{args.guard_final_servo_square_contact_brake_preemptive_hold_margin_threshold}/{args.guard_final_servo_square_contact_brake_preemptive_hold_require_bad_margin}/{args.guard_final_servo_square_contact_brake_preemptive_hold_yaw_min_deg}/{args.guard_final_servo_square_contact_brake_preemptive_hold_expanded_xy_enabled}:{args.guard_final_servo_square_contact_brake_preemptive_hold_expanded_xy_max}@{args.guard_final_servo_square_contact_brake_preemptive_hold_expanded_z_min}:margin>={args.guard_final_servo_square_contact_brake_preemptive_hold_expanded_margin_min}:yaw<={args.guard_final_servo_square_contact_brake_preemptive_hold_expanded_yaw_max_deg}/{args.guard_final_servo_square_contact_brake_preemptive_hold_clean_release_enabled}:brake<={args.guard_final_servo_square_contact_brake_preemptive_hold_clean_release_max_brake_attempts}:contact<={args.guard_final_servo_square_contact_brake_preemptive_hold_clean_release_contact_max}:xy<={args.guard_final_servo_square_contact_brake_preemptive_hold_clean_release_xy_max}:z={args.guard_final_servo_square_contact_brake_preemptive_hold_clean_release_z_min}-{args.guard_final_servo_square_contact_brake_preemptive_hold_clean_release_z_max}:margin>={args.guard_final_servo_square_contact_brake_preemptive_hold_clean_release_margin_min}:tilt<={args.guard_final_servo_square_contact_brake_preemptive_hold_clean_release_tilt_max_deg}`",
+        f"- Guard final servo square contact brake preemptive hold pop recenter enabled/phase/XY/Z/contact/margins/yaw/tilt: `{args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_enabled}/{args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_min_phase_steps}/{args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_xy_min}-{args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_xy_max}/{args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_z_min}-{args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_z_max}/{args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_contact_max}/{args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_margin_min}:{args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_topdown_margin_min}/{args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_yaw_max_deg}/{args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_tilt_max_deg}`",
+        f"- Guard final servo square contact brake late lift release enabled/brake/phase/step/contact/XY/Z/margin/yaw/tilt: `{args.guard_final_servo_square_contact_brake_late_lift_release_enabled}/{args.guard_final_servo_square_contact_brake_late_lift_release_min_brake_attempts}/{args.guard_final_servo_square_contact_brake_late_lift_release_min_phase_steps}/{args.guard_final_servo_square_contact_brake_late_lift_release_min_steps_since_reset}/{args.guard_final_servo_square_contact_brake_late_lift_release_contact_max}/{args.guard_final_servo_square_contact_brake_late_lift_release_xy_max}/{args.guard_final_servo_square_contact_brake_late_lift_release_z_min}-{args.guard_final_servo_square_contact_brake_late_lift_release_z_max}/{args.guard_final_servo_square_contact_brake_late_lift_release_margin_min}/{args.guard_final_servo_square_contact_brake_late_lift_release_yaw_max_deg}/{args.guard_final_servo_square_contact_brake_late_lift_release_tilt_max_deg}`",
         f"- Guard final servo square high-Z descend enabled/stall/XY/Z/contact/tilt/margin/max/max XY/down/low-Z XY/down/staged/mid/hold/low-Z brake: `{args.guard_final_servo_square_high_z_descend_enabled}/{args.guard_final_servo_square_high_z_descend_stall_steps}/{args.guard_final_servo_square_high_z_descend_xy_max}/{args.guard_final_servo_square_high_z_descend_z_min}-{args.guard_final_servo_square_high_z_descend_z_max}/{args.guard_final_servo_square_high_z_descend_contact_max}/{args.guard_final_servo_square_high_z_descend_tilt_max_deg}/{args.guard_final_servo_square_high_z_descend_margin_min}/{args.guard_final_servo_square_high_z_descend_max_steps}/{args.guard_final_servo_square_high_z_descend_max_xy_action}/{args.guard_final_servo_square_high_z_descend_max_down_action}/{args.guard_final_servo_square_high_z_descend_low_z_max_xy_action}@{args.guard_final_servo_square_high_z_descend_low_z_threshold}/{args.guard_final_servo_square_high_z_descend_low_z_max_down_action}@{args.guard_final_servo_square_high_z_descend_low_z_threshold}/{args.guard_final_servo_square_high_z_descend_staged_enabled}:{args.guard_final_servo_square_high_z_descend_mid_z_max_xy_action}:{args.guard_final_servo_square_high_z_descend_mid_z_max_down_action}@{args.guard_final_servo_square_high_z_descend_mid_z_threshold}/{args.guard_final_servo_square_high_z_descend_low_z_hold_steps}:{args.guard_final_servo_square_high_z_descend_low_z_hold_min_phase_steps}:{args.guard_final_servo_square_high_z_descend_low_z_hold_max_attempts}:{args.guard_final_servo_square_high_z_descend_low_z_hold_xy_max}:{args.guard_final_servo_square_high_z_descend_low_z_hold_max_up_action}/{args.guard_final_servo_square_high_z_descend_contact_brake_enabled}:{args.guard_final_servo_square_high_z_descend_contact_brake_wall_count}@{args.guard_final_servo_square_high_z_descend_contact_brake_z_max}:{args.guard_final_servo_square_high_z_descend_contact_brake_xy_max}`",
         f"- Guard final servo square margin/yaw settle enabled/stall/XY/Z/contact/margin/yaw/lift/max attempts: `{args.guard_final_servo_square_margin_yaw_settle_enabled}/{args.guard_final_servo_square_margin_yaw_settle_stall_steps}/{args.guard_final_servo_square_margin_yaw_settle_xy_max}/{args.guard_final_servo_square_margin_yaw_settle_z_min}-{args.guard_final_servo_square_margin_yaw_settle_z_max}/{args.guard_final_servo_square_margin_yaw_settle_contact_max}/{args.guard_final_servo_square_margin_yaw_settle_margin_threshold}/{args.guard_final_servo_square_margin_yaw_settle_yaw_deg}/{args.guard_final_servo_square_margin_yaw_settle_lift_height}/{args.guard_final_servo_square_margin_yaw_settle_max_attempts}`",
         f"- Guard approach recenter enabled/requires stateful recovery: `{args.guard_approach_recenter_enabled}/{args.guard_approach_recenter_requires_stateful_recovery}`",
@@ -4942,8 +8547,8 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
         f"- Contact recovery XY/Z/lift/Z tol/max down: `{args.contact_recovery_xy_tolerance}/{args.contact_recovery_z_max}/{args.contact_recovery_lift_height}/{args.contact_recovery_lift_z_tolerance}/{args.contact_recovery_max_down_action}`",
         f"- Timeout progress XY/Z/max down: `{args.timeout_progress_xy_tolerance}/{args.timeout_progress_z_max}/{args.timeout_progress_max_down_action}`",
         "",
-        "| Scenario | Level | Mode | Image | Image target | Control state | Guard | Success | Collision | Timeout | Mean return | Mean steps | Guard steps | Retry steps | Latch steps | Hover steps | Near limited | Fixture steps | Fixture realign | Preinsert | Approach rec | Adapter | Final insert adapter | Final insert pulse | Final insert macro | Early approach | Stateful rec | Final servo | Final servo descend | Final XY | Final Z |",
-        "| --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Scenario | Level | Mode | Image | Image target | Control state | Guard | Success | Collision | Timeout | Mean return | Mean steps | Guard steps | Retry steps | Latch steps | Hover steps | Near limited | Fixture steps | Fixture realign | Preinsert | Approach rec | Adapter | Final insert adapter | Final insert pulse | Final insert macro | Visual yaw | Early approach | Stateful rec | Final servo | Final servo descend | Final XY | Final Z |",
+        "| --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for row in rows:
         lines.append(
@@ -4962,6 +8567,7 @@ def write_markdown(path: Path, args: argparse.Namespace, rows: list[dict[str, An
             "{mean_final_insert_adapter_steps:.1f} ({mean_final_insert_adapter_fraction:.2f}) | "
             "{mean_final_insert_adapter_lift_pulse_steps:.1f} | "
             "{mean_final_insert_macro_recovery_steps:.1f} ({mean_final_insert_macro_recovery_fraction:.2f}, trig {mean_final_insert_macro_recovery_triggers:.2f}) | "
+            "{mean_visual_yaw_align_steps:.1f} ({mean_visual_yaw_align_fraction:.2f}, block {mean_visual_yaw_align_blocked_steps:.1f}) | "
             "{mean_early_approach_assist_steps:.1f} ({mean_early_approach_assist_fraction:.2f}, trig {mean_early_approach_assist_triggers:.2f}, rel {mean_early_approach_assist_releases:.2f}) | "
             "{mean_stateful_recovery_steps:.1f} ({mean_stateful_recovery_fraction:.2f}, trig {mean_stateful_recovery_triggers:.2f}, rel {mean_stateful_recovery_releases:.2f}) | "
             "{mean_final_servo_steps:.1f} ({mean_final_servo_step_fraction:.2f}, trig {mean_final_servo_triggers:.2f}, rearm {mean_final_servo_rearms:.2f}, rec {mean_final_servo_recovery_triggers:.2f}) | "
@@ -5107,6 +8713,26 @@ def main() -> None:
         raise ValueError("--final-insert-macro-recovery-abort-lift-steps must be positive.")
     if args.final_insert_macro_recovery_abort_lift_action <= 0.0:
         raise ValueError("--final-insert-macro-recovery-abort-lift-action must be positive.")
+    if (
+        args.success_shape_yaw_tolerance_deg is not None
+        and args.success_shape_yaw_tolerance_deg < 0.0
+    ):
+        raise ValueError("--success-shape-yaw-tolerance-deg cannot be negative.")
+    valid_success_yaw_profiles = {
+        "square_square",
+        "triangle_triangle",
+        "hex_hex",
+        "slot_slot",
+        "rectangular_key",
+    }
+    invalid_success_yaw_profiles = sorted(
+        set(args.success_shape_yaw_profiles) - valid_success_yaw_profiles
+    )
+    if invalid_success_yaw_profiles:
+        raise ValueError(
+            "--success-shape-yaw-profiles contains unsupported profile(s): "
+            + ", ".join(invalid_success_yaw_profiles)
+        )
     validate_ordered_pair("--initial-tip-z-above-range", args.initial_tip_z_above_range, min_value=0.0)
     validate_ordered_pair("--initial-tip-xy-offset-range", args.initial_tip_xy_offset_range, min_value=0.0)
     validate_ordered_pair("--geometry-hole-half-size-range", args.geometry_hole_half_size_range, min_value=0.0)
@@ -5161,6 +8787,485 @@ def main() -> None:
         raise ValueError(
             "--guard-square-pose-yaw-align-ik-orientation-weight cannot be negative."
         )
+    if args.guard_visual_yaw_align_enabled:
+        if args.guard_visual_yaw_align_model is None:
+            raise ValueError(
+                "--guard-visual-yaw-align-enabled requires --guard-visual-yaw-align-model."
+            )
+        if args.observation_mode != "image":
+            raise ValueError("--guard-visual-yaw-align requires --observation-mode image.")
+        if not args.include_near_hole_crop:
+            raise ValueError("--guard-visual-yaw-align requires --include-near-hole-crop.")
+        if args.guard_visual_yaw_align_max_xy <= 0.0:
+            raise ValueError("--guard-visual-yaw-align-max-xy must be positive.")
+        if args.guard_visual_yaw_align_min_z < 0.0:
+            raise ValueError("--guard-visual-yaw-align-min-z cannot be negative.")
+        if args.guard_visual_yaw_align_max_z <= args.guard_visual_yaw_align_min_z:
+            raise ValueError("--guard-visual-yaw-align-max-z must be greater than min-z.")
+        if args.guard_visual_yaw_align_max_wall_contact < 0:
+            raise ValueError("--guard-visual-yaw-align-max-wall-contact cannot be negative.")
+        if args.guard_visual_yaw_align_min_raw_norm < 0.0:
+            raise ValueError("--guard-visual-yaw-align-min-raw-norm cannot be negative.")
+        if args.guard_visual_yaw_align_min_cam_std < 0.0:
+            raise ValueError("--guard-visual-yaw-align-min-cam-std cannot be negative.")
+        if args.guard_visual_yaw_align_min_crop_std < 0.0:
+            raise ValueError("--guard-visual-yaw-align-min-crop-std cannot be negative.")
+        if args.guard_visual_yaw_align_deadband_deg < 0.0:
+            raise ValueError("--guard-visual-yaw-align-deadband-deg cannot be negative.")
+        if args.guard_visual_yaw_align_max_correction_deg <= 0.0:
+            raise ValueError("--guard-visual-yaw-align-max-correction-deg must be positive.")
+        if args.guard_visual_yaw_align_temporal_action_gate_window <= 0:
+            raise ValueError(
+                "--guard-visual-yaw-align-temporal-action-gate-window must be positive."
+            )
+        if args.guard_visual_yaw_align_temporal_action_gate_max_delta_deg < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-temporal-action-gate-max-delta-deg cannot be negative."
+            )
+        if args.guard_visual_yaw_align_temporal_action_gate_min_pred_yaw_deg < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-temporal-action-gate-min-pred-yaw-deg cannot be negative."
+            )
+        if (
+            args.guard_visual_yaw_align_temporal_action_gate_max_pred_yaw_deg
+            <= args.guard_visual_yaw_align_temporal_action_gate_min_pred_yaw_deg
+        ):
+            raise ValueError(
+                "--guard-visual-yaw-align-temporal-action-gate-max-pred-yaw-deg must exceed min-pred-yaw-deg."
+            )
+        if args.guard_visual_yaw_align_block_descent_deg < 0.0:
+            raise ValueError("--guard-visual-yaw-align-block-descent-deg cannot be negative.")
+        if args.guard_visual_yaw_align_hold_z_min < 0.0:
+            raise ValueError("--guard-visual-yaw-align-hold-z-min cannot be negative.")
+        if args.guard_visual_yaw_align_hold_up_action < 0.0:
+            raise ValueError("--guard-visual-yaw-align-hold-up-action cannot be negative.")
+        if args.guard_visual_yaw_align_hold_xy_tolerance < 0.0:
+            raise ValueError("--guard-visual-yaw-align-hold-xy-tolerance cannot be negative.")
+        if args.guard_visual_yaw_align_hold_max_xy_action < 0.0:
+            raise ValueError("--guard-visual-yaw-align-hold-max-xy-action cannot be negative.")
+        if args.guard_visual_yaw_align_hold_target_steps < 0:
+            raise ValueError("--guard-visual-yaw-align-hold-target-steps cannot be negative.")
+        if args.guard_visual_yaw_align_hold_target_arm_yaw_deg < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-hold-target-arm-yaw-deg cannot be negative."
+            )
+        if args.guard_visual_yaw_align_hold_target_release_yaw_deg < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-hold-target-release-yaw-deg cannot be negative."
+            )
+        if args.guard_visual_yaw_align_hold_target_release_xy <= 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-hold-target-release-xy must be positive."
+            )
+        if args.guard_visual_yaw_align_hold_target_min_z < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-hold-target-min-z cannot be negative."
+            )
+        if (
+            args.guard_visual_yaw_align_hold_target_max_z
+            <= args.guard_visual_yaw_align_hold_target_min_z
+        ):
+            raise ValueError(
+                "--guard-visual-yaw-align-hold-target-max-z must exceed hold-target-min-z."
+            )
+        if args.guard_visual_yaw_align_low_visibility_brake_min_pred_yaw_deg < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-low-visibility-brake-min-pred-yaw-deg cannot be negative."
+            )
+        if args.guard_visual_yaw_align_low_visibility_brake_min_xy < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-low-visibility-brake-min-xy cannot be negative."
+            )
+        if args.guard_visual_yaw_align_low_visibility_brake_max_z < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-low-visibility-brake-max-z cannot be negative."
+            )
+        if args.guard_visual_yaw_align_low_visibility_brake_up_action < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-low-visibility-brake-up-action cannot be negative."
+            )
+        if args.guard_visual_yaw_align_large_xy_low_z_brake_min_xy < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-large-xy-low-z-brake-min-xy cannot be negative."
+            )
+        if args.guard_visual_yaw_align_large_xy_low_z_brake_max_z < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-large-xy-low-z-brake-max-z cannot be negative."
+            )
+        if args.guard_visual_yaw_align_large_xy_low_z_brake_up_action < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-large-xy-low-z-brake-up-action cannot be negative."
+            )
+        if args.guard_visual_yaw_align_low_z_lateral_pop_recovery_max_attempts < 0:
+            raise ValueError(
+                "--guard-visual-yaw-align-low-z-lateral-pop-recovery-max-attempts cannot be negative."
+            )
+        if args.guard_visual_yaw_align_low_z_lateral_pop_recovery_trigger_min_step < 0:
+            raise ValueError(
+                "--guard-visual-yaw-align-low-z-lateral-pop-recovery-trigger-min-step cannot be negative."
+            )
+        if args.guard_visual_yaw_align_low_z_lateral_pop_recovery_trigger_min_xy < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-low-z-lateral-pop-recovery-trigger-min-xy cannot be negative."
+            )
+        if args.guard_visual_yaw_align_low_z_lateral_pop_recovery_trigger_max_z < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-low-z-lateral-pop-recovery-trigger-max-z cannot be negative."
+            )
+        if args.guard_visual_yaw_align_low_z_lateral_pop_recovery_trigger_prev_xy < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-low-z-lateral-pop-recovery-trigger-prev-xy cannot be negative."
+            )
+        if args.guard_visual_yaw_align_low_z_lateral_pop_recovery_trigger_xy_jump < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-low-z-lateral-pop-recovery-trigger-xy-jump cannot be negative."
+            )
+        if args.guard_visual_yaw_align_low_z_lateral_pop_recovery_lift_target_z < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-low-z-lateral-pop-recovery-lift-target-z cannot be negative."
+            )
+        if args.guard_visual_yaw_align_low_z_lateral_pop_recovery_lift_z_tolerance < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-low-z-lateral-pop-recovery-lift-z-tolerance cannot be negative."
+            )
+        if args.guard_visual_yaw_align_low_z_lateral_pop_recovery_lift_max_steps <= 0:
+            raise ValueError(
+                "--guard-visual-yaw-align-low-z-lateral-pop-recovery-lift-max-steps must be positive."
+            )
+        if args.guard_visual_yaw_align_low_z_lateral_pop_recovery_recenter_release_xy <= 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-low-z-lateral-pop-recovery-recenter-release-xy must be positive."
+            )
+        if args.guard_visual_yaw_align_low_z_lateral_pop_recovery_recenter_max_steps <= 0:
+            raise ValueError(
+                "--guard-visual-yaw-align-low-z-lateral-pop-recovery-recenter-max-steps must be positive."
+            )
+        if args.guard_visual_yaw_align_low_z_lateral_pop_recovery_max_up_action < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-low-z-lateral-pop-recovery-max-up-action cannot be negative."
+            )
+        if args.guard_visual_yaw_align_low_z_lateral_pop_recovery_max_xy_action < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-low-z-lateral-pop-recovery-max-xy-action cannot be negative."
+            )
+        if args.guard_visual_yaw_align_descent_abort_max_attempts < 0:
+            raise ValueError(
+                "--guard-visual-yaw-align-descent-abort-max-attempts cannot be negative."
+            )
+        if args.guard_visual_yaw_align_descent_abort_min_step < 0:
+            raise ValueError(
+                "--guard-visual-yaw-align-descent-abort-min-step cannot be negative."
+            )
+        if args.guard_visual_yaw_align_descent_abort_large_pred_yaw_deg < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-descent-abort-large-pred-yaw-deg cannot be negative."
+            )
+        if args.guard_visual_yaw_align_descent_abort_min_xy < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-descent-abort-min-xy cannot be negative."
+            )
+        if args.guard_visual_yaw_align_descent_abort_max_z < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-descent-abort-max-z cannot be negative."
+            )
+        if args.guard_visual_yaw_align_descent_abort_lift_target_z < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-descent-abort-lift-target-z cannot be negative."
+            )
+        if args.guard_visual_yaw_align_descent_abort_lift_z_tolerance < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-descent-abort-lift-z-tolerance cannot be negative."
+            )
+        if args.guard_visual_yaw_align_descent_abort_lift_max_steps <= 0:
+            raise ValueError(
+                "--guard-visual-yaw-align-descent-abort-lift-max-steps must be positive."
+            )
+        if args.guard_visual_yaw_align_descent_abort_recenter_max_steps <= 0:
+            raise ValueError(
+                "--guard-visual-yaw-align-descent-abort-recenter-max-steps must be positive."
+            )
+        if args.guard_visual_yaw_align_descent_abort_recenter_release_xy <= 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-descent-abort-recenter-release-xy must be positive."
+            )
+        if args.guard_visual_yaw_align_descent_abort_max_up_action < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-descent-abort-max-up-action cannot be negative."
+            )
+        if args.guard_visual_yaw_align_descent_abort_max_xy_action < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-descent-abort-max-xy-action cannot be negative."
+            )
+        if args.guard_visual_yaw_align_reacquire_max_attempts < 0:
+            raise ValueError(
+                "--guard-visual-yaw-align-reacquire-max-attempts cannot be negative."
+            )
+        if args.guard_visual_yaw_align_reacquire_min_step < 0:
+            raise ValueError(
+                "--guard-visual-yaw-align-reacquire-min-step cannot be negative."
+            )
+        if args.guard_visual_yaw_align_reacquire_trigger_min_xy < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-reacquire-trigger-min-xy cannot be negative."
+            )
+        if (
+            args.guard_visual_yaw_align_reacquire_trigger_max_xy
+            <= args.guard_visual_yaw_align_reacquire_trigger_min_xy
+        ):
+            raise ValueError(
+                "--guard-visual-yaw-align-reacquire-trigger-max-xy must exceed trigger-min-xy."
+            )
+        if args.guard_visual_yaw_align_reacquire_trigger_min_z < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-reacquire-trigger-min-z cannot be negative."
+            )
+        if (
+            args.guard_visual_yaw_align_reacquire_trigger_max_z
+            <= args.guard_visual_yaw_align_reacquire_trigger_min_z
+        ):
+            raise ValueError(
+                "--guard-visual-yaw-align-reacquire-trigger-max-z must exceed trigger-min-z."
+            )
+        if args.guard_visual_yaw_align_reacquire_trigger_min_pred_yaw_deg < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-reacquire-trigger-min-pred-yaw-deg cannot be negative."
+            )
+        if args.guard_visual_yaw_align_reacquire_trigger_stable_window <= 0:
+            raise ValueError(
+                "--guard-visual-yaw-align-reacquire-trigger-stable-window must be positive."
+            )
+        if args.guard_visual_yaw_align_reacquire_trigger_max_delta_deg < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-reacquire-trigger-max-delta-deg cannot be negative."
+            )
+        if args.guard_visual_yaw_align_reacquire_xy_gate_min_xy < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-reacquire-xy-gate-min-xy cannot be negative."
+            )
+        if args.guard_visual_yaw_align_reacquire_lift_target_z < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-reacquire-lift-target-z cannot be negative."
+            )
+        if args.guard_visual_yaw_align_reacquire_lift_z_tolerance < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-reacquire-lift-z-tolerance cannot be negative."
+            )
+        if args.guard_visual_yaw_align_reacquire_lift_max_steps <= 0:
+            raise ValueError(
+                "--guard-visual-yaw-align-reacquire-lift-max-steps must be positive."
+            )
+        if args.guard_visual_yaw_align_reacquire_recenter_max_steps <= 0:
+            raise ValueError(
+                "--guard-visual-yaw-align-reacquire-recenter-max-steps must be positive."
+            )
+        if args.guard_visual_yaw_align_reacquire_recenter_release_xy <= 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-reacquire-recenter-release-xy must be positive."
+            )
+        if args.guard_visual_yaw_align_reacquire_max_up_action < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-reacquire-max-up-action cannot be negative."
+            )
+        if args.guard_visual_yaw_align_reacquire_max_xy_action < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-reacquire-max-xy-action cannot be negative."
+            )
+        if args.guard_visual_yaw_align_reacquire_relaxed_yaw_min_pred_yaw_deg < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-reacquire-relaxed-yaw-min-pred-yaw-deg cannot be negative."
+            )
+        if args.guard_visual_yaw_align_reacquire_relaxed_yaw_max_correction_deg <= 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-reacquire-relaxed-yaw-max-correction-deg must be positive."
+            )
+        if args.guard_visual_yaw_align_reacquire_relaxed_yaw_min_z < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-reacquire-relaxed-yaw-min-z cannot be negative."
+            )
+        if (
+            args.guard_visual_yaw_align_reacquire_relaxed_yaw_max_z
+            <= args.guard_visual_yaw_align_reacquire_relaxed_yaw_min_z
+        ):
+            raise ValueError(
+                "--guard-visual-yaw-align-reacquire-relaxed-yaw-max-z must exceed relaxed-yaw-min-z."
+            )
+        if args.guard_visual_yaw_align_reacquire_relaxed_yaw_stable_window <= 0:
+            raise ValueError(
+                "--guard-visual-yaw-align-reacquire-relaxed-yaw-stable-window must be positive."
+            )
+        if args.guard_visual_yaw_align_reacquire_relaxed_yaw_max_delta_deg < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-reacquire-relaxed-yaw-max-delta-deg cannot be negative."
+            )
+        if args.guard_visual_yaw_align_reacquire_descent_yaw_deg < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-reacquire-descent-yaw-deg cannot be negative."
+            )
+        if args.guard_visual_yaw_align_reacquire_descent_xy <= 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-reacquire-descent-xy must be positive."
+            )
+        if args.guard_visual_yaw_align_reacquire_descent_min_z < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-reacquire-descent-min-z cannot be negative."
+            )
+        if (
+            args.guard_visual_yaw_align_reacquire_descent_max_z
+            <= args.guard_visual_yaw_align_reacquire_descent_min_z
+        ):
+            raise ValueError(
+                "--guard-visual-yaw-align-reacquire-descent-max-z must exceed descent-min-z."
+            )
+        if args.guard_visual_yaw_align_reacquire_descent_max_down_action < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-reacquire-descent-max-down-action cannot be negative."
+            )
+        if args.guard_visual_yaw_align_wrong_basin_hold_min_pred_yaw_deg < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-wrong-basin-hold-min-pred-yaw-deg cannot be negative."
+            )
+        if args.guard_visual_yaw_align_wrong_basin_hold_stable_window <= 0:
+            raise ValueError(
+                "--guard-visual-yaw-align-wrong-basin-hold-stable-window must be positive."
+            )
+        if args.guard_visual_yaw_align_wrong_basin_hold_max_delta_deg < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-wrong-basin-hold-max-delta-deg cannot be negative."
+            )
+        if args.guard_visual_yaw_align_wrong_basin_hold_steps < 0:
+            raise ValueError(
+                "--guard-visual-yaw-align-wrong-basin-hold-steps cannot be negative."
+            )
+        if args.guard_visual_yaw_align_wrong_basin_hold_release_yaw_deg < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-wrong-basin-hold-release-yaw-deg cannot be negative."
+            )
+        if args.guard_visual_yaw_align_wrong_basin_hold_release_xy <= 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-wrong-basin-hold-release-xy must be positive."
+            )
+        if args.guard_visual_yaw_align_wrong_basin_hold_max_xy <= 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-wrong-basin-hold-max-xy must be positive."
+            )
+        if args.guard_visual_yaw_align_wrong_basin_hold_min_z < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-wrong-basin-hold-min-z cannot be negative."
+            )
+        if (
+            args.guard_visual_yaw_align_wrong_basin_hold_max_z
+            <= args.guard_visual_yaw_align_wrong_basin_hold_min_z
+        ):
+            raise ValueError(
+                "--guard-visual-yaw-align-wrong-basin-hold-max-z must exceed wrong-basin-hold-min-z."
+            )
+        if args.guard_visual_yaw_align_wrong_basin_hold_max_xy_action < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-wrong-basin-hold-max-xy-action cannot be negative."
+            )
+        if args.guard_visual_yaw_align_recenter_release_xy < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-recenter-release-xy cannot be negative."
+            )
+        if args.guard_visual_yaw_align_latch_steps < 0:
+            raise ValueError("--guard-visual-yaw-align-latch-steps cannot be negative.")
+        if args.guard_visual_yaw_align_latch_max_xy <= 0.0:
+            raise ValueError("--guard-visual-yaw-align-latch-max-xy must be positive.")
+        if args.guard_visual_yaw_align_latch_min_z < 0.0:
+            raise ValueError("--guard-visual-yaw-align-latch-min-z cannot be negative.")
+        if args.guard_visual_yaw_align_latch_max_z <= args.guard_visual_yaw_align_latch_min_z:
+            raise ValueError(
+                "--guard-visual-yaw-align-latch-max-z must exceed latch-min-z."
+            )
+        if args.guard_visual_yaw_align_aligned_descent_yaw_deg < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-aligned-descent-yaw-deg cannot be negative."
+            )
+        if args.guard_visual_yaw_align_aligned_descent_xy <= 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-aligned-descent-xy must be positive."
+            )
+        if args.guard_visual_yaw_align_aligned_descent_min_z < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-aligned-descent-min-z cannot be negative."
+            )
+        if (
+            args.guard_visual_yaw_align_aligned_descent_max_z
+            <= args.guard_visual_yaw_align_aligned_descent_min_z
+        ):
+            raise ValueError(
+                "--guard-visual-yaw-align-aligned-descent-max-z must exceed aligned-descent-min-z."
+            )
+        if args.guard_visual_yaw_align_aligned_descent_required_steps < 1:
+            raise ValueError(
+                "--guard-visual-yaw-align-aligned-descent-required-steps must be >= 1."
+            )
+        if args.guard_visual_yaw_align_aligned_descent_latch_steps < 0:
+            raise ValueError(
+                "--guard-visual-yaw-align-aligned-descent-latch-steps cannot be negative."
+            )
+        if args.guard_visual_yaw_align_aligned_descent_latch_release_xy <= 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-aligned-descent-latch-release-xy must be positive."
+            )
+        if args.guard_visual_yaw_align_aligned_descent_latch_release_yaw_deg < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-aligned-descent-latch-release-yaw-deg cannot be negative."
+            )
+        if args.guard_visual_yaw_align_aligned_descent_latch_min_z < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-aligned-descent-latch-min-z cannot be negative."
+            )
+        if (
+            args.guard_visual_yaw_align_aligned_descent_latch_max_z
+            <= args.guard_visual_yaw_align_aligned_descent_latch_min_z
+        ):
+            raise ValueError(
+                "--guard-visual-yaw-align-aligned-descent-latch-max-z must exceed latch-min-z."
+            )
+        if args.guard_visual_yaw_align_aligned_descent_max_down_action < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-aligned-descent-max-down-action cannot be negative."
+            )
+        if args.guard_visual_yaw_align_aligned_descent_max_xy_action < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-aligned-descent-max-xy-action cannot be negative."
+            )
+        if args.guard_visual_yaw_align_low_z_late_finish_descent_min_step < 0:
+            raise ValueError(
+                "--guard-visual-yaw-align-low-z-late-finish-descent-min-step cannot be negative."
+            )
+        if args.guard_visual_yaw_align_low_z_late_finish_descent_max_xy <= 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-low-z-late-finish-descent-max-xy must be positive."
+            )
+        if args.guard_visual_yaw_align_low_z_late_finish_descent_min_z < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-low-z-late-finish-descent-min-z cannot be negative."
+            )
+        if (
+            args.guard_visual_yaw_align_low_z_late_finish_descent_max_z
+            <= args.guard_visual_yaw_align_low_z_late_finish_descent_min_z
+        ):
+            raise ValueError(
+                "--guard-visual-yaw-align-low-z-late-finish-descent-max-z must exceed min-z."
+            )
+        if args.guard_visual_yaw_align_low_z_late_finish_descent_max_yaw_deg < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-low-z-late-finish-descent-max-yaw-deg cannot be negative."
+            )
+        if args.guard_visual_yaw_align_low_z_late_finish_descent_max_xy_action < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-low-z-late-finish-descent-max-xy-action cannot be negative."
+            )
+        if args.guard_visual_yaw_align_low_z_late_finish_descent_max_down_action < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-low-z-late-finish-descent-max-down-action cannot be negative."
+            )
+        if args.guard_visual_yaw_align_ik_orientation_weight < 0.0:
+            raise ValueError(
+                "--guard-visual-yaw-align-ik-orientation-weight cannot be negative."
+            )
     if (
         args.guard_contact_unjam_ik_orientation_weight is not None
         and args.guard_contact_unjam_ik_orientation_weight < 0.0
@@ -5473,6 +9578,30 @@ def main() -> None:
             "--guard-final-servo-square-recovery-escape-height must be greater than "
             "--guard-final-servo-hover-height."
         )
+    if (
+        args.guard_final_servo_square_recovery_escape_late_height
+        <= args.guard_final_servo_hover_height
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-late-height must be "
+            "greater than --guard-final-servo-hover-height."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_late_height
+        > args.guard_final_servo_square_recovery_escape_height
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-late-height must be <= "
+            "--guard-final-servo-square-recovery-escape-height."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_late_height_min_steps_since_reset
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-late-height-min-steps-since-reset "
+            "cannot be negative."
+        )
     if args.guard_final_servo_square_recovery_escape_release_xy <= 0.0:
         raise ValueError(
             "--guard-final-servo-square-recovery-escape-release-xy must be positive."
@@ -5601,6 +9730,19 @@ def main() -> None:
             "--guard-final-servo-square-recovery-escape-direct-fast-settle-z-max "
             "must be positive."
         )
+    if args.guard_final_servo_square_recovery_escape_direct_fast_settle_z_min < 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-direct-fast-settle-z-min "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_direct_fast_settle_z_min
+        > args.guard_final_servo_square_recovery_escape_direct_fast_settle_z_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-direct-fast-settle-z-min "
+            "must be <= direct-fast-settle-z-max."
+        )
     if args.guard_final_servo_square_recovery_escape_direct_fast_settle_contact_max < 0:
         raise ValueError(
             "--guard-final-servo-square-recovery-escape-direct-fast-settle-contact-max "
@@ -5615,6 +9757,29 @@ def main() -> None:
         raise ValueError(
             "--guard-final-servo-square-recovery-escape-direct-fast-settle-min-steps-since-reset "
             "cannot be negative."
+        )
+    if args.guard_final_servo_square_recovery_escape_direct_fast_settle_max_steps_since_reset < 0:
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-direct-fast-settle-max-steps-since-reset "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_direct_fast_settle_max_steps_since_reset
+        > 0
+        and args.guard_final_servo_square_recovery_escape_direct_fast_settle_max_steps_since_reset
+        < args.guard_final_servo_square_recovery_escape_direct_fast_settle_min_steps_since_reset
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-direct-fast-settle-max-steps-since-reset "
+            "must be >= min-steps-since-reset when enabled."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_direct_fast_settle_from_escape_min_phase_steps
+        <= 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-direct-fast-settle-from-escape-min-phase-steps "
+            "must be positive."
         )
     if args.guard_final_servo_square_recovery_escape_direct_fast_settle_max_down_action < 0.0:
         raise ValueError(
@@ -5666,6 +9831,307 @@ def main() -> None:
         raise ValueError(
             "--guard-final-servo-square-recovery-escape-recenter-descend-max-down-action "
             "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_recenter_drift_lift_min_phase_steps
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-recenter-drift-lift-min-phase-steps "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_recovery_escape_recenter_drift_lift_xy_min < 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-recenter-drift-lift-xy-min "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_recovery_escape_recenter_drift_lift_z_min < 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-recenter-drift-lift-z-min "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_recovery_escape_recenter_drift_lift_z_max <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-recenter-drift-lift-z-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_recenter_drift_lift_z_min
+        > args.guard_final_servo_square_recovery_escape_recenter_drift_lift_z_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-recenter-drift-lift-z-min "
+            "must be <= drift-lift-z-max."
+        )
+    if args.guard_final_servo_square_recovery_escape_recenter_drift_lift_contact_max < 0:
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-recenter-drift-lift-contact-max "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_recovery_escape_recenter_drift_lift_yaw_min_deg <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-recenter-drift-lift-yaw-min-deg "
+            "must be positive."
+        )
+    if args.guard_final_servo_square_recovery_escape_recenter_drift_lift_tilt_min_deg <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-recenter-drift-lift-tilt-min-deg "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_late_recenter_descend_min_steps_since_reset
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-late-recenter-descend-min-steps-since-reset "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_late_recenter_descend_min_phase_steps
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-late-recenter-descend-min-phase-steps "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_recovery_escape_late_recenter_descend_xy_max <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-late-recenter-descend-xy-max "
+            "must be positive."
+        )
+    if args.guard_final_servo_square_recovery_escape_late_recenter_descend_z_min < 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-late-recenter-descend-z-min "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_recovery_escape_late_recenter_descend_z_max <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-late-recenter-descend-z-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_late_recenter_descend_z_min
+        > args.guard_final_servo_square_recovery_escape_late_recenter_descend_z_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-late-recenter-descend-z-min "
+            "must be <= late-recenter-descend-z-max."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_late_recenter_descend_contact_max
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-late-recenter-descend-contact-max "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_late_recenter_descend_margin_min
+        > args.guard_final_servo_square_recovery_escape_late_recenter_descend_margin_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-late-recenter-descend-margin-min "
+            "must be <= margin-max."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_late_recenter_descend_tilt_max_deg
+        < 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-late-recenter-descend-tilt-max-deg "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_late_recenter_descend_max_down_action
+        < 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-late-recenter-descend-max-down-action "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_late_recenter_descend_max_xy_action
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-late-recenter-descend-max-xy-action "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_late_recenter_descend_hold_z_min
+        < 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-late-recenter-descend-hold-z-min "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_min_steps_since_reset
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-late-clean-direct-finish-min-steps-since-reset "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_min_phase_steps
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-late-clean-direct-finish-min-phase-steps "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_min_brake_attempts
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-late-clean-direct-finish-min-brake-attempts "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_xy_max
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-late-clean-direct-finish-xy-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_z_min
+        < 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-late-clean-direct-finish-z-min "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_z_max
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-late-clean-direct-finish-z-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_z_min
+        > args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_z_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-late-clean-direct-finish-z-min "
+            "must be <= z-max."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_contact_max
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-late-clean-direct-finish-contact-max "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_topdown_margin_min
+        < -1.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-late-clean-direct-finish-topdown-margin-min "
+            "must be >= -1.0."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_yaw_max_deg
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-late-clean-direct-finish-yaw-max-deg "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_late_clean_direct_finish_tilt_max_deg
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-late-clean-direct-finish-tilt-max-deg "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_xy_min
+        < 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-no-contact-xy-pop-recenter-xy-min "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_xy_max
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-no-contact-xy-pop-recenter-xy-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_xy_min
+        > args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_xy_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-no-contact-xy-pop-recenter-xy-min "
+            "must be <= xy-max."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_z_min
+        < 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-no-contact-xy-pop-recenter-z-min "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_z_max
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-no-contact-xy-pop-recenter-z-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_z_min
+        > args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_z_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-no-contact-xy-pop-recenter-z-min "
+            "must be <= z-max."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_contact_max
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-no-contact-xy-pop-recenter-contact-max "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_max_contact_pop_hold_attempts
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-no-contact-xy-pop-recenter-max-contact-pop-hold-attempts "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_yaw_max_deg
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-no-contact-xy-pop-recenter-yaw-max-deg "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_recovery_escape_no_contact_xy_pop_recenter_tilt_max_deg
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-recovery-escape-no-contact-xy-pop-recenter-tilt-max-deg "
+            "must be positive."
         )
     if args.guard_final_servo_contact_unjam_wall_steps <= 0:
         raise ValueError("--guard-final-servo-contact-unjam-wall-steps must be positive.")
@@ -5927,6 +10393,746 @@ def main() -> None:
             "--guard-final-servo-square-fast-settle-late-down-boost-min-clean-steps "
             "cannot be negative."
         )
+    if (
+        args.guard_final_servo_square_fast_settle_very_late_clean_tail_boost_min_steps_since_reset
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-very-late-clean-tail-boost-min-steps-since-reset "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_very_late_clean_tail_boost_min_brake_attempts
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-very-late-clean-tail-boost-min-brake-attempts "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_very_late_clean_tail_boost_min_phase_steps
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-very-late-clean-tail-boost-min-phase-steps "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_very_late_clean_tail_boost_min_clean_steps
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-very-late-clean-tail-boost-min-clean-steps "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_very_late_clean_tail_boost_xy_max
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-very-late-clean-tail-boost-xy-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_very_late_clean_tail_boost_z_min
+        < 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-very-late-clean-tail-boost-z-min "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_very_late_clean_tail_boost_z_max
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-very-late-clean-tail-boost-z-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_very_late_clean_tail_boost_z_min
+        > args.guard_final_servo_square_fast_settle_very_late_clean_tail_boost_z_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-very-late-clean-tail-boost-z-min "
+            "must be <= very-late-clean-tail-boost-z-max."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_very_late_clean_tail_boost_contact_max
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-very-late-clean-tail-boost-contact-max "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_very_late_clean_tail_boost_margin_min
+        < -1.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-very-late-clean-tail-boost-margin-min "
+            "must be >= -1.0."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_very_late_clean_tail_boost_topdown_margin_min
+        < -1.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-very-late-clean-tail-boost-topdown-margin-min "
+            "must be >= -1.0."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_very_late_clean_tail_boost_yaw_max_deg
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-very-late-clean-tail-boost-yaw-max-deg "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_very_late_clean_tail_boost_tilt_max_deg
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-very-late-clean-tail-boost-tilt-max-deg "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_very_late_clean_tail_boost_max_down_action
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-very-late-clean-tail-boost-max-down-action "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_very_late_clean_tail_boost_max_xy_action
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-very-late-clean-tail-boost-max-xy-action "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_low_z_contact_down_guard_min_steps_since_reset
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-low-z-contact-down-guard-min-steps-since-reset "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_low_z_contact_down_guard_wall_count <= 0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-low-z-contact-down-guard-wall-count "
+            "must be positive."
+        )
+    if args.guard_final_servo_square_fast_settle_low_z_contact_down_guard_xy_max <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-low-z-contact-down-guard-xy-max "
+            "must be positive."
+        )
+    if args.guard_final_servo_square_fast_settle_low_z_contact_down_guard_z_max <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-low-z-contact-down-guard-z-max "
+            "must be positive."
+        )
+    if args.guard_final_servo_square_fast_settle_low_z_contact_down_guard_min_brake_attempts < 0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-low-z-contact-down-guard-min-brake-attempts "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_low_z_contact_down_guard_max_up_action < 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-low-z-contact-down-guard-max-up-action "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_pop_hold_steps <= 0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-pop-hold-steps "
+            "must be positive."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_pop_hold_wall_count <= 0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-pop-hold-wall-count "
+            "must be positive."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_pop_hold_xy_min < 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-pop-hold-xy-min "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_pop_hold_xy_max <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-pop-hold-xy-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_pop_hold_xy_min
+        > args.guard_final_servo_square_fast_settle_contact_pop_hold_xy_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-pop-hold-xy-min "
+            "must be <= xy-max."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_pop_hold_z_min < 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-pop-hold-z-min "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_pop_hold_z_max <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-pop-hold-z-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_pop_hold_z_min
+        > args.guard_final_servo_square_fast_settle_contact_pop_hold_z_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-pop-hold-z-min "
+            "must be <= z-max."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_pop_hold_contact_max < 0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-pop-hold-contact-max "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_pop_hold_min_phase_steps < 0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-pop-hold-min-phase-steps "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_pop_hold_min_brake_attempts < 0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-pop-hold-min-brake-attempts "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_pop_hold_max_attempts < 0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-pop-hold-max-attempts "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_pop_hold_max_up_action < 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-pop-hold-max-up-action "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_min_phase_steps
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-pop-hold-recenter-min-phase-steps "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_xy_min < 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-pop-hold-recenter-xy-min "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_xy_max <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-pop-hold-recenter-xy-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_xy_min
+        > args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_xy_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-pop-hold-recenter-xy-min "
+            "must be <= xy-max."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_z_min < 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-pop-hold-recenter-z-min "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_z_max <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-pop-hold-recenter-z-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_z_min
+        > args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_z_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-pop-hold-recenter-z-min "
+            "must be <= z-max."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_contact_max < 0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-pop-hold-recenter-contact-max "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_yaw_max_deg <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-pop-hold-recenter-yaw-max-deg "
+            "must be positive."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_pop_hold_recenter_tilt_max_deg <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-pop-hold-recenter-tilt-max-deg "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_min_attempts
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-pop-exhausted-recenter-min-attempts "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_xy_min
+        < 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-pop-exhausted-recenter-xy-min "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_xy_max
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-pop-exhausted-recenter-xy-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_xy_min
+        > args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_xy_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-pop-exhausted-recenter-xy-min "
+            "must be <= xy-max."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_z_min
+        < 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-pop-exhausted-recenter-z-min "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_z_max
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-pop-exhausted-recenter-z-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_z_min
+        > args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_z_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-pop-exhausted-recenter-z-min "
+            "must be <= z-max."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_contact_max
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-pop-exhausted-recenter-contact-max "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_yaw_max_deg
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-pop-exhausted-recenter-yaw-max-deg "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_pop_exhausted_recenter_tilt_max_deg
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-pop-exhausted-recenter-tilt-max-deg "
+            "must be positive."
+        )
+    if args.guard_final_servo_square_fast_settle_no_contact_pop_hold_steps <= 0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-no-contact-pop-hold-steps "
+            "must be positive."
+        )
+    if args.guard_final_servo_square_fast_settle_no_contact_pop_hold_xy_min < 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-no-contact-pop-hold-xy-min "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_no_contact_pop_hold_xy_max <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-no-contact-pop-hold-xy-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_no_contact_pop_hold_xy_min
+        > args.guard_final_servo_square_fast_settle_no_contact_pop_hold_xy_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-no-contact-pop-hold-xy-min "
+            "must be <= xy-max."
+        )
+    if args.guard_final_servo_square_fast_settle_no_contact_pop_hold_z_min < 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-no-contact-pop-hold-z-min "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_no_contact_pop_hold_z_max <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-no-contact-pop-hold-z-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_no_contact_pop_hold_z_min
+        > args.guard_final_servo_square_fast_settle_no_contact_pop_hold_z_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-no-contact-pop-hold-z-min "
+            "must be <= z-max."
+        )
+    if args.guard_final_servo_square_fast_settle_no_contact_pop_hold_contact_max < 0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-no-contact-pop-hold-contact-max "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_no_contact_pop_hold_min_brake_attempts
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-no-contact-pop-hold-min-brake-attempts "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_no_contact_pop_hold_max_contact_pop_hold_attempts
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-no-contact-pop-hold-max-contact-pop-hold-attempts "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_no_contact_pop_hold_min_contact_pop_hold_phase_steps
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-no-contact-pop-hold-min-contact-pop-hold-phase-steps "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_no_contact_pop_hold_max_attempts < 0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-no-contact-pop-hold-max-attempts "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_no_contact_pop_hold_margin_min < -1.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-no-contact-pop-hold-margin-min "
+            "must be >= -1.0."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_no_contact_pop_hold_topdown_margin_min
+        < -1.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-no-contact-pop-hold-topdown-margin-min "
+            "must be >= -1.0."
+        )
+    if args.guard_final_servo_square_fast_settle_no_contact_pop_hold_yaw_max_deg <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-no-contact-pop-hold-yaw-max-deg "
+            "must be positive."
+        )
+    if args.guard_final_servo_square_fast_settle_no_contact_pop_hold_tilt_max_deg <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-no-contact-pop-hold-tilt-max-deg "
+            "must be positive."
+        )
+    if args.guard_final_servo_square_fast_settle_no_contact_pop_hold_max_up_action < 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-no-contact-pop-hold-max-up-action "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_pre_pop_guard_steps <= 0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-pre-pop-guard-steps "
+            "must be positive."
+        )
+    if args.guard_final_servo_square_fast_settle_pre_pop_guard_xy_max <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-pre-pop-guard-xy-max "
+            "must be positive."
+        )
+    if args.guard_final_servo_square_fast_settle_pre_pop_guard_z_min < 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-pre-pop-guard-z-min "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_pre_pop_guard_z_max <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-pre-pop-guard-z-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_pre_pop_guard_z_min
+        > args.guard_final_servo_square_fast_settle_pre_pop_guard_z_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-pre-pop-guard-z-min "
+            "must be <= z-max."
+        )
+    if args.guard_final_servo_square_fast_settle_pre_pop_guard_contact_max < 0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-pre-pop-guard-contact-max "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_pre_pop_guard_min_phase_steps < 0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-pre-pop-guard-min-phase-steps "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_pre_pop_guard_max_phase_steps < 0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-pre-pop-guard-max-phase-steps "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_pre_pop_guard_max_phase_steps
+        > 0
+        and args.guard_final_servo_square_fast_settle_pre_pop_guard_max_phase_steps
+        < args.guard_final_servo_square_fast_settle_pre_pop_guard_min_phase_steps
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-pre-pop-guard-max-phase-steps "
+            "must be >= min-phase-steps when enabled."
+        )
+    if args.guard_final_servo_square_fast_settle_pre_pop_guard_min_brake_attempts < 0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-pre-pop-guard-min-brake-attempts "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_pre_pop_guard_min_soft_hold_attempts
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-pre-pop-guard-min-soft-hold-attempts "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_pre_pop_guard_max_attempts < 0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-pre-pop-guard-max-attempts "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_pre_pop_guard_margin_min < -1.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-pre-pop-guard-margin-min "
+            "must be >= -1.0."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_pre_pop_guard_margin_max
+        < args.guard_final_servo_square_fast_settle_pre_pop_guard_margin_min
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-pre-pop-guard-margin-max "
+            "must be >= margin-min."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_pre_pop_guard_topdown_margin_min
+        < -1.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-pre-pop-guard-topdown-margin-min "
+            "must be >= -1.0."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_pre_pop_guard_topdown_margin_max
+        < 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-pre-pop-guard-topdown-margin-max "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_pre_pop_guard_topdown_margin_max
+        > 0.0
+        and args.guard_final_servo_square_fast_settle_pre_pop_guard_topdown_margin_min
+        > args.guard_final_servo_square_fast_settle_pre_pop_guard_topdown_margin_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-pre-pop-guard-topdown-margin-max "
+            "must be >= topdown-margin-min when enabled."
+        )
+    if args.guard_final_servo_square_fast_settle_pre_pop_guard_yaw_max_deg <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-pre-pop-guard-yaw-max-deg "
+            "must be positive."
+        )
+    if args.guard_final_servo_square_fast_settle_pre_pop_guard_tilt_min_deg < 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-pre-pop-guard-tilt-min-deg "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_pre_pop_guard_tilt_max_deg <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-pre-pop-guard-tilt-max-deg "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_pre_pop_guard_tilt_max_deg
+        < args.guard_final_servo_square_fast_settle_pre_pop_guard_tilt_min_deg
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-pre-pop-guard-tilt-max-deg "
+            "must be >= tilt-min-deg."
+        )
+    if args.guard_final_servo_square_fast_settle_pre_pop_guard_max_up_action < 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-pre-pop-guard-max-up-action "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_pre_pop_limit_max_xy_action
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-pre-pop-limit-max-xy-action "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_pre_pop_limit_max_down_action
+        < 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-pre-pop-limit-max-down-action "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_severe_pop_reapproach_xy_min
+        < 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-severe-pop-reapproach-xy-min "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_severe_pop_reapproach_xy_max
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-severe-pop-reapproach-xy-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_severe_pop_reapproach_xy_min
+        > args.guard_final_servo_square_fast_settle_severe_pop_reapproach_xy_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-severe-pop-reapproach-xy-min "
+            "must be <= xy-max."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_severe_pop_reapproach_z_min
+        < 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-severe-pop-reapproach-z-min "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_severe_pop_reapproach_z_max
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-severe-pop-reapproach-z-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_severe_pop_reapproach_z_min
+        > args.guard_final_servo_square_fast_settle_severe_pop_reapproach_z_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-severe-pop-reapproach-z-min "
+            "must be <= z-max."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_severe_pop_reapproach_contact_max
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-severe-pop-reapproach-contact-max "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_severe_pop_reapproach_min_brake_attempts
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-severe-pop-reapproach-min-brake-attempts "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_severe_pop_reapproach_min_steps_since_reset
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-severe-pop-reapproach-min-steps-since-reset "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_severe_pop_reapproach_max_attempts
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-severe-pop-reapproach-max-attempts "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_severe_pop_reapproach_height
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-severe-pop-reapproach-height "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_severe_pop_reapproach_margin_min
+        < -1.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-severe-pop-reapproach-margin-min "
+            "must be >= -1.0."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_severe_pop_reapproach_topdown_margin_min
+        < -1.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-severe-pop-reapproach-topdown-margin-min "
+            "must be >= -1.0."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_severe_pop_reapproach_yaw_max_deg
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-severe-pop-reapproach-yaw-max-deg "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_severe_pop_reapproach_tilt_max_deg
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-severe-pop-reapproach-tilt-max-deg "
+            "must be positive."
+        )
     if args.guard_final_servo_square_fast_settle_clearance_hold_steps <= 0:
         raise ValueError(
             "--guard-final-servo-square-fast-settle-clearance-hold-steps must be positive."
@@ -5961,6 +11167,11 @@ def main() -> None:
     if args.guard_final_servo_square_fast_settle_clearance_hold_contact_max < 0:
         raise ValueError(
             "--guard-final-servo-square-fast-settle-clearance-hold-contact-max "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_clearance_hold_wall_count < 0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-clearance-hold-wall-count "
             "cannot be negative."
         )
     if args.guard_final_servo_square_fast_settle_clearance_hold_min_brake_attempts < 0:
@@ -6080,6 +11291,54 @@ def main() -> None:
             "--guard-final-servo-square-fast-settle-low-z-relief-max-xy-action "
             "must be positive."
         )
+    if (
+        args.guard_final_servo_square_fast_settle_low_z_relief_wide_recenter_start_z_min
+        < 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-low-z-relief-wide-recenter-start-z-min "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_low_z_relief_wide_recenter_xy_max
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-low-z-relief-wide-recenter-xy-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_low_z_relief_wide_recenter_z_max
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-low-z-relief-wide-recenter-z-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_low_z_relief_wide_recenter_max_steps
+        <= 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-low-z-relief-wide-recenter-max-steps "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_low_z_relief_wide_recenter_contact_pop_min_attempts
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-low-z-relief-wide-recenter-contact-pop-min-attempts "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_low_z_relief_wide_recenter_contact_pop_xy_max
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-low-z-relief-wide-recenter-contact-pop-xy-max "
+            "must be positive."
+        )
     if args.guard_final_servo_square_fast_settle_low_z_stall_relief_xy_max <= 0.0:
         raise ValueError(
             "--guard-final-servo-square-fast-settle-low-z-stall-relief-xy-max "
@@ -6164,6 +11423,632 @@ def main() -> None:
             "--guard-final-servo-square-fast-settle-low-z-stall-relief-hold-max-up-action "
             "cannot be negative."
         )
+    if (
+        args.guard_final_servo_square_fast_settle_low_z_stall_relief_hold_min_contact_pop_hold_attempts
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-low-z-stall-relief-hold-min-contact-pop-hold-attempts "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_soft_hold_steps <= 0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-steps "
+            "must be positive."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_soft_hold_xy_max <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-xy-max "
+            "must be positive."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_soft_hold_z_min < 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-z-min "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_soft_hold_z_max <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-z-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_z_min
+        > args.guard_final_servo_square_fast_settle_contact_soft_hold_z_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-z-min "
+            "must be <= z-max."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_soft_hold_yaw_max_deg <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-yaw-max-deg "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_margin_max
+        < args.guard_final_servo_square_fast_settle_contact_soft_hold_margin_min
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-margin-max "
+            "must be >= --guard-final-servo-square-fast-settle-contact-soft-hold-margin-min."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_soft_hold_tilt_max_deg <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-tilt-max-deg "
+            "must be positive."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_soft_hold_wall_count <= 0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-wall-count "
+            "must be positive."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_soft_hold_contact_max < 0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-contact-max "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_soft_hold_min_phase_steps < 0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-min-phase-steps "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_soft_hold_min_steps_since_reset < 0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-min-steps-since-reset "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_soft_hold_subsequent_min_phase_steps < 0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-subsequent-min-phase-steps "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_soft_hold_subsequent_min_steps_since_reset < 0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-subsequent-min-steps-since-reset "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_soft_hold_subsequent_z_max < 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-subsequent-z-max "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_soft_hold_subsequent_margin_min < -1.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-subsequent-margin-min "
+            "must be >= -1.0."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_soft_hold_max_attempts < 0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-max-attempts "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_contact_soft_hold_max_up_action < 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-max-up-action "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_extend_until_clear_contact_max
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-extend-until-clear-contact-max "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_extend_until_clear_max_steps
+        <= 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-extend-until-clear-max-steps "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_extend_until_clear_max_steps
+        < args.guard_final_servo_square_fast_settle_contact_soft_hold_steps
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-extend-until-clear-max-steps "
+            "must be >= --guard-final-servo-square-fast-settle-contact-soft-hold-steps."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_extend_until_clear_min_steps_since_reset
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-extend-until-clear-min-steps-since-reset "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_steps
+        <= 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-continue-steps "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_xy_max
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-continue-xy-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_z_min
+        < 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-continue-z-min "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_z_max
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-continue-z-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_z_min
+        > args.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_z_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-continue-z-min "
+            "must be <= release-continue-z-max."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_yaw_max_deg
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-continue-yaw-max-deg "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_tilt_max_deg
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-continue-tilt-max-deg "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_contact_max
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-continue-contact-max "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_max_xy_action
+        < 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-continue-max-xy-action "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_continue_max_down_action
+        < 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-continue-max-down-action "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_wall_count
+        <= 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-contact-brake-wall-count "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_xy_max
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-contact-brake-xy-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_xy_min
+        < 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-contact-brake-xy-min "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_xy_min
+        > args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_xy_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-contact-brake-xy-min "
+            "must be <= release-contact-brake-xy-max."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_z_min
+        < 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-contact-brake-z-min "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_z_max
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-contact-brake-z-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_z_min
+        > args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_z_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-contact-brake-z-min "
+            "must be <= release-contact-brake-z-max."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_contact_max
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-contact-brake-contact-max "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_margin_min
+        < -1.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-contact-brake-margin-min "
+            "must be >= -1.0."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_yaw_max_deg
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-contact-brake-yaw-max-deg "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_tilt_max_deg
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-contact-brake-tilt-max-deg "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_max_phase_steps
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-contact-brake-max-phase-steps "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_min_soft_hold_attempts
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-contact-brake-min-soft-hold-attempts "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_steps
+        <= 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-pop-hold-steps "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_wall_count
+        <= 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-pop-hold-wall-count "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_xy_min
+        < 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-pop-hold-xy-min "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_xy_max
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-pop-hold-xy-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_xy_min
+        > args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_xy_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-pop-hold-xy-min "
+            "must be <= xy-max."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_z_min
+        < 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-pop-hold-z-min "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_z_max
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-pop-hold-z-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_z_min
+        > args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_z_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-pop-hold-z-min "
+            "must be <= z-max."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_contact_max
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-pop-hold-contact-max "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_margin_min
+        < -1.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-pop-hold-margin-min "
+            "must be >= -1.0."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_yaw_max_deg
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-pop-hold-yaw-max-deg "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_tilt_max_deg
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-pop-hold-tilt-max-deg "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_max_phase_steps
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-pop-hold-max-phase-steps "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_min_soft_hold_attempts
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-pop-hold-min-soft-hold-attempts "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_max_attempts
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-pop-hold-max-attempts "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_release_pop_hold_max_up_action
+        < 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-release-pop-hold-max-up-action "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_xy_min
+        < 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-large-pop-recenter-xy-min "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_xy_max
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-large-pop-recenter-xy-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_xy_min
+        > args.guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_xy_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-large-pop-recenter-xy-min "
+            "must be <= xy-max."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_z_min
+        < 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-large-pop-recenter-z-min "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_z_max
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-large-pop-recenter-z-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_z_min
+        > args.guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_z_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-large-pop-recenter-z-min "
+            "must be <= z-max."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_contact_max
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-large-pop-recenter-contact-max "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_yaw_max_deg
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-large-pop-recenter-yaw-max-deg "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_contact_soft_hold_large_pop_recenter_tilt_max_deg
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-contact-soft-hold-large-pop-recenter-tilt-max-deg "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_late_finish_continue_min_steps_since_reset
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-late-finish-continue-min-steps-since-reset "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_late_finish_continue_xy_max <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-late-finish-continue-xy-max "
+            "must be positive."
+        )
+    if args.guard_final_servo_square_fast_settle_late_finish_continue_z_min < 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-late-finish-continue-z-min "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_late_finish_continue_z_max <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-late-finish-continue-z-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_late_finish_continue_z_min
+        > args.guard_final_servo_square_fast_settle_late_finish_continue_z_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-late-finish-continue-z-min "
+            "must be <= z-max."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_late_finish_continue_topdown_margin_min
+        < -1.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-late-finish-continue-topdown-margin-min "
+            "must be >= -1.0."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_late_finish_continue_yaw_max_deg
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-late-finish-continue-yaw-max-deg "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_late_finish_continue_tilt_max_deg
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-late-finish-continue-tilt-max-deg "
+            "must be positive."
+        )
+    if args.guard_final_servo_square_fast_settle_late_finish_continue_contact_max < 0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-late-finish-continue-contact-max "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_late_escape_veto_min_steps_since_reset
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-late-escape-veto-min-steps-since-reset "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_late_escape_veto_xy_max <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-late-escape-veto-xy-max "
+            "must be positive."
+        )
+    if args.guard_final_servo_square_fast_settle_late_escape_veto_z_min < 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-late-escape-veto-z-min "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_late_escape_veto_z_max <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-late-escape-veto-z-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_fast_settle_late_escape_veto_z_min
+        > args.guard_final_servo_square_fast_settle_late_escape_veto_z_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-late-escape-veto-z-min "
+            "must be <= z-max."
+        )
+    if args.guard_final_servo_square_fast_settle_late_escape_veto_contact_max < 0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-late-escape-veto-contact-max "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_fast_settle_late_escape_veto_yaw_max_deg <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-late-escape-veto-yaw-max-deg "
+            "must be positive."
+        )
+    if args.guard_final_servo_square_fast_settle_late_escape_veto_tilt_max_deg <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-fast-settle-late-escape-veto-tilt-max-deg "
+            "must be positive."
+        )
     if args.guard_final_servo_square_contact_brake_wall_steps <= 0:
         raise ValueError("--guard-final-servo-square-contact-brake-wall-steps must be positive.")
     if args.guard_final_servo_square_contact_brake_xy_max <= 0.0:
@@ -6205,6 +12090,63 @@ def main() -> None:
         raise ValueError("--guard-final-servo-square-contact-brake-max-up-action must be positive.")
     if args.guard_final_servo_square_contact_brake_max_clearance < 0.0:
         raise ValueError("--guard-final-servo-square-contact-brake-max-clearance cannot be negative.")
+    if args.guard_final_servo_square_contact_brake_release_flush_steps <= 0:
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-release-flush-steps "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_contact_brake_release_flush_min_brake_attempts
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-release-flush-min-brake-attempts "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_contact_brake_release_flush_min_steps_since_reset
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-release-flush-min-steps-since-reset "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_contact_brake_release_flush_xy_max <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-release-flush-xy-max "
+            "must be positive."
+        )
+    if args.guard_final_servo_square_contact_brake_release_flush_z_min < 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-release-flush-z-min "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_contact_brake_release_flush_z_max <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-release-flush-z-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_contact_brake_release_flush_z_min
+        > args.guard_final_servo_square_contact_brake_release_flush_z_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-release-flush-z-min "
+            "must be <= z-max."
+        )
+    if args.guard_final_servo_square_contact_brake_release_flush_contact_max < 0:
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-release-flush-contact-max "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_contact_brake_exhausted_continue_min_steps_since_reset
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-exhausted-continue-min-steps-since-reset "
+            "cannot be negative."
+        )
     if args.guard_final_servo_square_contact_brake_exhausted_continue_xy_max <= 0.0:
         raise ValueError(
             "--guard-final-servo-square-contact-brake-exhausted-continue-xy-max "
@@ -6236,6 +12178,19 @@ def main() -> None:
     if args.guard_final_servo_square_contact_brake_exhausted_continue_tilt_max_deg <= 0.0:
         raise ValueError(
             "--guard-final-servo-square-contact-brake-exhausted-continue-tilt-max-deg "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_contact_brake_exhausted_continue_topdown_margin_min
+        < -1.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-exhausted-continue-topdown-margin-min "
+            "must be >= -1.0."
+        )
+    if args.guard_final_servo_square_contact_brake_exhausted_continue_yaw_max_deg <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-exhausted-continue-yaw-max-deg "
             "must be positive."
         )
     if args.guard_final_servo_square_contact_brake_preemptive_hold_wall_steps <= 0:
@@ -6316,6 +12271,183 @@ def main() -> None:
         raise ValueError(
             "--guard-final-servo-square-contact-brake-preemptive-hold-expanded-yaw-max-deg "
             "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_contact_brake_preemptive_hold_clean_release_max_brake_attempts
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-preemptive-hold-clean-release-max-brake-attempts "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_contact_brake_preemptive_hold_clean_release_contact_max
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-preemptive-hold-clean-release-contact-max "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_contact_brake_preemptive_hold_clean_release_xy_max
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-preemptive-hold-clean-release-xy-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_contact_brake_preemptive_hold_clean_release_z_min
+        < 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-preemptive-hold-clean-release-z-min "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_contact_brake_preemptive_hold_clean_release_z_max
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-preemptive-hold-clean-release-z-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_contact_brake_preemptive_hold_clean_release_z_min
+        > args.guard_final_servo_square_contact_brake_preemptive_hold_clean_release_z_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-preemptive-hold-clean-release-z-min "
+            "must be <= z-max."
+        )
+    if (
+        args.guard_final_servo_square_contact_brake_preemptive_hold_clean_release_tilt_max_deg
+        <= 0.0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-preemptive-hold-clean-release-tilt-max-deg "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_min_phase_steps
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-preemptive-hold-pop-recenter-min-phase-steps "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_xy_min < 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-preemptive-hold-pop-recenter-xy-min "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_xy_max <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-preemptive-hold-pop-recenter-xy-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_xy_min
+        > args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_xy_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-preemptive-hold-pop-recenter-xy-min "
+            "must be <= xy-max."
+        )
+    if args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_z_min < 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-preemptive-hold-pop-recenter-z-min "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_z_max <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-preemptive-hold-pop-recenter-z-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_z_min
+        > args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_z_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-preemptive-hold-pop-recenter-z-min "
+            "must be <= z-max."
+        )
+    if args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_contact_max < 0:
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-preemptive-hold-pop-recenter-contact-max "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_yaw_max_deg <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-preemptive-hold-pop-recenter-yaw-max-deg "
+            "must be positive."
+        )
+    if args.guard_final_servo_square_contact_brake_preemptive_hold_pop_recenter_tilt_max_deg <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-preemptive-hold-pop-recenter-tilt-max-deg "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_contact_brake_late_lift_release_min_brake_attempts
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-late-lift-release-min-brake-attempts "
+            "cannot be negative."
+        )
+    if (
+        args.guard_final_servo_square_contact_brake_late_lift_release_min_phase_steps
+        <= 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-late-lift-release-min-phase-steps "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_contact_brake_late_lift_release_min_steps_since_reset
+        < 0
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-late-lift-release-min-steps-since-reset "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_contact_brake_late_lift_release_contact_max < 0:
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-late-lift-release-contact-max "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_contact_brake_late_lift_release_xy_max <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-late-lift-release-xy-max "
+            "must be positive."
+        )
+    if args.guard_final_servo_square_contact_brake_late_lift_release_z_min < 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-late-lift-release-z-min "
+            "cannot be negative."
+        )
+    if args.guard_final_servo_square_contact_brake_late_lift_release_z_max <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-late-lift-release-z-max "
+            "must be positive."
+        )
+    if (
+        args.guard_final_servo_square_contact_brake_late_lift_release_z_min
+        > args.guard_final_servo_square_contact_brake_late_lift_release_z_max
+    ):
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-late-lift-release-z-min "
+            "must be <= z-max."
+        )
+    if args.guard_final_servo_square_contact_brake_late_lift_release_yaw_max_deg <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-late-lift-release-yaw-max-deg "
+            "must be positive."
+        )
+    if args.guard_final_servo_square_contact_brake_late_lift_release_tilt_max_deg <= 0.0:
+        raise ValueError(
+            "--guard-final-servo-square-contact-brake-late-lift-release-tilt-max-deg "
+            "must be positive."
         )
     if args.guard_final_servo_square_high_z_descend_stall_steps < 0:
         raise ValueError("--guard-final-servo-square-high-z-descend-stall-steps cannot be negative.")

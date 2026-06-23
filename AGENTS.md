@@ -1,6 +1,6 @@
 # Agent Working Notes
 
-Last updated: 2026-06-05
+Last updated: 2026-06-17
 
 This file records the standing workflow, user preferences, safety rules, and project constraints for future Codex work in this repository. Read this file before making non-trivial changes.
 
@@ -15,6 +15,8 @@ The current focus is:
 - Improve robustness with image observations, near-hole crop, domain randomization, guarded insertion, and staged geometry curriculum.
 - Treat v47 early-final-servo boundary as the current promoted strict-1000 multi-geometry boundary candidate.
 - Prepare real UR5e deployment in read-only / dry-run form before enabling any real robot motion.
+- Treat `sim2real_multigeom_v1` as the cleaned v148/v149 same-shape multi-geometry sim-to-real mainline. Use `SIM2REAL_MULTIGEOM_V1.md` first for commands and status; do not confuse this with the v221 hard-square-only recovery line.
+- Treat `feature/multigeom-v2-true-fixtures` as the experimental true-fixture branch. It is opt-in through `geometry_fixture_mode=true_mesh`, currently covers `hex_hex`, `triangle_triangle`, `slot_slot`, and `rectangular_key`, and must not replace the v1 sim-to-real mainline until multi-seed validation and size-randomized mesh fixtures are done.
 
 ## User Preferences
 
@@ -42,11 +44,287 @@ The current focus is:
 
 ## Repo Conventions
 
-- Repo root: `D:\peg-in-hole-6yh\mujoco_peg_in_hole`
-- Current working branch: `feature/contact-aware-reinsert`
+- Current active worktree root: `D:\peg-in-hole-6yh\_promotion_v075_square_pose_yaw_align_20260603213104`
+- Historical/original worktree with some large checkpoints: `D:\peg-in-hole-6yh\mujoco_peg_in_hole`
+- Current working branch: `feature/multigeom-v2-true-fixtures`
 - Current active candidate branch: `feature/multi-geometry`
 - Stabilized single-geometry baseline branch: `feature/control-state-observation`
 - Remote: `https://github.com/AquaMarine763/mujoco-peg-in-hole-ur5.git`
+- The `scripts\sim2real\*.ps1` shortcuts are the preferred entry points for the cleaned v148/v149 mainline. They set `PYTHONPATH` to the current worktree first and resolve the policy checkpoint from the current worktree or the sibling `D:\peg-in-hole-6yh\mujoco_peg_in_hole` worktree.
+- `scripts\sim2real\eval_multigeom_v2_true_fixture.ps1` and `scripts\sim2real\demo_multigeom_v2_true_fixture.ps1` are the preferred entry points for the experimental true-fixture branch. They enable `geometry_fixture_mode=true_mesh` through config/CLI while preserving v1 defaults elsewhere.
+- `scripts\demo_policy.py` now supports the sim2real v1 full demo action chain: policy -> approach adapter -> guarded controller -> final-insert adapter -> square pose/yaw align -> MuJoCo step. Final-insert adapter activity is gated and may stay at zero on clean successful demos.
+- Current sim2real demo output renders `overview` plus `wrist_cam` and appends
+  a policy-observation grid by default: upper-left `overview`, lower-left
+  `wrist_cam`, upper-right `cam_image`, lower-right `near_hole_crop`. The panel
+  is built from the live obs dict. The optional `hole_top` camera is not default
+  because wrist occlusion makes it less useful during insertion. The XML
+  `hole_cavity_visual` geom is visual-only (`contype=0`, `conaffinity=0`) and
+  exists only to make the hole opening visible in demo frames; do not treat it
+  as collision geometry. It is intentionally hidden for `hex` and `triangle`
+  holes because a round marker made polygon demos look incorrectly round. For
+  `hex` and `triangle`, the XMLs also include `hole_polygon_visual_0..5`
+  geoms. They are visual-only and are dynamically placed with overlapping ends
+  so the demo block looks connected, while the original collision wall segments
+  remain active but transparent. Do not describe this v1 path as a final CAD
+  fixture: it is still a box-wall scaffold. `slot_slot` and `rectangular_key`
+  remain rectangular scaffold profiles with different aspect ratios in v1. The
+  v2 `true_mesh` path now has opt-in rounded-slot/keyhole mesh geometry.
+- v2 true-fixture status:
+  - `scripts\generate_true_fixture_mesh_assets.py` generates fixed-size convex
+    wall meshes for the full UR5e task XML.
+  - `hex_hex`, `triangle_triangle`, `slot_slot`, and `rectangular_key` have
+    opt-in true mesh fixture support. `slot_slot` also has an opt-in slot peg mesh in
+    `true_mesh` mode; default `box_wall` mode still uses the old box peg.
+    `rectangular_key` uses a keyhole profile in `true_mesh` mode: round body
+    plus one protruding tab. It uses `peg_keyhole_mesh`, a visual-only
+    `true_keyhole_fixture_visual_mesh`, and 11 transparent convex wall
+    segments for collision. The keyhole opening also uses visual-only dark
+    bottom markers: `hole_cavity_visual` for the round body and
+    `hole_key_tab_cavity_visual` for the tab. These must stay non-colliding and
+    should be described as demo/observation aids, not physical bottom geometry.
+    Demo rendering uses a separate visual-only ring mesh for these shapes,
+    while the segmented convex wall meshes remain active for collision but are
+    transparent.
+    Polygon peg demo clarity is improved with visual-only tip cap, tip outline,
+    and subtle side-edge highlight meshes for `hex` and `triangle`; they are
+    dynamically enabled only for those peg shapes and must remain
+    `contype=0`, `conaffinity=0`.
+    `rectangular_key` also uses the same visual-only peg-tip path for the key
+    peg bottom face: `peg_keyhole_tip_cap_visual_mesh` and
+    `peg_keyhole_tip_outline_visual_mesh`. This is separate from the keyhole
+    opening's dark bottom marker and must also remain non-colliding.
+    `triangle_triangle` true mesh clamps the triangular hole circumdiameter to
+    at most `2x` the peg diameter.
+    MuJoCo mesh compiler pose compensation (`model.mesh_pos` /
+    `model.mesh_quat`) is required for correct fixture placement.
+  - Current smoke gate on seed `906500`: `hex_hex=10/10`,
+    `triangle_triangle=10/10`, and `slot_slot=10/10`, zero collision and zero
+    timeout after visual-ring and triangle-clamp changes. Treat this as
+    prototype evidence only, not a stable release gate.
+  - 2026-06-10 polygon peg visual-highlight smoke: `hex_hex=10/10` and
+    `triangle_triangle=10/10`, zero collision and zero timeout. The hex demo is
+    under `results\sim2real_multigeom_v2_true_fixture_demo_polygon_peg_highlight`.
+  - 2026-06-10 keyhole v2 bottom-visual smoke: `rectangular_key=10/10`, zero
+    collision and zero timeout. Demo:
+    `results\sim2real_multigeom_v2_true_fixture_demo_keyhole_bottom_visual\demo_rectangular_key_seed906500.gif`.
+  - 2026-06-10 key peg tip visual smoke: `rectangular_key=10/10`, zero
+    collision and zero timeout. Demo:
+    `results\sim2real_multigeom_v2_true_fixture_demo_keyhole_peg_tip_visual\demo_rectangular_key_seed906500.gif`.
+  - 2026-06-16 analytic shape yaw sensitivity scan added at
+    `scripts\scan_shape_yaw_sensitivity.py`. It is 2D geometry only and does
+    not use visual-only peg-tip highlights or policy rollouts. Focused
+    candidate clearances from the first pass:
+    `rectangular_key=0.75-1.25mm`, `square_square=0.5-1.0mm`,
+    `triangle_triangle=0.5-1.0mm`, `hex_hex=0.5mm`.
+  - 2026-06-16 tight-yaw true-fixture variant added through
+    `geometry_true_fixture_variant=tight_yaw` and
+    `configs\sim2real\multigeom_v2_true_fixture_tight_yaw_eval.yaml`.
+    Current fixed tight-yaw clearances are `rectangular_key=1.0mm`,
+    `square_square=0.75mm`, `triangle_triangle=0.75mm`, and `hex_hex=0.5mm`.
+    Use `scripts\sim2real\eval_multigeom_v2_true_fixture_tight_yaw.ps1` for
+    this pressure test. Initial seed `906500`, 5ep/profile result:
+    `rectangular_key=5/5`, `square_square=1/5`,
+    `triangle_triangle=5/5`, `hex_hex=5/5`. The square failures are mainly
+    near-hole timeouts with yaw/clearance margin errors, which is exactly the
+    intended baseline before adding a visual yaw estimator and guarded
+    yaw-align phase. `shape_yaw_clearance` is the meaningful non-negative
+    clearance for polygon/key tight-yaw diagnostics; legacy `hole_clearance`
+    may be negative for polygon shapes and should not be used as the only
+    validity check.
+    Visual-only peg-tip highlights are demo/debug aids only; keep them
+    disabled for image label collection and visual yaw training.
+  - 2026-06-16 visual yaw data/training pipeline:
+    `scripts\collect_visual_yaw_dataset.py` directly places the UR5e near the
+    hole with controlled wrist yaw offsets and records `cam_image`,
+    `near_hole_crop`, and `shape_yaw_label_sin/cos`.
+    `scripts\train_visual_yaw_estimator.py` trains the first supervised CNN
+    baseline. The environment now exposes generic `shape_yaw_*` telemetry and
+    an `enable_peg_tip_visual_helpers` flag. Keep this flag off for training
+    data. Current 1k baseline on
+    `datasets\visual_yaw_v1_tight_yaw_1k.npz` is not control-ready:
+    validation mean yaw error `28.5 deg`, p95 `81.1 deg`; per-profile mean
+    error `hex_hex=14.3`, `square_square=20.3`, `triangle_triangle=27.0`,
+    `rectangular_key=53.1` degrees. Do not wire this estimator into guarded
+    yaw-align as-is; first improve key visibility/data scale/camera-crop
+    settings.
+  - 2026-06-16 view/crop scan and key-focus update:
+    `scripts\scan_visual_yaw_views.py` compared `baseline`, `crop_wider`,
+    `raise_center`, and `open_high` using 128 samples/candidate and 8 epochs.
+    `raise_center` won the key-error tie-breaker, but `crop_wider` is the
+    lower-risk sim-to-real candidate because it keeps the current wrist camera
+    pose and only widens `near_hole_crop_source_size` from `64` to `80`.
+    Using the `crop_wider` setup, I collected
+    `datasets\visual_yaw_v1_tight_yaw_key_focus_2k_crop_wider.npz` with
+    `rectangular_key` at 50% of samples. The resulting estimator
+    `results\visual_yaw_estimator_v1_tight_yaw_key_focus_2k_crop_wider.pt`
+    reached best validation mean yaw error `13.7 deg`, p95 `47.4 deg`.
+    Per-profile mean error:
+    `square_square=5.8`, `triangle_triangle=8.4`, `hex_hex=6.4`,
+    `rectangular_key=20.1` degrees. This is the first version that starts to
+    look useful for a later guarded yaw-align experiment, but it still should
+    not be wired into the controller directly because key p95 remains high.
+    Keep `enable_peg_tip_visual_helpers=false` for all training data.
+  - 2026-06-16 visual yaw diagnostic update:
+    `scripts\eval_visual_yaw_estimator.py` evaluates a yaw checkpoint on the
+    reconstructed held-out split, reports per-profile/per-yaw-bin errors, and
+    writes a worst-case image sheet. Current 2k crop-wider diagnostic:
+    overall mean `13.7 deg`, p95 `47.4 deg`; `rectangular_key` mean
+    `20.1 deg`, p95 `56.5 deg`, bad fraction `0.477` for `>15 deg`.
+    Key failures concentrate in the `-60..-30 deg` and `-120..-90 deg` yaw
+    bins. The collector now supports `yaw_sampling_mode=stratified` and
+    `yaw_bin_count`; smoke
+    `datasets\visual_yaw_v1_tight_yaw_stratified_smoke_96.npz` validated exact
+    key 12-bin coverage. Next learning run should use the new 8k configs:
+    `multigeom_v2_true_fixture_tight_yaw_visual_yaw_dataset_key_focus_8k_stratified.yaml`,
+    `multigeom_v2_true_fixture_tight_yaw_visual_yaw_train_key_focus_8k_stratified.yaml`,
+    and
+    `multigeom_v2_true_fixture_tight_yaw_visual_yaw_eval_key_focus_8k_stratified.yaml`.
+  - 2026-06-16 8k stratified yaw result:
+    `datasets\visual_yaw_v1_tight_yaw_key_focus_8k_stratified_crop_wider.npz`
+    has 8192 samples with balanced yaw bins. Estimator
+    `results\visual_yaw_estimator_v1_tight_yaw_key_focus_8k_stratified_crop_wider.pt`
+    reached validation mean/p95 `2.10/5.74 deg`; per-profile mean/p95:
+    `square_square=1.39/3.80`, `triangle_triangle=1.90/5.04`,
+    `hex_hex=1.24/3.32`, `rectangular_key=2.71/6.78` deg. The previous key
+    hard bins are now around p95 `4.8-5.0 deg`. This is good enough to start a
+    guarded yaw-align prototype, but do not command yaw unconditionally because
+    rare severe occlusion outliers remain. Add confidence/visibility gating and
+    a no-correction fallback.
+  - 2026-06-16 guarded visual yaw-align prototype:
+    `peg_in_hole_mujoco\visual_yaw_runtime.py` loads the 8k estimator for
+    runtime prediction. `scripts\eval_guarded_policy.py` can now run key-only
+    visual yaw correction, optional descent blocking, Z hold, XY hold,
+    post-yaw recenter, and opt-in yaw-sensitive success gates. The important
+    task definition change is `success_shape_yaw_tolerance_deg`: without it,
+    `rectangular_key` can report success from XY/Z only and does not prove that
+    the key tab was oriented correctly. Current yaw-sensitive key smoke on seed
+    `906500`: baseline no-visual-yaw `0/5`; soft visual yaw `0/5`; strict
+    visual yaw hold/recenter recheck `4/10` with `1/10` collision and `5/10`
+    timeout; bounded 2 cm `commit_descent_latch` without target hold `15/30`,
+    zero collision and fifteen timeouts across seeds `906500/907500/908500`;
+    `commit_descent_latch_target_hold` first reached `27/30`, then `55/60`
+    across seeds `906500/907500/908500/909500/910500/911500`, but had `2/60`
+    collisions. The safer visible variant reached `54/60`, zero collision and
+    six timeouts on the same six seeds, but the larger 120ep visible gate still
+    exposed `2/120` collisions (`103/120`). For sim-to-real-oriented work,
+    prefer the low-visibility brake diagnostic:
+    `configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch_target_hold_visible_brake_eval.yaml`.
+    It reached `104/120`, zero collision and sixteen timeouts on six 20ep
+    seeds.
+    Target hold preserves the last visually aligned IK orientation target
+    through short raw-norm/XY gate dropouts and fixes most returns to the
+    `~180 deg` wrong-yaw basin. The safer visible variant additionally requires
+    same-step visible yaw predictions for active descent and releases target
+    hold when live predicted yaw exceeds `8 deg`; the brake variant additionally
+    lifts and flushes control history under poor yaw visibility, large predicted
+    yaw, off-center XY, and low Z. The over-narrow
+    `commit_descent` gate almost never triggers, and the wider `xy30` commit
+    did not improve success. Do not promote this line until either a larger
+    gate passes or the remaining wrong-yaw-basin timeouts are handled.
+    Bounded re-acquire/retry now exists as a diagnostic config:
+    `configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch_target_hold_visible_brake_reacquire_eval.yaml`.
+    The safer setting triggers from step `350`, allows two high-Z lift/recenter
+    attempts, and keeps relaxed yaw correction disabled. It reached `49/60`,
+    zero collision and eleven timeouts on targeted seeds
+    `908500/909500/910500`; the matching brake subset was `47/60`, zero
+    collision and thirteen timeouts. This is a small diagnostic gain, not a
+    promotion candidate. The relaxed yaw-correction path inside re-acquire is
+    implemented but must stay disabled for now: its first 10ep smoke regressed
+    `909500` from `5/5` to `4/5` by pushing a near-recovered case back into
+    large XY. The current bottleneck is no longer collision safety; it is
+    visual-yaw confidence/action selection during `170-179 deg`
+    wrong-yaw-basin recovery. Square visual yaw remains disabled because the
+    current runtime distribution produced false roughly `45 deg` predictions on
+    square.
+    Re-acquire descent also exists as a default-off diagnostic config:
+    `configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch_target_hold_visible_brake_reacquire_descent_eval.yaml`.
+    Its 10ep smoke reached `908500=4/5`, `909500=5/5`, collision `0`, but did
+    not show enough benefit to promote. Keep it as diagnostic evidence only.
+    New offline analyzer:
+    `scripts\analyze_visual_yaw_reacquire_traces.py`. On the targeted 60ep
+    re-acquire trace, all re-acquire rows had opposite-sign rate `39.3%`;
+    runtime visibility reduced this to `17.5%`, and temporal-delta stability
+    reduced high-error tail to `1.4%` but at only `19.7%` coverage. Simple
+    predicted-sign stability is unsafe because the wrong sign can be stable.
+    Next work should design a conservative runtime confidence/action gate, not
+    feed signed yaw correction whenever the prediction is merely persistent.
+    A conservative relaxed-yaw diagnostic config now exists:
+    `configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch_target_hold_visible_brake_reacquire_confident_relaxed_yaw_eval.yaml`.
+    It requires visible prediction stats, a 3-frame signed-yaw delta window
+    under `12 deg`, and caps the re-applied correction at `30 deg`. Fixed
+    smoke: default re-acquire recheck `908500=5/5`, `909500=4/5`, collision
+    `0`; confident relaxed-yaw smoke `908500=5/5`, `909500=5/5`,
+    `910500=4/5`, collision `0`, with `reacquire_relaxed_yaw` triggering on
+    `8/13/29` rows respectively. Keep this as the next candidate only; do not
+    promote until targeted 60ep and six-seed 120ep pass. Note: an indentation
+    bug during this implementation briefly disabled `reacquire_active`; it was
+    fixed and verified by the default recheck above.
+    Targeted 60ep candidate result: `51/60`, collision `1/60`, timeout
+    `8/60` on seeds `908500/909500/910500`. It rescued four baseline timeouts
+    but regressed two baseline successes and turned `908516` into a plate
+    collision. The collision trace had no `reacquire_relaxed_yaw` rows and
+    ended with large XY under `z_gate`, so the next implementation should be a
+    large-XY/low-Z safety brake, not a stronger relaxed-yaw policy.
+    The first large-XY/low-Z brake diagnostic is implemented as
+    `guard_visual_yaw_align_large_xy_low_z_brake_*` plus config
+    `configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch_target_hold_visible_brake_reacquire_confident_relaxed_yaw_large_xy_low_z_brake_eval.yaml`.
+    A broad `z<=8 cm` trigger passed the targeted hard 60ep set with `52/60`,
+    collision `0`, but failed the six-seed 120ep gate with `105/120`,
+    collision `1`, timeout `14`. It disrupted `906500`, where the baseline
+    low-visibility brake had succeeded. Do not promote it and do not keep
+    widening scalar brake thresholds. The next useful direction is a stateful
+    descent-permission/abort phase that prevents entering low Z with large XY,
+    then explicitly returns to high-Z recenter.
+    Stateful descent-abort is now implemented as default-off
+    `guard_visual_yaw_align_descent_abort_*` controls and trace fields. It
+    resets the pose IK yaw target while active, lifts, recenters, and can flush
+    control randomization history. Diagnostics are not promotable yet:
+    confident relaxed-yaw + descent-abort rescued `908516` in 1ep smoke but
+    produced unsafe 40ep variants; bounded re-acquire + low-Z unreliable abort
+    gave `906500=18/20` collision `0`, `908500=17/20` collision `1`; adding a
+    large-predicted-yaw trigger gave `906500=18/20` collision `1`,
+    `908500=15/20` collision `0`. Current safest key-yaw baseline remains
+    `visible_brake_eval` at `104/120`, collision `0/120`. Do not promote/tag
+    descent-abort configs without a zero-collision 120ep gate.
+    Temporal visual-yaw action/descent gate is also implemented as default-off
+    `guard_visual_yaw_align_temporal_action_gate_*`. Hard reset-target smoke
+    regressed `906500/908500/908516` to timeout. The softer descent-only
+    diagnostic
+    `configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_temporal_action_gate_eval.yaml`
+    kept zero collision but targeted hard 60ep was only `47/60`
+    (`908500=16/20`, `909500=14/20`, `910500=17/20`). Do not promote this
+    temporal gate; it is diagnostic evidence that delaying descent alone does
+    not fix wrong-yaw-basin timeouts.
+    Low-Z lateral-pop recovery is implemented as default-off
+    `guard_visual_yaw_align_low_z_lateral_pop_recovery_*` controls and trace
+    fields, with diagnostic config
+    `configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_lateral_pop_recovery_eval.yaml`.
+    The recovery-only smoke on `906500,908500,908516` reached `2/3`,
+    collision `0`, timeout `1`; it triggered too late to rescue `908516`.
+    A late-finish/freeze-XY variant using
+    `guard_visual_yaw_align_low_z_late_finish_descent_*` was rejected because
+    it regressed `906500` to timeout and changed `908516` into collision.
+    Keep both hooks diagnostic-only and default-off; current safest key-yaw
+    baseline remains the visible-brake config.
+    `scripts\analyze_visual_yaw_action_selection.py` now summarizes candidate
+    runtime action gates from step traces. On the gated narrow re-acquire 40ep
+    trace, visible+temporal-delta-stable rows had no sign mismatch and no
+    high-error rows, but predicted near-zero yaw was not enough to release
+    descent: even `pred<=2deg` and `XY<=8mm` had about `12deg` true yaw on
+    average in timeout traces. The high-yaw-only action-selection config
+    `configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_reacquire_high_yaw_action_selection_eval.yaml`
+    disables re-acquire-local descent and only permits visible/stable high-yaw
+    re-apply. Same-seed 40ep result was `34/40`, collision `0`, timeout `6`,
+    tying gated narrow re-acquire but below visible-brake baseline `35/40`.
+    Do not promote this config. The next useful step is likely better visual
+    evidence near the final descent point, not more scalar descent thresholds.
+    Regression smoke after increasing `true_fixture_wall_0..11`:
+    `hex_hex=1/1`, `triangle_triangle=1/1`, and `slot_slot=1/1`, all zero
+    collision and zero timeout.
+  - Keyhole limitations to remember: current keyhole meshes are fixed-size
+    assets, not validated for runtime scale randomization; tight keyhole
+    insertion should get key-specific yaw/alignment diagnostics rather than
+    reusing square-symmetry yaw logic.
 - Current contact-aware hard-square status:
   - Latest stable promoted tag remains `v0.7.6-square-escape-dynamic-xycap`.
   - Do not promote/push/tag a v0.7.7 successor from the current local
@@ -76,6 +354,39 @@ The current focus is:
     More relief attempts improve safety locally but burn budget; broad direct
     fast-settle can create collisions. The next design should combine earlier
     pre-pop risk detection with a strictly late, bounded finish assist.
+  - 2026-06-08 local low-Z soft-hold / lateral-pop diagnostics: current-code
+    v311 rerun on `931500/30ep` reached only `27/30`, so do not treat the
+    older saved v311 `29/30` as the active baseline without rerunning. v315
+    low-Z/margin-gated third soft-hold reached `27/30` and is rejected.
+    v316 reduced contact-soft-hold release-continue caps to
+    `max_xy=0.00035`, `max_down=0.0008`; a fresh current-code rerun reached
+    `931500=30/30`, but key regression buckets still failed
+    (`927500=29/30`, `929500=28/30`). v316 is diagnostic only, not a
+    promotable milestone. v317 longer soft-hold regressed to `27/30`; v318
+    single soft-hold attempt regressed to `26/30`; v319 broad release
+    contact-brake fixed `931500` but regressed `927500/929500`; v320 narrow
+    second-release contact-brake regressed `931500=27/30`; v321 release-pop
+    hold stayed `931500=29/30`; v322 no-contact pop hold regressed
+    `927500=27/30` and `929500=27/30`. v323 added severe low-Z
+    lateral-pop high reapproach, but `927500/30ep` was only `28/30` with
+    one collision and one timeout. v324 skipped the pre-lift hold and still
+    reached only `28/30` on `927500`. Do not push/tag v315-v324 as stable
+    milestones. v325-v327 explored narrow `square_fast_settle_pre_pop_guard_hold`
+    variants; v328 replaced the hold with action limiting in the same risk
+    window. Focused `927500/30ep` results were `28/30`, `28/30`, `28/30`, and
+    `27/30` respectively. Do not push/tag/promote v325-v328. The next useful
+    step is an offline trace classifier/replay table that evaluates candidate
+    gates against failure and success traces before another expensive 30ep
+    simulation gate. `scripts/analyze_pre_pop_guard_traces.py` now performs
+    the first-pass gate scan; initial v316 failure scans show the current gate
+    also matches timeout seed `929521`, so success traces are required before
+    tuning another runtime intervention.
+  - Current residual interpretation: hard-square failures are broader than a
+    single soft-hold release pop. The recurring family is low-Z lateral pop
+    after repeated contact-brake/contact-pop recovery, followed by either
+    pre-lift/recenter collision or 1000-step timeout. Heavy local recovery
+    patches can shift failures between buckets; require at least the hard
+    regression buckets before promotion.
   - Current-code v170 fresh replay on 2026-06-05 reached `89/90` across
     `927500/928500/929500`; the only remaining failure was `929512` timeout,
     zero collision. This is better than the earlier `88/90` record but still
@@ -553,10 +864,275 @@ The current focus is:
 
 - Current hard-square context: v221
   `configs/sim/ur5e_full/eval_multi_geometry_v221_v220_clean3_escape55_hard_square_30ep.yaml`
-  is the active local promotion candidate. It passed seeds
-  `924500/927500/928500/929500/931500`, 30 episodes each, with zero collision
-  and zero timeout. It is committed, tagged, and pushed as
+  remains the last pushed stable milestone, committed/tagged/pushed as
   `v0.7.7-hard-square-clean3-escape55`.
+- Current local diagnostic context: v239-v244 on
+  `feature/contact-aware-reinsert`. These are rejected or non-promotable
+  hard-square diagnostics, not release candidates.
+  - v239 added structured soft-hold release-continue, but still collided on
+    targeted `929524`.
+  - v240 added bounded soft-hold extension and fixed targeted `929524`, but
+    regressed `927500` to `28/30`.
+  - v241 made extension late-only and restored `927500=30/30`, but `929500`
+    stayed `29/30` on `929504`.
+  - v242 globally limited contact-brake to one attempt and regressed `929500`
+    to `28/30`.
+  - v243 added repeat-brake margin gating; targeted seeds and `927500=30/30`
+    passed, but `929500` stayed `29/30` on `929518`.
+  - v244 narrowed low-Z relief margin and regressed focused `929518` and
+    `931509`.
+  Do not keep sweeping single scalar thresholds here. The next useful work is a
+  structured late contact-chain handoff rule using post-contact stability, not
+  another global soft-hold/brake/low-Z-relief threshold scan.
+- Latest hard-square diagnostics, still local and not promotable:
+  - v247-v252 explored low-Z clearance hold, action-level down guard, and
+    contact-brake release timing. v252/v253 can pass the original
+    `927500/929500/931500` 30ep gates in some current runs, but the hard-square
+    eval is not fully repeat-stable.
+  - v253 added `guard_final_servo_square_contact_brake_late_lift_release_*` and
+    passed `927500/929500/931500`, plus a repeat `931500`, but failed extra
+    `933500=29/30` with a timeout. Treat as diagnostic only.
+  - v254 lowered late recovery-escape height and fixed `933500`, but regressed
+    `931500` and `929500` to collisions. Reject.
+  - v255 added
+    `guard_final_servo_square_recovery_escape_direct_fast_settle_from_escape_*`,
+    but `933500` still failed with an early collision. Reject.
+  - v256 moved low-Z down guard/clearance hold to brake attempt `>=1` and
+    regressed `933500` to `28/30`. Reject.
+  - Before adding more control rules, add trace instrumentation for which guard
+    transition fired and include direct-fast-settle active state in step CSVs;
+    then rerun serial `929500/931500/933500` gates.
+- Current instrumentation status:
+  - `guard_final_servo_phase_transition_reason` and
+    `guard_final_servo_square_recovery_escape_direct_fast_settle_active` are now
+    included in guarded-policy step traces and `scripts\eval_guarded_policy.py`
+    step CSV output.
+  - The transition reason is a one-step pulse, reset to `none` at the beginning
+    of each guarded-policy step.
+  - A 1-episode smoke on v253 seed `933500` passed and confirmed both columns
+    are present. Direct-fast-settle did not trigger in that smoke.
+  - Serial trace-enabled reruns found v258 as the current best local diagnostic
+    point: `929500=30/30`, `931500=30/30`, `933500=29/30` with one timeout and
+    zero collisions. It is not a release candidate.
+  - v257/v259/v260/v261 direct-fast-settle gates are not promotable. They shift
+    the failure between late timeout and collision across seeds.
+  - v262-v266 added and tested structured late escape/finish logic:
+    - late recovery-escape recenter descend plus hold-release gates:
+      `guard_final_servo_square_recovery_escape_late_recenter_descend_*`
+    - guarded-state `square_peg_topdown_clearance_margin`
+    - topdown-gated late finish continuation:
+      `guard_final_servo_square_fast_settle_late_finish_continue_topdown_margin_min`
+  - Current best local candidate is v265
+    `configs/sim/ur5e_full/eval_multi_geometry_v265_v263_topdown_gated_late_finish_continue_hard_square_30ep.yaml`.
+    It has current 30/30 records on `929500`, `933500`, and a repeat
+    `931500`, but repeat `929500` with full trace regressed to `29/30`.
+    Treat v265 as promising but not promoted.
+  - Reject v264, v266, v267, and v268 as release candidates. v264 regressed
+    `929500` to collisions; v266 fixed one `931500` run but regressed
+    `929500` to `27/30`; v267/v268 late escape veto variants both stayed
+    `28/30` on `929500`.
+  - Do not keep widening late escape veto or late finish thresholds. The
+    controller-only path is showing repeat-sensitive contact failures near the
+    1000-step deadline. Next work should shift to targeted failure collection
+    and correction/DAgger or a learned recovery adapter.
+  - v269-v273 tested targeted final-insert adapter training:
+    - v269 used only the v265 repeat `929524` failure tail and regressed
+      `929500` to `27/30`. Reject.
+    - v270 blended the v269 failure with the existing v174 low-Z success/failure
+      datasets and is the best diagnostic adapter from this batch:
+      `929500=30/30`, `931500=30/30`, `933500 repeat=29/30`. It is not
+      promotable.
+    - v270 plus runtime aligned/no-contact handoff fixed `933500` but regressed
+      `929500` to a collision. Reject the handoff gate as a release direction.
+    - v271/v272/v273 added the v270 `933514` timeout back into training with
+      wide, downsampled, and unbalanced variants; all regressed either
+      `929500` or `933500`. Reject.
+    - Do not keep blindly mixing single failure traces into the low-dimensional
+      adapter. Before another adapter run, add broader balanced failure coverage,
+      per-dataset weighting, or a real DAgger loop.
+  - v274-v275 added and tested per-dataset weighting in
+    `scripts\train_final_insert_adapter.py`:
+    - Use `--dataset-weights` in the same order as `--dataset` then
+      `--extra-datasets`.
+    - v274 included low-weight `933514` data and still regressed `933500` to
+      `28/30`; reject.
+    - v275 used v174 low-Z data plus low-weight v269 `929524` only. It passed
+      initial `929500/931500/933500 = 30/30`, but repeat `929500` produced one
+      collision. Treat v275 as the best local weighted-adapter diagnostic, not a
+      release candidate.
+    - A `final_insert_adapter_square_risk_xy_min=0.008` runtime probe still
+      produced repeat `929500=29/30`, with the adapter inactive in the failure.
+      The remaining issue is still guarded final insert/recovery
+      repeat-sensitivity, not only learned adapter pollution.
+  - v276-v277 moved the remaining low-Z release contact handling back into the
+    guarded controller:
+    - New default-off config group:
+      `guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_*`.
+    - v276 detected wall contact during
+      `square_fast_settle_contact_soft_hold_release_continue` and handed off to
+      contact-brake. It passed `929500/931500/933500`, but repeat `929500`
+      timed out once because the heavy brake/recovery response consumed the
+      remaining budget. Reject v276 as a release candidate.
+    - v277 enables
+      `guard_final_servo_square_fast_settle_contact_soft_hold_release_contact_brake_soft_hold_first_enabled`
+      so release-window contact first returns to contact soft-hold, escalating
+      to full contact-brake only if needed.
+    - v277 focused gate with the v275 adapter:
+      `929500=30/30`, repeat `929500=30/30`, `931500=30/30`, `933500=30/30`.
+      Focused total: `120/120`, collision `0`, timeout `0`.
+    - Current best local config:
+      `configs/sim/ur5e_full/eval_multi_geometry_v277_v276_release_contact_soft_hold_first_hard_square_30ep.yaml`.
+    - Wider fresh-seed gate: `935500=30/30`, but `927500=29/30` with one clean
+      timeout on `927514`. Do not push/tag/promote v277 yet.
+    - v278
+      `configs/sim/ur5e_full/eval_multi_geometry_v278_v277_clean_tail_down_boost_hard_square_30ep.yaml`
+      raised the global late-down-boost down cap and regressed `927500` to
+      `28/30` with one collision plus one timeout. Reject.
+    - v279
+      `configs/sim/ur5e_full/eval_multi_geometry_v279_v277_clean_tail_zmin_only_hard_square_30ep.yaml`
+      only extended the late-down-boost lower Z bound and stayed `927500=29/30`.
+      Reject as a fix.
+    - v280-v286 explored a separate very-late clean tail boost and late direct
+      finish handoff. v284 (`0.0050` tail cap) is safer but still times out on
+      `927514`; v286 (`0.0060`) passed initial `927500` but repeat `929500`
+      regressed to collisions on `929510` and `929524`.
+    - Do not promote v286. The current failure mode is mid/low-Z contact pop
+      after wall contact, not final clean tail speed.
+    - Current diagnostic config:
+      `configs/sim/ur5e_full/eval_multi_geometry_v287_v284_contact_pop_hold_hard_square_30ep.yaml`.
+      It starts from v284 and adds default-off
+      `guard_final_servo_square_fast_settle_contact_pop_hold_*` logic for the
+      `XY 10-24 mm`, `Z 20-42 mm`, wall-contact band. First gate should run
+      `927500`, `929500`, and repeat `929500` before any promotion decision.
+    - v288-v293 latest local diagnostics:
+      - v288 added no-contact XY-pop current-height recenter and fixed targeted
+        `929524`, but `929500` still failed on `929521`.
+      - v289 global low-Z stall hold passed `929500` repeat but regressed
+        `927514`; reject.
+      - v290 disabling low-Z stall relief regressed `929500`; reject.
+      - v291 gated low-Z stall hold on at least three contact-pop holds. It
+        passed `929500`, repeat `929500`, and `931500`, but still left
+        `927514` timeout.
+      - v292 contact-pop-exhausted recenter did not fix `927514` and regressed
+        `927500`; reject.
+      - v293 added no-contact XY-pop `margin_min=-0.0030` and
+        `tilt_max_deg=3.5`. Current results:
+        `929500=30/30`, `927500=30/30`, `931500=30/30`, repeat
+        `929500=30/30`, but `933500=28/30` with collisions on `933513` and
+        `933523`.
+      - Do not push/tag/promote v293. Next useful work is v294: add
+        topdown/yaw gates to no-contact XY-pop recenter for `933513`, then a
+        narrow post-contact-brake-release hold/flush or stricter release check
+        for `933523`.
+    - v294-v302 hard-square diagnostics:
+      - v294 topdown/yaw gates fixed `933513` but left `933500=29/30` with
+        `933523`.
+      - v295 soft-hold large-pop recenter got `933500=30/30` but regressed
+        `929500=29/30`; reject.
+      - v296 limited no-contact XY-pop recenter to no prior contact-pop holds;
+        `929500` still failed.
+      - v297/v298/v299 explored low-Z relief wide recenter. v299 is the best
+        diagnostic compromise: `929500=30/30`, `933500=29/30`.
+      - v300/v301 narrowed no-contact recenter/yaw and worsened `933500` to
+        `28/30`; reject.
+      - v302 added recovery-escape recenter drift-lift and fixed `933506`, but
+        `933523` returned. Remaining failure is post-contact-brake release
+        pop: `square_contact_brake_recenter` stable near `XY 2.6 mm`,
+        `Z 28.6 mm`, then immediate `square_fast_settle` jumps to about
+        `XY 20.6 mm` and collides.
+      - v303 is the current diagnostic config:
+        `configs/sim/ur5e_full/eval_multi_geometry_v303_v302_contact_brake_release_flush_hard_square_30ep.yaml`.
+        It adds a default-off `square_contact_brake_release_flush` phase and
+        enables a 4-step zero-action flush after stable contact-brake recenter,
+        gated by square geometry, at least two brake attempts, `XY<=4 mm`,
+        `Z=20-35 mm`, and contact count `<=8`.
+      - Validation order for v303: first `933500/30ep`, then `929500/30ep`,
+        then `927500/30ep` and `931500/30ep`. Do not push/tag/promote until
+        the focused gate passes.
+    - v304-v313 latest local diagnostics:
+      - v307 current-code baseline was re-run at
+        `D:\peg-in-hole-6yh\v307_current_baseline\eval\v307_current_seed931500.*`
+        and remains `931500=29/30`, collision `0`, timeout `1`.
+      - v308 low-Z exhausted-continue fixed `931500=30/30`, but regressed
+        `933500=28/30`, `929500=29/30`, and left `927500=29/30`; reject.
+      - v309 strict `late_finish_continue` from v307 got `931500=27/30`;
+        reject.
+      - v310 added default-off exhausted-continue gates
+        `min_steps_since_reset`, `topdown_margin_min`, and `yaw_max_deg`, but
+        the low-Z window missed the current `931509` recovery trigger;
+        `931500=28/30`; reject.
+      - v311 moved the gated exhausted-continue window to `Z=36-39 mm`.
+        Result: `931500=29/30`, collision `1`, timeout `0`. It is useful
+        diagnostically because it removes the `931509` timeout class, but it is
+        not promotable due to a low-Z pop collision on `931524`.
+      - v312 globally enabled the existing low-Z contact down guard on v311 and
+        regressed to `931500=28/30`; reject.
+      - v313 added default-off
+        `guard_final_servo_square_fast_settle_low_z_contact_down_guard_min_steps_since_reset`
+        and enabled the guard only after 700 steps, but still got
+        `931500=28/30`; reject.
+      - Do not push/tag/promote v309-v313. Keep their default-off hooks for
+        diagnostics. Next useful work should start from v311 and implement a
+        more local low-Z pop detector/recovery rather than broadening the down
+        guard.
+    - v329-v330 latest local diagnostics:
+      - v329 added an offline-narrowed pre-pop gate:
+        `topdown_margin=0.0010-0.00145`, `tilt>=0.6 deg`,
+        `yaw<=0.4 deg`, `phase_steps=8-25`.
+      - Offline trace scan matched `0/84` success traces, `2/2` collision
+        traces, and `0/1` timeout traces, so the trigger is discriminative.
+      - Runtime results were not promotable:
+        `927500=29/30`, `929500=28/30`, `931500=27/30`.
+      - v330 stronger pre-pop hold (`8` steps, `+0.003` up) regressed
+        `929500` to `26/30`; reject.
+      - Do not push/tag/promote v329/v330. Keep the default-off hooks and
+        configs for diagnostics only.
+      - Next useful work should stop strengthening pre-pop hold and instead
+        implement a low-Z wall-contact onset recovery in `square_fast_settle`:
+        detect the first wall-contact/lateral-pop spike near `Z 26-33 mm`,
+        `XY<=4 mm`, positive clearance, and exhausted brake/soft-hold history,
+        then immediately lift/recenter/retry before continued descent drives
+        the peg into the wall.
+    - 2026-06-18 keyhole tight-yaw failure-mode diagnostic:
+      - Added `scripts\analyze_key_yaw_failure_modes.py`.
+      - Latest report:
+        `results\key_yaw_failure_mode_analysis.md`.
+      - The visible-brake local subset is `70/80`, collision `0`, timeout
+        `10`; keep the historical six-seed record as `104/120`, collision
+        `0/120`.
+      - Temporal descent gate targeted run is `47/60`, collision `0`, timeout
+        `13`.
+      - Dominant residual class is `timeout_wrong_yaw_basin`, not plain
+        low-level insertion stall.
+      - Follow-up opportunity counting shows reliable large-yaw visual evidence
+        in both successes and failures, so the camera/estimator is not the
+        only bottleneck. The next useful keyhole controller work is a narrow
+        wrong-basin yaw reacquire / target-preservation phase.
+      - Rejected diagnostic:
+        `configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_near_control_eval.yaml`
+        got `0/3`, collision `2`, timeout `1` on `908508,908516,910500`.
+        Do not promote broad `near_control` activation.
+      - Target-hold config diagnostics:
+        `high_yaw_target_hold_eval` is too broad and caused a collision on
+        `908508`. `high_yaw_arm_target_hold_eval` is safer but not better:
+        formal smoke `2/3`, collision `0`; 40ep on `906500,908500` is
+        `35/40`, collision `0`, timeout `5`, with `908500=15/20`.
+        Do not promote either target-hold variant.
+      - Wrong-basin hold hook is implemented in `scripts\eval_guarded_policy.py`
+        and exposed through
+        `configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_wrong_basin_hold_eval.yaml`.
+        It is default-off and diagnostic only. Same-seed 40ep comparison on
+        `906500,908500`: visible-brake baseline `35/40`, wide hold `33/40`,
+        6 cm max-XY hold `34/40`, all collision `0`. Do not promote/tag it.
+      - Narrow wrong-basin re-acquire diagnostic is exposed through
+        `configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_wrong_basin_reacquire_narrow_eval.yaml`.
+        New trigger quality gates are default-off in code. Same-seed 40ep:
+        ungated narrow re-acquire `35/40` with `1` collision; gated + low-Z
+        large-XY brake `34/40`, collision `0`. Do not promote/tag it. Treat
+        this as evidence that low-confidence yaw re-acquire can rescue a hard
+        seed but is not safe enough for the sim-to-real mainline.
+      - Avoid more scalar safety gates unless they are paired with a specific
+        yaw-reacquisition hypothesis and success-preservation seeds.
 - Check `git status --short --branch` before and after code changes when possible.
 - Use `rg` / `rg --files` for searching.
 - Use `apply_patch` for manual file edits.

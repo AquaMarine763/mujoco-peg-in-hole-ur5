@@ -1,0 +1,33 @@
+# Visual yaw-label dataset for the v2 true-fixture tight-yaw branch.
+# This does not run a policy. It places the UR5e near the hole with controlled
+# wrist yaw offsets and records image observations plus shape_yaw labels.
+
+model_path: assets/ur5e_full/ur5e_peg_in_hole_full.xml
+output: datasets/visual_yaw_v1_tight_yaw_key_focus_2k_crop_wider.npz
+samples: 2048
+seed: 906500
+
+# Rectangular key is the hardest yaw profile, so the current default oversamples
+# it at 50% while retaining the other tight-yaw same-shape profiles.
+geometry_profiles: [rectangular_key, rectangular_key, rectangular_key, square_square, triangle_triangle, hex_hex]
+geometry_fixture_mode: true_mesh
+geometry_true_fixture_variant: tight_yaw
+
+image_width: 100
+image_height: 100
+near_hole_crop_size: 64
+near_hole_crop_source_size: 80
+near_hole_crop_offset: [-18, 0]
+wrist_camera_pos_offset: [-0.04, -0.04, 0.0]
+wrist_camera_rot_offset_deg: [0.0, 0.0, 0.0]
+wrist_camera_fovy: 100.0
+
+tip_z_above_range: [0.035, 0.080]
+tip_xy_offset_range: [0.0, 0.006]
+settle_steps: 4
+max_ik_error: 0.004
+
+# Keep false for visual yaw training labels. The cap/outline helpers are only
+# for demos and debugging.
+enable_peg_tip_visual_helpers: false
+compressed: true

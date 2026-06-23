@@ -29,6 +29,8 @@ from peg_in_hole_mujoco.paths import resolve_model_path
 ObservationMode = Literal["image", "state"]
 InitializationMode = Literal["fixed", "target_relative_high_start"]
 IkControlMode = Literal["position", "pose", "pose_tip_priority"]
+GeometryFixtureMode = Literal["box_wall", "true_mesh"]
+GeometryTrueFixtureVariant = Literal["nominal", "tight_yaw"]
 GeometryProfile = Literal[
     "single",
     "round_round",
@@ -65,6 +67,14 @@ INITIALIZATION_MODES = (
     "fixed",
     "target_relative_high_start",
 )
+GEOMETRY_FIXTURE_MODES = (
+    "box_wall",
+    "true_mesh",
+)
+GEOMETRY_TRUE_FIXTURE_VARIANTS = (
+    "nominal",
+    "tight_yaw",
+)
 
 GEOMETRY_PROFILES = (
     "single",
@@ -82,11 +92,77 @@ GEOMETRY_PROFILES = (
 PRIMARY_HOLE_WALL_NAMES = ("hole_north", "hole_south", "hole_east", "hole_west")
 OPTIONAL_HOLE_WALL_NAMES = tuple(f"hole_aux_{index}" for index in range(8))
 ALL_HOLE_WALL_NAMES = PRIMARY_HOLE_WALL_NAMES + OPTIONAL_HOLE_WALL_NAMES
+POLYGON_HOLE_VISUAL_WALL_NAMES = tuple(f"hole_polygon_visual_{index}" for index in range(6))
+TRUE_FIXTURE_WALL_NAMES = tuple(f"true_fixture_wall_{index}" for index in range(12))
 POLYGONAL_PEG_MESH_NAMES = {
     "hex": "peg_hex_mesh",
     "triangle": "peg_triangle_mesh",
+    "slot": "peg_slot_mesh",
+    "rectangular_key": "peg_keyhole_mesh",
 }
-TRIANGLE_HOLE_HALF_SIZE_FLOOR_MULTIPLIER = 2.2
+POLYGONAL_PEG_TIP_CAP_VISUAL_MESH_NAMES = {
+    "hex": "peg_hex_tip_cap_visual_mesh",
+    "triangle": "peg_triangle_tip_cap_visual_mesh",
+    "rectangular_key": "peg_keyhole_tip_cap_visual_mesh",
+}
+POLYGONAL_PEG_TIP_OUTLINE_VISUAL_MESH_NAMES = {
+    "hex": "peg_hex_tip_outline_visual_mesh",
+    "triangle": "peg_triangle_tip_outline_visual_mesh",
+    "rectangular_key": "peg_keyhole_tip_outline_visual_mesh",
+}
+POLYGONAL_PEG_SIDE_EDGE_VISUAL_MESH_NAMES = {
+    "hex": "peg_hex_side_edge_visual_mesh",
+    "triangle": "peg_triangle_side_edge_visual_mesh",
+}
+POLYGONAL_PEG_TIP_CAP_VISUAL_RGBA = np.asarray([0.82, 0.92, 1.0, 0.55], dtype=np.float64)
+POLYGONAL_PEG_TIP_OUTLINE_VISUAL_RGBA = np.asarray([0.015, 0.018, 0.025, 0.92], dtype=np.float64)
+POLYGONAL_PEG_SIDE_EDGE_VISUAL_RGBA = np.asarray([0.015, 0.018, 0.025, 0.42], dtype=np.float64)
+SHAPE_YAW_PERIOD_DEG = {
+    "square_square": 90.0,
+    "triangle_triangle": 120.0,
+    "hex_hex": 60.0,
+    "slot_slot": 180.0,
+    "rectangular_key": 360.0,
+}
+YAW_SENSITIVE_GEOMETRY_PROFILES = tuple(SHAPE_YAW_PERIOD_DEG.keys())
+TRUE_FIXTURE_WALL_MESH_NAMES = {
+    "hex": "true_hex_wall_mesh",
+    "triangle": "true_triangle_wall_mesh",
+    "slot_side": "true_slot_side_wall_mesh",
+    "slot_arc": "true_slot_arc_wall_mesh",
+    "keyhole_tab_side": "true_keyhole_tab_side_wall_mesh",
+    "keyhole_tab_front": "true_keyhole_tab_front_wall_mesh",
+    "keyhole_arc": "true_keyhole_arc_wall_mesh",
+    "hex_tight_yaw": "true_hex_wall_tight_yaw_mesh",
+    "triangle_tight_yaw": "true_triangle_wall_tight_yaw_mesh",
+    "keyhole_tab_side_tight_yaw": "true_keyhole_tab_side_tight_yaw_mesh",
+    "keyhole_tab_front_tight_yaw": "true_keyhole_tab_front_tight_yaw_mesh",
+    "keyhole_arc_tight_yaw": "true_keyhole_arc_tight_yaw_mesh",
+}
+TRUE_FIXTURE_VISUAL_MESH_NAMES = {
+    "hex": "true_hex_fixture_visual_mesh",
+    "triangle": "true_triangle_fixture_visual_mesh",
+    "slot": "true_slot_fixture_visual_mesh",
+    "rectangular_key": "true_keyhole_fixture_visual_mesh",
+    "hex_tight_yaw": "true_hex_fixture_visual_tight_yaw_mesh",
+    "triangle_tight_yaw": "true_triangle_fixture_visual_tight_yaw_mesh",
+    "rectangular_key_tight_yaw": "true_keyhole_fixture_visual_tight_yaw_mesh",
+}
+TRIANGLE_SCAFFOLD_HOLE_HALF_SIZE_FLOOR_MULTIPLIER = 2.2
+TRIANGLE_TRUE_FIXTURE_MAX_HOLE_DIAMETER_MULTIPLIER = 2.0
+SLOT_TRUE_FIXTURE_ARC_SEGMENTS_PER_END = 3
+KEYHOLE_HOLE_TAB_HALF_WIDTH_RATIO = 0.50
+KEYHOLE_HOLE_TAB_LENGTH_RATIO = 0.5625
+KEYHOLE_PEG_TAB_HALF_WIDTH_RATIO = 5.0 / 12.0
+KEYHOLE_PEG_TAB_LENGTH_RATIO = 6.5 / 12.0
+KEYHOLE_TRUE_FIXTURE_ARC_SEGMENTS = 8
+TIGHT_YAW_SQUARE_CLEARANCE = 0.00075
+TIGHT_YAW_HEX_CLEARANCE = 0.00050
+TIGHT_YAW_TRIANGLE_CLEARANCE = 0.00075
+TIGHT_YAW_KEYHOLE_CLEARANCE = 0.00100
+TIGHT_YAW_BASE_PEG_RADIUS = 0.012
+TIGHT_YAW_KEYHOLE_PEG_TAB_HALF_WIDTH = 0.005
+TIGHT_YAW_KEYHOLE_PEG_TAB_LENGTH = 0.0065
 
 
 @dataclass(frozen=True)
@@ -115,6 +191,10 @@ class RewardTerms:
     desired_z: float
     inserted: bool
     collision: bool
+    success_shape_yaw_required: bool
+    success_shape_yaw_ok: bool
+    success_shape_yaw_error_deg: float
+    success_shape_yaw_tolerance_deg: float
 
 
 class PegInHoleMujocoEnv(gym.Env):
@@ -181,6 +261,8 @@ class PegInHoleMujocoEnv(gym.Env):
         workspace_high: tuple[float, float, float] = (0.75, 0.25, 0.95),
         success_xy_tolerance: float = 0.02,
         success_z_tolerance: float = 0.06,
+        success_shape_yaw_tolerance_deg: float | None = None,
+        success_shape_yaw_profiles: tuple[str, ...] | None = None,
         approach_xy_tolerance: float = 0.06,
         approach_height: float = 0.08,
         staged_xy_weight: float = 2.0,
@@ -212,6 +294,9 @@ class PegInHoleMujocoEnv(gym.Env):
         geometry_hole_half_size_range: tuple[float, float] = (0.017, 0.021),
         geometry_peg_radius_range: tuple[float, float] = (0.0115, 0.0125),
         geometry_profile: GeometryProfile = "single",
+        geometry_fixture_mode: GeometryFixtureMode = "box_wall",
+        geometry_true_fixture_variant: GeometryTrueFixtureVariant = "nominal",
+        enable_peg_tip_visual_helpers: bool = True,
         geometry_square_peg_half_size_range: tuple[float, float] = (0.0105, 0.0125),
         geometry_mixed_square_probability: float = 0.5,
         contact_friction_multiplier_range: tuple[float, float] = (0.7, 1.3),
@@ -258,6 +343,34 @@ class PegInHoleMujocoEnv(gym.Env):
                 + ", ".join(GEOMETRY_PROFILES)
                 + "."
             )
+        if geometry_fixture_mode not in GEOMETRY_FIXTURE_MODES:
+            raise ValueError(
+                "geometry_fixture_mode must be one of: "
+                + ", ".join(GEOMETRY_FIXTURE_MODES)
+                + "."
+            )
+        if geometry_true_fixture_variant not in GEOMETRY_TRUE_FIXTURE_VARIANTS:
+            raise ValueError(
+                "geometry_true_fixture_variant must be one of: "
+                + ", ".join(GEOMETRY_TRUE_FIXTURE_VARIANTS)
+                + "."
+            )
+        if (
+            success_shape_yaw_tolerance_deg is not None
+            and float(success_shape_yaw_tolerance_deg) < 0.0
+        ):
+            raise ValueError("success_shape_yaw_tolerance_deg cannot be negative.")
+        if success_shape_yaw_profiles is not None:
+            invalid_yaw_profiles = sorted(
+                set(str(profile) for profile in success_shape_yaw_profiles)
+                - set(YAW_SENSITIVE_GEOMETRY_PROFILES)
+            )
+            if invalid_yaw_profiles:
+                raise ValueError(
+                    "success_shape_yaw_profiles must use yaw-sensitive concrete profiles: "
+                    + ", ".join(YAW_SENSITIVE_GEOMETRY_PROFILES)
+                    + f". Invalid: {', '.join(invalid_yaw_profiles)}."
+                )
 
         self.observation_mode = observation_mode
         self.render_mode = render_mode
@@ -288,6 +401,19 @@ class PegInHoleMujocoEnv(gym.Env):
         self.workspace_high = np.asarray(workspace_high, dtype=np.float64)
         self.success_xy_tolerance = float(success_xy_tolerance)
         self.success_z_tolerance = float(success_z_tolerance)
+        self.success_shape_yaw_tolerance_deg = (
+            None
+            if success_shape_yaw_tolerance_deg is None
+            or float(success_shape_yaw_tolerance_deg) <= 0.0
+            else float(success_shape_yaw_tolerance_deg)
+        )
+        yaw_profiles = (
+            YAW_SENSITIVE_GEOMETRY_PROFILES
+            if success_shape_yaw_profiles is None
+            else tuple(str(profile) for profile in success_shape_yaw_profiles)
+        )
+        self.success_shape_yaw_profiles = yaw_profiles
+        self.success_shape_yaw_profile_set = set(yaw_profiles)
         self.approach_xy_tolerance = float(approach_xy_tolerance)
         self.approach_height = float(approach_height)
         self.staged_xy_weight = float(staged_xy_weight)
@@ -338,6 +464,9 @@ class PegInHoleMujocoEnv(gym.Env):
         )
         self.geometry_peg_radius_range = tuple(float(v) for v in geometry_peg_radius_range)
         self.geometry_profile = geometry_profile
+        self.geometry_fixture_mode = geometry_fixture_mode
+        self.geometry_true_fixture_variant = geometry_true_fixture_variant
+        self.enable_peg_tip_visual_helpers = bool(enable_peg_tip_visual_helpers)
         self.geometry_square_peg_half_size_range = tuple(
             float(v) for v in geometry_square_peg_half_size_range
         )
@@ -460,11 +589,33 @@ class PegInHoleMujocoEnv(gym.Env):
             raise RuntimeError("hole_body must be a mocap body.")
         self.table_geom_id = self._geom_id("table_top")
         self.peg_geom_id = self._geom_id("peg_geom")
+        self.hole_cavity_visual_geom_id = self._maybe_named_id(
+            mujoco.mjtObj.mjOBJ_GEOM,
+            "hole_cavity_visual",
+        )
+        self.hole_key_tab_cavity_visual_geom_id = self._maybe_named_id(
+            mujoco.mjtObj.mjOBJ_GEOM,
+            "hole_key_tab_cavity_visual",
+        )
         self.hole_wall_geom_ids = {}
         for name in ALL_HOLE_WALL_NAMES:
             geom_id = self._maybe_named_id(mujoco.mjtObj.mjOBJ_GEOM, name)
             if geom_id is not None:
                 self.hole_wall_geom_ids[name] = geom_id
+        self.hole_polygon_visual_geom_ids = {}
+        for name in POLYGON_HOLE_VISUAL_WALL_NAMES:
+            geom_id = self._maybe_named_id(mujoco.mjtObj.mjOBJ_GEOM, name)
+            if geom_id is not None:
+                self.hole_polygon_visual_geom_ids[name] = geom_id
+        self.true_fixture_wall_geom_ids = {}
+        for name in TRUE_FIXTURE_WALL_NAMES:
+            geom_id = self._maybe_named_id(mujoco.mjtObj.mjOBJ_GEOM, name)
+            if geom_id is not None:
+                self.true_fixture_wall_geom_ids[name] = geom_id
+        self.true_fixture_visual_geom_id = self._maybe_named_id(
+            mujoco.mjtObj.mjOBJ_GEOM,
+            "true_fixture_visual",
+        )
         missing_primary_walls = [
             name for name in PRIMARY_HOLE_WALL_NAMES if name not in self.hole_wall_geom_ids
         ]
@@ -478,12 +629,50 @@ class PegInHoleMujocoEnv(gym.Env):
             mesh_id = self._maybe_named_id(mujoco.mjtObj.mjOBJ_MESH, mesh_name)
             if mesh_id is not None:
                 self.peg_mesh_ids[shape] = mesh_id
+        self.peg_tip_cap_visual_geom_id = self._maybe_named_id(
+            mujoco.mjtObj.mjOBJ_GEOM,
+            "peg_tip_cap_visual",
+        )
+        self.peg_tip_outline_visual_geom_id = self._maybe_named_id(
+            mujoco.mjtObj.mjOBJ_GEOM,
+            "peg_tip_outline_visual",
+        )
+        self.peg_side_edge_visual_geom_id = self._maybe_named_id(
+            mujoco.mjtObj.mjOBJ_GEOM,
+            "peg_side_edge_visual",
+        )
+        self.peg_tip_cap_visual_mesh_ids = {}
+        for shape, mesh_name in POLYGONAL_PEG_TIP_CAP_VISUAL_MESH_NAMES.items():
+            mesh_id = self._maybe_named_id(mujoco.mjtObj.mjOBJ_MESH, mesh_name)
+            if mesh_id is not None:
+                self.peg_tip_cap_visual_mesh_ids[shape] = mesh_id
+        self.peg_tip_outline_visual_mesh_ids = {}
+        for shape, mesh_name in POLYGONAL_PEG_TIP_OUTLINE_VISUAL_MESH_NAMES.items():
+            mesh_id = self._maybe_named_id(mujoco.mjtObj.mjOBJ_MESH, mesh_name)
+            if mesh_id is not None:
+                self.peg_tip_outline_visual_mesh_ids[shape] = mesh_id
+        self.peg_side_edge_visual_mesh_ids = {}
+        for shape, mesh_name in POLYGONAL_PEG_SIDE_EDGE_VISUAL_MESH_NAMES.items():
+            mesh_id = self._maybe_named_id(mujoco.mjtObj.mjOBJ_MESH, mesh_name)
+            if mesh_id is not None:
+                self.peg_side_edge_visual_mesh_ids[shape] = mesh_id
+        self.true_fixture_wall_mesh_ids = {}
+        for shape, mesh_name in TRUE_FIXTURE_WALL_MESH_NAMES.items():
+            mesh_id = self._maybe_named_id(mujoco.mjtObj.mjOBJ_MESH, mesh_name)
+            if mesh_id is not None:
+                self.true_fixture_wall_mesh_ids[shape] = mesh_id
+        self.true_fixture_visual_mesh_ids = {}
+        for shape, mesh_name in TRUE_FIXTURE_VISUAL_MESH_NAMES.items():
+            mesh_id = self._maybe_named_id(mujoco.mjtObj.mjOBJ_MESH, mesh_name)
+            if mesh_id is not None:
+                self.true_fixture_visual_mesh_ids[shape] = mesh_id
         self.contact_geom_ids = np.asarray(
             [
                 self.table_geom_id,
                 self.peg_geom_id,
                 self._geom_id("hole_plate"),
                 *self.hole_wall_geom_ids.values(),
+                *self.true_fixture_wall_geom_ids.values(),
             ],
             dtype=np.int32,
         )
@@ -866,6 +1055,43 @@ class PegInHoleMujocoEnv(gym.Env):
             peg_mesh_name=peg_mesh_name,
         )
 
+    def _true_fixture_mesh_profile_key(self, hole_shape: str) -> str:
+        if self.geometry_true_fixture_variant != "tight_yaw":
+            return hole_shape
+        if hole_shape == "hex":
+            return "hex_tight_yaw"
+        if hole_shape == "triangle":
+            return "triangle_tight_yaw"
+        if hole_shape == "rectangular_key":
+            return "rectangular_key_tight_yaw"
+        return hole_shape
+
+    def _true_fixture_keyhole_dimensions(
+        self,
+        hole_radius: float | None = None,
+    ) -> tuple[float, float, float]:
+        if self.geometry_true_fixture_variant == "tight_yaw":
+            clearance = TIGHT_YAW_KEYHOLE_CLEARANCE
+            radius = TIGHT_YAW_BASE_PEG_RADIUS + clearance
+            tab_half_width = TIGHT_YAW_KEYHOLE_PEG_TAB_HALF_WIDTH + clearance
+            tab_length = TIGHT_YAW_KEYHOLE_PEG_TAB_LENGTH + clearance
+            return radius, tab_half_width, tab_length
+        radius = 0.016 if hole_radius is None else float(hole_radius)
+        tab_half_width = radius * KEYHOLE_HOLE_TAB_HALF_WIDTH_RATIO
+        tab_length = radius * KEYHOLE_HOLE_TAB_LENGTH_RATIO
+        return radius, tab_half_width, tab_length
+
+    def _true_fixture_polygon_apothem(self, hole_shape: str) -> float | None:
+        if hole_shape == "hex":
+            if self.geometry_true_fixture_variant == "tight_yaw":
+                return float(self.base_peg_radius * np.cos(np.pi / 6.0) + TIGHT_YAW_HEX_CLEARANCE)
+            return float(self.current_hole_half_size)
+        if hole_shape == "triangle":
+            if self.geometry_true_fixture_variant == "tight_yaw":
+                return float(self.base_peg_radius * np.cos(np.pi / 3.0) + TIGHT_YAW_TRIANGLE_CLEARANCE)
+            return float(self.current_hole_half_size)
+        return None
+
     def _sample_geometry_spec(self, *, randomize_sizes: bool) -> GeometrySpec:
         profile = self.geometry_profile
         if profile == "mixed_basic":
@@ -909,6 +1135,34 @@ class PegInHoleMujocoEnv(gym.Env):
         key_peg_half_long = key_peg_half_short * 1.55
         slot_hole_half_extents = (hole_half_size * 2.2, hole_half_size)
         key_hole_half_extents = (hole_half_size * 1.55, hole_half_size)
+        if self.geometry_fixture_mode == "true_mesh":
+            key_peg_tab_length = key_peg_half_short * KEYHOLE_PEG_TAB_LENGTH_RATIO
+            key_peg_half_long = key_peg_half_short + key_peg_tab_length
+            key_hole_tab_length = hole_half_size * KEYHOLE_HOLE_TAB_LENGTH_RATIO
+            key_hole_half_extents = (hole_half_size + key_hole_tab_length, hole_half_size)
+
+        if self.geometry_true_fixture_variant == "tight_yaw":
+            if profile == "square_square":
+                square_peg_half_size = float(self.base_peg_radius)
+                hole_half_size = square_peg_half_size + TIGHT_YAW_SQUARE_CLEARANCE
+            elif profile == "hex_hex":
+                hole_half_size = (
+                    float(self.base_peg_radius) * float(np.cos(np.pi / 6.0))
+                    + TIGHT_YAW_HEX_CLEARANCE
+                )
+            elif profile == "triangle_triangle":
+                hole_half_size = (
+                    float(self.base_peg_radius) * float(np.cos(np.pi / 3.0))
+                    + TIGHT_YAW_TRIANGLE_CLEARANCE
+                )
+            elif profile == "rectangular_key":
+                key_peg_half_short = TIGHT_YAW_BASE_PEG_RADIUS
+                key_peg_half_long = (
+                    TIGHT_YAW_BASE_PEG_RADIUS + TIGHT_YAW_KEYHOLE_PEG_TAB_LENGTH
+                )
+                radius, _, tab_length = self._true_fixture_keyhole_dimensions()
+                hole_half_size = radius
+                key_hole_half_extents = (radius + tab_length, radius)
 
         if profile in ("single", "round_square"):
             return self._make_geometry_spec(
@@ -946,10 +1200,20 @@ class PegInHoleMujocoEnv(gym.Env):
                 peg_mesh_name=POLYGONAL_PEG_MESH_NAMES["hex"],
             )
         if profile == "triangle_triangle":
-            triangle_hole_half_size = max(
-                hole_half_size,
-                self.base_peg_radius * TRIANGLE_HOLE_HALF_SIZE_FLOOR_MULTIPLIER,
-            )
+            if self.geometry_fixture_mode == "true_mesh":
+                # For an equilateral triangle, circumdiameter = 4 * apothem.
+                # Limit that to 2x peg diameter, so apothem <= peg_radius.
+                max_triangle_apothem = (
+                    0.5
+                    * TRIANGLE_TRUE_FIXTURE_MAX_HOLE_DIAMETER_MULTIPLIER
+                    * self.base_peg_radius
+                )
+                triangle_hole_half_size = min(hole_half_size, max_triangle_apothem)
+            else:
+                triangle_hole_half_size = max(
+                    hole_half_size,
+                    self.base_peg_radius * TRIANGLE_SCAFFOLD_HOLE_HALF_SIZE_FLOOR_MULTIPLIER,
+                )
             return self._make_geometry_spec(
                 name="triangle_triangle",
                 peg_shape="triangle",
@@ -986,10 +1250,72 @@ class PegInHoleMujocoEnv(gym.Env):
                     float(self.base_peg_half_length),
                 ),
                 hole_half_extents=key_hole_half_extents,
-            )
+                peg_mesh_name=(
+                    POLYGONAL_PEG_MESH_NAMES["rectangular_key"]
+                    if self.geometry_fixture_mode == "true_mesh"
+                    else None
+                ),
+        )
         raise ValueError(f"unsupported geometry profile: {profile}")
 
+    def _deactivate_polygon_peg_tip_visuals(self) -> None:
+        for geom_id in (
+            self.peg_tip_cap_visual_geom_id,
+            self.peg_tip_outline_visual_geom_id,
+            self.peg_side_edge_visual_geom_id,
+        ):
+            if geom_id is None:
+                continue
+            self.model.geom_type[geom_id] = self.base_geom_type[geom_id]
+            self.model.geom_dataid[geom_id] = self.base_geom_dataid[geom_id]
+            self.model.geom_pos[geom_id] = self.base_geom_pos[geom_id]
+            self.model.geom_quat[geom_id] = self.base_geom_quat[geom_id]
+            self.model.geom_size[geom_id] = self.base_geom_size[geom_id]
+            self.model.geom_rbound[geom_id] = max(float(self.base_geom_rbound[geom_id]), 0.002)
+            self.model.geom_contype[geom_id] = 0
+            self.model.geom_conaffinity[geom_id] = 0
+            rgba = self.base_geom_rgba[geom_id].copy()
+            rgba[3] = 0.0
+            self.model.geom_rgba[geom_id] = rgba
+
+    def _set_polygon_peg_tip_visual_geometry(self, peg_shape: str) -> bool:
+        cap_geom_id = self.peg_tip_cap_visual_geom_id
+        outline_geom_id = self.peg_tip_outline_visual_geom_id
+        side_edge_geom_id = self.peg_side_edge_visual_geom_id
+        cap_mesh_id = self.peg_tip_cap_visual_mesh_ids.get(peg_shape)
+        outline_mesh_id = self.peg_tip_outline_visual_mesh_ids.get(peg_shape)
+        side_edge_mesh_id = self.peg_side_edge_visual_mesh_ids.get(peg_shape)
+        if (
+            cap_geom_id is None
+            or outline_geom_id is None
+            or cap_mesh_id is None
+            or outline_mesh_id is None
+        ):
+            return False
+
+        visual_specs = (
+            (cap_geom_id, cap_mesh_id, POLYGONAL_PEG_TIP_CAP_VISUAL_RGBA),
+            (outline_geom_id, outline_mesh_id, POLYGONAL_PEG_TIP_OUTLINE_VISUAL_RGBA),
+        )
+        if side_edge_geom_id is not None and side_edge_mesh_id is not None:
+            visual_specs = (
+                *visual_specs,
+                (side_edge_geom_id, side_edge_mesh_id, POLYGONAL_PEG_SIDE_EDGE_VISUAL_RGBA),
+            )
+        for geom_id, mesh_id, rgba in visual_specs:
+            self.model.geom_type[geom_id] = int(mujoco.mjtGeom.mjGEOM_MESH)
+            self.model.geom_dataid[geom_id] = mesh_id
+            self.model.geom_pos[geom_id] = self.base_geom_pos[geom_id]
+            self.model.geom_quat[geom_id] = self.base_geom_quat[geom_id]
+            self.model.geom_size[geom_id] = self.base_geom_size[geom_id]
+            self.model.geom_rbound[geom_id] = max(float(self.base_geom_rbound[geom_id]), 0.02)
+            self.model.geom_contype[geom_id] = 0
+            self.model.geom_conaffinity[geom_id] = 0
+            self.model.geom_rgba[geom_id] = rgba
+        return True
+
     def _apply_peg_geometry(self, spec: GeometrySpec) -> None:
+        self._deactivate_polygon_peg_tip_visuals()
         self.model.geom_pos[self.peg_geom_id] = self.base_geom_pos[self.peg_geom_id]
         self.model.geom_quat[self.peg_geom_id] = self.base_geom_quat[self.peg_geom_id]
 
@@ -1004,7 +1330,11 @@ class PegInHoleMujocoEnv(gym.Env):
             )
             return
 
-        if spec.peg_shape in ("square", "slot", "rectangular_key"):
+        if spec.peg_shape == "square" or (
+            spec.peg_shape == "rectangular_key" and self.geometry_fixture_mode != "true_mesh"
+        ) or (
+            spec.peg_shape == "slot" and self.geometry_fixture_mode != "true_mesh"
+        ):
             if spec.peg_half_extents is None:
                 raise ValueError(f"{spec.peg_shape} peg geometry requires peg_half_extents.")
             self.model.geom_type[self.peg_geom_id] = int(mujoco.mjtGeom.mjGEOM_BOX)
@@ -1034,6 +1364,11 @@ class PegInHoleMujocoEnv(gym.Env):
                 self.base_geom_rbound[self.peg_geom_id],
                 float(np.hypot(0.026, self.base_peg_half_length)),
             )
+            if (
+                self.enable_peg_tip_visual_helpers
+                and spec.peg_shape in POLYGONAL_PEG_TIP_CAP_VISUAL_MESH_NAMES
+            ):
+                self._set_polygon_peg_tip_visual_geometry(spec.peg_shape)
             return
 
         raise ValueError(f"unsupported peg shape: {spec.peg_shape}")
@@ -1407,6 +1742,74 @@ class PegInHoleMujocoEnv(gym.Env):
             raise ValueError("target_xmat must be finite.")
         self.pose_ik_target_xmat = target_xmat.copy()
 
+    def get_pose_ik_target_xmat(self) -> np.ndarray:
+        return self.pose_ik_target_xmat.copy()
+
+    def set_pose_ik_target_by_planar_yaw_correction(
+        self,
+        yaw_correction_deg: float,
+    ) -> dict[str, float]:
+        if not np.isfinite(float(yaw_correction_deg)):
+            self.reset_pose_ik_target_xmat()
+            return {
+                "pose_ik_target_yaw_correction_deg": float("nan"),
+                "pose_ik_target_shape_raw_yaw_deg": float("nan"),
+                "pose_ik_target_shape_yaw_error_deg": float("nan"),
+            }
+
+        current_xmat = self._site_xmat(self.data, self.peg_tip_site_id)
+        current_x_axis = current_xmat @ np.asarray([1.0, 0.0, 0.0], dtype=np.float64)
+        current_x_xy = self._project_unit_xy(current_x_axis)
+        if current_x_xy is None:
+            self.reset_pose_ik_target_xmat()
+            return {
+                "pose_ik_target_yaw_correction_deg": float("nan"),
+                "pose_ik_target_shape_raw_yaw_deg": float("nan"),
+                "pose_ik_target_shape_yaw_error_deg": float("nan"),
+            }
+
+        yaw_rad = float(np.deg2rad(yaw_correction_deg))
+        c, s = float(np.cos(yaw_rad)), float(np.sin(yaw_rad))
+        target_x_axis = np.asarray(
+            [
+                c * current_x_xy[0] - s * current_x_xy[1],
+                s * current_x_xy[0] + c * current_x_xy[1],
+                0.0,
+            ],
+            dtype=np.float64,
+        )
+
+        target_z_axis = self.default_pose_ik_target_xmat[:, 2].copy()
+        target_z_norm = float(np.linalg.norm(target_z_axis))
+        if target_z_norm <= 1e-9:
+            target_z_axis = np.asarray([0.0, 0.0, 1.0], dtype=np.float64)
+        else:
+            target_z_axis = target_z_axis / target_z_norm
+
+        target_x_axis = target_x_axis - target_z_axis * float(
+            np.dot(target_x_axis, target_z_axis)
+        )
+        target_x_norm = float(np.linalg.norm(target_x_axis))
+        if target_x_norm <= 1e-9:
+            self.reset_pose_ik_target_xmat()
+            return {
+                "pose_ik_target_yaw_correction_deg": float("nan"),
+                "pose_ik_target_shape_raw_yaw_deg": float("nan"),
+                "pose_ik_target_shape_yaw_error_deg": float("nan"),
+            }
+        target_x_axis = target_x_axis / target_x_norm
+        target_y_axis = np.cross(target_z_axis, target_x_axis)
+        target_y_axis = target_y_axis / max(float(np.linalg.norm(target_y_axis)), 1e-9)
+        target_xmat = np.column_stack((target_x_axis, target_y_axis, target_z_axis))
+        self.set_pose_ik_target_xmat(target_xmat)
+
+        raw_yaw_deg, yaw_error_deg = self._shape_yaw_metrics_for_xmat(target_xmat)
+        return {
+            "pose_ik_target_yaw_correction_deg": float(yaw_correction_deg),
+            "pose_ik_target_shape_raw_yaw_deg": float(raw_yaw_deg),
+            "pose_ik_target_shape_yaw_error_deg": float(yaw_error_deg),
+        }
+
     def set_pose_ik_target_to_nearest_square_hole_yaw(self) -> dict[str, float]:
         spec = self.current_geometry_spec
         if spec.peg_shape != "square" or spec.hole_shape != "square":
@@ -1588,6 +1991,14 @@ class PegInHoleMujocoEnv(gym.Env):
         self.model.geom_size[geom_id] = np.asarray([0.001, 0.001, 0.001], dtype=np.float64)
         self.model.geom_rbound[geom_id] = 0.002
 
+    def _set_hole_collision_wall_visibility(self, used: set[str], visible: bool) -> None:
+        alpha = 1.0 if visible else 0.0
+        for name in used:
+            geom_id = self.hole_wall_geom_ids[name]
+            rgba = self.active_hole_wall_rgba.copy()
+            rgba[3] = alpha
+            self.model.geom_rgba[geom_id] = rgba
+
     def _set_hole_wall_box(
         self,
         name: str,
@@ -1618,6 +2029,561 @@ class PegInHoleMujocoEnv(gym.Env):
             float(np.sqrt((max(float(half_length), 0.001) ** 2) + half_thickness**2 + half_height**2)),
         )
         self._set_hole_wall_active(geom_id, True)
+
+    def _deactivate_hole_polygon_visual_walls(self) -> None:
+        for geom_id in self.hole_polygon_visual_geom_ids.values():
+            self.model.geom_type[geom_id] = int(mujoco.mjtGeom.mjGEOM_BOX)
+            self.model.geom_dataid[geom_id] = -1
+            self.model.geom_pos[geom_id] = np.asarray([0.0, 0.0, -1.0], dtype=np.float64)
+            self.model.geom_quat[geom_id] = np.asarray([1.0, 0.0, 0.0, 0.0], dtype=np.float64)
+            self.model.geom_size[geom_id] = np.asarray([0.001, 0.001, 0.001], dtype=np.float64)
+            self.model.geom_rbound[geom_id] = 0.002
+            self.model.geom_contype[geom_id] = 0
+            self.model.geom_conaffinity[geom_id] = 0
+            rgba = self.base_geom_rgba[geom_id].copy()
+            rgba[3] = 0.0
+            self.model.geom_rgba[geom_id] = rgba
+
+    def _deactivate_true_fixture_walls(self) -> None:
+        for geom_id in self.true_fixture_wall_geom_ids.values():
+            self.model.geom_type[geom_id] = self.base_geom_type[geom_id]
+            self.model.geom_dataid[geom_id] = self.base_geom_dataid[geom_id]
+            self.model.geom_pos[geom_id] = np.asarray([0.0, 0.0, -1.0], dtype=np.float64)
+            self.model.geom_quat[geom_id] = np.asarray([1.0, 0.0, 0.0, 0.0], dtype=np.float64)
+            self.model.geom_size[geom_id] = self.base_geom_size[geom_id]
+            self.model.geom_rbound[geom_id] = max(float(self.base_geom_rbound[geom_id]), 0.002)
+            self.model.geom_contype[geom_id] = 0
+            self.model.geom_conaffinity[geom_id] = 0
+            rgba = self.base_geom_rgba[geom_id].copy()
+            rgba[3] = 0.0
+            self.model.geom_rgba[geom_id] = rgba
+
+    def _deactivate_true_fixture_visual(self) -> None:
+        geom_id = self.true_fixture_visual_geom_id
+        if geom_id is None:
+            return
+        self.model.geom_type[geom_id] = self.base_geom_type[geom_id]
+        self.model.geom_dataid[geom_id] = self.base_geom_dataid[geom_id]
+        self.model.geom_pos[geom_id] = np.asarray([0.0, 0.0, -1.0], dtype=np.float64)
+        self.model.geom_quat[geom_id] = np.asarray([1.0, 0.0, 0.0, 0.0], dtype=np.float64)
+        self.model.geom_size[geom_id] = self.base_geom_size[geom_id]
+        self.model.geom_rbound[geom_id] = max(float(self.base_geom_rbound[geom_id]), 0.002)
+        self.model.geom_contype[geom_id] = 0
+        self.model.geom_conaffinity[geom_id] = 0
+        rgba = self.base_geom_rgba[geom_id].copy()
+        rgba[3] = 0.0
+        self.model.geom_rgba[geom_id] = rgba
+
+    def _has_true_fixture_visual_mesh(self, hole_shape: str) -> bool:
+        mesh_key = self._true_fixture_mesh_profile_key(hole_shape)
+        return (
+            self.true_fixture_visual_geom_id is not None
+            and mesh_key in self.true_fixture_visual_mesh_ids
+        )
+
+    def _set_true_fixture_visual_geometry(
+        self,
+        spec: GeometrySpec,
+        center_xy: np.ndarray,
+    ) -> bool:
+        geom_id = self.true_fixture_visual_geom_id
+        mesh_key = self._true_fixture_mesh_profile_key(spec.hole_shape)
+        mesh_id = self.true_fixture_visual_mesh_ids.get(mesh_key)
+        if geom_id is None or mesh_id is None:
+            return False
+
+        reference_id = self.hole_wall_geom_ids["hole_north"]
+        mesh_pos = self.model.mesh_pos[mesh_id]
+        mesh_quat = self.model.mesh_quat[mesh_id]
+        self.model.geom_type[geom_id] = int(mujoco.mjtGeom.mjGEOM_MESH)
+        self.model.geom_dataid[geom_id] = mesh_id
+        self.model.geom_pos[geom_id] = np.asarray(
+            [
+                float(center_xy[0]) + float(mesh_pos[0]),
+                float(center_xy[1]) + float(mesh_pos[1]),
+                float(self.base_geom_pos[reference_id, 2]) + float(mesh_pos[2]),
+            ],
+            dtype=np.float64,
+        )
+        fixture_quat = self._quat_multiply(self._yaw_quat(0.0), mesh_quat)
+        self.model.geom_quat[geom_id] = fixture_quat / np.linalg.norm(fixture_quat)
+        self.model.geom_size[geom_id] = np.asarray([1.0, 1.0, 1.0], dtype=np.float64)
+        self.model.geom_rbound[geom_id] = max(
+            float(self.base_geom_rbound[reference_id]),
+            float(spec.hole_half_size) + 0.05,
+        )
+        self.model.geom_contype[geom_id] = 0
+        self.model.geom_conaffinity[geom_id] = 0
+        rgba = self.active_hole_wall_rgba.copy()
+        rgba[3] = 1.0
+        self.model.geom_rgba[geom_id] = rgba
+        return True
+
+    def _activate_true_fixture_mesh_wall(
+        self,
+        *,
+        geom_id: int,
+        mesh_id: int,
+        center_xy: np.ndarray,
+        yaw: float,
+        reference_id: int,
+        active_rgba: np.ndarray,
+        rbound: float,
+    ) -> None:
+        desired_quat = self._yaw_quat(yaw)
+        mesh_pos = self.model.mesh_pos[mesh_id]
+        mesh_quat = self.model.mesh_quat[mesh_id]
+        cos_yaw = float(np.cos(yaw))
+        sin_yaw = float(np.sin(yaw))
+        mesh_pos_world = np.asarray(
+            [
+                cos_yaw * float(mesh_pos[0]) - sin_yaw * float(mesh_pos[1]),
+                sin_yaw * float(mesh_pos[0]) + cos_yaw * float(mesh_pos[1]),
+                float(mesh_pos[2]),
+            ],
+            dtype=np.float64,
+        )
+        self.model.geom_type[geom_id] = int(mujoco.mjtGeom.mjGEOM_MESH)
+        self.model.geom_dataid[geom_id] = mesh_id
+        self.model.geom_pos[geom_id] = np.asarray(
+            [
+                float(center_xy[0]) + mesh_pos_world[0],
+                float(center_xy[1]) + mesh_pos_world[1],
+                float(self.base_geom_pos[reference_id, 2]) + mesh_pos_world[2],
+            ],
+            dtype=np.float64,
+        )
+        fixture_quat = self._quat_multiply(desired_quat, mesh_quat)
+        self.model.geom_quat[geom_id] = fixture_quat / np.linalg.norm(fixture_quat)
+        self.model.geom_size[geom_id] = np.asarray([1.0, 1.0, 1.0], dtype=np.float64)
+        self.model.geom_rbound[geom_id] = max(float(self.base_geom_rbound[reference_id]), rbound)
+        self.model.geom_contype[geom_id] = self.active_hole_wall_contype
+        self.model.geom_conaffinity[geom_id] = self.active_hole_wall_conaffinity
+        self.model.geom_rgba[geom_id] = active_rgba
+        self.model.geom_friction[geom_id] = self.model.geom_friction[reference_id]
+        self.model.geom_solref[geom_id] = self.model.geom_solref[reference_id]
+        self.model.geom_solimp[geom_id] = self.model.geom_solimp[reference_id]
+
+    def _set_true_keyhole_fixture_mesh_geometry(
+        self,
+        spec: GeometrySpec,
+        center_xy: np.ndarray,
+    ) -> bool:
+        if spec.hole_shape != "rectangular_key":
+            return False
+
+        required_segments = KEYHOLE_TRUE_FIXTURE_ARC_SEGMENTS + 3
+        if len(self.true_fixture_wall_geom_ids) < required_segments:
+            return False
+        suffix = "_tight_yaw" if self.geometry_true_fixture_variant == "tight_yaw" else ""
+        side_mesh_id = self.true_fixture_wall_mesh_ids.get(f"keyhole_tab_side{suffix}")
+        front_mesh_id = self.true_fixture_wall_mesh_ids.get(f"keyhole_tab_front{suffix}")
+        arc_mesh_id = self.true_fixture_wall_mesh_ids.get(f"keyhole_arc{suffix}")
+        if side_mesh_id is None or front_mesh_id is None or arc_mesh_id is None:
+            return False
+
+        radius, tab_half_width, tab_length = self._true_fixture_keyhole_dimensions(
+            spec.hole_half_size
+        )
+        if radius <= 1e-6 or tab_half_width <= 1e-6 or tab_half_width >= radius:
+            return False
+
+        theta = float(np.arcsin(np.clip(tab_half_width / radius, -0.98, 0.98)))
+        x_join = float(np.sqrt(max(radius * radius - tab_half_width * tab_half_width, 0.0)))
+        front_x = radius + tab_length
+        center = np.asarray(center_xy, dtype=np.float64)
+
+        top_join = center + np.asarray([x_join, tab_half_width], dtype=np.float64)
+        front_top = center + np.asarray([front_x, tab_half_width], dtype=np.float64)
+        bottom_join = center + np.asarray([x_join, -tab_half_width], dtype=np.float64)
+        front_bottom = center + np.asarray([front_x, -tab_half_width], dtype=np.float64)
+
+        segments: list[tuple[np.ndarray, np.ndarray, int]] = [
+            (front_top, top_join, side_mesh_id),
+        ]
+        arc_angles = np.linspace(
+            theta,
+            2.0 * np.pi - theta,
+            KEYHOLE_TRUE_FIXTURE_ARC_SEGMENTS + 1,
+        )
+        arc_points = [
+            center
+            + radius
+            * np.asarray([float(np.cos(angle)), float(np.sin(angle))], dtype=np.float64)
+            for angle in arc_angles
+        ]
+        for index in range(KEYHOLE_TRUE_FIXTURE_ARC_SEGMENTS):
+            segments.append((arc_points[index], arc_points[index + 1], arc_mesh_id))
+        segments.extend(
+            [
+                (bottom_join, front_bottom, side_mesh_id),
+                (front_bottom, front_top, front_mesh_id),
+            ]
+        )
+
+        reference_id = self.hole_wall_geom_ids["hole_north"]
+        active_rgba = self.active_hole_wall_rgba.copy()
+        active_rgba[3] = 0.0 if self._has_true_fixture_visual_mesh(spec.hole_shape) else 1.0
+        for index, (start, end, mesh_id) in enumerate(segments):
+            geom_id = self.true_fixture_wall_geom_ids[TRUE_FIXTURE_WALL_NAMES[index]]
+            edge = end - start
+            edge_length = float(np.linalg.norm(edge))
+            if edge_length <= 1e-9:
+                continue
+            segment_center = 0.5 * (start + end)
+            yaw = float(np.arctan2(edge[1], edge[0]) + np.pi)
+            self._activate_true_fixture_mesh_wall(
+                geom_id=geom_id,
+                mesh_id=mesh_id,
+                center_xy=segment_center,
+                yaw=yaw,
+                reference_id=reference_id,
+                active_rgba=active_rgba,
+                rbound=max(edge_length, radius + tab_length + 0.02),
+            )
+        return True
+
+    def _set_true_slot_fixture_mesh_geometry(
+        self,
+        spec: GeometrySpec,
+        center_xy: np.ndarray,
+    ) -> bool:
+        if spec.hole_shape != "slot" or spec.hole_half_extents is None:
+            return False
+
+        required_segments = 2 + 2 * SLOT_TRUE_FIXTURE_ARC_SEGMENTS_PER_END
+        if len(self.true_fixture_wall_geom_ids) < required_segments:
+            return False
+        side_mesh_id = self.true_fixture_wall_mesh_ids.get("slot_side")
+        arc_mesh_id = self.true_fixture_wall_mesh_ids.get("slot_arc")
+        if side_mesh_id is None or arc_mesh_id is None:
+            return False
+
+        half_x, half_y = (float(value) for value in spec.hole_half_extents)
+        radius = half_y
+        straight_half = half_x - radius
+        if radius <= 1e-6 or straight_half <= 1e-6:
+            return False
+
+        center = np.asarray(center_xy, dtype=np.float64)
+        left_center = center + np.asarray([-straight_half, 0.0], dtype=np.float64)
+        right_center = center + np.asarray([straight_half, 0.0], dtype=np.float64)
+
+        def arc_points(arc_center: np.ndarray, start: float, stop: float) -> list[np.ndarray]:
+            angles = np.linspace(start, stop, SLOT_TRUE_FIXTURE_ARC_SEGMENTS_PER_END + 1)
+            return [
+                arc_center
+                + radius
+                * np.asarray([float(np.cos(angle)), float(np.sin(angle))], dtype=np.float64)
+                for angle in angles
+            ]
+
+        segments: list[tuple[np.ndarray, np.ndarray, int]] = []
+        segments.append(
+            (
+                center + np.asarray([straight_half, radius], dtype=np.float64),
+                center + np.asarray([-straight_half, radius], dtype=np.float64),
+                side_mesh_id,
+            )
+        )
+        left_arc = arc_points(left_center, 0.5 * np.pi, 1.5 * np.pi)
+        for index in range(SLOT_TRUE_FIXTURE_ARC_SEGMENTS_PER_END):
+            segments.append((left_arc[index], left_arc[index + 1], arc_mesh_id))
+        segments.append(
+            (
+                center + np.asarray([-straight_half, -radius], dtype=np.float64),
+                center + np.asarray([straight_half, -radius], dtype=np.float64),
+                side_mesh_id,
+            )
+        )
+        right_arc = arc_points(right_center, 1.5 * np.pi, 2.5 * np.pi)
+        for index in range(SLOT_TRUE_FIXTURE_ARC_SEGMENTS_PER_END):
+            segments.append((right_arc[index], right_arc[index + 1], arc_mesh_id))
+
+        reference_id = self.hole_wall_geom_ids["hole_north"]
+        active_rgba = self.active_hole_wall_rgba.copy()
+        active_rgba[3] = 0.0 if self._has_true_fixture_visual_mesh(spec.hole_shape) else 1.0
+        for index, (start, end, mesh_id) in enumerate(segments):
+            geom_id = self.true_fixture_wall_geom_ids[TRUE_FIXTURE_WALL_NAMES[index]]
+            edge = end - start
+            edge_length = float(np.linalg.norm(edge))
+            if edge_length <= 1e-9:
+                continue
+            segment_center = 0.5 * (start + end)
+            yaw = float(np.arctan2(edge[1], edge[0]) + np.pi)
+            self._activate_true_fixture_mesh_wall(
+                geom_id=geom_id,
+                mesh_id=mesh_id,
+                center_xy=segment_center,
+                yaw=yaw,
+                reference_id=reference_id,
+                active_rgba=active_rgba,
+                rbound=edge_length,
+            )
+        return True
+
+    def _set_true_fixture_mesh_geometry(
+        self,
+        spec: GeometrySpec,
+        center_xy: np.ndarray,
+    ) -> bool:
+        if spec.hole_shape == "slot":
+            return self._set_true_slot_fixture_mesh_geometry(spec, center_xy)
+        if spec.hole_shape == "rectangular_key":
+            return self._set_true_keyhole_fixture_mesh_geometry(spec, center_xy)
+        if spec.hole_shape not in ("hex", "triangle"):
+            return False
+        sides = spec.hole_polygon_sides
+        if sides is None:
+            return False
+        if len(self.true_fixture_wall_geom_ids) < sides:
+            return False
+        mesh_key = self._true_fixture_mesh_profile_key(spec.hole_shape)
+        mesh_id = self.true_fixture_wall_mesh_ids.get(mesh_key)
+        if mesh_id is None:
+            return False
+
+        radius = float(spec.hole_half_size) / np.cos(np.pi / float(sides))
+        vertices = []
+        for index in range(sides):
+            angle = 0.5 * np.pi + np.pi / float(sides) + 2.0 * np.pi * index / float(sides)
+            vertices.append(
+                np.asarray(
+                    [
+                        float(center_xy[0]) + radius * np.cos(angle),
+                        float(center_xy[1]) + radius * np.sin(angle),
+                    ],
+                    dtype=np.float64,
+                )
+            )
+
+        reference_id = self.hole_wall_geom_ids["hole_north"]
+        active_rgba = self.active_hole_wall_rgba.copy()
+        active_rgba[3] = 0.0 if self._has_true_fixture_visual_mesh(spec.hole_shape) else 1.0
+        for index in range(sides):
+            geom_id = self.true_fixture_wall_geom_ids[TRUE_FIXTURE_WALL_NAMES[index]]
+            start = vertices[index]
+            end = vertices[(index + 1) % sides]
+            edge = end - start
+            edge_length = float(np.linalg.norm(edge))
+            if edge_length <= 1e-9:
+                continue
+            center = 0.5 * (start + end)
+            yaw = float(np.arctan2(edge[1], edge[0]) + np.pi)
+            self._activate_true_fixture_mesh_wall(
+                geom_id=geom_id,
+                mesh_id=mesh_id,
+                center_xy=center,
+                yaw=yaw,
+                reference_id=reference_id,
+                active_rgba=active_rgba,
+                rbound=edge_length,
+            )
+        return True
+
+    def _set_hole_polygon_visual_geometry(
+        self,
+        center_xy: np.ndarray,
+        *,
+        apothem: float,
+        sides: int,
+    ) -> None:
+        if sides not in (3, 6) or len(self.hole_polygon_visual_geom_ids) < sides:
+            return
+
+        available_names = list(POLYGON_HOLE_VISUAL_WALL_NAMES[:sides])
+        reference_id = self.hole_wall_geom_ids["hole_north"]
+        wall_thickness = float(self.base_geom_size[reference_id, 1])
+        half_height = float(self.base_geom_size[reference_id, 2])
+        z_pos = float(self.base_geom_pos[reference_id, 2]) + 0.0008
+        radius = float(apothem) / np.cos(np.pi / float(sides))
+        wall_end_overlap = wall_thickness / max(float(np.tan(np.pi / float(sides))), 1e-6)
+        visible_rgba = self.active_hole_wall_rgba.copy()
+        visible_rgba[3] = 1.0
+
+        vertices = []
+        for index in range(sides):
+            angle = 0.5 * np.pi + np.pi / float(sides) + 2.0 * np.pi * index / float(sides)
+            vertices.append(
+                np.asarray(
+                    [
+                        float(center_xy[0]) + radius * np.cos(angle),
+                        float(center_xy[1]) + radius * np.sin(angle),
+                    ],
+                    dtype=np.float64,
+                )
+            )
+
+        for index in range(sides):
+            geom_id = self.hole_polygon_visual_geom_ids[available_names[index]]
+            start = vertices[index]
+            end = vertices[(index + 1) % sides]
+            edge = end - start
+            edge_length = float(np.linalg.norm(edge))
+            if edge_length <= 1e-9:
+                continue
+            outward = np.asarray([edge[1], -edge[0]], dtype=np.float64) / edge_length
+            center = 0.5 * (start + end) + outward * wall_thickness
+            yaw = float(np.arctan2(edge[1], edge[0]))
+            size = np.asarray(
+                [0.5 * edge_length + wall_end_overlap, wall_thickness, half_height],
+                dtype=np.float64,
+            )
+            self.model.geom_type[geom_id] = int(mujoco.mjtGeom.mjGEOM_BOX)
+            self.model.geom_dataid[geom_id] = -1
+            self.model.geom_pos[geom_id] = np.asarray(
+                [float(center[0]), float(center[1]), z_pos],
+                dtype=np.float64,
+            )
+            self.model.geom_quat[geom_id] = self._yaw_quat(yaw)
+            self.model.geom_size[geom_id] = size
+            self.model.geom_rbound[geom_id] = float(np.linalg.norm(size))
+            self.model.geom_contype[geom_id] = 0
+            self.model.geom_conaffinity[geom_id] = 0
+            self.model.geom_rgba[geom_id] = visible_rgba
+
+    def _set_hole_cavity_visual_geometry(
+        self,
+        spec: GeometrySpec,
+        center_xy: np.ndarray,
+    ) -> None:
+        if self.hole_key_tab_cavity_visual_geom_id is not None:
+            tab_geom_id = self.hole_key_tab_cavity_visual_geom_id
+            self.model.geom_type[tab_geom_id] = self.base_geom_type[tab_geom_id]
+            self.model.geom_dataid[tab_geom_id] = self.base_geom_dataid[tab_geom_id]
+            self.model.geom_pos[tab_geom_id] = self.base_geom_pos[tab_geom_id]
+            self.model.geom_quat[tab_geom_id] = self.base_geom_quat[tab_geom_id]
+            self.model.geom_size[tab_geom_id] = self.base_geom_size[tab_geom_id]
+            self.model.geom_rbound[tab_geom_id] = max(
+                float(self.base_geom_rbound[tab_geom_id]),
+                0.002,
+            )
+            self.model.geom_contype[tab_geom_id] = 0
+            self.model.geom_conaffinity[tab_geom_id] = 0
+            hidden_rgba = self.base_geom_rgba[tab_geom_id].copy()
+            hidden_rgba[3] = 0.0
+            self.model.geom_rgba[tab_geom_id] = hidden_rgba
+
+        if self.hole_cavity_visual_geom_id is None:
+            return
+
+        geom_id = self.hole_cavity_visual_geom_id
+        half_height = max(float(self.base_geom_size[geom_id, 2]), 0.0005)
+        pos = self.base_geom_pos[geom_id].copy()
+        pos[:2] = center_xy
+        self.model.geom_pos[geom_id] = pos
+        self.model.geom_quat[geom_id] = np.asarray([1.0, 0.0, 0.0, 0.0], dtype=np.float64)
+        self.model.geom_dataid[geom_id] = -1
+        self.model.geom_contype[geom_id] = 0
+        self.model.geom_conaffinity[geom_id] = 0
+        self.model.geom_rgba[geom_id] = self.base_geom_rgba[geom_id]
+
+        if spec.hole_shape == "rectangular_key" and self.geometry_fixture_mode == "true_mesh":
+            plate_id = self._geom_id("hole_plate")
+            visual_z = (
+                float(self.base_geom_pos[plate_id, 2])
+                + float(self.base_geom_size[plate_id, 2])
+                + half_height
+            )
+            scale = 0.88
+            radius, tab_half_width, tab_length = self._true_fixture_keyhole_dimensions(
+                spec.hole_half_size
+            )
+            radius *= scale
+            tab_half_width *= scale
+            tab_length *= scale
+            x_join = float(np.sqrt(max(radius * radius - tab_half_width * tab_half_width, 0.0)))
+            front_x = radius + tab_length
+
+            self.model.geom_type[geom_id] = int(mujoco.mjtGeom.mjGEOM_CYLINDER)
+            self.model.geom_dataid[geom_id] = -1
+            self.model.geom_pos[geom_id] = np.asarray(
+                [
+                    float(center_xy[0]),
+                    float(center_xy[1]),
+                    visual_z,
+                ],
+                dtype=np.float64,
+            )
+            self.model.geom_quat[geom_id] = np.asarray([1.0, 0.0, 0.0, 0.0], dtype=np.float64)
+            self.model.geom_size[geom_id] = np.asarray(
+                [radius, half_height, 0.0],
+                dtype=np.float64,
+            )
+            self.model.geom_rbound[geom_id] = float(np.hypot(radius, half_height))
+            self.model.geom_rgba[geom_id] = self.base_geom_rgba[geom_id]
+
+            tab_geom_id = self.hole_key_tab_cavity_visual_geom_id
+            if tab_geom_id is not None:
+                tab_half_x = max(0.0005, 0.5 * (front_x - x_join))
+                tab_center_x = 0.5 * (front_x + x_join)
+                self.model.geom_type[tab_geom_id] = int(mujoco.mjtGeom.mjGEOM_BOX)
+                self.model.geom_dataid[tab_geom_id] = -1
+                self.model.geom_pos[tab_geom_id] = np.asarray(
+                    [
+                        float(center_xy[0]) + tab_center_x,
+                        float(center_xy[1]),
+                        visual_z,
+                    ],
+                    dtype=np.float64,
+                )
+                self.model.geom_quat[tab_geom_id] = np.asarray(
+                    [1.0, 0.0, 0.0, 0.0],
+                    dtype=np.float64,
+                )
+                self.model.geom_size[tab_geom_id] = np.asarray(
+                    [tab_half_x, tab_half_width, half_height],
+                    dtype=np.float64,
+                )
+                self.model.geom_rbound[tab_geom_id] = float(
+                    np.linalg.norm(self.model.geom_size[tab_geom_id])
+                )
+                self.model.geom_contype[tab_geom_id] = 0
+                self.model.geom_conaffinity[tab_geom_id] = 0
+                self.model.geom_rgba[tab_geom_id] = self.base_geom_rgba[geom_id]
+            return
+
+        if spec.hole_shape in ("square", "slot", "rectangular_key"):
+            if spec.hole_half_extents is None:
+                half_x = half_y = float(spec.hole_half_size)
+            else:
+                half_x, half_y = (float(v) for v in spec.hole_half_extents)
+            size = np.asarray(
+                [
+                    max(0.001, half_x * 0.88),
+                    max(0.001, half_y * 0.88),
+                    half_height,
+                ],
+                dtype=np.float64,
+            )
+            self.model.geom_type[geom_id] = int(mujoco.mjtGeom.mjGEOM_BOX)
+            self.model.geom_size[geom_id] = size
+            self.model.geom_rbound[geom_id] = float(np.linalg.norm(size))
+            return
+
+        if spec.hole_shape == "round":
+            radius = max(0.001, float(spec.hole_half_size) * 0.82)
+            self.model.geom_type[geom_id] = int(mujoco.mjtGeom.mjGEOM_CYLINDER)
+            self.model.geom_size[geom_id] = np.asarray(
+                [radius, half_height, 0.0],
+                dtype=np.float64,
+            )
+            self.model.geom_rbound[geom_id] = float(np.hypot(radius, half_height))
+            return
+
+        if spec.hole_shape in ("hex", "triangle") or (
+            spec.hole_shape == "slot" and self.geometry_fixture_mode == "true_mesh"
+        ):
+            hidden_rgba = self.base_geom_rgba[geom_id].copy()
+            hidden_rgba[3] = 0.0
+            self.model.geom_type[geom_id] = int(mujoco.mjtGeom.mjGEOM_BOX)
+            self.model.geom_size[geom_id] = np.asarray(
+                [0.001, 0.001, half_height],
+                dtype=np.float64,
+            )
+            self.model.geom_rgba[geom_id] = hidden_rgba
+            self.model.geom_rbound[geom_id] = float(np.linalg.norm(self.model.geom_size[geom_id]))
+            return
 
     def _set_rectangular_hole_geometry(
         self,
@@ -1711,24 +2677,61 @@ class PegInHoleMujocoEnv(gym.Env):
         spec: GeometrySpec,
         center_xy: np.ndarray,
     ) -> None:
+        self._deactivate_hole_polygon_visual_walls()
+        self._deactivate_true_fixture_walls()
+        self._deactivate_true_fixture_visual()
+        self._set_hole_cavity_visual_geometry(spec, center_xy)
+
         if spec.hole_shape == "square":
             used = self._set_rectangular_hole_geometry(
                 center_xy,
                 spec.hole_half_extents or (spec.hole_half_size, spec.hole_half_size),
             )
-        elif spec.hole_shape in ("slot", "rectangular_key"):
+        elif spec.hole_shape == "slot":
             if spec.hole_half_extents is None:
                 raise ValueError(f"{spec.hole_shape} hole requires hole_half_extents.")
-            used = self._set_rectangular_hole_geometry(center_xy, spec.hole_half_extents)
+            if self.geometry_fixture_mode == "true_mesh" and self._set_true_fixture_mesh_geometry(
+                spec,
+                center_xy,
+            ):
+                self._set_true_fixture_visual_geometry(spec, center_xy)
+                used = set()
+            else:
+                used = self._set_rectangular_hole_geometry(center_xy, spec.hole_half_extents)
+        elif spec.hole_shape == "rectangular_key":
+            if spec.hole_half_extents is None:
+                raise ValueError(f"{spec.hole_shape} hole requires hole_half_extents.")
+            if self.geometry_fixture_mode == "true_mesh" and self._set_true_fixture_mesh_geometry(
+                spec,
+                center_xy,
+            ):
+                self._set_true_fixture_visual_geometry(spec, center_xy)
+                used = set()
+            else:
+                used = self._set_rectangular_hole_geometry(center_xy, spec.hole_half_extents)
         elif spec.hole_shape in ("round", "hex", "triangle"):
             sides = spec.hole_polygon_sides
             if sides is None:
                 raise ValueError(f"{spec.hole_shape} hole requires hole_polygon_sides.")
-            used = self._set_polygon_hole_geometry(
+            if self.geometry_fixture_mode == "true_mesh" and self._set_true_fixture_mesh_geometry(
+                spec,
                 center_xy,
-                apothem=spec.hole_half_size,
-                sides=sides,
-            )
+            ):
+                self._set_true_fixture_visual_geometry(spec, center_xy)
+                used = set()
+            else:
+                used = self._set_polygon_hole_geometry(
+                    center_xy,
+                    apothem=spec.hole_half_size,
+                    sides=sides,
+                )
+            if spec.hole_shape in ("hex", "triangle") and self.geometry_fixture_mode != "true_mesh":
+                self._set_hole_collision_wall_visibility(used, visible=False)
+                self._set_hole_polygon_visual_geometry(
+                    center_xy,
+                    apothem=spec.hole_half_size,
+                    sides=sides,
+                )
         else:
             raise ValueError(f"unsupported hole shape: {spec.hole_shape}")
 
@@ -1913,6 +2916,14 @@ class PegInHoleMujocoEnv(gym.Env):
     def _square_symmetry_yaw_error_deg(raw_yaw_deg: float) -> float:
         return float(abs(((raw_yaw_deg + 45.0) % 90.0) - 45.0))
 
+    @staticmethod
+    def _fold_shape_yaw_signed_error_deg(raw_yaw_deg: float, period_deg: float) -> float:
+        return float(((raw_yaw_deg + 0.5 * period_deg) % period_deg) - 0.5 * period_deg)
+
+    def _shape_yaw_period_deg(self) -> float:
+        period = SHAPE_YAW_PERIOD_DEG.get(self.current_geometry_spec.name)
+        return float(period) if period is not None else float("nan")
+
     def _square_symmetry_yaw_metrics(self, xmat: np.ndarray) -> tuple[float, float]:
         spec = self.current_geometry_spec
         if spec.peg_shape != "square" or spec.hole_shape != "square":
@@ -1929,6 +2940,89 @@ class PegInHoleMujocoEnv(gym.Env):
             return float("nan"), float("nan")
         raw_yaw_deg = self._signed_planar_angle_deg(hole_x_xy, x_xy)
         return raw_yaw_deg, self._square_symmetry_yaw_error_deg(raw_yaw_deg)
+
+    def _shape_yaw_metrics_for_xmat(self, xmat: np.ndarray) -> tuple[float, float]:
+        period_deg = self._shape_yaw_period_deg()
+        if not np.isfinite(period_deg) or period_deg <= 0.0:
+            return float("nan"), float("nan")
+        x_axis = np.asarray(xmat, dtype=np.float64).reshape(3, 3) @ np.asarray(
+            [1.0, 0.0, 0.0],
+            dtype=np.float64,
+        )
+        hole_xmat = self._body_xmat(self.data, self.hole_body_id)
+        hole_x_axis = hole_xmat @ np.asarray([1.0, 0.0, 0.0], dtype=np.float64)
+        x_xy = self._project_unit_xy(x_axis)
+        hole_x_xy = self._project_unit_xy(hole_x_axis)
+        if x_xy is None or hole_x_xy is None:
+            return float("nan"), float("nan")
+        raw_yaw_deg = self._signed_planar_angle_deg(hole_x_xy, x_xy)
+        signed_error_deg = self._fold_shape_yaw_signed_error_deg(
+            raw_yaw_deg,
+            period_deg,
+        )
+        return raw_yaw_deg, abs(signed_error_deg)
+
+    def _shape_yaw_metrics(self, data: mujoco.MjData) -> dict[str, float]:
+        period_deg = self._shape_yaw_period_deg()
+        if not np.isfinite(period_deg) or period_deg <= 0.0:
+            return {
+                "shape_yaw_period_deg": np.nan,
+                "shape_yaw_symmetry_order": np.nan,
+                "shape_yaw_raw_deg": np.nan,
+                "shape_yaw_signed_error_deg": np.nan,
+                "shape_yaw_error_deg": np.nan,
+                "shape_yaw_label_sin": np.nan,
+                "shape_yaw_label_cos": np.nan,
+            }
+
+        peg_xmat = self._site_xmat(data, self.peg_tip_site_id)
+        hole_xmat = self._body_xmat(data, self.hole_body_id)
+        peg_x_axis = peg_xmat @ np.asarray([1.0, 0.0, 0.0], dtype=np.float64)
+        hole_x_axis = hole_xmat @ np.asarray([1.0, 0.0, 0.0], dtype=np.float64)
+        peg_x_xy = self._project_unit_xy(peg_x_axis)
+        hole_x_xy = self._project_unit_xy(hole_x_axis)
+        if peg_x_xy is None or hole_x_xy is None:
+            raw_yaw_deg = np.nan
+            signed_error_deg = np.nan
+            phase = np.nan
+        else:
+            raw_yaw_deg = self._signed_planar_angle_deg(hole_x_xy, peg_x_xy)
+            signed_error_deg = self._fold_shape_yaw_signed_error_deg(
+                raw_yaw_deg,
+                period_deg,
+            )
+            phase = float(2.0 * np.pi * signed_error_deg / period_deg)
+
+        return {
+            "shape_yaw_period_deg": float(period_deg),
+            "shape_yaw_symmetry_order": float(360.0 / period_deg),
+            "shape_yaw_raw_deg": float(raw_yaw_deg),
+            "shape_yaw_signed_error_deg": float(signed_error_deg),
+            "shape_yaw_error_deg": float(abs(signed_error_deg)),
+            "shape_yaw_label_sin": float(np.sin(phase)) if np.isfinite(phase) else np.nan,
+            "shape_yaw_label_cos": float(np.cos(phase)) if np.isfinite(phase) else np.nan,
+        }
+
+    def _shape_yaw_clearance(self) -> float:
+        spec = self.current_geometry_spec
+        if spec.name == "hex_hex":
+            peg_apothem = float(self.base_peg_radius) * float(np.cos(np.pi / 6.0))
+            return float(spec.hole_half_size - peg_apothem)
+        if spec.name == "triangle_triangle":
+            peg_apothem = float(self.base_peg_radius) * float(np.cos(np.pi / 3.0))
+            return float(spec.hole_half_size - peg_apothem)
+        if spec.name == "square_square" and spec.peg_half_extents is not None:
+            peg_half_width = max(float(spec.peg_half_extents[0]), float(spec.peg_half_extents[1]))
+            return float(spec.hole_half_size - peg_half_width)
+        if spec.name == "rectangular_key":
+            radius, tab_half_width, tab_length = self._true_fixture_keyhole_dimensions(
+                spec.hole_half_size
+            )
+            radial_clearance = radius - float(spec.peg_radius)
+            tab_width_clearance = tab_half_width - TIGHT_YAW_KEYHOLE_PEG_TAB_HALF_WIDTH
+            tab_length_clearance = tab_length - TIGHT_YAW_KEYHOLE_PEG_TAB_LENGTH
+            return float(min(radial_clearance, tab_width_clearance, tab_length_clearance))
+        return float(spec.hole_clearance)
 
     def _square_peg_orientation_metrics(self, data: mujoco.MjData) -> dict[str, float]:
         spec = self.current_geometry_spec
@@ -2237,6 +3331,20 @@ class PegInHoleMujocoEnv(gym.Env):
         )
         return shaped_distance, desired_z
 
+    def _success_shape_yaw_terms(self) -> tuple[bool, bool, float, float]:
+        tolerance = self.success_shape_yaw_tolerance_deg
+        required = bool(
+            tolerance is not None
+            and self.current_geometry_spec.name in self.success_shape_yaw_profile_set
+        )
+        if not required:
+            return False, True, float("nan"), float("nan")
+
+        yaw_metrics = self._shape_yaw_metrics(self.data)
+        yaw_error_deg = float(yaw_metrics.get("shape_yaw_error_deg", np.nan))
+        yaw_ok = bool(np.isfinite(yaw_error_deg) and yaw_error_deg <= float(tolerance))
+        return True, yaw_ok, yaw_error_deg, float(tolerance)
+
     def _compute_reward(self, collision: bool, action: np.ndarray | None = None) -> RewardTerms:
         tip_pos = self._site_xpos(self.data, self.peg_tip_site_id)
         shaped_distance, desired_z = self._staged_distance()
@@ -2244,6 +3352,12 @@ class PegInHoleMujocoEnv(gym.Env):
 
         dist_xy = float(np.linalg.norm(tip_pos[:2] - self.target_pos[:2]))
         dist_z = float(abs(tip_pos[2] - self.target_pos[2]))
+        (
+            success_shape_yaw_required,
+            success_shape_yaw_ok,
+            success_shape_yaw_error_deg,
+            success_shape_yaw_tolerance_deg,
+        ) = self._success_shape_yaw_terms()
         desired_tip_pos = np.asarray(
             [self.target_pos[0], self.target_pos[1], desired_z],
             dtype=np.float64,
@@ -2253,6 +3367,7 @@ class PegInHoleMujocoEnv(gym.Env):
         inserted = bool(
             dist_xy < self.success_xy_tolerance
             and dist_z < self.success_z_tolerance
+            and success_shape_yaw_ok
         )
 
         action_norm = 0.0 if action is None else float(np.linalg.norm(action / self.action_scale))
@@ -2281,6 +3396,10 @@ class PegInHoleMujocoEnv(gym.Env):
             desired_z=desired_z,
             inserted=inserted,
             collision=bool(collision),
+            success_shape_yaw_required=success_shape_yaw_required,
+            success_shape_yaw_ok=success_shape_yaw_ok,
+            success_shape_yaw_error_deg=success_shape_yaw_error_deg,
+            success_shape_yaw_tolerance_deg=success_shape_yaw_tolerance_deg,
         )
 
     def _check_collision(self) -> bool:
@@ -2521,6 +3640,7 @@ class PegInHoleMujocoEnv(gym.Env):
         joint_limit_margin, joint_limit_normalized_margin = self._joint_limit_metrics(joint_qpos)
         peg_axis_world, peg_tilt_angle_deg = self._peg_axis_and_tilt(self.data)
         square_peg_metrics = self._square_peg_orientation_metrics(self.data)
+        shape_yaw_metrics = self._shape_yaw_metrics(self.data)
         (
             pose_ik_target_raw_yaw_deg,
             pose_ik_target_square_yaw_error_deg,
@@ -2529,6 +3649,10 @@ class PegInHoleMujocoEnv(gym.Env):
             "insertion_success": terms.inserted,
             "dist_xy": terms.dist_xy,
             "dist_z": terms.dist_z,
+            "success_shape_yaw_required": terms.success_shape_yaw_required,
+            "success_shape_yaw_ok": terms.success_shape_yaw_ok,
+            "success_shape_yaw_error_deg": terms.success_shape_yaw_error_deg,
+            "success_shape_yaw_tolerance_deg": terms.success_shape_yaw_tolerance_deg,
             "shaped_distance": terms.shaped_distance,
             "desired_z": terms.desired_z,
             "collision": terms.collision,
@@ -2576,6 +3700,8 @@ class PegInHoleMujocoEnv(gym.Env):
             "fixture_height_offset": self.current_fixture_height_offset,
             "table_height_offset": self.current_table_height_offset,
             "geometry_profile": self.geometry_profile,
+            "geometry_fixture_mode": self.geometry_fixture_mode,
+            "geometry_true_fixture_variant": self.geometry_true_fixture_variant,
             "geometry_name": self.current_geometry_spec.name,
             "peg_shape": self.current_geometry_spec.peg_shape,
             "hole_shape": self.current_geometry_spec.hole_shape,
@@ -2597,6 +3723,8 @@ class PegInHoleMujocoEnv(gym.Env):
                 if self.current_geometry_spec.hole_polygon_sides is not None
                 else 0
             ),
+            "shape_yaw_clearance": self._shape_yaw_clearance(),
+            **shape_yaw_metrics,
             **square_peg_metrics,
             "contact_friction_multiplier": self.current_contact_friction_multiplier,
             "contact_solref_time_multiplier": self.current_contact_solref_time_multiplier,
