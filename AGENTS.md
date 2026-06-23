@@ -18,6 +18,10 @@ The current focus is:
 - Treat `sim2real_multigeom_v1` as the cleaned v148/v149 same-shape multi-geometry sim-to-real mainline. Use `SIM2REAL_MULTIGEOM_V1.md` first for commands and status; do not confuse this with the v221 hard-square-only recovery line.
 - Treat `feature/multigeom-v2-true-fixtures` as the experimental true-fixture branch. It is opt-in through `geometry_fixture_mode=true_mesh`, currently covers `hex_hex`, `triangle_triangle`, `slot_slot`, and `rectangular_key`, and must not replace the v1 sim-to-real mainline until multi-seed validation and size-randomized mesh fixtures are done.
 - Treat `feature/multigeom-v2-visual-yaw-align` as the current active research branch for visual yaw alignment on top of the true-fixture stack. Use `SIM2REAL_MULTIGEOM_V2_VISUAL_YAW_ALIGN.md` first for its commands and status.
+  Current low-Z view-ranking result: `crop_wider_high` is the best candidate
+  among the tested final-descent crop/camera variants; use the low-Z
+  `*_key_focus_8k_stratified_low_z_crop_high.yaml` configs for the next yaw
+  estimator run.
 
 ## User Preferences
 

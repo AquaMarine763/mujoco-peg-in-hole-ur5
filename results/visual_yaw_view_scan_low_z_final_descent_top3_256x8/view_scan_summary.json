@@ -1,0 +1,80 @@
+[
+  {
+    "candidate": "crop_wider_high",
+    "seed": 914000,
+    "dataset": "datasets\\visual_yaw_view_scan_low_z_final_descent_top3_256x8\\crop_wider_high.npz",
+    "model": "results\\visual_yaw_view_scan_low_z_final_descent_top3_256x8\\crop_wider_high.pt",
+    "report": "results\\visual_yaw_view_scan_low_z_final_descent_top3_256x8\\crop_wider_high.md",
+    "cam_offset": [
+      -0.04,
+      -0.04,
+      0.0
+    ],
+    "crop_offset": [
+      -18,
+      -12
+    ],
+    "crop_source_size": 80,
+    "fovy": 100.0,
+    "samples": 256,
+    "best_epoch": 8,
+    "best_val_mean_yaw_error_deg": 45.09262466430664,
+    "best_val_p95_yaw_error_deg": 147.44326782226562,
+    "key_val_mean_yaw_error_deg": 71.7398681640625,
+    "square_val_mean_yaw_error_deg": 11.886691093444824,
+    "triangle_val_mean_yaw_error_deg": 22.954065322875977,
+    "hex_val_mean_yaw_error_deg": 16.259056091308594
+  },
+  {
+    "candidate": "open_high",
+    "seed": 915000,
+    "dataset": "datasets\\visual_yaw_view_scan_low_z_final_descent_top3_256x8\\open_high.npz",
+    "model": "results\\visual_yaw_view_scan_low_z_final_descent_top3_256x8\\open_high.pt",
+    "report": "results\\visual_yaw_view_scan_low_z_final_descent_top3_256x8\\open_high.md",
+    "cam_offset": [
+      -0.025,
+      -0.045,
+      0.04
+    ],
+    "crop_offset": [
+      -10,
+      0
+    ],
+    "crop_source_size": 96,
+    "fovy": 110.0,
+    "samples": 256,
+    "best_epoch": 2,
+    "best_val_mean_yaw_error_deg": 50.405006408691406,
+    "best_val_p95_yaw_error_deg": 136.48667907714844,
+    "key_val_mean_yaw_error_deg": 79.7820816040039,
+    "square_val_mean_yaw_error_deg": 8.224455833435059,
+    "triangle_val_mean_yaw_error_deg": 20.052108764648438,
+    "hex_val_mean_yaw_error_deg": 11.615044593811035
+  },
+  {
+    "candidate": "raise_center_wide",
+    "seed": 916000,
+    "dataset": "datasets\\visual_yaw_view_scan_low_z_final_descent_top3_256x8\\raise_center_wide.npz",
+    "model": "results\\visual_yaw_view_scan_low_z_final_descent_top3_256x8\\raise_center_wide.pt",
+    "report": "results\\visual_yaw_view_scan_low_z_final_descent_top3_256x8\\raise_center_wide.md",
+    "cam_offset": [
+      -0.03,
+      -0.04,
+      0.02
+    ],
+    "crop_offset": [
+      -10,
+      0
+    ],
+    "crop_source_size": 96,
+    "fovy": 110.0,
+    "samples": 256,
+    "best_epoch": 4,
+    "best_val_mean_yaw_error_deg": 55.33028030395508,
+    "best_val_p95_yaw_error_deg": 163.67977905273438,
+    "key_val_mean_yaw_error_deg": 88.24729919433594,
+    "square_val_mean_yaw_error_deg": 11.287115097045898,
+    "triangle_val_mean_yaw_error_deg": 20.49501609802246,
+    "hex_val_mean_yaw_error_deg": 11.430887222290039
+  }
+]

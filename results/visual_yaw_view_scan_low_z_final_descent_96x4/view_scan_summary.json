@@ -1,0 +1,184 @@
+[
+  {
+    "candidate": "crop_wider_high",
+    "seed": 918000,
+    "dataset": "datasets\\visual_yaw_view_scan_low_z_final_descent_96x4\\crop_wider_high.npz",
+    "model": "results\\visual_yaw_view_scan_low_z_final_descent_96x4\\crop_wider_high.pt",
+    "report": "results\\visual_yaw_view_scan_low_z_final_descent_96x4\\crop_wider_high.md",
+    "cam_offset": [
+      -0.04,
+      -0.04,
+      0.0
+    ],
+    "crop_offset": [
+      -18,
+      -12
+    ],
+    "crop_source_size": 80,
+    "fovy": 100.0,
+    "samples": 96,
+    "best_epoch": 1,
+    "best_val_mean_yaw_error_deg": 30.2265567779541,
+    "best_val_p95_yaw_error_deg": 127.34778594970703,
+    "key_val_mean_yaw_error_deg": 59.574737548828125,
+    "square_val_mean_yaw_error_deg": 15.972784042358398,
+    "triangle_val_mean_yaw_error_deg": 16.852523803710938,
+    "hex_val_mean_yaw_error_deg": 11.385132789611816
+  },
+  {
+    "candidate": "open_high",
+    "seed": 915000,
+    "dataset": "datasets\\visual_yaw_view_scan_low_z_final_descent_96x4\\open_high.npz",
+    "model": "results\\visual_yaw_view_scan_low_z_final_descent_96x4\\open_high.pt",
+    "report": "results\\visual_yaw_view_scan_low_z_final_descent_96x4\\open_high.md",
+    "cam_offset": [
+      -0.025,
+      -0.045,
+      0.04
+    ],
+    "crop_offset": [
+      -10,
+      0
+    ],
+    "crop_source_size": 96,
+    "fovy": 110.0,
+    "samples": 96,
+    "best_epoch": 4,
+    "best_val_mean_yaw_error_deg": 39.733097076416016,
+    "best_val_p95_yaw_error_deg": 133.80137634277344,
+    "key_val_mean_yaw_error_deg": 69.71228790283203,
+    "square_val_mean_yaw_error_deg": 5.1579766273498535,
+    "triangle_val_mean_yaw_error_deg": 10.678260803222656,
+    "hex_val_mean_yaw_error_deg": 12.045372009277344
+  },
+  {
+    "candidate": "raise_center_wide",
+    "seed": 919000,
+    "dataset": "datasets\\visual_yaw_view_scan_low_z_final_descent_96x4\\raise_center_wide.npz",
+    "model": "results\\visual_yaw_view_scan_low_z_final_descent_96x4\\raise_center_wide.pt",
+    "report": "results\\visual_yaw_view_scan_low_z_final_descent_96x4\\raise_center_wide.md",
+    "cam_offset": [
+      -0.03,
+      -0.04,
+      0.02
+    ],
+    "crop_offset": [
+      -10,
+      0
+    ],
+    "crop_source_size": 96,
+    "fovy": 110.0,
+    "samples": 96,
+    "best_epoch": 4,
+    "best_val_mean_yaw_error_deg": 45.94089889526367,
+    "best_val_p95_yaw_error_deg": 132.95272827148438,
+    "key_val_mean_yaw_error_deg": 72.74799346923828,
+    "square_val_mean_yaw_error_deg": 13.609299659729004,
+    "triangle_val_mean_yaw_error_deg": 15.889312744140625,
+    "hex_val_mean_yaw_error_deg": 12.548095703125
+  },
+  {
+    "candidate": "raise_center",
+    "seed": 914000,
+    "dataset": "datasets\\visual_yaw_view_scan_low_z_final_descent_96x4\\raise_center.npz",
+    "model": "results\\visual_yaw_view_scan_low_z_final_descent_96x4\\raise_center.pt",
+    "report": "results\\visual_yaw_view_scan_low_z_final_descent_96x4\\raise_center.md",
+    "cam_offset": [
+      -0.03,
+      -0.04,
+      0.02
+    ],
+    "crop_offset": [
+      -14,
+      0
+    ],
+    "crop_source_size": 80,
+    "fovy": 100.0,
+    "samples": 96,
+    "best_epoch": 4,
+    "best_val_mean_yaw_error_deg": 41.82071304321289,
+    "best_val_p95_yaw_error_deg": 125.66748046875,
+    "key_val_mean_yaw_error_deg": 82.18069458007812,
+    "square_val_mean_yaw_error_deg": 11.916304588317871,
+    "triangle_val_mean_yaw_error_deg": 10.790875434875488,
+    "hex_val_mean_yaw_error_deg": 14.221075057983398
+  },
+  {
+    "candidate": "crop_wider_low",
+    "seed": 917000,
+    "dataset": "datasets\\visual_yaw_view_scan_low_z_final_descent_96x4\\crop_wider_low.npz",
+    "model": "results\\visual_yaw_view_scan_low_z_final_descent_96x4\\crop_wider_low.pt",
+    "report": "results\\visual_yaw_view_scan_low_z_final_descent_96x4\\crop_wider_low.md",
+    "cam_offset": [
+      -0.04,
+      -0.04,
+      0.0
+    ],
+    "crop_offset": [
+      -18,
+      12
+    ],
+    "crop_source_size": 80,
+    "fovy": 100.0,
+    "samples": 96,
+    "best_epoch": 3,
+    "best_val_mean_yaw_error_deg": 45.332275390625,
+    "best_val_p95_yaw_error_deg": 122.76699829101562,
+    "key_val_mean_yaw_error_deg": 82.54655456542969,
+    "square_val_mean_yaw_error_deg": 18.875263214111328,
+    "triangle_val_mean_yaw_error_deg": 22.39008903503418,
+    "hex_val_mean_yaw_error_deg": 16.241254806518555
+  },
+  {
+    "candidate": "crop_wider",
+    "seed": 913000,
+    "dataset": "datasets\\visual_yaw_view_scan_low_z_final_descent_96x4\\crop_wider.npz",
+    "model": "results\\visual_yaw_view_scan_low_z_final_descent_96x4\\crop_wider.pt",
+    "report": "results\\visual_yaw_view_scan_low_z_final_descent_96x4\\crop_wider.md",
+    "cam_offset": [
+      -0.04,
+      -0.04,
+      0.0
+    ],
+    "crop_offset": [
+      -18,
+      0
+    ],
+    "crop_source_size": 80,
+    "fovy": 100.0,
+    "samples": 96,
+    "best_epoch": 3,
+    "best_val_mean_yaw_error_deg": 58.25148391723633,
+    "best_val_p95_yaw_error_deg": 160.85023498535156,
+    "key_val_mean_yaw_error_deg": 83.28590393066406,
+    "square_val_mean_yaw_error_deg": 18.353586196899414,
+    "triangle_val_mean_yaw_error_deg": 13.761990547180176,
+    "hex_val_mean_yaw_error_deg": 17.46673583984375
+  },
+  {
+    "candidate": "crop_wider_centered",
+    "seed": 916000,
+    "dataset": "datasets\\visual_yaw_view_scan_low_z_final_descent_96x4\\crop_wider_centered.npz",
+    "model": "results\\visual_yaw_view_scan_low_z_final_descent_96x4\\crop_wider_centered.pt",
+    "report": "results\\visual_yaw_view_scan_low_z_final_descent_96x4\\crop_wider_centered.md",
+    "cam_offset": [
+      -0.04,
+      -0.04,
+      0.0
+    ],
+    "crop_offset": [
+      -10,
+      0
+    ],
+    "crop_source_size": 80,
+    "fovy": 100.0,
+    "samples": 96,
+    "best_epoch": 4,
+    "best_val_mean_yaw_error_deg": 66.9425277709961,
+    "best_val_p95_yaw_error_deg": 149.01364135742188,
+    "key_val_mean_yaw_error_deg": 99.96228790283203,
+    "square_val_mean_yaw_error_deg": 40.261878967285156,
+    "triangle_val_mean_yaw_error_deg": 45.162933349609375,
+    "hex_val_mean_yaw_error_deg": 20.146970748901367
+  }
+]

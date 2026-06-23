@@ -1,0 +1,16 @@
+# Held-out diagnostic eval for the low-Z key-focused yaw estimator.
+
+dataset: datasets/visual_yaw_v1_tight_yaw_key_focus_8k_stratified_low_z_crop_high.npz
+checkpoint: results/visual_yaw_estimator_v1_tight_yaw_key_focus_8k_stratified_low_z_crop_high.pt
+output_md: results/visual_yaw_estimator_v1_tight_yaw_key_focus_8k_stratified_low_z_crop_high_eval.md
+output_json: results/visual_yaw_estimator_v1_tight_yaw_key_focus_8k_stratified_low_z_crop_high_eval.json
+worst_sheet: results/visual_yaw_estimator_v1_tight_yaw_key_focus_8k_stratified_low_z_crop_high_eval_worst_key.png
+
+split: validation
+batch_size: 128
+device: auto
+bin_count: 12
+bad_threshold_deg: 15.0
+worst_count: 24
+worst_cols: 4
+worst_profiles: [rectangular_key]

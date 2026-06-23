@@ -70,6 +70,51 @@ DEFAULT_CANDIDATES = (
 )
 
 
+FINAL_DESCENT_CANDIDATES = DEFAULT_CANDIDATES + (
+    ViewCandidate(
+        name="crop_wider_centered",
+        wrist_camera_pos_offset=(-0.04, -0.04, 0.0),
+        wrist_camera_rot_offset_deg=(0.0, 0.0, 0.0),
+        wrist_camera_fovy=100.0,
+        near_hole_crop_size=64,
+        near_hole_crop_source_size=80,
+        near_hole_crop_offset=(-10, 0),
+    ),
+    ViewCandidate(
+        name="crop_wider_low",
+        wrist_camera_pos_offset=(-0.04, -0.04, 0.0),
+        wrist_camera_rot_offset_deg=(0.0, 0.0, 0.0),
+        wrist_camera_fovy=100.0,
+        near_hole_crop_size=64,
+        near_hole_crop_source_size=80,
+        near_hole_crop_offset=(-18, 12),
+    ),
+    ViewCandidate(
+        name="crop_wider_high",
+        wrist_camera_pos_offset=(-0.04, -0.04, 0.0),
+        wrist_camera_rot_offset_deg=(0.0, 0.0, 0.0),
+        wrist_camera_fovy=100.0,
+        near_hole_crop_size=64,
+        near_hole_crop_source_size=80,
+        near_hole_crop_offset=(-18, -12),
+    ),
+    ViewCandidate(
+        name="raise_center_wide",
+        wrist_camera_pos_offset=(-0.03, -0.04, 0.02),
+        wrist_camera_rot_offset_deg=(0.0, 0.0, 0.0),
+        wrist_camera_fovy=110.0,
+        near_hole_crop_size=64,
+        near_hole_crop_source_size=96,
+        near_hole_crop_offset=(-10, 0),
+    ),
+)
+
+CANDIDATE_GROUPS = {
+    "default": DEFAULT_CANDIDATES,
+    "final_descent": FINAL_DESCENT_CANDIDATES,
+}
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Scan wrist camera and near-hole crop settings for visual yaw estimation."
@@ -84,17 +129,46 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=908000)
     parser.add_argument("--device", default="auto")
     parser.add_argument("--num-workers", type=int, default=0)
+    parser.add_argument("--geometry-profiles", nargs="+", default=list(collector.DEFAULT_PROFILES))
+    parser.add_argument("--tip-z-above-range", nargs=2, type=float, default=(0.035, 0.080))
+    parser.add_argument("--tip-xy-offset-range", nargs=2, type=float, default=(0.0, 0.006))
+    parser.add_argument("--yaw-sampling-mode", choices=("uniform", "stratified"), default="uniform")
+    parser.add_argument("--yaw-bin-count", type=int, default=12)
+    parser.add_argument("--max-attempts-multiplier", type=int, default=8)
+    parser.add_argument("--candidate-group", choices=sorted(CANDIDATE_GROUPS), default="default")
     parser.add_argument(
         "--candidate-names",
         nargs="+",
-        default=[candidate.name for candidate in DEFAULT_CANDIDATES],
+        default=None,
     )
     parser.add_argument("--compressed", action="store_true")
-    return parser.parse_args()
+    args = parser.parse_args()
+    collector.normalize_args(
+        argparse.Namespace(
+            samples=args.samples_per_candidate,
+            settle_steps=4,
+            max_attempts_multiplier=args.max_attempts_multiplier,
+            tip_z_above_range=args.tip_z_above_range,
+            tip_xy_offset_range=args.tip_xy_offset_range,
+            yaw_bin_count=args.yaw_bin_count,
+            geometry_profiles=args.geometry_profiles,
+        )
+    )
+    if args.candidate_names is None:
+        args.candidate_names = [candidate.name for candidate in CANDIDATE_GROUPS[args.candidate_group]]
+    return args
 
 
 def candidate_by_name(name: str) -> ViewCandidate:
-    for candidate in DEFAULT_CANDIDATES:
+    seen: set[str] = set()
+    all_candidates: list[ViewCandidate] = []
+    for group_candidates in CANDIDATE_GROUPS.values():
+        for candidate in group_candidates:
+            if candidate.name in seen:
+                continue
+            seen.add(candidate.name)
+            all_candidates.append(candidate)
+    for candidate in all_candidates:
         if candidate.name == name:
             return candidate
     raise ValueError(f"unknown candidate: {name}")
@@ -107,7 +181,7 @@ def build_collect_args(candidate: ViewCandidate, args: argparse.Namespace) -> ar
         output_md=None,
         samples=args.samples_per_candidate,
         seed=args.seed,
-        geometry_profiles=list(collector.DEFAULT_PROFILES),
+        geometry_profiles=list(args.geometry_profiles),
         geometry_fixture_mode="true_mesh",
         geometry_true_fixture_variant="tight_yaw",
         randomize_domain=False,
@@ -120,10 +194,13 @@ def build_collect_args(candidate: ViewCandidate, args: argparse.Namespace) -> ar
         wrist_camera_pos_offset=list(candidate.wrist_camera_pos_offset),
         wrist_camera_rot_offset_deg=list(candidate.wrist_camera_rot_offset_deg),
         wrist_camera_fovy=candidate.wrist_camera_fovy,
-        tip_z_above_range=(0.035, 0.080),
-        tip_xy_offset_range=(0.0, 0.006),
+        tip_z_above_range=tuple(args.tip_z_above_range),
+        tip_xy_offset_range=tuple(args.tip_xy_offset_range),
+        yaw_sampling_mode=args.yaw_sampling_mode,
+        yaw_bin_count=args.yaw_bin_count,
         settle_steps=4,
         max_ik_error=0.004,
+        max_attempts_multiplier=args.max_attempts_multiplier,
         enable_peg_tip_visual_helpers=False,
         compressed=args.compressed,
     )
@@ -134,8 +211,9 @@ def collect_candidate_dataset(candidate: ViewCandidate, args: argparse.Namespace
     rng = np.random.default_rng(args.seed)
     buffers = collector.empty_buffers()
     envs = {profile: collector.make_env(collect_args, profile) for profile in collect_args.geometry_profiles}
+    accepted_profile_counts = {profile: 0 for profile in set(collect_args.geometry_profiles)}
     attempts = 0
-    max_attempts = args.samples_per_candidate * 8
+    max_attempts = args.samples_per_candidate * int(args.max_attempts_multiplier)
 
     try:
         while len(buffers["cam_image"]) < args.samples_per_candidate and attempts < max_attempts:
@@ -144,7 +222,13 @@ def collect_candidate_dataset(candidate: ViewCandidate, args: argparse.Namespace
             env = envs[profile]
             period_deg = collector.PROFILE_PERIOD_DEG[profile]
             env.reset(seed=int(args.seed + attempts))
-            target_yaw_deg = float(rng.uniform(-0.5 * period_deg, 0.5 * period_deg))
+            target_yaw_deg = collector.sample_target_yaw_deg(
+                rng=rng,
+                args=collect_args,
+                profile=profile,
+                period_deg=period_deg,
+                accepted_profile_counts=accepted_profile_counts,
+            )
             target_tip_pos = collector.sample_tip_target(env, rng, collect_args)
             target_xmat = collector.target_xmat_for_yaw(env, target_yaw_deg)
             ik_error, ik_iterations = collector.place_tip_pose(
@@ -171,6 +255,7 @@ def collect_candidate_dataset(candidate: ViewCandidate, args: argparse.Namespace
                 ik_error=ik_error,
                 ik_iterations=ik_iterations,
             )
+            accepted_profile_counts[profile] = accepted_profile_counts.get(profile, 0) + 1
     finally:
         for env in envs.values():
             env.close()
@@ -192,6 +277,11 @@ def collect_candidate_dataset(candidate: ViewCandidate, args: argparse.Namespace
             "near_hole_crop_size": candidate.near_hole_crop_size,
             "near_hole_crop_source_size": candidate.near_hole_crop_source_size,
             "near_hole_crop_offset": candidate.near_hole_crop_offset,
+            "tip_z_above_range": tuple(args.tip_z_above_range),
+            "tip_xy_offset_range": tuple(args.tip_xy_offset_range),
+            "yaw_sampling_mode": args.yaw_sampling_mode,
+            "yaw_bin_count": args.yaw_bin_count,
+            "candidate_group": args.candidate_group,
         },
         "attempts": attempts,
     }
@@ -298,6 +388,10 @@ def main() -> None:
         f"- Samples per candidate: `{args.samples_per_candidate}`",
         f"- Epochs: `{args.epochs}`",
         f"- Seed: `{args.seed}`",
+        f"- Candidate group: `{args.candidate_group}`",
+        f"- Tip Z-above range: `{tuple(args.tip_z_above_range)}`",
+        f"- Tip XY-offset range: `{tuple(args.tip_xy_offset_range)}`",
+        f"- Yaw sampling: `{args.yaw_sampling_mode}` / bins `{args.yaw_bin_count}`",
         "",
         "| Candidate | Cam offset | Crop offset | Crop src | FOV | Best val yaw | Key val yaw | Square val yaw | Triangle val yaw | Hex val yaw |",
         "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",

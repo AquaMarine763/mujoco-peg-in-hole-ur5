@@ -1,0 +1,12 @@
+# Training config for the low-Z key-focused yaw dataset.
+
+dataset: datasets/visual_yaw_v1_tight_yaw_key_focus_8k_stratified_low_z_crop_high.npz
+output: results/visual_yaw_estimator_v1_tight_yaw_key_focus_8k_stratified_low_z_crop_high.pt
+output_md: results/visual_yaw_estimator_v1_tight_yaw_key_focus_8k_stratified_low_z_crop_high.md
+epochs: 40
+batch_size: 32
+learning_rate: 0.001
+weight_decay: 0.00001
+validation_split: 0.25
+seed: 914100
+device: auto

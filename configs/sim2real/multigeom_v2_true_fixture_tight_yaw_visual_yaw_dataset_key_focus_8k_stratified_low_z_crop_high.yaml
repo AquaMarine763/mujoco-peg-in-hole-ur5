@@ -1,0 +1,31 @@
+# Low-Z key-focused dataset for the visual-yaw alignment branch.
+# This shifts the sampling toward the final-descent regime and uses the
+# crop_high view that performed best in the low-Z view scan.
+
+model_path: assets/ur5e_full/ur5e_peg_in_hole_full.xml
+output: datasets/visual_yaw_v1_tight_yaw_key_focus_8k_stratified_low_z_crop_high.npz
+samples: 8192
+seed: 914000
+
+geometry_profiles: [rectangular_key, rectangular_key, rectangular_key, square_square, triangle_triangle, hex_hex]
+geometry_fixture_mode: true_mesh
+geometry_true_fixture_variant: tight_yaw
+
+image_width: 100
+image_height: 100
+near_hole_crop_size: 64
+near_hole_crop_source_size: 80
+near_hole_crop_offset: [-18, -12]
+wrist_camera_pos_offset: [-0.04, -0.04, 0.0]
+wrist_camera_rot_offset_deg: [0.0, 0.0, 0.0]
+wrist_camera_fovy: 100.0
+
+tip_z_above_range: [0.012, 0.035]
+tip_xy_offset_range: [0.0, 0.004]
+yaw_sampling_mode: stratified
+yaw_bin_count: 12
+settle_steps: 4
+max_ik_error: 0.004
+
+enable_peg_tip_visual_helpers: false
+compressed: true

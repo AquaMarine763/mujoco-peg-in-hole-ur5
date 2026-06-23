@@ -19,6 +19,19 @@ Current sim-to-real packaging work: v148/v149 has been organized as `sim2real_mu
 
 Current active research branch: `feature/multigeom-v2-visual-yaw-align`. The new branch entry is `SIM2REAL_MULTIGEOM_V2_VISUAL_YAW_ALIGN.md`; use it first for the current visual-yaw-alignment commands, current safe baseline, and the next evaluation loop.
 
+2026-06-23 low-Z visual-evidence update: extended
+`scripts\scan_visual_yaw_views.py` with a `final_descent` candidate group and
+explicit low-Z sampling controls. The low-Z scan uses `tip_z_above_range
+0.012-0.035m`, `tip_xy_offset_range 0-0.004m`, stratified yaw, and
+key-focused profile weighting. In the 96-sample / 4-epoch scan,
+`crop_wider_high` was best by key error (`59.6 deg`) versus `open_high`
+(`69.7 deg`) and `raise_center_wide` (`72.7 deg`). The top-3 256-sample /
+8-epoch recheck kept the same ordering: `crop_wider_high` key error
+`71.7 deg`, `open_high` `79.8 deg`, `raise_center_wide` `88.2 deg`. These
+small models are not final estimators; the point is view ranking. The next
+training run is the new low-Z key-focused config set:
+`multigeom_v2_true_fixture_tight_yaw_visual_yaw_*_key_focus_8k_stratified_low_z_crop_high.yaml`.
+
 2026-06-23 key-yaw recovery update: added a default-off low-Z lateral-pop
 recovery hook in `scripts\eval_guarded_policy.py` plus diagnostic config
 `configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_lateral_pop_recovery_eval.yaml`.

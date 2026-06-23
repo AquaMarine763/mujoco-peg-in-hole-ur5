@@ -260,6 +260,43 @@ This version is good enough for a guarded yaw-align prototype with confidence
 and visibility gates. It is still not a final deployment component because a
 few severe occlusion outliers remain.
 
+Low-Z final-descent visual yaw follow-up:
+
+```powershell
+python scripts\scan_visual_yaw_views.py `
+  --candidate-group final_descent `
+  --candidate-names crop_wider raise_center open_high crop_wider_centered crop_wider_low crop_wider_high raise_center_wide `
+  --geometry-profiles rectangular_key rectangular_key rectangular_key square_square triangle_triangle hex_hex `
+  --samples-per-candidate 96 `
+  --epochs 4 `
+  --batch-size 32 `
+  --tip-z-above-range 0.012 0.035 `
+  --tip-xy-offset-range 0.0 0.004 `
+  --yaw-sampling-mode stratified `
+  --seed 913000 `
+  --output-root results\visual_yaw_view_scan_low_z_final_descent_96x4 `
+  --dataset-root datasets\visual_yaw_view_scan_low_z_final_descent_96x4 `
+  --compressed
+```
+
+Current low-Z scan result: `crop_wider_high` is the best candidate by key
+error in the 96x4 scan and the 256x8 top-3 recheck. It keeps the existing
+wrist camera pose and shifts the crop upward to `near_hole_crop_offset
+[-18,-12]`.
+
+Low-Z key-focused estimator run:
+
+```powershell
+python scripts\collect_visual_yaw_dataset.py `
+  --config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_visual_yaw_dataset_key_focus_8k_stratified_low_z_crop_high.yaml
+
+python scripts\train_visual_yaw_estimator.py `
+  --config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_visual_yaw_train_key_focus_8k_stratified_low_z_crop_high.yaml
+
+python scripts\eval_visual_yaw_estimator.py `
+  --config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_visual_yaw_eval_key_focus_8k_stratified_low_z_crop_high.yaml
+```
+
 Key yaw-sensitive success-gate checks:
 
 ```powershell

@@ -35,16 +35,23 @@ Keep these variants diagnostic-only:
 
 ## Recommended Next Loop
 
-1. Run `scan_visual_yaw_views.py` and compare wrist / crop variants.
-2. Collect a new key-focused yaw dataset with the best view.
-3. Train `train_visual_yaw_estimator.py`.
-4. Run `eval_visual_yaw_estimator.py`.
-5. Recheck the visible-brake guarded baseline.
+1. Collect a low-Z key-focused yaw dataset with `crop_wider_high`.
+2. Train the matching estimator and run held-out eval.
+3. Recheck the visible-brake guarded baseline with the refined view.
+4. If key p95 is still too high, try a second camera instead of more crop scans.
 
 The current best yaw estimator is the 8k stratified crop-wider model with
 overall validation mean/p95 `2.10/5.74 deg`. It is accurate enough to test
 inside a gated controller, but not enough to remove visibility/confidence
 checks.
+
+Low-Z view scan result:
+
+- `crop_wider_high` is the best current low-Z candidate.
+- It beat `open_high` and both `raise_center` variants on key error in the
+  96x4 and 256x8 scans.
+- The remaining low-Z errors are still large, so the next useful move is a
+  low-Z key-focused dataset rather than another broad camera sweep.
 
 ## Short Commands
 
@@ -65,6 +72,14 @@ Key-focused yaw estimator:
 ```powershell
 python scripts\train_visual_yaw_estimator.py --config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_visual_yaw_train_key_focus_8k_stratified.yaml
 python scripts\eval_visual_yaw_estimator.py --config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_visual_yaw_eval_key_focus_8k_stratified.yaml
+```
+
+Low-Z key-focused yaw estimator:
+
+```powershell
+python scripts\collect_visual_yaw_dataset.py --config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_visual_yaw_dataset_key_focus_8k_stratified_low_z_crop_high.yaml
+python scripts\train_visual_yaw_estimator.py --config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_visual_yaw_train_key_focus_8k_stratified_low_z_crop_high.yaml
+python scripts\eval_visual_yaw_estimator.py --config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_visual_yaw_eval_key_focus_8k_stratified_low_z_crop_high.yaml
 ```
 
 Tight-yaw smoke:
