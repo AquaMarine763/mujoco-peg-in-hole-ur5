@@ -1,0 +1,12 @@
+# Visible-brake baseline recheck with the low-Z crop_high yaw estimator.
+# Only the visual-yaw input distribution is changed: crop offset and checkpoint.
+
+base_config: multigeom_v2_true_fixture_tight_yaw_key_yaw_success_visual_yaw_hold_xy_recenter_commit_descent_latch_target_hold_visible_brake_eval.yaml
+
+near_hole_crop_offset: [-18, -12]
+guard_visual_yaw_align_model: results/visual_yaw_estimator_v1_tight_yaw_key_focus_8k_stratified_low_z_crop_high.pt
+
+output_csv: results/sim2real_multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high/eval_latest.csv
+output_md: results/sim2real_multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high/eval_latest.md
+episode_output_csv: results/sim2real_multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high/eval_latest_episodes.csv
+step_output_csv: results/sim2real_multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high/eval_latest_steps.csv

@@ -32,6 +32,27 @@ small models are not final estimators; the point is view ranking. The next
 training run is the new low-Z key-focused config set:
 `multigeom_v2_true_fixture_tight_yaw_visual_yaw_*_key_focus_8k_stratified_low_z_crop_high.yaml`.
 
+2026-06-23 low-Z crop-high estimator/runtime update: collected
+`datasets\visual_yaw_v1_tight_yaw_key_focus_8k_stratified_low_z_crop_high.npz`
+with 8192 samples and trained
+`results\visual_yaw_estimator_v1_tight_yaw_key_focus_8k_stratified_low_z_crop_high.pt`.
+Held-out validation mean/p95 is `2.079/6.153 deg` overall and
+`2.726/7.377 deg` on `rectangular_key`; bad fraction is `0.00488` for the
+`>15 deg` threshold. Runtime config
+`configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_eval.yaml`
+keeps the visible-brake controller and switches only to
+`near_hole_crop_offset: [-18, -12]` plus the low-Z estimator. Same six-seed
+rectangular-key guarded eval reached `111/120`, collision `0/120`, timeout
+`9/120`, improving the historical visible-brake baseline `104/120`, collision
+`0/120`, timeout `16/120`. Report:
+`results\visual_yaw_low_z_crop_high_120ep_summary.md`. Remaining failures are
+still timeout-only, not collision failures. Failure report:
+`results\visual_yaw_low_z_crop_high_failure_analysis.md`; `7/9` finish with
+final yaw error above `150 deg`, and `2/9` are near-insert yaw-gate /
+descent-timing misses. Next work should protect the visually aligned yaw target
+through low-Z descent and handle `170-179 deg` re-acquire separately, rather
+than widen generic brake thresholds.
+
 2026-06-23 key-yaw recovery update: added a default-off low-Z lateral-pop
 recovery hook in `scripts\eval_guarded_policy.py` plus diagnostic config
 `configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_lateral_pop_recovery_eval.yaml`.

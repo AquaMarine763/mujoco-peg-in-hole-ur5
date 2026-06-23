@@ -1,0 +1,7 @@
+"seed","episodes","success","collision","timeout","success_rate","mean_steps","mean_final_yaw_error_deg","mean_min_dist_xy","source"
+"906500","20","18","0","2","0.9","405.7","19.184","0.00455","results\vy_visible_brake_low_z_crop_high_seed906500_908500_40ep\visual_yaw_align_rectangular_key_20ep_seed906500_episodes.csv"
+"907500","20","20","0","0","1","318.6","1.542","0.00034","results\vy_visible_brake_low_z_crop_high_seed906500_911500_120ep\visual_yaw_align_rectangular_key_20ep_seed907500_episodes.csv"
+"908500","20","20","0","0","1","342.2","2.24","0.00044","results\vy_visible_brake_low_z_crop_high_seed906500_908500_40ep\visual_yaw_align_rectangular_key_20ep_seed908500_episodes.csv"
+"909500","20","17","0","3","0.85","410.8","12.198","0.00344","results\vy_visible_brake_low_z_crop_high_seed906500_911500_120ep\visual_yaw_align_rectangular_key_20ep_seed909500_episodes.csv"
+"910500","20","19","0","1","0.95","346.6","10.906","0.00343","results\vy_visible_brake_low_z_crop_high_seed906500_911500_120ep\visual_yaw_align_rectangular_key_20ep_seed910500_episodes.csv"
+"911500","20","17","0","3","0.85","439.1","27.515","0.00101","results\vy_visible_brake_low_z_crop_high_seed906500_911500_120ep\visual_yaw_align_rectangular_key_20ep_seed911500_episodes.csv"

@@ -25,6 +25,36 @@ The baseline to recheck is the rectangular-key visible-brake configuration:
 
 Current result: `104/120`, collision `0/120`, timeout `16/120`.
 
+## Current Low-Z Crop-High Candidate
+
+The refined final-descent visual input keeps the wrist camera pose unchanged
+and only shifts the policy crop upward:
+
+```yaml
+near_hole_crop_offset: [-18, -12]
+guard_visual_yaw_align_model: results/visual_yaw_estimator_v1_tight_yaw_key_focus_8k_stratified_low_z_crop_high.pt
+```
+
+Use:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_eval.yaml `
+  -Profile rectangular_key `
+  -Episodes 20 `
+  -Seeds 906500,907500,908500,909500,910500,911500 `
+  -ResultDir results\vy_visible_brake_low_z_crop_high_seed906500_911500_120ep
+```
+
+Current six-seed result: `111/120`, collision `0/120`, timeout `9/120`.
+Report: `results\visual_yaw_low_z_crop_high_120ep_summary.md`.
+Failure analysis: `results\visual_yaw_low_z_crop_high_failure_analysis.md`.
+
+This is a real improvement over the visible-brake baseline, but not a final
+promotion target yet. The residual failures are timeout / wrong-yaw-basin
+cases rather than collision cases: `7/9` finish with final yaw error above
+`150 deg`, while `2/9` are near-insert yaw-gate / descent-timing misses.
+
 Keep these variants diagnostic-only:
 
 - wrong-basin hold
@@ -35,15 +65,20 @@ Keep these variants diagnostic-only:
 
 ## Recommended Next Loop
 
-1. Collect a low-Z key-focused yaw dataset with `crop_wider_high`.
-2. Train the matching estimator and run held-out eval.
-3. Recheck the visible-brake guarded baseline with the refined view.
-4. If key p95 is still too high, try a second camera instead of more crop scans.
+1. Analyze the nine low-Z crop-high timeouts and separate wrong-yaw-basin
+   failures from not-descended / not-inserted failures.
+2. Avoid broadening scalar brake thresholds unless a new collision class
+   appears; the current low-Z candidate already has zero collision.
+3. If the timeouts are visual ambiguity dominated, try a second visual cue
+   near final descent instead of another wide crop scan.
+4. Keep square visual yaw disabled until its false `~45 deg` runtime
+   corrections are understood.
 
-The current best yaw estimator is the 8k stratified crop-wider model with
-overall validation mean/p95 `2.10/5.74 deg`. It is accurate enough to test
-inside a gated controller, but not enough to remove visibility/confidence
-checks.
+The current best runtime yaw estimator for the low-Z key line is the 8k
+stratified low-Z crop-high model. Held-out validation mean/p95 is
+`2.079/6.153 deg` overall and `2.726/7.377 deg` on `rectangular_key`. It is
+accurate enough for gated runtime use, but not enough to remove
+visibility/confidence checks.
 
 Low-Z view scan result:
 
@@ -80,6 +115,17 @@ Low-Z key-focused yaw estimator:
 python scripts\collect_visual_yaw_dataset.py --config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_visual_yaw_dataset_key_focus_8k_stratified_low_z_crop_high.yaml
 python scripts\train_visual_yaw_estimator.py --config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_visual_yaw_train_key_focus_8k_stratified_low_z_crop_high.yaml
 python scripts\eval_visual_yaw_estimator.py --config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_visual_yaw_eval_key_focus_8k_stratified_low_z_crop_high.yaml
+```
+
+Low-Z guarded runtime eval:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_eval.yaml `
+  -Profile rectangular_key `
+  -Episodes 20 `
+  -Seeds 906500,907500,908500,909500,910500,911500 `
+  -ResultDir results\vy_visible_brake_low_z_crop_high_seed906500_911500_120ep
 ```
 
 Tight-yaw smoke:

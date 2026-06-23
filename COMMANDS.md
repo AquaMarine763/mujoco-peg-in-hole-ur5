@@ -297,6 +297,39 @@ python scripts\eval_visual_yaw_estimator.py `
   --config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_visual_yaw_eval_key_focus_8k_stratified_low_z_crop_high.yaml
 ```
 
+Low-Z crop-high result:
+
+- Dataset report:
+  `datasets\visual_yaw_v1_tight_yaw_key_focus_8k_stratified_low_z_crop_high.md`
+- Estimator report:
+  `results\visual_yaw_estimator_v1_tight_yaw_key_focus_8k_stratified_low_z_crop_high.md`
+- Held-out eval:
+  `results\visual_yaw_estimator_v1_tight_yaw_key_focus_8k_stratified_low_z_crop_high_eval.md`
+- Validation mean/p95: overall `2.079/6.153 deg`,
+  `rectangular_key=2.726/7.377 deg`.
+
+Low-Z guarded runtime eval:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_eval.yaml `
+  -Profile rectangular_key `
+  -Episodes 20 `
+  -Seeds 906500,907500,908500,909500,910500,911500 `
+  -ResultDir results\vy_visible_brake_low_z_crop_high_seed906500_911500_120ep
+```
+
+Current guarded result: `111/120`, collision `0/120`, timeout `9/120`.
+Summary files:
+
+- `results\visual_yaw_low_z_crop_high_120ep_summary.md`
+- `results\visual_yaw_low_z_crop_high_120ep_summary.csv`
+- `results\visual_yaw_low_z_crop_high_failure_analysis.md`
+- `results\visual_yaw_low_z_crop_high_failure_analysis.csv`
+
+Failure split: `7/9` remaining failures finish above `150 deg` yaw error
+wrong-yaw-basin; `2/9` are near-insert yaw-gate / descent-timing timeouts.
+
 Key yaw-sensitive success-gate checks:
 
 ```powershell

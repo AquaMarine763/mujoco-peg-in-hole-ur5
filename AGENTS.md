@@ -1,6 +1,6 @@
 # Agent Working Notes
 
-Last updated: 2026-06-17
+Last updated: 2026-06-23
 
 This file records the standing workflow, user preferences, safety rules, and project constraints for future Codex work in this repository. Read this file before making non-trivial changes.
 
@@ -20,8 +20,14 @@ The current focus is:
 - Treat `feature/multigeom-v2-visual-yaw-align` as the current active research branch for visual yaw alignment on top of the true-fixture stack. Use `SIM2REAL_MULTIGEOM_V2_VISUAL_YAW_ALIGN.md` first for its commands and status.
   Current low-Z view-ranking result: `crop_wider_high` is the best candidate
   among the tested final-descent crop/camera variants; use the low-Z
-  `*_key_focus_8k_stratified_low_z_crop_high.yaml` configs for the next yaw
-  estimator run.
+  `*_key_focus_8k_stratified_low_z_crop_high.yaml` configs for the current yaw
+  estimator/run. The low-Z runtime candidate reached `111/120`, collision
+  `0/120`, timeout `9/120` on the six-seed rectangular-key guarded gate,
+  improving the historical visible-brake baseline `104/120`, collision
+  `0/120`, timeout `16/120`. It is a stronger candidate, but residual failures
+  are still wrong-yaw-basin/timeouts: `7/9` finish above `150 deg` yaw error
+  and `2/9` are near-insert yaw-gate / descent-timing misses. Do not promote
+  it as final without targeted failure handling.
 
 ## User Preferences
 
