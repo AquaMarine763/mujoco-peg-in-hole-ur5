@@ -17,6 +17,7 @@ The current focus is:
 - Prepare real UR5e deployment in read-only / dry-run form before enabling any real robot motion.
 - Treat `sim2real_multigeom_v1` as the cleaned v148/v149 same-shape multi-geometry sim-to-real mainline. Use `SIM2REAL_MULTIGEOM_V1.md` first for commands and status; do not confuse this with the v221 hard-square-only recovery line.
 - Treat `feature/multigeom-v2-true-fixtures` as the experimental true-fixture branch. It is opt-in through `geometry_fixture_mode=true_mesh`, currently covers `hex_hex`, `triangle_triangle`, `slot_slot`, and `rectangular_key`, and must not replace the v1 sim-to-real mainline until multi-seed validation and size-randomized mesh fixtures are done.
+- Treat `feature/multigeom-v2-visual-yaw-align` as the current active research branch for visual yaw alignment on top of the true-fixture stack. Use `SIM2REAL_MULTIGEOM_V2_VISUAL_YAW_ALIGN.md` first for its commands and status.
 
 ## User Preferences
 
@@ -46,7 +47,7 @@ The current focus is:
 
 - Current active worktree root: `D:\peg-in-hole-6yh\_promotion_v075_square_pose_yaw_align_20260603213104`
 - Historical/original worktree with some large checkpoints: `D:\peg-in-hole-6yh\mujoco_peg_in_hole`
-- Current working branch: `feature/multigeom-v2-true-fixtures`
+- Current working branch: `feature/multigeom-v2-visual-yaw-align`
 - Current active candidate branch: `feature/multi-geometry`
 - Stabilized single-geometry baseline branch: `feature/control-state-observation`
 - Remote: `https://github.com/AquaMarine763/mujoco-peg-in-hole-ur5.git`

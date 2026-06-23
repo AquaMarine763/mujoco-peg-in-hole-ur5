@@ -17,6 +17,8 @@ The immediate objective on `feature/multi-geometry` is to keep the single-geomet
 
 Current sim-to-real packaging work: v148/v149 has been organized as `sim2real_multigeom_v1`. The new entry document is `SIM2REAL_MULTIGEOM_V1.md`; stable aliases live under `configs\sim2real`; runnable shortcuts live under `scripts\sim2real`. Treat `configs\sim2real\multigeom_v1_eval.yaml` as the authoritative multi-geometry evaluation entry. It inherits the v148 stack and carries the v149 fresh-seed evidence: combined v148+v149 `720/720`, zero collision, zero timeout. Keep v221 as a square-square recovery reference, not the multi-geometry mainline.
 
+Current active research branch: `feature/multigeom-v2-visual-yaw-align`. The new branch entry is `SIM2REAL_MULTIGEOM_V2_VISUAL_YAW_ALIGN.md`; use it first for the current visual-yaw-alignment commands, current safe baseline, and the next evaluation loop.
+
 2026-06-23 key-yaw recovery update: added a default-off low-Z lateral-pop
 recovery hook in `scripts\eval_guarded_policy.py` plus diagnostic config
 `configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_lateral_pop_recovery_eval.yaml`.
@@ -411,7 +413,7 @@ rounded-slot/keyhole mesh geometry.
 
 ## Current Branch And Remote
 
-- Active working branch: `feature/multigeom-v2-true-fixtures`
+- Active working branch: `feature/multigeom-v2-visual-yaw-align`
 - Base candidate branch: `feature/multi-geometry`
 - Remote: `https://github.com/AquaMarine763/mujoco-peg-in-hole-ur5.git`
 - Latest local single-geometry milestone: `v0.6.50-single-geometry` / `4a0f65f Promote strict single-geometry high-start baseline`

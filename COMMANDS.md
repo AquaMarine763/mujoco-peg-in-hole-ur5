@@ -156,6 +156,18 @@ baseline: `rectangular_key=5/5`, `square_square=1/5`,
 `triangle_triangle=5/5`, `hex_hex=5/5`. Square failures are timeout-dominant
 near-hole stalls, not immediate collision failures.
 
+## Sim2Real Multi-Geometry v2 Visual-Yaw Align
+
+This is the current active research branch for the visual-yaw alignment line.
+Use the short wrapper scripts below instead of the longer true-fixture script
+names when working on this branch:
+
+```powershell
+SIM2REAL_MULTIGEOM_V2_VISUAL_YAW_ALIGN.md
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1
+.\scripts\sim2real\demo_multigeom_v2_visual_yaw_align.ps1
+```
+
 Visual yaw-label dataset collection, with peg-tip debug highlights disabled:
 
 ```powershell
