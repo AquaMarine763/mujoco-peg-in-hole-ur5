@@ -1,0 +1,6 @@
+"variant","seeds","episodes","success","collision","timeout","note"
+"low_z_crop_high_baseline","906500,909500","40","35","0","5","reference subset from 111/120 run"
+"low_z_crop_high_wrong_basin_reacquire_narrow","906500,909500","40","35","0","5","local re-acquire descent enabled"
+"low_z_crop_high_high_yaw_only","906500,909500","40","36","0","4","local re-acquire descent disabled"
+"low_z_crop_high_baseline","906500..911500","120","111","0","9","same six seed reference"
+"low_z_crop_high_high_yaw_only","906500..911500","120","112","0","8","current diagnostic best, marginal +1/120"

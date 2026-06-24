@@ -1,6 +1,6 @@
 # Project Plan And Status
 
-Last updated: 2026-06-23
+Last updated: 2026-06-24
 
 This file records the current project status, known metrics, and next planned steps. Keep it current when a milestone changes.
 
@@ -52,6 +52,24 @@ final yaw error above `150 deg`, and `2/9` are near-insert yaw-gate /
 descent-timing misses. Next work should protect the visually aligned yaw target
 through low-Z descent and handle `170-179 deg` re-acquire separately, rather
 than widen generic brake thresholds.
+
+2026-06-24 low-Z high-yaw re-acquire diagnostic: added config-level candidates
+on top of the low-Z crop-high runtime stack. The safer high-yaw-only variant
+`configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_reacquire_high_yaw_action_selection_eval.yaml`
+disables re-acquire-local descent and only permits visible/stable high-yaw
+correction. Same six-seed rectangular-key gate reached `112/120`, collision
+`0/120`, timeout `8/120`; this is numerically the best result so far but only
+`+1/120` over low-Z crop-high. Seed split vs low-Z crop-high: `906500 18/20`
+flat, `907500 20/20` flat, `908500 19/20` regressed by one, `909500 18/20`
+improved by one, `910500 19/20` flat, and `911500 18/20` improved by one. The
+paired narrow re-acquire with local descent was `35/40` on `906500/909500`,
+while high-yaw-only was `36/40`, so keep local re-acquire descent disabled for
+now. Failure report:
+`results\visual_yaw_low_z_crop_high_high_yaw_failure_analysis.md`; all `8/8`
+remaining failures finish above `150 deg` yaw error. Next step should inspect
+why these cases do not enter or complete re-acquire, then add a precise
+state condition for resetting/preserving the IK yaw target in the high-yaw
+basin.
 
 2026-06-23 key-yaw recovery update: added a default-off low-Z lateral-pop
 recovery hook in `scripts\eval_guarded_policy.py` plus diagnostic config

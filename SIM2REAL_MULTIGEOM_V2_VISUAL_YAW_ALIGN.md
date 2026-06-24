@@ -55,6 +55,27 @@ promotion target yet. The residual failures are timeout / wrong-yaw-basin
 cases rather than collision cases: `7/9` finish with final yaw error above
 `150 deg`, while `2/9` are near-insert yaw-gate / descent-timing misses.
 
+Current high-yaw-only re-acquire diagnostic:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_reacquire_high_yaw_action_selection_eval.yaml `
+  -Profile rectangular_key `
+  -Episodes 20 `
+  -Seeds 906500,907500,908500,909500,910500,911500
+```
+
+Result: `112/120`, collision `0/120`, timeout `8/120`.
+Reports:
+
+- `results\visual_yaw_low_z_crop_high_high_yaw_120ep_summary.md`
+- `results\visual_yaw_low_z_crop_high_high_yaw_failure_analysis.md`
+- `results\visual_yaw_low_z_crop_high_reacquire_comparison.md`
+
+This is the current best same-six-seed number, but the gain is only `+1/120`
+and one seed regresses, so keep it diagnostic. The remaining `8/8` failures
+still finish above `150 deg` yaw error.
+
 Keep these variants diagnostic-only:
 
 - wrong-basin hold
@@ -65,12 +86,12 @@ Keep these variants diagnostic-only:
 
 ## Recommended Next Loop
 
-1. Analyze the nine low-Z crop-high timeouts and separate wrong-yaw-basin
-   failures from not-descended / not-inserted failures.
-2. Avoid broadening scalar brake thresholds unless a new collision class
-   appears; the current low-Z candidate already has zero collision.
-3. If the timeouts are visual ambiguity dominated, try a second visual cue
-   near final descent instead of another wide crop scan.
+1. Inspect the eight high-yaw-only residual failures and identify why they do
+   not enter or complete re-acquire.
+2. Add a more explicit state condition for when re-acquire may reset or
+   preserve the IK yaw target in the `170-179 deg` basin.
+3. Avoid broadening scalar brake/descent thresholds; the remaining failures are
+   not collision-limited or generic descent-limited.
 4. Keep square visual yaw disabled until its false `~45 deg` runtime
    corrections are understood.
 
@@ -126,6 +147,17 @@ Low-Z guarded runtime eval:
   -Episodes 20 `
   -Seeds 906500,907500,908500,909500,910500,911500 `
   -ResultDir results\vy_visible_brake_low_z_crop_high_seed906500_911500_120ep
+```
+
+Low-Z high-yaw-only re-acquire diagnostic:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_reacquire_high_yaw_action_selection_eval.yaml `
+  -Profile rectangular_key `
+  -Episodes 20 `
+  -Seeds 906500,907500,908500,909500,910500,911500 `
+  -ResultDir results\vy_low_z_crop_high_high_yaw_seed906500_911500_120ep
 ```
 
 Tight-yaw smoke:

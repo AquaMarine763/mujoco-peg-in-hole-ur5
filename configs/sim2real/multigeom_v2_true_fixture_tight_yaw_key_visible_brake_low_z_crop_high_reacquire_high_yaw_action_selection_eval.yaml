@@ -1,0 +1,26 @@
+# Low-Z crop-high visible-brake plus high-yaw-only re-acquire action selection.
+# Diagnostic only. Compared with the narrow re-acquire config, this disables
+# re-acquire-local descent and only permits visible/stable high-yaw correction.
+# Final descent must be earned again by the existing commit/aligned-descent
+# path, which is safer for sim-to-real than descending on possibly overconfident
+# near-zero yaw predictions.
+
+base_config: multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_wrong_basin_reacquire_narrow_eval.yaml
+
+guard_visual_yaw_align_reacquire_relaxed_yaw_enabled: true
+guard_visual_yaw_align_reacquire_relaxed_yaw_require_visible: true
+guard_visual_yaw_align_reacquire_relaxed_yaw_require_stable_delta: true
+guard_visual_yaw_align_reacquire_relaxed_yaw_stable_window: 3
+guard_visual_yaw_align_reacquire_relaxed_yaw_max_delta_deg: 10.0
+guard_visual_yaw_align_reacquire_relaxed_yaw_allow_visible_reapply: true
+guard_visual_yaw_align_reacquire_relaxed_yaw_min_pred_yaw_deg: 60.0
+guard_visual_yaw_align_reacquire_relaxed_yaw_max_correction_deg: 25.0
+guard_visual_yaw_align_reacquire_relaxed_yaw_min_z: 0.050
+guard_visual_yaw_align_reacquire_relaxed_yaw_max_z: 0.130
+
+guard_visual_yaw_align_reacquire_descent_enabled: false
+
+output_csv: results/vy_visible_brake_low_z_crop_high_reacquire_high_yaw_action_selection/eval_latest.csv
+output_md: results/vy_visible_brake_low_z_crop_high_reacquire_high_yaw_action_selection/eval_latest.md
+episode_output_csv: results/vy_visible_brake_low_z_crop_high_reacquire_high_yaw_action_selection/eval_latest_episodes.csv
+step_output_csv: results/vy_visible_brake_low_z_crop_high_reacquire_high_yaw_action_selection/eval_latest_steps.csv

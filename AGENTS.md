@@ -1,6 +1,6 @@
 # Agent Working Notes
 
-Last updated: 2026-06-23
+Last updated: 2026-06-24
 
 This file records the standing workflow, user preferences, safety rules, and project constraints for future Codex work in this repository. Read this file before making non-trivial changes.
 
@@ -28,6 +28,11 @@ The current focus is:
   are still wrong-yaw-basin/timeouts: `7/9` finish above `150 deg` yaw error
   and `2/9` are near-insert yaw-gate / descent-timing misses. Do not promote
   it as final without targeted failure handling.
+  The current high-yaw-only re-acquire diagnostic on top of low-Z crop-high is
+  `112/120`, collision `0/120`, timeout `8/120`. It is the best number so far
+  but only a marginal `+1/120`; all residual failures still finish above
+  `150 deg` yaw error. Keep it diagnostic and do not enable local
+  re-acquire-descent by default.
 
 ## User Preferences
 

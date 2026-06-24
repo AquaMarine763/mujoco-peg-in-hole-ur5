@@ -330,6 +330,32 @@ Summary files:
 Failure split: `7/9` remaining failures finish above `150 deg` yaw error
 wrong-yaw-basin; `2/9` are near-insert yaw-gate / descent-timing timeouts.
 
+Low-Z high-yaw-only re-acquire diagnostic:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_reacquire_high_yaw_action_selection_eval.yaml `
+  -Profile rectangular_key `
+  -Episodes 20 `
+  -Seeds 906500,907500,908500,909500,910500,911500 `
+  -ResultDir results\vy_low_z_crop_high_high_yaw_seed906500_911500_120ep
+```
+
+Current high-yaw-only result: `112/120`, collision `0/120`, timeout `8/120`.
+The paired narrow re-acquire with local descent was only `35/40` on
+`906500/909500`, while high-yaw-only was `36/40`, so keep local
+re-acquire-descent disabled for now. Summary files:
+
+- `results\visual_yaw_low_z_crop_high_high_yaw_120ep_summary.md`
+- `results\visual_yaw_low_z_crop_high_high_yaw_120ep_summary.csv`
+- `results\visual_yaw_low_z_crop_high_high_yaw_failure_analysis.md`
+- `results\visual_yaw_low_z_crop_high_high_yaw_failure_analysis.csv`
+- `results\visual_yaw_low_z_crop_high_reacquire_comparison.md`
+- `results\visual_yaw_low_z_crop_high_reacquire_comparison.csv`
+
+Residual split: `8/8` remaining high-yaw-only failures finish above
+`150 deg`; do not broaden generic descent thresholds from this result.
+
 Key yaw-sensitive success-gate checks:
 
 ```powershell
