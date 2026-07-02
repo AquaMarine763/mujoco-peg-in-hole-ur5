@@ -19,6 +19,18 @@ Current sim-to-real packaging work: v148/v149 has been organized as `sim2real_mu
 
 Current active research branch: `feature/multigeom-v2-visual-yaw-align`. The new branch entry is `SIM2REAL_MULTIGEOM_V2_VISUAL_YAW_ALIGN.md`; use it first for the current visual-yaw-alignment commands, current safe baseline, and the next evaluation loop.
 
+2026-07-02 learned-vision sim-to-real branch: opened
+`feature/sim2real-learned-vision-multishape` from the promoted
+`v0.7.8-visual-yaw-key-estimator-v2` baseline. The goal is to keep the current
+`60/60` sim result as a rollback point while starting a new line that is more
+appropriate for real deployment. This branch should add `round_round` and
+`slot_slot` into the same planning/evaluation scope as `square_square`,
+`triangle_triangle`, `hex_hex`, and `rectangular_key`, and should reduce
+runtime dependence on geometry-truth shaping. New planning document:
+`SIM2REAL_LEARNED_VISION_MULTISHAPE.md`. Next step: build the observation
+quality audit and camera/crop scan before changing training or controller
+logic.
+
 2026-06-30 triangle/hex rollout-balanced update: merged triangle failure
 rollout snapshots with the triangle/hex wrong-basin visual-yaw dataset and
 trained
@@ -143,12 +155,12 @@ Hex was rechecked before changing defaults. The generic multishape visual-yaw co
 2026-07-02 rectangular-key estimator v2 / relaxed raw-norm update: addressed the
 rectangular-key promotion blocker from `29/30` to a clean `30/30` six-seed gate.
 Collected the remaining seed `911504` timeout rollout into
-`datasetsisual_yaw_key_seed911504_v3_timeout_rollout.npz`, filtered the
+`datasets\visual_yaw_key_seed911504_v3_timeout_rollout.npz`, filtered the
 near-hole/high-Z and late-drift failure frames into
-`datasetsisual_yaw_key_seed911504_v3_timeout_rollout_targeted_v1.npz` (`83`
+`datasets\visual_yaw_key_seed911504_v3_timeout_rollout_targeted_v1.npz` (`83`
 samples), merged it with the low-Z crop-high key dataset and the seed `909502`
 false-small correction set, and trained
-`resultsisual_yaw_estimator_v2_rectangular_key_low_z_crop_high_plus_909502_911504_targeted.pt`.
+`results\visual_yaw_estimator_v2_rectangular_key_low_z_crop_high_plus_909502_911504_targeted.pt`.
 Offline targeted seed `911504` error improved from v1 `16.24 deg` mean / `22.11 deg`
 p95 / `49.4%` bad fraction to v2 `1.89 deg` mean / `5.09 deg` p95 / `0%` bad
 fraction. The first online v2 attempt failed because raw confidence was lower
@@ -156,15 +168,26 @@ around `170-180 deg`, so
 `configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_local_hold_stronger_brake_early_approach_post_yaw_reapproach_low_z_verifier_v3_estimator_v2_relaxed_rawnorm_v1_eval.yaml`
 keeps the v3 controller, uses estimator v2, and relaxes only
 `guard_visual_yaw_align_min_raw_norm` to `0.015`. Validation:
-`results
-ectangular_key_low_z_verifier_v3_estimator_v2_relaxed_rawnorm_v1_6seed_5ep`
-reached `30/30`, collision `0/30`, timeout `0/30`; `911504` now succeeds in
-`313` steps with final yaw error `2.82 deg`. Triangle regression
-`results	riangle_wrist_safe_v3_estimator_v2_relaxed_rawnorm_v1_regression_3seed_5ep`
-reached `15/15`, collision `0/15`, timeout `0/15`. This is the current best
-rectangular-key candidate. Next step: update the rectangular-key short-wrapper
-routing/demo config to this candidate, generate a key demo for seed `911504`,
-run a four-shape wrapper smoke gate, then decide whether to push/tag.
+`results\rectangular_key_low_z_verifier_v3_estimator_v2_relaxed_rawnorm_v1_6seed_5ep`
+reached `30/30`, collision `0/30`, timeout `0/30`; the seed `911504` demo
+now succeeds in `285` steps with final XY `0.00412 m`, final Z `0.00742 m`,
+and final yaw error `5.87 deg`. Triangle regression
+`results\triangle_wrist_safe_v3_estimator_v2_relaxed_rawnorm_v1_regression_3seed_5ep`
+reached `15/15`, collision `0/15`, timeout `0/15`.
+
+2026-07-02 rectangular-key estimator v2 promotion: updated the short-wrapper
+routing and demo config to the estimator-v2 relaxed raw-norm candidate, pushed
+commit `fa0c02a` and tag `v0.7.8-visual-yaw-key-estimator-v2` to
+`feature/multigeom-v2-visual-yaw-align`. The four-shape default-wrapper gate
+`results\visual_yaw_align_v3_estimator_v2_default_wrapper_4shape_3seed_5ep`
+completed at `60/60`, collision `0/60`, timeout `0/60`: `square_square=15/15`
+(`247.7` avg steps), `triangle_triangle=15/15` (`278.3` avg steps),
+`hex_hex=15/15` (`244.3` avg steps), and `rectangular_key=15/15`
+(`383.0` avg steps). Current demo artifact:
+`results\rectangular_key_v3_estimator_v2_relaxed_demos_default\demo_rectangular_key_seed911504.gif`.
+This is the current promoted visual-yaw alignment baseline. Next step: keep
+the branch stable, optionally run a larger rectangular-key-only gate, then move
+to sim-to-real preflight packaging and real-camera observation checks.
 
 2026-07-02 rectangular-key multi-seed diagnostic: the post-yaw reapproach v1 candidate reached `29/30`, collision `1/30`, timeout `0/30` on `results\rectangular_key_post_yaw_reapproach_v1_6seed_5ep`. The remaining failure is seed `909502`, episode `2`, and is now a low-Z visual-yaw false-small collision rather than the earlier high-Z/far-XY timeout. The trace reaches near-hole XY/Z, but the visual-yaw estimate drops to about `0-3 deg` while true key yaw remains around `14-24 deg`, so the controller authorizes descent and collides. False-small analysis lives at `results\rectangular_key_post_yaw_reapproach_v1_6seed_5ep\false_small_analysis\visual_yaw_false_small_analysis.md`: `126` false-small rows, `78` in the failed episode, and `19` low-Z false-small rows all in the failed episode. A triangle quick regression after the key changes reached `15/15`, collision `0`, timeout `0`.
 

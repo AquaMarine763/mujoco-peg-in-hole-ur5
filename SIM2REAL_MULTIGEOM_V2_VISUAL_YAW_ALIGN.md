@@ -24,7 +24,7 @@ Use the short wrappers for current visual-yaw alignment work:
 .\scripts\sim2real\demo_multigeom_v2_visual_yaw_align.ps1 -Profile square_square -Seed 906500 -ResultDir results\square_v148_demos
 .\scripts\sim2real\demo_multigeom_v2_visual_yaw_align.ps1 -Profile triangle_triangle -Seed 906504 -ResultDir results\triangle_wrist_safe_v3_demos
 .\scripts\sim2real\demo_multigeom_v2_visual_yaw_align.ps1 -Profile hex_hex -Seed 906500 -ResultDir results\hex_early_approach_descent_demos
-.\scripts\sim2real\demo_multigeom_v2_visual_yaw_align.ps1 -Profile rectangular_key -Seed 906500 -ResultDir results\rectangular_key_post_yaw_reapproach_demos
+.\scripts\sim2real\demo_multigeom_v2_visual_yaw_align.ps1 -Profile rectangular_key -Seed 911504 -ResultDir results\rectangular_key_v3_estimator_v2_relaxed_demos_default
 ```
 
 Current wrapper behavior:
@@ -32,16 +32,16 @@ Current wrapper behavior:
 - `square_square`: routes to the stable v148/v149 sim2real v1 stack by default through `configs\sim2real\multigeom_v1_eval.yaml`. Historical v148/v149 evidence is `720/720`, collision `0/720`, timeout `0/720`; current wrapper smoke `results\square_default_wrapper_verify_5ep` is `5/5`.
 - `triangle_triangle`: enables the wrist-safe absolute shape-yaw target protocol by default. Latest broad gate: `results\triangle_wrist_safe_v3_gate_120ep`, `116/120`, collision `0/120`, timeout `4/120`, and no wrist-span outliers above `180 deg`.
 - `hex_hex`: routes to the hex-only early-approach/descent config by default. Latest broad gate: `results\hex_early_approach_descent_gate_120ep`, `120/120`, collision `0/120`, timeout `0/120`.
-- `rectangular_key`: routes to the post-yaw reapproach key candidate by default through `configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_local_hold_stronger_brake_early_approach_post_yaw_reapproach_v1_eval.yaml`. Historical stronger-brake six-seed gate was `112/120`, collision `0/120`, timeout `8/120`; post-yaw reapproach fixed the seed `906500` check to `20/20`, collision `0/20`, timeout `0/20`, but the broader six-seed x five-episode gate is currently `29/30`, collision `1/30`, timeout `0/30`.
+- `rectangular_key`: routes to the estimator-v2 relaxed raw-norm candidate by default through `configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_local_hold_stronger_brake_early_approach_post_yaw_reapproach_low_z_verifier_v3_estimator_v2_relaxed_rawnorm_v1_eval.yaml`. The previous post-yaw reapproach gate was `29/30`, collision `1/30`, timeout `0/30`; the current estimator-v2 six-seed gate is `30/30`, collision `0/30`, timeout `0/30`.
 - Other profiles still use the generic multishape visual-yaw config unless `-Config` is provided explicitly.
-- Current short-wrapper gate after routing is `results\visual_yaw_align_post_yaw_reapproach_default_20ep`: `square_square=20/20`, `triangle_triangle=20/20`, `hex_hex=20/20`, `rectangular_key=20/20`, all with zero collision and zero timeout. Treat this as a smoke gate only; the rectangular-key multi-seed gate below is the current blocker for promotion.
+- Current promoted wrapper gate is `results\visual_yaw_align_v3_estimator_v2_default_wrapper_4shape_3seed_5ep`: total `60/60`, collision `0/60`, timeout `0/60`. Shape split: `square_square=15/15`, `triangle_triangle=15/15`, `hex_hex=15/15`, `rectangular_key=15/15`.
 
 Current demos to inspect:
 
 - Square: `results\square_v148_demos\demo_square_square_seed906500.gif`.
 - Triangle: `results\triangle_wrist_safe_v3_demos\demo_triangle_triangle_seed906504.gif`, `907508.gif`, `908510.gif`, `910505.gif`, `910500.gif`, `910501.gif`.
 - Hex: `results\hex_early_approach_descent_demos\demo_hex_hex_seed906500.gif`.
-- Rectangular key: `results\rectangular_key_post_yaw_reapproach_demos\demo_rectangular_key_seed906500.gif`.
+- Rectangular key: `results\rectangular_key_v3_estimator_v2_relaxed_demos_default\demo_rectangular_key_seed911504.gif`.
 
 Decision rule: keep per-shape routing. This is not a single unified learned policy/controller configuration yet; it is a deployment routing layer that selects the best current runtime stack per shape. Do not force a unified multishape default while square, triangle, hex, and key still rely on different runtime assumptions.
 
@@ -68,7 +68,13 @@ Evidence:
 ectangular_key_low_z_verifier_v3_estimator_v2_relaxed_rawnorm_v1_6seed_5ep`: `30/30`, collision `0/30`, timeout `0/30`;
 - triangle regression `results	riangle_wrist_safe_v3_estimator_v2_relaxed_rawnorm_v1_regression_3seed_5ep`: `15/15`, collision `0/15`, timeout `0/15`.
 
-Next gate before promotion: route rectangular-key wrapper/demo to this candidate, generate a seed `911504` demo, then run the four-shape wrapper smoke gate.
+Promotion status: pushed as commit `fa0c02a` with tag
+`v0.7.8-visual-yaw-key-estimator-v2`. The rectangular-key seed `911504` demo
+is `results\rectangular_key_v3_estimator_v2_relaxed_demos_default\demo_rectangular_key_seed911504.gif`.
+The four-shape wrapper gate
+`results\visual_yaw_align_v3_estimator_v2_default_wrapper_4shape_3seed_5ep`
+passed `60/60`, collision `0/60`, timeout `0/60`: `square_square=15/15`,
+`triangle_triangle=15/15`, `hex_hex=15/15`, and `rectangular_key=15/15`.
 
 ## 2026-07-02 Rectangular-Key Post-Yaw Reapproach v1
 

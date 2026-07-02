@@ -7,6 +7,40 @@ from the repository root. In the current workspace:
 cd D:\peg-in-hole-6yh\_promotion_v075_square_pose_yaw_align_20260603213104
 ```
 
+## Sim2Real Learned-Vision Multi-Shape
+
+Planning document:
+
+```powershell
+SIM2REAL_LEARNED_VISION_MULTISHAPE.md
+```
+
+Branch:
+
+```powershell
+git checkout feature/sim2real-learned-vision-multishape
+```
+
+Baseline to compare against:
+
+```powershell
+git checkout v0.7.8-visual-yaw-key-estimator-v2
+```
+
+Scope for the next learned-vision line:
+
+- `round_round`
+- `slot_slot`
+- `square_square`
+- `triangle_triangle`
+- `hex_hex`
+- `rectangular_key`
+
+First task on this branch is not a new training run. First task is an
+observation-quality audit and camera/crop scan to check visibility, occlusion,
+crop centering, and yaw-estimator error without relying on runtime geometry
+truth.
+
 ## Sim2Real Multi-Geometry v1
 
 The cleaned v148/v149 multi-geometry entry points are documented in:
@@ -59,6 +93,46 @@ larger gate.
 
 ```powershell
 SIM2REAL_MULTIGEOM_V2_TRUE_FIXTURES.md
+```
+
+## Sim2Real Multi-Geometry v2 Visual-Yaw Align
+
+Current promoted visual-yaw alignment branch:
+
+```powershell
+git checkout feature/multigeom-v2-visual-yaw-align
+git checkout v0.7.8-visual-yaw-key-estimator-v2
+```
+
+Current four-shape wrapper validation result:
+
+- result directory: `results\visual_yaw_align_v3_estimator_v2_default_wrapper_4shape_3seed_5ep`
+- total: `60/60`, collision `0/60`, timeout `0/60`
+- split: `square_square=15/15`, `triangle_triangle=15/15`, `hex_hex=15/15`, `rectangular_key=15/15`
+
+Run the same default wrapper gate:
+
+```powershell
+$resultRoot = 'results\visual_yaw_align_v3_estimator_v2_default_wrapper_4shape_3seed_5ep'
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 -Profile square_square -Seeds @(906500,907500,908500) -Episodes 5 -ResultDir $resultRoot
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 -Profile triangle_triangle -Seeds @(906500,907500,908500) -Episodes 5 -ResultDir $resultRoot
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 -Profile hex_hex -Seeds @(906500,907500,908500) -Episodes 5 -ResultDir $resultRoot
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 -Profile rectangular_key -Seeds @(909500,910500,911500) -Episodes 5 -ResultDir $resultRoot
+```
+
+Current rectangular-key demo:
+
+```powershell
+.\scripts\sim2real\demo_multigeom_v2_visual_yaw_align.ps1 `
+  -Profile rectangular_key `
+  -Seed 911504 `
+  -ResultDir results\rectangular_key_v3_estimator_v2_relaxed_demos_default
+```
+
+Demo output:
+
+```powershell
+results\rectangular_key_v3_estimator_v2_relaxed_demos_default\demo_rectangular_key_seed911504.gif
 ```
 
 Hex true-fixture smoke:
