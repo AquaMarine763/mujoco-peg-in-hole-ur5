@@ -70,6 +70,33 @@ Success criterion: identify a camera/crop configuration that keeps the hole
 visible and near-centered through the approach and near-hole bands for all six
 shapes.
 
+### Current Audit Tool
+
+Added `scripts/audit_multishape_observation_quality.py` for the six-shape
+learned-vision branch. It samples all target profiles:
+
+- `round_round`
+- `slot_slot`
+- `square_square`
+- `triangle_triangle`
+- `hex_hex`
+- `rectangular_key`
+
+It records the actual policy inputs (`cam_image`, `near_hole_crop`), annotated
+wrist-camera frames, per-sample pose/yaw metadata, crop position, projection
+metrics, and MuJoCo segmentation-based hole/peg visible-pixel counts.
+
+Initial small matrix:
+`results\sim2real_learned_vision\observation_quality_audit_v2_seg`.
+
+Early finding: `baseline` and `centered_wide` keep both hole and peg visible
+more consistently than `raised_centered` and `open_high`. `open_high` centers
+the hole better, but it often loses peg visible pixels, especially for
+`hex_hex`, `triangle_triangle`, and `rectangular_key`. This supports the user's
+concern: projected hole-center visibility alone is misleading; the stricter
+segmentation visibility check shows that some apparently centered views are
+not good policy inputs.
+
 ## Phase 2: Camera And Crop Redesign
 
 Start with changes that preserve the saved policy observation shapes:

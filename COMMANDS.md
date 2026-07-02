@@ -11501,3 +11501,42 @@ work is now triangle low-Z visibility/target-maintenance, especially
 
 Rectangular-key current best `30/30`, collision `0/30`, timeout `0/30`: `results
 ectangular_key_low_z_verifier_v3_estimator_v2_relaxed_rawnorm_v1_6seed_5ep`.
+
+## Sim2Real Learned-Vision Multishape Observation Audit
+
+Use this branch/tooling before retraining the visual policy. The goal is to
+verify that the policy inputs actually show the hole and peg for all six
+same-shape profiles.
+
+Quick smoke:
+
+```powershell
+python scripts\audit_multishape_observation_quality.py `
+  --candidate-names baseline `
+  --samples-per-profile 2 `
+  --frame-samples-per-profile 1 `
+  --output-root results\sim2real_learned_vision\observation_quality_audit_seg_smoke
+```
+
+Small camera/crop matrix:
+
+```powershell
+python scripts\audit_multishape_observation_quality.py `
+  --samples-per-profile 6 `
+  --frame-samples-per-profile 2 `
+  --output-root results\sim2real_learned_vision\observation_quality_audit_v2_seg
+```
+
+Outputs:
+
+- Report: `results\sim2real_learned_vision\observation_quality_audit_v2_seg\observation_quality_audit.md`
+- Per-sample CSV: `results\sim2real_learned_vision\observation_quality_audit_v2_seg\observation_quality_samples.csv`
+- Summary CSV: `results\sim2real_learned_vision\observation_quality_audit_v2_seg\observation_quality_summary.csv`
+- Sample frames: `results\sim2real_learned_vision\observation_quality_audit_v2_seg\frames`
+
+Current v2 segmentation-audit readout:
+
+- `baseline`: projected crop coverage is good; strict visible-pixel coverage is mostly good, but `hex_hex` drops to `83.3%` both-visible and low-Z visibility can still fail.
+- `centered_wide`: best first candidate among the tested set; all six profiles reach `100%` both-visible in this small matrix, with better centering than baseline.
+- `raised_centered`: not safe as a default; peg visibility collapses for `hex_hex`, `triangle_triangle`, and `rectangular_key`.
+- `open_high`: hole centering improves, but peg visible pixels often collapse; do not promote without redesigning the view/crop.

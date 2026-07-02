@@ -31,6 +31,19 @@ runtime dependence on geometry-truth shaping. New planning document:
 quality audit and camera/crop scan before changing training or controller
 logic.
 
+2026-07-02 learned-vision observation audit update: added
+`scripts\audit_multishape_observation_quality.py`, covering `round_round`,
+`slot_slot`, `square_square`, `triangle_triangle`, `hex_hex`, and
+`rectangular_key`. The script writes policy-input frames, annotated wrist-camera
+frames, pose/yaw metadata, crop/projection metrics, and segmentation-based
+hole/peg visible-pixel metrics. Smoke passed. The small v2 audit lives at
+`results\sim2real_learned_vision\observation_quality_audit_v2_seg`.
+Preliminary result: `centered_wide` is the best next candidate among the tested
+camera/crop settings; `open_high` improves hole centering but loses peg visible
+pixels, so it is not suitable as the next default without further camera/crop
+redesign. Next step: run a larger centered/wide-focused scan, then use the
+chosen view for six-shape learned visual-yaw/alignment dataset collection.
+
 2026-06-30 triangle/hex rollout-balanced update: merged triangle failure
 rollout snapshots with the triangle/hex wrong-basin visual-yaw dataset and
 trained
