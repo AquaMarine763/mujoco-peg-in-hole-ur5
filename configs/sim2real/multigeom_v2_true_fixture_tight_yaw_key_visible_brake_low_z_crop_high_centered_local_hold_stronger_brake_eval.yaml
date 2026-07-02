@@ -1,0 +1,18 @@
+# Centered high-yaw local hold with a stronger large-XY/low-Z safety brake.
+#
+# Diagnostic only. This keeps the centered local hold logic and only increases
+# the emergency upward brake used when the peg is already far off-center and
+# low enough to risk plate contact.
+
+base_config: multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_local_hold_eval.yaml
+
+guard_visual_yaw_align_large_xy_low_z_brake_enabled: true
+guard_visual_yaw_align_large_xy_low_z_brake_min_xy: 0.040
+guard_visual_yaw_align_large_xy_low_z_brake_max_z: 0.045
+guard_visual_yaw_align_large_xy_low_z_brake_up_action: 0.012
+guard_visual_yaw_align_large_xy_low_z_brake_flush_history: true
+
+output_csv: results/vy_low_z_crop_high_centered_high_yaw_local_hold_stronger_brake/eval_latest.csv
+output_md: results/vy_low_z_crop_high_centered_high_yaw_local_hold_stronger_brake/eval_latest.md
+episode_output_csv: results/vy_low_z_crop_high_centered_high_yaw_local_hold_stronger_brake/eval_latest_episodes.csv
+step_output_csv: results/vy_low_z_crop_high_centered_high_yaw_local_hold_stronger_brake/eval_latest_steps.csv

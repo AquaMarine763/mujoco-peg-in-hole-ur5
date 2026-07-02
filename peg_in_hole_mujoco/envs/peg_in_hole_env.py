@@ -311,12 +311,22 @@ class PegInHoleMujocoEnv(gym.Env):
         ik_control_mode: IkControlMode = "position",
         ik_orientation_weight: float = 0.12,
         ik_posture_weight: float = 0.01,
+        ik_wrist_posture_weight: float = 0.0,
+        ik_wrist_anchor_weight: float = 0.0,
+        ik_continuity_weight: float = 0.0,
+        ik_wrist_continuity_weight: float = 0.0,
+        ik_max_wrist_target_delta_deg: float | None = None,
+        ik_nearest_wrist_target_equivalent: bool = False,
         ik_step_limit: float = 0.06,
         ik_max_iterations: int = 24,
         initialization_mode: InitializationMode = "fixed",
         initial_tip_z_above_range: tuple[float, float] = (0.15, 0.25),
         initial_tip_xy_offset_range: tuple[float, float] = (0.08, 0.16),
         initial_tip_xy_angle_range_deg: tuple[float, float] = (0.0, 360.0),
+        initial_shape_yaw_error_range_deg: tuple[float, float] | None = None,
+        initial_shape_yaw_ik_orientation_weight: float = 0.45,
+        initial_shape_yaw_ik_max_iterations: int = 96,
+        initial_shape_yaw_max_wrist_rest_delta_deg: float | None = None,
         initial_ik_max_attempts: int = 20,
     ):
         if observation_mode not in ("image", "state"):
@@ -429,6 +439,19 @@ class PegInHoleMujocoEnv(gym.Env):
         self.ik_control_mode = ik_control_mode
         self.ik_orientation_weight = float(ik_orientation_weight)
         self.ik_posture_weight = float(ik_posture_weight)
+        self.ik_wrist_posture_weight = float(ik_wrist_posture_weight)
+        self.ik_wrist_anchor_weight = float(ik_wrist_anchor_weight)
+        self.ik_continuity_weight = float(ik_continuity_weight)
+        self.ik_wrist_continuity_weight = float(ik_wrist_continuity_weight)
+        self.ik_max_wrist_target_delta_rad = (
+            None
+            if ik_max_wrist_target_delta_deg is None
+            or float(ik_max_wrist_target_delta_deg) <= 0.0
+            else float(np.deg2rad(ik_max_wrist_target_delta_deg))
+        )
+        self.ik_nearest_wrist_target_equivalent = bool(
+            ik_nearest_wrist_target_equivalent
+        )
         self.ik_step_limit = float(ik_step_limit)
         self.ik_max_iterations = int(ik_max_iterations)
         if randomize_domain and domain_randomization_level == "none":
@@ -495,6 +518,22 @@ class PegInHoleMujocoEnv(gym.Env):
         self.initial_tip_z_above_range = tuple(float(v) for v in initial_tip_z_above_range)
         self.initial_tip_xy_offset_range = tuple(float(v) for v in initial_tip_xy_offset_range)
         self.initial_tip_xy_angle_range_deg = tuple(float(v) for v in initial_tip_xy_angle_range_deg)
+        self.initial_shape_yaw_error_range_deg = (
+            tuple(float(v) for v in initial_shape_yaw_error_range_deg)
+            if initial_shape_yaw_error_range_deg is not None
+            else None
+        )
+        self.initial_shape_yaw_ik_orientation_weight = float(
+            initial_shape_yaw_ik_orientation_weight
+        )
+        self.initial_shape_yaw_ik_max_iterations = int(
+            initial_shape_yaw_ik_max_iterations
+        )
+        self.initial_shape_yaw_max_wrist_rest_delta_rad = (
+            None
+            if initial_shape_yaw_max_wrist_rest_delta_deg is None
+            else float(np.deg2rad(initial_shape_yaw_max_wrist_rest_delta_deg))
+        )
         self.initial_ik_max_attempts = int(initial_ik_max_attempts)
         self._validate_randomization_ranges()
         self.current_image_brightness = 1.0
@@ -514,6 +553,7 @@ class PegInHoleMujocoEnv(gym.Env):
         self.current_initial_tip_target = np.zeros(3, dtype=np.float64)
         self.current_initial_ik_error = 0.0
         self.current_initial_ik_attempts = 0
+        self.current_initial_shape_yaw_error_deg = np.nan
         self.current_hole_half_size = 0.027
         self.current_peg_radius = 0.012
         self.current_geometry_spec = GeometrySpec(
@@ -571,6 +611,8 @@ class PegInHoleMujocoEnv(gym.Env):
         self.last_joint_target_qpos = self.rest_qpos.copy()
         self.last_joint_qpos_after_action = self.rest_qpos.copy()
         self.last_joint_target_error = 0.0
+        self.last_ik_wrist_target_clipped = False
+        self.ik_wrist_anchor_qpos: np.ndarray | None = None
         self.last_actual_tip_delta = np.zeros(3, dtype=np.float64)
         self.last_tip_delta_error = np.zeros(3, dtype=np.float64)
         self.last_action_tracking_error = 0.0
@@ -785,6 +827,7 @@ class PegInHoleMujocoEnv(gym.Env):
         self._sample_target()
         self._maybe_randomize_domain()
         self._initialize_arm_pose()
+        self._reset_ik_wrist_anchor()
         self.reset_pose_ik_target_xmat()
         self.data.qvel[:] = 0.0
 
@@ -816,6 +859,11 @@ class PegInHoleMujocoEnv(gym.Env):
         q_target, ik_tip_pos, ik_error, ik_iterations = self._solve_ik_with_diagnostics(
             target_tip_pos
         )
+        q_target = self._nearest_wrist_target_equivalent(q_target, joint_qpos_before)
+        q_target = self._clip_wrist_target_delta(q_target, joint_qpos_before)
+        if self.last_ik_wrist_target_clipped:
+            ik_tip_pos = self._arm_qpos_tip_pos(q_target)
+            ik_error = float(np.linalg.norm(target_tip_pos - ik_tip_pos))
         self._set_arm_control(q_target)
         joint_target_qpos = self.data.ctrl[self.arm_actuator_ids].copy()
 
@@ -961,12 +1009,39 @@ class PegInHoleMujocoEnv(gym.Env):
             raise ValueError("initial_tip_z_above_range cannot be negative.")
         if self.initial_tip_xy_offset_range[0] < 0.0:
             raise ValueError("initial_tip_xy_offset_range cannot be negative.")
+        if self.initial_shape_yaw_error_range_deg is not None:
+            value_range = self.initial_shape_yaw_error_range_deg
+            if len(value_range) != 2 or value_range[0] > value_range[1]:
+                raise ValueError(
+                    "initial_shape_yaw_error_range_deg must be a two-value increasing range."
+                )
+            if value_range[0] < 0.0:
+                raise ValueError("initial_shape_yaw_error_range_deg cannot be negative.")
+        if self.initial_shape_yaw_ik_orientation_weight < 0.0:
+            raise ValueError("initial_shape_yaw_ik_orientation_weight cannot be negative.")
+        if self.initial_shape_yaw_ik_max_iterations < 1:
+            raise ValueError("initial_shape_yaw_ik_max_iterations must be positive.")
+        if (
+            self.initial_shape_yaw_max_wrist_rest_delta_rad is not None
+            and self.initial_shape_yaw_max_wrist_rest_delta_rad <= 0.0
+        ):
+            raise ValueError(
+                "initial_shape_yaw_max_wrist_rest_delta_deg must be positive when set."
+            )
         if self.initial_ik_max_attempts < 1:
             raise ValueError("initial_ik_max_attempts must be positive.")
         if self.ik_orientation_weight < 0.0:
             raise ValueError("ik_orientation_weight cannot be negative.")
         if self.ik_posture_weight < 0.0:
             raise ValueError("ik_posture_weight cannot be negative.")
+        if self.ik_wrist_posture_weight < 0.0:
+            raise ValueError("ik_wrist_posture_weight cannot be negative.")
+        if self.ik_wrist_anchor_weight < 0.0:
+            raise ValueError("ik_wrist_anchor_weight cannot be negative.")
+        if self.ik_continuity_weight < 0.0:
+            raise ValueError("ik_continuity_weight cannot be negative.")
+        if self.ik_wrist_continuity_weight < 0.0:
+            raise ValueError("ik_wrist_continuity_weight cannot be negative.")
         if self.ik_step_limit <= 0.0:
             raise ValueError("ik_step_limit must be positive.")
         if self.ik_max_iterations < 1:
@@ -1424,6 +1499,7 @@ class PegInHoleMujocoEnv(gym.Env):
         self.last_joint_target_qpos = qpos.copy()
         self.last_joint_qpos_after_action = qpos.copy()
         self.last_joint_target_error = 0.0
+        self.last_ik_wrist_target_clipped = False
         self.last_actual_tip_delta = np.zeros(3, dtype=np.float64)
         self.last_tip_delta_error = np.zeros(3, dtype=np.float64)
         self.last_action_tracking_error = 0.0
@@ -1470,6 +1546,100 @@ class PegInHoleMujocoEnv(gym.Env):
         qpos = np.clip(qpos, ctrlrange[:, 0], ctrlrange[:, 1])
         self.data.ctrl[self.arm_actuator_ids] = qpos
 
+    def _arm_qpos_tip_pos(self, qpos: np.ndarray) -> np.ndarray:
+        data = self.ik_data
+        data.qpos[:] = self.data.qpos
+        data.qvel[:] = 0.0
+        data.mocap_pos[:] = self.data.mocap_pos
+        data.mocap_quat[:] = self.data.mocap_quat
+        data.qpos[self.arm_qpos_ids] = np.asarray(qpos, dtype=np.float64)
+        mujoco.mj_forward(self.model, data)
+        return data.site_xpos[self.peg_tip_site_id].copy()
+
+    def _ik_continuity_weights(self) -> np.ndarray:
+        weights = np.full(
+            len(self.ARM_JOINT_NAMES),
+            self.ik_continuity_weight,
+            dtype=np.float64,
+        )
+        if self.ik_wrist_continuity_weight > 0.0:
+            weights[3:] += self.ik_wrist_continuity_weight
+        return weights
+
+    def _ik_wrist_posture_weights(self) -> np.ndarray:
+        weights = np.zeros(len(self.ARM_JOINT_NAMES), dtype=np.float64)
+        if self.ik_wrist_posture_weight > 0.0:
+            weights[3:] = self.ik_wrist_posture_weight
+        return weights
+
+    def _reset_ik_wrist_anchor(self) -> None:
+        if self.ik_wrist_anchor_weight <= 0.0:
+            self.ik_wrist_anchor_qpos = None
+            return
+        self.ik_wrist_anchor_qpos = self.data.qpos[self.arm_qpos_ids][3:].copy()
+
+    def set_ik_wrist_anchor_to_current(self) -> None:
+        self.ik_wrist_anchor_qpos = self.data.qpos[self.arm_qpos_ids][3:].copy()
+
+    def clear_ik_wrist_anchor(self) -> None:
+        self.ik_wrist_anchor_qpos = None
+
+    def _ik_wrist_anchor_full_qpos(self) -> np.ndarray | None:
+        if self.ik_wrist_anchor_weight <= 0.0 or self.ik_wrist_anchor_qpos is None:
+            return None
+        anchor = self.rest_qpos.copy()
+        anchor[3:] = self.ik_wrist_anchor_qpos
+        return anchor
+
+    def _clip_wrist_target_delta(
+        self,
+        q_target: np.ndarray,
+        q_reference: np.ndarray,
+    ) -> np.ndarray:
+        if self.ik_max_wrist_target_delta_rad is None:
+            self.last_ik_wrist_target_clipped = False
+            return q_target
+
+        clipped = np.asarray(q_target, dtype=np.float64).copy()
+        reference = np.asarray(q_reference, dtype=np.float64)
+        before = clipped[3:].copy()
+        delta = np.clip(
+            clipped[3:] - reference[3:],
+            -self.ik_max_wrist_target_delta_rad,
+            self.ik_max_wrist_target_delta_rad,
+        )
+        clipped[3:] = reference[3:] + delta
+        self.last_ik_wrist_target_clipped = bool(
+            np.max(np.abs(clipped[3:] - before)) > 1e-12
+        )
+        return clipped
+
+    def _nearest_wrist_target_equivalent(
+        self,
+        q_target: np.ndarray,
+        q_reference: np.ndarray,
+    ) -> np.ndarray:
+        adjusted = np.asarray(q_target, dtype=np.float64).copy()
+        if not self.ik_nearest_wrist_target_equivalent:
+            return adjusted
+
+        reference = np.asarray(q_reference, dtype=np.float64)
+        ctrlrange = self.model.actuator_ctrlrange[self.arm_actuator_ids]
+        lower = np.maximum(self.joint_ranges[:, 0], ctrlrange[:, 0])
+        upper = np.minimum(self.joint_ranges[:, 1], ctrlrange[:, 1])
+        period = 2.0 * np.pi
+        for index in range(3, min(len(adjusted), 6)):
+            value = float(adjusted[index])
+            ref = float(reference[index])
+            candidates = [
+                value + period * offset
+                for offset in range(-2, 3)
+                if lower[index] <= value + period * offset <= upper[index]
+            ]
+            if candidates:
+                adjusted[index] = min(candidates, key=lambda candidate: abs(candidate - ref))
+        return adjusted
+
     def _initialize_arm_pose(self) -> None:
         if self.initialization_mode == "fixed":
             self._set_arm_qpos(self.data, self.rest_qpos)
@@ -1479,6 +1649,9 @@ class PegInHoleMujocoEnv(gym.Env):
             self.current_initial_tip_target = tip_pos
             self.current_initial_ik_error = 0.0
             self.current_initial_ik_attempts = 1
+            self.current_initial_shape_yaw_error_deg = float(
+                self._shape_yaw_metrics(self.data).get("shape_yaw_error_deg", np.nan)
+            )
             return
 
         q_target, tip_target, ik_error, attempts = self._sample_high_start_qpos()
@@ -1488,6 +1661,9 @@ class PegInHoleMujocoEnv(gym.Env):
         self.current_initial_tip_target = tip_target
         self.current_initial_ik_error = ik_error
         self.current_initial_ik_attempts = attempts
+        self.current_initial_shape_yaw_error_deg = float(
+            self._shape_yaw_metrics(self.data).get("shape_yaw_error_deg", np.nan)
+        )
 
     def _sample_high_start_qpos(self) -> tuple[np.ndarray, np.ndarray, float, int]:
         best_qpos = self.rest_qpos.copy()
@@ -1497,6 +1673,9 @@ class PegInHoleMujocoEnv(gym.Env):
             z_above=self.initial_tip_z_above_range[0],
         )
         best_error = float("inf")
+        best_yaw_miss = float("inf")
+        best_wrist_rest_delta = float("inf")
+        best_wrist_rest_ok = self.initial_shape_yaw_max_wrist_rest_delta_rad is None
         attempts = 0
 
         for attempts in range(1, self.initial_ik_max_attempts + 1):
@@ -1507,20 +1686,131 @@ class PegInHoleMujocoEnv(gym.Env):
             self._set_arm_qpos(self.data, self.rest_qpos)
             self._set_arm_control(self.rest_qpos)
             mujoco.mj_forward(self.model, self.data)
-            qpos = self._solve_position_ik(candidate_target)
+            if self.initial_shape_yaw_error_range_deg is None:
+                qpos = self._solve_position_ik(candidate_target)
+            else:
+                target_xmat = self._sample_initial_shape_yaw_target_xmat()
+                previous_xmat = self.get_pose_ik_target_xmat()
+                previous_orientation_weight = self.ik_orientation_weight
+                previous_max_iterations = self.ik_max_iterations
+                self.set_pose_ik_target_xmat(target_xmat)
+                self.ik_orientation_weight = self.initial_shape_yaw_ik_orientation_weight
+                self.ik_max_iterations = self.initial_shape_yaw_ik_max_iterations
+                try:
+                    qpos, _, _, _ = self._solve_tip_priority_pose_ik_with_diagnostics(
+                        candidate_target
+                    )
+                finally:
+                    self.ik_orientation_weight = previous_orientation_weight
+                    self.ik_max_iterations = previous_max_iterations
+                    self.set_pose_ik_target_xmat(previous_xmat)
+            qpos = self._nearest_wrist_target_equivalent(qpos, self.rest_qpos)
+            wrist_rest_delta = (
+                float(np.max(np.abs(qpos[3:] - self.rest_qpos[3:])))
+                if qpos[3:].size
+                else 0.0
+            )
+            wrist_rest_ok = bool(
+                self.initial_shape_yaw_max_wrist_rest_delta_rad is None
+                or wrist_rest_delta <= self.initial_shape_yaw_max_wrist_rest_delta_rad
+            )
             self._set_arm_qpos(self.data, qpos)
             mujoco.mj_forward(self.model, self.data)
 
             achieved_tip = self._site_xpos(self.data, self.peg_tip_site_id)
             error = float(np.linalg.norm(achieved_tip - candidate_target))
-            if error < best_error:
+            yaw_error = float(self._shape_yaw_metrics(self.data).get("shape_yaw_error_deg", np.nan))
+            yaw_ok, yaw_miss = self._initial_shape_yaw_error_ok(yaw_error)
+            candidate_better = False
+            if yaw_ok and not np.isfinite(best_yaw_miss):
+                candidate_better = True
+            elif yaw_ok and best_yaw_miss <= 0.0:
+                if self.initial_shape_yaw_max_wrist_rest_delta_rad is None:
+                    candidate_better = error < best_error
+                elif wrist_rest_ok and not best_wrist_rest_ok:
+                    candidate_better = True
+                elif wrist_rest_ok == best_wrist_rest_ok:
+                    wrist_margin = float(np.deg2rad(5.0))
+                    if wrist_rest_delta + wrist_margin < best_wrist_rest_delta:
+                        candidate_better = True
+                    elif (
+                        np.isclose(
+                            wrist_rest_delta,
+                            best_wrist_rest_delta,
+                            atol=wrist_margin,
+                        )
+                        and error < best_error
+                    ):
+                        candidate_better = True
+            elif yaw_miss < best_yaw_miss:
+                candidate_better = True
+            elif np.isclose(yaw_miss, best_yaw_miss) and error < best_error:
+                candidate_better = True
+
+            if candidate_better:
                 best_qpos = qpos.copy()
                 best_target = candidate_target.copy()
                 best_error = error
-            if error < 0.005:
+                best_yaw_miss = yaw_miss
+                best_wrist_rest_delta = wrist_rest_delta
+                best_wrist_rest_ok = wrist_rest_ok
+            if error < 0.005 and yaw_ok and wrist_rest_ok:
                 return best_qpos, best_target, best_error, attempts
 
         return best_qpos, best_target, best_error, max(attempts, 1)
+
+    def _initial_shape_yaw_error_ok(self, yaw_error_deg: float) -> tuple[bool, float]:
+        value_range = self.initial_shape_yaw_error_range_deg
+        if value_range is None:
+            return True, 0.0
+        if not np.isfinite(yaw_error_deg):
+            return False, float("inf")
+        low, high = value_range
+        if low <= yaw_error_deg <= high:
+            return True, 0.0
+        return False, float(min(abs(yaw_error_deg - low), abs(yaw_error_deg - high)))
+
+    def _sample_initial_shape_yaw_target_xmat(self) -> np.ndarray:
+        value_range = self.initial_shape_yaw_error_range_deg
+        if value_range is None:
+            return self.default_pose_ik_target_xmat.copy()
+        period_deg = self._shape_yaw_period_deg()
+        if not np.isfinite(period_deg) or period_deg <= 0.0:
+            return self.default_pose_ik_target_xmat.copy()
+
+        max_error_deg = 0.5 * float(period_deg)
+        low = min(float(value_range[0]), max_error_deg)
+        high = min(float(value_range[1]), max_error_deg)
+        if high < low:
+            high = low
+        abs_yaw_deg = float(self.np_random.uniform(low, high))
+        sign = -1.0 if self.np_random.random() < 0.5 else 1.0
+        yaw_deg = sign * abs_yaw_deg
+
+        hole_xmat = self._body_xmat(self.data, self.hole_body_id)
+        hole_x_axis = hole_xmat @ np.asarray([1.0, 0.0, 0.0], dtype=np.float64)
+        hole_x_xy = self._project_unit_xy(hole_x_axis)
+        if hole_x_xy is None:
+            hole_x_xy = np.asarray([1.0, 0.0, 0.0], dtype=np.float64)
+        yaw_rad = float(np.deg2rad(yaw_deg))
+        c, s = float(np.cos(yaw_rad)), float(np.sin(yaw_rad))
+        target_x_axis = np.asarray(
+            [
+                c * hole_x_xy[0] - s * hole_x_xy[1],
+                s * hole_x_xy[0] + c * hole_x_xy[1],
+                0.0,
+            ],
+            dtype=np.float64,
+        )
+        target_z_axis = self.default_pose_ik_target_xmat[:, 2].copy()
+        target_z_axis = target_z_axis / max(float(np.linalg.norm(target_z_axis)), 1e-9)
+        target_x_axis = target_x_axis - target_z_axis * float(
+            np.dot(target_x_axis, target_z_axis)
+        )
+        target_x_axis = target_x_axis / max(float(np.linalg.norm(target_x_axis)), 1e-9)
+        target_y_axis = np.cross(target_z_axis, target_x_axis)
+        target_y_axis = target_y_axis / max(float(np.linalg.norm(target_y_axis)), 1e-9)
+        return np.column_stack((target_x_axis, target_y_axis, target_z_axis))
 
     def _sample_high_start_tip_target(self) -> np.ndarray | None:
         xy_offset = float(self.np_random.uniform(*self.initial_tip_xy_offset_range))
@@ -1745,6 +2035,9 @@ class PegInHoleMujocoEnv(gym.Env):
     def get_pose_ik_target_xmat(self) -> np.ndarray:
         return self.pose_ik_target_xmat.copy()
 
+    def get_peg_tip_xmat(self) -> np.ndarray:
+        return self._site_xmat(self.data, self.peg_tip_site_id)
+
     def set_pose_ik_target_by_planar_yaw_correction(
         self,
         yaw_correction_deg: float,
@@ -1808,6 +2101,620 @@ class PegInHoleMujocoEnv(gym.Env):
             "pose_ik_target_yaw_correction_deg": float(yaw_correction_deg),
             "pose_ik_target_shape_raw_yaw_deg": float(raw_yaw_deg),
             "pose_ik_target_shape_yaw_error_deg": float(yaw_error_deg),
+        }
+
+    def set_pose_ik_target_by_shortest_equivalent_planar_yaw_correction(
+        self,
+        yaw_correction_deg: float,
+    ) -> dict[str, float]:
+        period_deg = self._shape_yaw_period_deg()
+        if not np.isfinite(period_deg) or period_deg <= 0.0 or period_deg >= 360.0:
+            return self.set_pose_ik_target_by_planar_yaw_correction(yaw_correction_deg)
+
+        base_correction = float(yaw_correction_deg)
+        if not np.isfinite(base_correction):
+            return self.set_pose_ik_target_by_planar_yaw_correction(base_correction)
+
+        candidate_offsets = np.arange(
+            -int(np.floor(180.0 / period_deg)),
+            int(np.floor(180.0 / period_deg)) + 1,
+            dtype=np.int32,
+        )
+        original_xmat = self.get_pose_ik_target_xmat()
+        current_qpos = self.data.qpos[self.arm_qpos_ids].copy()
+        target_tip_pos = self.last_target_tip_pos.copy()
+        if not np.all(np.isfinite(target_tip_pos)):
+            target_tip_pos = self._site_xpos(self.data, self.peg_tip_site_id)
+
+        candidates: list[tuple[float, dict[str, float], np.ndarray]] = []
+        for offset in candidate_offsets:
+            candidate_correction = float(base_correction + float(offset) * period_deg)
+            result = self.set_pose_ik_target_by_planar_yaw_correction(
+                candidate_correction
+            )
+            candidate_xmat = self.get_pose_ik_target_xmat()
+            q_target, _, ik_error, _ = self._solve_ik_with_diagnostics(
+                target_tip_pos
+            )
+            wrist_delta = q_target[3:] - current_qpos[3:]
+            wrist_norm = float(np.linalg.norm(wrist_delta))
+            wrist_max = float(np.max(np.abs(wrist_delta))) if wrist_delta.size else 0.0
+            joint_margin, joint_normalized_margin = self._joint_limit_metrics(q_target)
+            yaw_error = float(
+                result.get("pose_ik_target_shape_yaw_error_deg", float("nan"))
+            )
+            yaw_penalty = 0.0 if np.isfinite(yaw_error) else 1.0
+            score = (
+                wrist_norm
+                + 0.25 * wrist_max
+                + 10.0 * float(max(ik_error, 0.0))
+                + yaw_penalty
+            )
+            candidates.append(
+                (
+                    score,
+                    {
+                        **result,
+                        "pose_ik_target_equivalent_yaw_correction_deg": candidate_correction,
+                        "pose_ik_target_equivalent_offset": float(offset),
+                        "pose_ik_target_equivalent_wrist_norm_deg": float(
+                            np.rad2deg(wrist_norm)
+                        ),
+                        "pose_ik_target_equivalent_wrist_max_deg": float(
+                            np.rad2deg(wrist_max)
+                        ),
+                        "pose_ik_target_equivalent_ik_error": float(ik_error),
+                        "pose_ik_target_equivalent_joint_margin": float(joint_margin),
+                        "pose_ik_target_equivalent_joint_normalized_margin": float(
+                            joint_normalized_margin
+                        ),
+                    },
+                    candidate_xmat.copy(),
+                )
+            )
+
+        if not candidates:
+            self.set_pose_ik_target_xmat(original_xmat)
+            return self.set_pose_ik_target_by_planar_yaw_correction(base_correction)
+
+        baseline_items = [
+            item for item in candidates if abs(item[1]["pose_ik_target_equivalent_offset"]) < 0.5
+        ]
+        baseline_score, baseline, baseline_xmat = (
+            baseline_items[0] if baseline_items else min(candidates, key=lambda item: item[0])
+        )
+        baseline_wrist_norm = float(
+            np.deg2rad(baseline["pose_ik_target_equivalent_wrist_norm_deg"])
+        )
+        baseline_ik_error = float(baseline["pose_ik_target_equivalent_ik_error"])
+        baseline_margin = float(
+            baseline["pose_ik_target_equivalent_joint_normalized_margin"]
+        )
+
+        gated_candidates: list[tuple[float, dict[str, float], np.ndarray]] = []
+        for score, result, candidate_xmat in candidates:
+            candidate_correction = float(
+                result["pose_ik_target_equivalent_yaw_correction_deg"]
+            )
+            wrist_norm = float(
+                np.deg2rad(result["pose_ik_target_equivalent_wrist_norm_deg"])
+            )
+            wrist_max = float(
+                np.deg2rad(result["pose_ik_target_equivalent_wrist_max_deg"])
+            )
+            ik_error = float(result["pose_ik_target_equivalent_ik_error"])
+            normalized_margin = float(
+                result["pose_ik_target_equivalent_joint_normalized_margin"]
+            )
+            correction_ok = abs(candidate_correction) <= max(
+                120.0,
+                abs(base_correction) + 0.5 * period_deg,
+            )
+            ik_ok = ik_error <= max(0.008, baseline_ik_error + 0.002)
+            margin_ok = normalized_margin >= max(0.01, baseline_margin - 0.03)
+            wrist_ok = wrist_max <= np.deg2rad(140.0)
+            improves_wrist = wrist_norm <= max(
+                np.deg2rad(5.0),
+                baseline_wrist_norm - np.deg2rad(8.0),
+            )
+            if correction_ok and ik_ok and margin_ok and wrist_ok and improves_wrist:
+                gated_candidates.append((score, result, candidate_xmat))
+
+        if gated_candidates:
+            best_score, best, best_xmat = min(
+                gated_candidates,
+                key=lambda item: item[0],
+            )
+        else:
+            best_score, best, best_xmat = baseline_score, baseline, baseline_xmat
+            best = {**best, "pose_ik_target_equivalent_fallback_to_baseline": 1.0}
+
+        self.set_pose_ik_target_xmat(best_xmat)
+        return {**best, "pose_ik_target_equivalent_score": float(best_score)}
+
+    def set_pose_ik_target_by_wrist_limited_equivalent_planar_yaw_correction(
+        self,
+        yaw_correction_deg: float,
+        *,
+        max_wrist_target_abs_deg: float,
+        max_wrist_delta_deg: float | None = None,
+        max_wrist_target_jump_deg: float | None = None,
+        min_wrist_improvement_deg: float = 0.0,
+        max_equivalent_correction_abs_deg: float | None = None,
+        ik_error_slack: float = 0.004,
+        joint_margin_slack: float = 0.04,
+    ) -> dict[str, float]:
+        period_deg = self._shape_yaw_period_deg()
+        if not np.isfinite(period_deg) or period_deg <= 0.0 or period_deg >= 360.0:
+            return self.set_pose_ik_target_by_planar_yaw_correction(yaw_correction_deg)
+
+        base_correction = float(yaw_correction_deg)
+        if not np.isfinite(base_correction):
+            return self.set_pose_ik_target_by_planar_yaw_correction(base_correction)
+
+        max_wrist_target_abs_rad = float(np.deg2rad(max_wrist_target_abs_deg))
+        if not np.isfinite(max_wrist_target_abs_rad) or max_wrist_target_abs_rad <= 0.0:
+            return self.set_pose_ik_target_by_planar_yaw_correction(base_correction)
+        max_wrist_delta_rad = (
+            None
+            if max_wrist_delta_deg is None
+            else float(np.deg2rad(max_wrist_delta_deg))
+        )
+        max_wrist_target_jump_rad = (
+            None
+            if max_wrist_target_jump_deg is None
+            else float(np.deg2rad(max_wrist_target_jump_deg))
+        )
+        min_wrist_improvement_rad = max(
+            0.0,
+            float(np.deg2rad(min_wrist_improvement_deg)),
+        )
+        max_equivalent_correction_abs = (
+            None
+            if max_equivalent_correction_abs_deg is None
+            else float(max_equivalent_correction_abs_deg)
+        )
+
+        candidate_offsets = np.arange(
+            -int(np.floor(180.0 / period_deg)),
+            int(np.floor(180.0 / period_deg)) + 1,
+            dtype=np.int32,
+        )
+        original_xmat = self.get_pose_ik_target_xmat()
+        current_qpos = self.data.qpos[self.arm_qpos_ids].copy()
+        previous_target_qpos = self.last_joint_target_qpos.copy()
+        if not np.all(np.isfinite(previous_target_qpos)):
+            previous_target_qpos = current_qpos.copy()
+        target_tip_pos = self.last_target_tip_pos.copy()
+        if not np.all(np.isfinite(target_tip_pos)):
+            target_tip_pos = self._site_xpos(self.data, self.peg_tip_site_id)
+
+        candidates: list[tuple[float, dict[str, float], np.ndarray]] = []
+        baseline: tuple[float, dict[str, float], np.ndarray] | None = None
+        for offset in candidate_offsets:
+            candidate_correction = float(base_correction + float(offset) * period_deg)
+            result = self.set_pose_ik_target_by_planar_yaw_correction(
+                candidate_correction
+            )
+            candidate_xmat = self.get_pose_ik_target_xmat()
+            q_target, _, ik_error, _ = self._solve_ik_with_diagnostics(
+                target_tip_pos
+            )
+            wrist_delta = q_target[3:] - current_qpos[3:]
+            wrist_norm = float(np.linalg.norm(wrist_delta))
+            wrist_delta_max = (
+                float(np.max(np.abs(wrist_delta))) if wrist_delta.size else 0.0
+            )
+            wrist_abs_max = (
+                float(np.max(np.abs(q_target[3:]))) if q_target[3:].size else 0.0
+            )
+            wrist_target_jump_max = (
+                float(np.max(np.abs(q_target[3:] - previous_target_qpos[3:])))
+                if q_target[3:].size
+                else 0.0
+            )
+            joint_margin, joint_normalized_margin = self._joint_limit_metrics(q_target)
+            yaw_error = float(
+                result.get("pose_ik_target_shape_yaw_error_deg", float("nan"))
+            )
+            score = (
+                wrist_abs_max
+                + 0.25 * wrist_delta_max
+                + 0.05 * wrist_norm
+                + 20.0 * float(max(ik_error, 0.0))
+                + (0.0 if np.isfinite(yaw_error) else 10.0)
+            )
+            item = (
+                score,
+                {
+                    **result,
+                    "pose_ik_target_equivalent_yaw_correction_deg": candidate_correction,
+                    "pose_ik_target_equivalent_offset": float(offset),
+                    "pose_ik_target_equivalent_wrist_norm_deg": float(
+                        np.rad2deg(wrist_norm)
+                    ),
+                    "pose_ik_target_equivalent_wrist_max_deg": float(
+                        np.rad2deg(wrist_delta_max)
+                    ),
+                    "pose_ik_target_equivalent_wrist_abs_max_deg": float(
+                        np.rad2deg(wrist_abs_max)
+                    ),
+                    "pose_ik_target_equivalent_wrist_target_jump_deg": float(
+                        np.rad2deg(wrist_target_jump_max)
+                    ),
+                    "pose_ik_target_equivalent_ik_error": float(ik_error),
+                    "pose_ik_target_equivalent_joint_margin": float(joint_margin),
+                    "pose_ik_target_equivalent_joint_normalized_margin": float(
+                        joint_normalized_margin
+                    ),
+                },
+                candidate_xmat.copy(),
+            )
+            candidates.append(item)
+            if abs(float(offset)) < 0.5:
+                baseline = item
+
+        if not candidates:
+            self.set_pose_ik_target_xmat(original_xmat)
+            return self.set_pose_ik_target_by_planar_yaw_correction(base_correction)
+
+        if baseline is None:
+            baseline = min(candidates, key=lambda item: item[0])
+        _, baseline_result, baseline_xmat = baseline
+        baseline_ik_error = float(baseline_result["pose_ik_target_equivalent_ik_error"])
+        baseline_margin = float(
+            baseline_result["pose_ik_target_equivalent_joint_normalized_margin"]
+        )
+        baseline_wrist_norm = float(
+            np.deg2rad(baseline_result["pose_ik_target_equivalent_wrist_norm_deg"])
+        )
+        baseline_wrist_abs_max = float(
+            np.deg2rad(baseline_result["pose_ik_target_equivalent_wrist_abs_max_deg"])
+        )
+
+        gated: list[tuple[float, dict[str, float], np.ndarray]] = []
+        for item in candidates:
+            _, result, _ = item
+            candidate_correction = float(
+                result["pose_ik_target_equivalent_yaw_correction_deg"]
+            )
+            wrist_norm = float(
+                np.deg2rad(result["pose_ik_target_equivalent_wrist_norm_deg"])
+            )
+            wrist_delta_max = float(
+                np.deg2rad(result["pose_ik_target_equivalent_wrist_max_deg"])
+            )
+            ik_error = float(result["pose_ik_target_equivalent_ik_error"])
+            normalized_margin = float(
+                result["pose_ik_target_equivalent_joint_normalized_margin"]
+            )
+            wrist_abs_max = float(
+                np.deg2rad(result["pose_ik_target_equivalent_wrist_abs_max_deg"])
+            )
+            wrist_target_jump_max = float(
+                np.deg2rad(
+                    result["pose_ik_target_equivalent_wrist_target_jump_deg"]
+                )
+            )
+            offset = float(result["pose_ik_target_equivalent_offset"])
+            ik_ok = ik_error <= max(0.008, baseline_ik_error + ik_error_slack)
+            margin_ok = normalized_margin >= max(0.01, baseline_margin - joint_margin_slack)
+            wrist_ok = wrist_abs_max <= max_wrist_target_abs_rad
+            delta_ok = bool(
+                max_wrist_delta_rad is None
+                or wrist_delta_max <= max_wrist_delta_rad
+            )
+            target_jump_ok = bool(
+                max_wrist_target_jump_rad is None
+                or wrist_target_jump_max <= max_wrist_target_jump_rad
+            )
+            correction_ok = bool(
+                max_equivalent_correction_abs is None
+                or abs(candidate_correction) <= max_equivalent_correction_abs
+            )
+            improvement_ok = bool(
+                abs(offset) < 0.5
+                or min_wrist_improvement_rad <= 0.0
+                or wrist_norm
+                <= max(np.deg2rad(2.0), baseline_wrist_norm - min_wrist_improvement_rad)
+                or wrist_abs_max
+                <= max(
+                    np.deg2rad(2.0),
+                    baseline_wrist_abs_max - min_wrist_improvement_rad,
+                )
+            )
+            if (
+                ik_ok
+                and margin_ok
+                and wrist_ok
+                and delta_ok
+                and target_jump_ok
+                and correction_ok
+                and improvement_ok
+            ):
+                gated.append(item)
+
+        if gated:
+            best_score, best, best_xmat = min(gated, key=lambda item: item[0])
+        else:
+            best_score, best, best_xmat = baseline
+            best = {
+                **best,
+                "pose_ik_target_equivalent_fallback_to_baseline": 1.0,
+                "pose_ik_target_equivalent_wrist_limit_rejected": 1.0,
+            }
+
+        self.set_pose_ik_target_xmat(best_xmat)
+        return {**best, "pose_ik_target_equivalent_score": float(best_score)}
+
+    def _pose_ik_target_xmat_from_planar_x_axis(
+        self,
+        target_x_axis: np.ndarray,
+    ) -> np.ndarray | None:
+        target_x_axis = np.asarray(target_x_axis, dtype=np.float64).reshape(3)
+        target_z_axis = self.default_pose_ik_target_xmat[:, 2].copy()
+        target_z_norm = float(np.linalg.norm(target_z_axis))
+        if target_z_norm <= 1e-9:
+            target_z_axis = np.asarray([0.0, 0.0, 1.0], dtype=np.float64)
+        else:
+            target_z_axis = target_z_axis / target_z_norm
+
+        target_x_axis = target_x_axis - target_z_axis * float(
+            np.dot(target_x_axis, target_z_axis)
+        )
+        target_x_norm = float(np.linalg.norm(target_x_axis))
+        if target_x_norm <= 1e-9:
+            return None
+        target_x_axis = target_x_axis / target_x_norm
+        target_y_axis = np.cross(target_z_axis, target_x_axis)
+        target_y_norm = float(np.linalg.norm(target_y_axis))
+        if target_y_norm <= 1e-9:
+            return None
+        target_y_axis = target_y_axis / target_y_norm
+        return np.column_stack((target_x_axis, target_y_axis, target_z_axis))
+
+    def set_pose_ik_target_to_nearest_shape_hole_yaw(
+        self,
+        *,
+        max_wrist_target_abs_deg: float | None = None,
+        max_wrist_delta_deg: float | None = None,
+        max_wrist_target_jump_deg: float | None = None,
+        max_wrist_target_delta_from_rest_deg: float | None = None,
+        ik_error_slack: float = 0.004,
+        joint_margin_slack: float = 0.04,
+    ) -> dict[str, float]:
+        period_deg = self._shape_yaw_period_deg()
+        if not np.isfinite(period_deg) or period_deg <= 0.0:
+            self.reset_pose_ik_target_xmat()
+            return {
+                "pose_ik_target_raw_yaw_deg": float("nan"),
+                "pose_ik_target_shape_yaw_error_deg": float("nan"),
+            }
+
+        symmetry_order = max(1, int(round(360.0 / period_deg)))
+        if not np.isclose(symmetry_order * period_deg, 360.0, atol=1e-4):
+            symmetry_order = max(1, int(np.floor(360.0 / period_deg)))
+
+        hole_xmat = self._body_xmat(self.data, self.hole_body_id)
+        current_xmat = self._site_xmat(self.data, self.peg_tip_site_id)
+        hole_x_xy = self._project_unit_xy(
+            hole_xmat @ np.asarray([1.0, 0.0, 0.0], dtype=np.float64)
+        )
+        current_x_xy = self._project_unit_xy(
+            current_xmat @ np.asarray([1.0, 0.0, 0.0], dtype=np.float64)
+        )
+        if hole_x_xy is None or current_x_xy is None:
+            self.reset_pose_ik_target_xmat()
+            return {
+                "pose_ik_target_raw_yaw_deg": float("nan"),
+                "pose_ik_target_shape_yaw_error_deg": float("nan"),
+            }
+
+        original_xmat = self.get_pose_ik_target_xmat()
+        current_qpos = self.data.qpos[self.arm_qpos_ids].copy()
+        previous_target_qpos = self.last_joint_target_qpos.copy()
+        if not np.all(np.isfinite(previous_target_qpos)):
+            previous_target_qpos = current_qpos.copy()
+        target_tip_pos = self.last_target_tip_pos.copy()
+        if not np.all(np.isfinite(target_tip_pos)):
+            target_tip_pos = self._site_xpos(self.data, self.peg_tip_site_id)
+
+        max_wrist_target_abs_rad = (
+            None
+            if max_wrist_target_abs_deg is None
+            else float(np.deg2rad(max_wrist_target_abs_deg))
+        )
+        max_wrist_delta_rad = (
+            None
+            if max_wrist_delta_deg is None
+            else float(np.deg2rad(max_wrist_delta_deg))
+        )
+        max_wrist_target_jump_rad = (
+            None
+            if max_wrist_target_jump_deg is None
+            else float(np.deg2rad(max_wrist_target_jump_deg))
+        )
+        max_wrist_target_delta_from_rest_rad = (
+            None
+            if max_wrist_target_delta_from_rest_deg is None
+            else float(np.deg2rad(max_wrist_target_delta_from_rest_deg))
+        )
+
+        candidates: list[tuple[float, dict[str, float], np.ndarray]] = []
+        baseline: tuple[float, dict[str, float], np.ndarray] | None = None
+        best_current_alignment = -float("inf")
+        for offset in range(symmetry_order):
+            yaw_deg = float(offset) * float(period_deg)
+            yaw_rad = float(np.deg2rad(yaw_deg))
+            c, s = float(np.cos(yaw_rad)), float(np.sin(yaw_rad))
+            candidate_x_xy = np.asarray(
+                [
+                    c * hole_x_xy[0] - s * hole_x_xy[1],
+                    s * hole_x_xy[0] + c * hole_x_xy[1],
+                    0.0,
+                ],
+                dtype=np.float64,
+            )
+            target_xmat = self._pose_ik_target_xmat_from_planar_x_axis(
+                candidate_x_xy
+            )
+            if target_xmat is None:
+                continue
+
+            self.set_pose_ik_target_xmat(target_xmat)
+            q_target, _, ik_error, _ = self._solve_ik_with_diagnostics(
+                target_tip_pos
+            )
+            q_target = self._nearest_wrist_target_equivalent(q_target, current_qpos)
+            wrist_delta = q_target[3:] - current_qpos[3:]
+            wrist_norm = float(np.linalg.norm(wrist_delta))
+            wrist_delta_max = (
+                float(np.max(np.abs(wrist_delta))) if wrist_delta.size else 0.0
+            )
+            wrist_abs_max = (
+                float(np.max(np.abs(q_target[3:]))) if q_target[3:].size else 0.0
+            )
+            wrist_target_jump_max = (
+                float(np.max(np.abs(q_target[3:] - previous_target_qpos[3:])))
+                if q_target[3:].size
+                else 0.0
+            )
+            wrist_rest_delta_max = (
+                float(np.max(np.abs(q_target[3:] - self.rest_qpos[3:])))
+                if q_target[3:].size
+                else 0.0
+            )
+            joint_margin, joint_normalized_margin = self._joint_limit_metrics(q_target)
+            raw_yaw_deg, yaw_error_deg = self._shape_yaw_metrics_for_xmat(target_xmat)
+            current_alignment = float(np.dot(current_x_xy, candidate_x_xy))
+            target_delta_deg = self._signed_planar_angle_deg(
+                current_x_xy,
+                candidate_x_xy,
+            )
+            score = (
+                0.20 * wrist_abs_max
+                + 0.80 * wrist_delta_max
+                + 0.20 * wrist_norm
+                + 0.90 * wrist_target_jump_max
+                + 0.45 * wrist_rest_delta_max
+                + 0.04 * abs(float(np.deg2rad(target_delta_deg)))
+                + 20.0 * float(max(ik_error, 0.0))
+                - 0.05 * float(joint_normalized_margin)
+            )
+            result = {
+                "pose_ik_target_raw_yaw_deg": float(raw_yaw_deg),
+                "pose_ik_target_shape_yaw_error_deg": float(yaw_error_deg),
+                "pose_ik_target_yaw_correction_deg": float(target_delta_deg),
+                "pose_ik_target_equivalent_yaw_correction_deg": float(
+                    target_delta_deg
+                ),
+                "pose_ik_target_equivalent_offset": float(offset),
+                "pose_ik_target_equivalent_wrist_norm_deg": float(
+                    np.rad2deg(wrist_norm)
+                ),
+                "pose_ik_target_equivalent_wrist_max_deg": float(
+                    np.rad2deg(wrist_delta_max)
+                ),
+                "pose_ik_target_equivalent_wrist_abs_max_deg": float(
+                    np.rad2deg(wrist_abs_max)
+                ),
+                "pose_ik_target_equivalent_wrist_target_jump_deg": float(
+                    np.rad2deg(wrist_target_jump_max)
+                ),
+                "pose_ik_target_equivalent_wrist_rest_delta_deg": float(
+                    np.rad2deg(wrist_rest_delta_max)
+                ),
+                "pose_ik_target_equivalent_ik_error": float(ik_error),
+                "pose_ik_target_equivalent_joint_margin": float(joint_margin),
+                "pose_ik_target_equivalent_joint_normalized_margin": float(
+                    joint_normalized_margin
+                ),
+                "pose_ik_target_absolute_shape_target": 1.0,
+            }
+            item = (float(score), result, target_xmat.copy())
+            candidates.append(item)
+            if current_alignment > best_current_alignment:
+                best_current_alignment = current_alignment
+                baseline = item
+
+        if not candidates:
+            self.set_pose_ik_target_xmat(original_xmat)
+            return {
+                "pose_ik_target_raw_yaw_deg": float("nan"),
+                "pose_ik_target_shape_yaw_error_deg": float("nan"),
+                "pose_ik_target_equivalent_fallback_to_baseline": 1.0,
+            }
+
+        if baseline is None:
+            baseline = min(candidates, key=lambda item: item[0])
+        _, baseline_result, _ = baseline
+        baseline_ik_error = float(baseline_result["pose_ik_target_equivalent_ik_error"])
+        baseline_margin = float(
+            baseline_result["pose_ik_target_equivalent_joint_normalized_margin"]
+        )
+
+        gated: list[tuple[float, dict[str, float], np.ndarray]] = []
+        for item in candidates:
+            _, result, _ = item
+            ik_error = float(result["pose_ik_target_equivalent_ik_error"])
+            normalized_margin = float(
+                result["pose_ik_target_equivalent_joint_normalized_margin"]
+            )
+            wrist_abs_max = float(
+                np.deg2rad(result["pose_ik_target_equivalent_wrist_abs_max_deg"])
+            )
+            wrist_delta_max = float(
+                np.deg2rad(result["pose_ik_target_equivalent_wrist_max_deg"])
+            )
+            wrist_target_jump_max = float(
+                np.deg2rad(
+                    result["pose_ik_target_equivalent_wrist_target_jump_deg"]
+                )
+            )
+            wrist_rest_delta_max = float(
+                np.deg2rad(result["pose_ik_target_equivalent_wrist_rest_delta_deg"])
+            )
+            ik_ok = ik_error <= max(0.008, baseline_ik_error + ik_error_slack)
+            margin_ok = normalized_margin >= max(0.01, baseline_margin - joint_margin_slack)
+            wrist_abs_ok = bool(
+                max_wrist_target_abs_rad is None
+                or wrist_abs_max <= max_wrist_target_abs_rad
+            )
+            wrist_delta_ok = bool(
+                max_wrist_delta_rad is None
+                or wrist_delta_max <= max_wrist_delta_rad
+            )
+            target_jump_ok = bool(
+                max_wrist_target_jump_rad is None
+                or wrist_target_jump_max <= max_wrist_target_jump_rad
+            )
+            rest_delta_ok = bool(
+                max_wrist_target_delta_from_rest_rad is None
+                or wrist_rest_delta_max <= max_wrist_target_delta_from_rest_rad
+            )
+            if (
+                ik_ok
+                and margin_ok
+                and wrist_abs_ok
+                and wrist_delta_ok
+                and target_jump_ok
+                and rest_delta_ok
+            ):
+                gated.append(item)
+
+        if gated:
+            best_score, best, best_xmat = min(gated, key=lambda item: item[0])
+            self.set_pose_ik_target_xmat(best_xmat)
+            return {**best, "pose_ik_target_equivalent_score": float(best_score)}
+
+        baseline_score, best, _ = baseline
+        self.set_pose_ik_target_xmat(original_xmat)
+        return {
+            **best,
+            "pose_ik_target_equivalent_score": float(baseline_score),
+            "pose_ik_target_equivalent_fallback_to_baseline": 1.0,
+            "pose_ik_target_equivalent_wrist_limit_rejected": 1.0,
+            "pose_ik_target_absolute_shape_target_rejected": 1.0,
         }
 
     def set_pose_ik_target_to_nearest_square_hole_yaw(self) -> dict[str, float]:
@@ -3182,6 +4089,10 @@ class PegInHoleMujocoEnv(gym.Env):
         data.mocap_quat[:] = self.data.mocap_quat
 
         q = data.qpos[self.arm_qpos_ids].copy()
+        q_reference = q.copy()
+        continuity_weights = self._ik_continuity_weights()
+        wrist_posture_weights = self._ik_wrist_posture_weights()
+        wrist_anchor_qpos = self._ik_wrist_anchor_full_qpos()
         ik_dof_ids = self.arm_dof_ids
         lower = self.joint_ranges[:, 0]
         upper = self.joint_ranges[:, 1]
@@ -3224,6 +4135,17 @@ class PegInHoleMujocoEnv(gym.Env):
             if self.ik_posture_weight > 0.0:
                 lhs += self.ik_posture_weight * np.eye(len(ik_dof_ids), dtype=np.float64)
                 rhs += self.ik_posture_weight * (self.rest_qpos - q)
+            if np.any(wrist_posture_weights > 0.0):
+                lhs += np.diag(wrist_posture_weights)
+                rhs += wrist_posture_weights * (self.rest_qpos - q)
+            if wrist_anchor_qpos is not None:
+                wrist_anchor_weights = np.zeros_like(q)
+                wrist_anchor_weights[3:] = self.ik_wrist_anchor_weight
+                lhs += np.diag(wrist_anchor_weights)
+                rhs += wrist_anchor_weights * (wrist_anchor_qpos - q)
+            if np.any(continuity_weights > 0.0):
+                lhs += np.diag(continuity_weights)
+                rhs += continuity_weights * (q_reference - q)
 
             try:
                 dq = np.linalg.solve(lhs, rhs)
@@ -3249,6 +4171,10 @@ class PegInHoleMujocoEnv(gym.Env):
         data.mocap_quat[:] = self.data.mocap_quat
 
         q = data.qpos[self.arm_qpos_ids].copy()
+        q_reference = q.copy()
+        continuity_weights = self._ik_continuity_weights()
+        wrist_posture_weights = self._ik_wrist_posture_weights()
+        wrist_anchor_qpos = self._ik_wrist_anchor_full_qpos()
         ik_dof_ids = self.arm_dof_ids
         lower = self.joint_ranges[:, 0]
         upper = self.joint_ranges[:, 1]
@@ -3309,8 +4235,18 @@ class PegInHoleMujocoEnv(gym.Env):
                     * nullspace
                     @ (self.rest_qpos - q)
                 )
+            if np.any(wrist_posture_weights > 0.0):
+                dq_posture += nullspace @ (wrist_posture_weights * (self.rest_qpos - q))
+            if wrist_anchor_qpos is not None:
+                wrist_anchor_weights = np.zeros_like(q)
+                wrist_anchor_weights[3:] = self.ik_wrist_anchor_weight
+                dq_posture += nullspace @ (wrist_anchor_weights * (wrist_anchor_qpos - q))
 
-            dq = dq_pos + dq_rot + dq_posture
+            dq_continuity = np.zeros_like(q)
+            if np.any(continuity_weights > 0.0):
+                dq_continuity = nullspace @ (continuity_weights * (q_reference - q))
+
+            dq = dq_pos + dq_rot + dq_posture + dq_continuity
             dq = np.clip(dq, -self.ik_step_limit, self.ik_step_limit)
             q = np.clip(q + dq, lower, upper)
 
@@ -3683,6 +4619,21 @@ class PegInHoleMujocoEnv(gym.Env):
             "ik_iterations": self.last_ik_iterations,
             "ik_control_mode": self.ik_control_mode,
             "ik_orientation_weight": self.ik_orientation_weight,
+            "ik_posture_weight": self.ik_posture_weight,
+            "ik_wrist_posture_weight": self.ik_wrist_posture_weight,
+            "ik_wrist_anchor_weight": self.ik_wrist_anchor_weight,
+            "ik_wrist_anchor_active": bool(self.ik_wrist_anchor_qpos is not None),
+            "ik_continuity_weight": self.ik_continuity_weight,
+            "ik_wrist_continuity_weight": self.ik_wrist_continuity_weight,
+            "ik_max_wrist_target_delta_deg": (
+                np.nan
+                if self.ik_max_wrist_target_delta_rad is None
+                else float(np.rad2deg(self.ik_max_wrist_target_delta_rad))
+            ),
+            "ik_nearest_wrist_target_equivalent": bool(
+                self.ik_nearest_wrist_target_equivalent
+            ),
+            "ik_wrist_target_clipped": self.last_ik_wrist_target_clipped,
             "ik_joint_count": self.ik_joint_count,
             "peg_axis_world": peg_axis_world.astype(np.float32),
             "peg_tilt_angle_deg": peg_tilt_angle_deg,
@@ -3736,6 +4687,7 @@ class PegInHoleMujocoEnv(gym.Env):
             "initial_tip_target": self.current_initial_tip_target.astype(np.float32),
             "initial_ik_error": self.current_initial_ik_error,
             "initial_ik_attempts": self.current_initial_ik_attempts,
+            "initial_shape_yaw_error_deg": self.current_initial_shape_yaw_error_deg,
             "near_hole_crop_size": self.near_hole_crop_size,
             "near_hole_crop_source_size": self.current_near_hole_crop_source_size,
             "near_hole_crop_source_size_range": (

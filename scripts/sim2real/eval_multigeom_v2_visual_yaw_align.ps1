@@ -3,8 +3,11 @@ param(
     [int[]]$Seeds = @(906500),
     [int]$Episodes = 5,
     [string]$Model = "",
-    [string]$Config = "configs\sim2real\multigeom_v2_true_fixture_tight_yaw_visual_yaw_align_eval.yaml",
-    [string]$ResultDir = "results\sim2real_multigeom_v2_visual_yaw_align"
+    [string]$Config = "",
+    [string]$ResultDir = "results\sim2real_multigeom_v2_visual_yaw_align",
+    [switch]$NoTriangleWristProtocol,
+    [switch]$NoTriangleProtocolYawOverrides,
+    [string[]]$ExtraArgs = @()
 )
 
 & "$PSScriptRoot\eval_multigeom_v2_true_fixture_tight_yaw_visual_yaw_align.ps1" `
@@ -13,4 +16,7 @@ param(
     -Episodes $Episodes `
     -Model $Model `
     -Config $Config `
-    -ResultDir $ResultDir
+    -ResultDir $ResultDir `
+    -NoTriangleWristProtocol:$NoTriangleWristProtocol `
+    -NoTriangleProtocolYawOverrides:$NoTriangleProtocolYawOverrides `
+    -ExtraArgs $ExtraArgs

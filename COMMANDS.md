@@ -168,6 +168,57 @@ SIM2REAL_MULTIGEOM_V2_VISUAL_YAW_ALIGN.md
 .\scripts\sim2real\demo_multigeom_v2_visual_yaw_align.ps1
 ```
 
+
+Current per-shape visual-yaw runtime defaults:
+
+```powershell
+# Square stable v148/v149 stack gate/demo
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 -Profile square_square -Seeds @(906500) -Episodes 5 -ResultDir results\square_default_wrapper_verify_5ep
+.\scripts\sim2real\demo_multigeom_v2_visual_yaw_align.ps1 -Profile square_square -Seed 906500 -ResultDir results\square_v148_demos
+
+# Triangle wrist-safe v3 gate/demo
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 -Profile triangle_triangle -Seeds @(906500) -Episodes 20 -ResultDir results\triangle_wrist_safe_v3_quick_check
+.\scripts\sim2real\demo_multigeom_v2_visual_yaw_align.ps1 -Profile triangle_triangle -Seed 906504 -ResultDir results\triangle_wrist_safe_v3_demos
+
+# Hex early-approach/descent gate/demo
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 -Profile hex_hex -Seeds @(906500) -Episodes 20 -ResultDir results\hex_early_approach_descent_quick_check
+.\scripts\sim2real\demo_multigeom_v2_visual_yaw_align.ps1 -Profile hex_hex -Seed 906500 -ResultDir results\hex_early_approach_descent_demos
+
+# Rectangular-key post-yaw reapproach gate/demo
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 -Profile rectangular_key -Seeds @(906500) -Episodes 20 -ResultDir results\rectangular_key_early_approach_post_yaw_reapproach_v1_20ep_seed906500
+.\scripts\sim2real\demo_multigeom_v2_visual_yaw_align.ps1 -Profile rectangular_key -Seed 906500 -ResultDir results\rectangular_key_post_yaw_reapproach_demos
+# Rectangular-key current best: v3 controller + estimator v2 + relaxed raw-norm
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Profile rectangular_key `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_local_hold_stronger_brake_early_approach_post_yaw_reapproach_low_z_verifier_v3_estimator_v2_relaxed_rawnorm_v1_eval.yaml `
+  -Seeds @(906500,907500,908500,909500,910500,911500) `
+  -Episodes 5 `
+  -ResultDir results
+ectangular_key_low_z_verifier_v3_estimator_v2_relaxed_rawnorm_v1_6seed_5ep
+.\scripts\sim2real\demo_multigeom_v2_visual_yaw_align.ps1 -Profile rectangular_key -Seed 911504 -ResultDir results
+ectangular_key_v3_estimator_v2_relaxed_demos
+
+```
+
+Latest validated gates: square v148/v149 historical `720/720`, collision `0/720`, timeout `0/720`; triangle wrist-safe v3 `116/120`, collision `0/120`, timeout `4/120`, no wrist-span outliers above `180 deg`; hex early-approach/descent `120/120`, collision `0/120`, timeout `0/120`; rectangular-key post-yaw reapproach v1 seed `906500` `20/20`, collision `0/20`, timeout `0/20` after the previous stronger-brake broad gate `112/120`. Current after-routing wrapper smoke gate: `results\visual_yaw_align_post_yaw_reapproach_default_20ep`, four profiles x 20 episodes = `80/80`, collision `0/80`, timeout `0/80`. Broader rectangular-key gate: `results\rectangular_key_post_yaw_reapproach_v1_6seed_5ep`, `29/30`, collision `1/30`, timeout `0/30`; this is the current promotion blocker. This is per-shape runtime routing, not one unified config.
+
+Rectangular-key broader gate and false-small analysis:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Profile rectangular_key `
+  -Seeds @(906500,907500,908500,909500,910500,911500) `
+  -Episodes 5 `
+  -ResultDir results\rectangular_key_post_yaw_reapproach_v1_6seed_5ep
+
+python scripts\analyze_visual_yaw_false_small.py `
+  results\rectangular_key_post_yaw_reapproach_v1_6seed_5ep `
+  --output-dir results\rectangular_key_post_yaw_reapproach_v1_6seed_5ep\false_small_analysis
+```
+
+Known rectangular-key diagnostics: `post_yaw_reapproach_hold_descent_v1` and
+`post_yaw_reapproach_low_z_zgate_v1` are rejected for now; both converted the
+seed `909502` collision into a timeout without recovering the episode.
 Visual yaw-label dataset collection, with peg-tip debug highlights disabled:
 
 ```powershell
@@ -355,6 +406,157 @@ re-acquire-descent disabled for now. Summary files:
 
 Residual split: `8/8` remaining high-yaw-only failures finish above
 `150 deg`; do not broaden generic descent thresholds from this result.
+
+Centered high-yaw crop15 diagnostic:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_reacquire_centered_high_yaw_eval.yaml `
+  -Profile rectangular_key `
+  -Episodes 20 `
+  -Seeds 908500,911500 `
+  -ResultDir results\vy_low_z_crop_high_centered_high_yaw_reacquire_seed908500_911500_40ep_crop15
+```
+
+Same-seed comparison:
+
+- high-yaw-only recheck: `38/40`, collision `0/40`, timeout `2/40`
+- centered crop15 candidate: `37/40`, collision `0/40`, timeout `3/40`
+
+This candidate rescues isolated singleton `911513`, but the batched sequence
+regresses, so keep it diagnostic-only.
+
+Centered high-yaw local reapply latch candidate:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_reapply_eval.yaml `
+  -Profile rectangular_key `
+  -Episodes 1 `
+  -Seeds 911513 `
+  -ResultDir results\vy_low_z_crop_high_centered_high_yaw_reapply_seed911513_latch80
+
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_reapply_eval.yaml `
+  -Profile rectangular_key `
+  -Episodes 20 `
+  -Seeds 908500,911500 `
+  -ResultDir results\vy_low_z_crop_high_centered_high_yaw_reapply_seed908500_911500_40ep
+
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_reapply_eval.yaml `
+  -Profile rectangular_key `
+  -Episodes 20 `
+  -Seeds 906500,907500,908500,909500,910500,911500 `
+  -ResultDir results\vy_low_z_crop_high_centered_high_yaw_reapply_seed906500_911500_120ep
+```
+
+Current focused result:
+
+- singleton `911513`: `1/1`, collision `0`, final yaw error `0.59 deg`
+- same-seed gate `908500,911500`: `38/40`, collision `0/40`, timeout `2/40`
+- full six-seed gate: `112/120`, collision `0/120`, timeout `8/120`
+- status: diagnostic-only; it rescues `911513` but does not improve the
+  high-yaw-only headline. It fixes high-yaw-only failures `908503` and
+  `911513`, but adds `910512` and `911517`.
+
+Centered high-yaw target-reset reapply diagnostic:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_reapply_reset_eval.yaml `
+  -Profile rectangular_key `
+  -Episodes 20 `
+  -Seeds 906500,907500,908500,909500,910500,911500 `
+  -ResultDir results\vy_low_z_crop_high_centered_high_yaw_reapply_reset_seed906500_911500_120ep
+```
+
+Result: `110/120`, collision `0/120`, timeout `10/120`; diagnostic-only.
+Report:
+`results\visual_yaw_low_z_crop_high_centered_reapply_reset_diagnostic.md`.
+
+Centered high-yaw local hold diagnostic:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_local_hold_eval.yaml `
+  -Profile rectangular_key `
+  -Episodes 20 `
+  -Seeds 908500,911500 `
+  -ResultDir results\vy_low_z_crop_high_centered_high_yaw_local_hold_seed908500_911500_40ep
+
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_local_hold_eval.yaml `
+  -Profile rectangular_key `
+  -Episodes 20 `
+  -Seeds 906500,907500,908500,909500,910500,911500 `
+  -ResultDir results\vy_low_z_crop_high_centered_high_yaw_local_hold_seed906500_911500_120ep
+```
+
+Results:
+
+- focused `908500,911500`: `39/40`, collision `0/40`, timeout `1/40`
+- full six-seed gate: `111/120`, collision `1/120`, timeout `8/120`
+- status: diagnostic-only; useful near-hole yaw-hold evidence, but not a
+  promotion over high-yaw-only `112/120`, collision `0/120`, timeout `8/120`
+- report: `results\visual_yaw_low_z_crop_high_centered_local_hold_diagnostic.md`
+
+Centered local hold plus stronger large-XY/low-Z brake diagnostic:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_local_hold_stronger_brake_eval.yaml `
+  -Profile rectangular_key `
+  -Episodes 20 `
+  -Seeds 906500,907500,908500,909500,910500,911500 `
+  -ResultDir results\vy_low_z_crop_high_centered_high_yaw_local_hold_stronger_brake_seed906500_911500_120ep
+```
+
+Results:
+
+- full six-seed gate: `112/120`, collision `0/120`, timeout `8/120`
+- seed split: `906500 18/20`, `907500 20/20`, `908500 20/20`,
+  `909500 18/20`, `910500 18/20`, `911500 18/20`
+- status: safer current-code candidate; it ties the historical high-yaw-only
+  headline but fixes the two collisions seen in the current-code high-yaw-only
+  rerun (`109/120`, collision `2/120`, timeout `9/120`)
+- failure split: `7` timeout_wrong_yaw_basin, `1` timeout_yaw_not_aligned,
+  collision `0`
+- reports:
+  `results\visual_yaw_low_z_crop_high_centered_local_hold_stronger_brake_diagnostic.md`
+  and
+  `results\visual_yaw_low_z_crop_high_centered_local_hold_stronger_brake_failure_analysis.md`
+
+Approach-adapter extension diagnostics on known stronger-brake failures:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_local_hold_stronger_brake_adapter_long_eval.yaml `
+  -Profile rectangular_key `
+  -Episodes 1 `
+  -Seeds 906508,906510,909502,909513,910512,910513,911504,911517 `
+  -ResultDir results\vy_low_z_crop_high_centered_high_yaw_local_hold_stronger_brake_adapter_long_known_failures_8ep
+
+python scripts\analyze_key_yaw_failure_modes.py `
+  --run adapter_long=results\vy_low_z_crop_high_centered_high_yaw_local_hold_stronger_brake_adapter_long_known_failures_8ep `
+  --output-md results\visual_yaw_low_z_crop_high_adapter_long_known_failures_analysis.md `
+  --output-csv results\visual_yaw_low_z_crop_high_adapter_long_known_failures_analysis.csv
+
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_local_hold_stronger_brake_adapter_longer_eval.yaml `
+  -Profile rectangular_key `
+  -Episodes 1 `
+  -Seeds 906508,909513,910513,911504 `
+  -ResultDir results\vy_low_z_crop_high_centered_high_yaw_local_hold_stronger_brake_adapter_longer_remaining_failures_4ep
+```
+
+Results:
+
+- `adapter_long`: `2/8`, collision `0/8`, timeout `6/8`; rescues `906510` and
+  `910512`
+- `adapter_longer`: `0/4`, collision `0/4`, timeout `4/4`
+- status: rejected as a pure duration/cap fix; next work should be high-Z/far-XY
+  approach recovery or approach-adapter retraining
 
 Key yaw-sensitive success-gate checks:
 
@@ -10286,3 +10488,942 @@ python scripts\analyze_key_yaw_failure_modes.py `
 Result: smoke `2/3`, collision `0`; same-seed 40ep `34/40`, collision `0`,
 timeout `6`. This ties gated narrow re-acquire but is below the visible-brake
 baseline `35/40`, so do not promote.
+
+## z190 Rectangular-Key Safety Diagnostics
+
+Always run these through the wrapper with `-Profile rectangular_key`. Direct
+Python eval defaults can silently fall back to `mixed_same_shape` unless
+`--geometry-profile rectangular_key` is supplied.
+
+```powershell
+$Model = "D:\peg-in-hole-6yh\mujoco_peg_in_hole\checkpoints\ur5e_full\high_start\hard\correction\sac_image_bc_wrist_pose_control_state_insert_drift_2k_w10_e1.zip"
+
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_local_hold_stronger_brake_early_approach_adapter_long_z190_pop_safety1_eval.yaml `
+  -Profile rectangular_key `
+  -Episodes 20 `
+  -Seeds 909500 `
+  -Model $Model `
+  -ResultDir results\vy_low_z_crop_high_centered_high_yaw_local_hold_stronger_brake_early_approach_adapter_long_z190_pop_safety1_rectkey_seed909500_20ep
+
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_local_hold_stronger_brake_early_approach_adapter_long_z190_pop_safety1_lowz2_eval.yaml `
+  -Profile rectangular_key `
+  -Episodes 20 `
+  -Seeds 909500 `
+  -Model $Model `
+  -ResultDir results\vy_low_z_crop_high_centered_high_yaw_local_hold_stronger_brake_early_approach_adapter_long_z190_pop_safety1_lowz2_rectkey_seed909500_20ep_repeat
+```
+
+Deterministic repeatability audit, direct Python:
+
+```powershell
+python scripts\eval_guarded_policy.py `
+  --config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_local_hold_stronger_brake_early_approach_adapter_long_z190_pop_safety1_lowz2_eval.yaml `
+  --model $Model `
+  --geometry-profile rectangular_key `
+  --episodes 20 `
+  --seed 909500 `
+  --deterministic-eval `
+  --output-csv results\vy_low_z_crop_high_centered_high_yaw_local_hold_stronger_brake_early_approach_adapter_long_z190_pop_safety1_lowz2_rectkey_seed909500_20ep_det\visual_yaw_align_rectangular_key_20ep_seed909500.csv `
+  --output-md results\vy_low_z_crop_high_centered_high_yaw_local_hold_stronger_brake_early_approach_adapter_long_z190_pop_safety1_lowz2_rectkey_seed909500_20ep_det\visual_yaw_align_rectangular_key_20ep_seed909500.md `
+  --episode-output-csv results\vy_low_z_crop_high_centered_high_yaw_local_hold_stronger_brake_early_approach_adapter_long_z190_pop_safety1_lowz2_rectkey_seed909500_20ep_det\visual_yaw_align_rectangular_key_20ep_seed909500_episodes.csv `
+  --step-output-csv results\vy_low_z_crop_high_centered_high_yaw_local_hold_stronger_brake_early_approach_adapter_long_z190_pop_safety1_lowz2_rectkey_seed909500_20ep_det\visual_yaw_align_rectangular_key_20ep_seed909500_steps.csv `
+  --step-trace-outcome-filter any
+```
+
+Rejected z190 follow-up configs:
+
+- `configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_local_hold_stronger_brake_early_approach_adapter_long_z190_key_safety1_eval.yaml`
+- `configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_local_hold_stronger_brake_early_approach_adapter_long_z190_pop_safety1_lowz2_eval.yaml`
+- `configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_local_hold_stronger_brake_early_approach_adapter_long_z190_pop_safety1_early_pop1_eval.yaml`
+- `configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_local_hold_stronger_brake_early_approach_adapter_long_z190_pop_safety1_hold_brake1_eval.yaml`
+- `configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_local_hold_stronger_brake_early_approach_adapter_long_z190_pop_safety1_no_reacq_descent1_eval.yaml`
+
+Do not promote these. The next diagnostic should target `align_hover` low-Z
+descent limiting, not broader low-Z pop/brake parameters.
+
+## Visual-Yaw Alignment Demo GIF
+
+Use this when you want to see the wrist rotate the rectangular-key peg into
+yaw alignment before insertion. This wrapper runs the eval-backed visual-yaw
+stack, not the simpler true-fixture rendering-only demo.
+
+```powershell
+.\scripts\sim2real\demo_multigeom_v2_visual_yaw_align.ps1 `
+  -Profile rectangular_key `
+  -Seed 907500 `
+  -ResultDir results\sim2real_multigeom_v2_visual_yaw_align_eval_demo
+```
+
+Generated files:
+
+- `demo_rectangular_key_seed907500.gif`: 2x2 layout with `overview`,
+  `wrist_cam`, `cam_image`, and `near_hole_crop`.
+- `demo_rectangular_key_seed907500.trace.csv`: per-step visual yaw trace.
+- `demo_rectangular_key_seed907500.summary.md`: config and outcome summary.
+
+Smoke result on 2026-06-28:
+
+- `seed=907500`, `rectangular_key`: success `1/1`, collision `0`.
+- Visual yaw was active for `137` trace rows.
+- Predicted yaw went from about `172 deg` to about `1 deg`; final true
+  `shape_yaw_error_deg` was about `0.32 deg`, so yaw-gated success passed.
+
+Multi-shape alignment demo regeneration:
+
+```powershell
+.\scripts\sim2real\demo_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_multishape_eval_demo.yaml `
+  -Profile rectangular_key `
+  -Seed 907500 `
+  -ResultDir results\sim2real_multigeom_v2_visual_yaw_align_multishape_demo
+
+.\scripts\sim2real\demo_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_multishape_eval_demo.yaml `
+  -Profile triangle_triangle `
+  -Seed 910500 `
+  -ResultDir results\sim2real_multigeom_v2_visual_yaw_align_multishape_demo
+
+.\scripts\sim2real\demo_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_multishape_eval_demo.yaml `
+  -Profile hex_hex `
+  -Seed 907000 `
+  -ResultDir results\sim2real_multigeom_v2_visual_yaw_align_multishape_demo
+
+.\scripts\sim2real\demo_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim\ur5e_full\eval_multi_geometry_v148_square_pose_yaw_align_w020_60ep.yaml `
+  -Profile square_square `
+  -Seed 906500 `
+  -Output results\sim2real_multigeom_v2_visual_yaw_align_multishape_demo\demo_square_square_pose_yaw_seed906500.gif `
+  -ResultDir results\sim2real_multigeom_v2_visual_yaw_align_multishape_demo
+```
+
+Generated files to view:
+
+- `results\sim2real_multigeom_v2_visual_yaw_align_multishape_demo\demo_rectangular_key_seed907500.gif`
+- `results\sim2real_multigeom_v2_visual_yaw_align_multishape_demo\demo_triangle_triangle_seed910500.gif`
+- `results\sim2real_multigeom_v2_visual_yaw_align_multishape_demo\demo_hex_hex_seed907000.gif`
+- `results\sim2real_multigeom_v2_visual_yaw_align_multishape_demo\demo_square_square_pose_yaw_seed906500.gif`
+
+Status: key, triangle, and hex use the visual-yaw estimator route and have
+positive `guard_visual_yaw_align_active` trace rows. Square uses the v148
+square pose-yaw route because the current visual-yaw route regressed square in
+the seed scan. Slot still needs a slot-inclusive visual-yaw estimator.
+
+Latest demo metrics from the trace CSVs:
+
+- `rectangular_key`, seed `907500`: success `1/1`, `427` steps, final yaw
+  `0.64 deg`, visual-yaw active rows `79`, `wrist_2` span `53.11 deg`.
+- `triangle_triangle`, seed `910500`: success `1/1`, `432` steps, final yaw
+  `2.49 deg`, visual-yaw active rows `333`, `wrist_2` span `322.93 deg`.
+- `hex_hex`, seed `907000`: success `1/1`, `208` steps, final yaw `5.02 deg`,
+  visual-yaw active rows `14`, `wrist_2` span `137.22 deg`.
+- `square_square`, seed `906500`: success `1/1`, `210` steps, final yaw
+  `0.46 deg`, visual-yaw active rows `0`, `wrist_2` span `11.01 deg`.
+
+Wrist-spin diagnostic:
+
+```powershell
+python scripts\analyze_wrist_trace.py `
+  --output-dir results\sim2real_multigeom_v2_wrist_trace_diagnostics_20260628
+```
+
+Interpretation: the current key demo no longer uses the visually excessive
+near-full wrist rotation. The old key trace
+`results\sim2real_multigeom_v2_wrist_reasonable_yaw_pose_init_w09_smoke\rectangular_key_seed907500.trace.csv`
+had `wrist_2` span `153.48 deg`; the current official key trace is
+`53.11 deg`. The report
+`results\sim2real_multigeom_v2_wrist_trace_diagnostics_20260628\wrist_trace_summary.md`
+shows the current triangle demo has `wrist_2` unwrapped span `322.94 deg` and
+cumulative motion `443.54 deg` with zero wrap-like qpos jumps. So the large
+triangle turn is real joint travel, not a `+/-180 deg` display artifact.
+Triangle/hex are successful visual-yaw demos but still need IK branch /
+UR5e wrist-limit handling before they should be treated as real-robot motion
+plans.
+
+Shortest-equivalent target diagnostic:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_multishape_eval_demo.yaml `
+  -Profile triangle_triangle `
+  -Episodes 1 `
+  -Seeds 910500 `
+  -ResultDir results\sim2real_multigeom_v2_shortest_equiv_default_off_triangle_recheck
+```
+
+The config currently keeps
+`guard_visual_yaw_align_shortest_equivalent_target: false`. Keep it that way
+for official demos. A diagnostic run with this switch enabled collided on
+`triangle_triangle`, seed `910500`, at step `148` and increased `wrist_2` span
+to `460.89 deg`; the default-off route succeeds with final yaw `2.32 deg`.
+Use the new trace columns
+`guard_visual_yaw_align_equivalent_correction_deg`,
+`guard_visual_yaw_align_equivalent_offset`, and
+`guard_visual_yaw_align_equivalent_wrist_*_deg` for analysis only until a
+safer gated candidate selector is implemented.
+
+Triangle wrist-protocol demo and smoke checks:
+
+```powershell
+.\scripts\sim2real\demo_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_multishape_eval_demo.yaml `
+  -Profile triangle_triangle `
+  -Seed 910500 `
+  -ResultDir results\sim2real_multigeom_v2_triangle_wrist_protocol_demo
+```
+
+The wrapper now injects a triangle-only wrist protocol by default for
+`triangle_triangle`: wrist-limited equivalent targets, a relaxed visual raw-norm
+gate, hold-XY, hold-target, and freeze-aligned-target recenter-before-descent.
+Use `-NoTriangleWristProtocol` only when reproducing the older near-full-turn
+triangle behavior.
+
+Validation commands:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_multishape_eval_demo.yaml `
+  -Profile triangle_triangle -Episodes 1 -Seeds 910500 `
+  -ResultDir results\sim2real_multigeom_v2_triangle_protocol_wrapper_smoke
+
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_multishape_eval_demo.yaml `
+  -Profile hex_hex -Episodes 1 -Seeds 907000 `
+  -ResultDir results\sim2real_multigeom_v2_triangle_protocol_wrapper_hex_recheck
+
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_multishape_eval_demo.yaml `
+  -Profile rectangular_key -Episodes 1 -Seeds 907500 `
+  -ResultDir results\sim2real_multigeom_v2_triangle_protocol_wrapper_key_recheck
+```
+
+Latest 2026-06-29 smoke results:
+
+- Triangle wrapper smoke: success `1/1`, collision `0`, timeout `0`, `263`
+  steps, final yaw `1.96 deg`.
+- Triangle demo: success `1/1`, collision `0`, timeout `0`, `250` rows,
+  final yaw `2.16 deg`; `wrist_2` span dropped from the older official
+  triangle demo `322.93 deg` to `144.97 deg`.
+- Hex wrapper recheck: success `1/1`, final yaw `5.02 deg`.
+- Rectangular-key wrapper recheck: success `1/1`, final yaw `0.60 deg`.
+
+Wrist comparison:
+
+```powershell
+python scripts\analyze_wrist_trace.py `
+  results\sim2real_multigeom_v2_visual_yaw_align_multishape_demo\demo_triangle_triangle_seed910500.trace.csv `
+  results\sim2real_multigeom_v2_triangle_wrist_protocol_demo\demo_triangle_triangle_seed910500.trace.csv `
+  --output-dir results\sim2real_multigeom_v2_triangle_wrist_protocol_demo_summary
+```
+
+Report:
+`results\sim2real_multigeom_v2_triangle_wrist_protocol_demo_summary\wrist_trace_summary.md`.
+The protocol is triangle-specific. Hex and key should keep using the default
+path because earlier full-protocol probes broke them.
+
+Wrist-gate diagnostics, not promoted:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_multishape_eval_demo.yaml `
+  -Profile triangle_triangle -Episodes 1 -Seeds 910500 `
+  -ResultDir results\sim2real_multigeom_v2_triangle_protocol_targetjump80_smoke `
+  -ExtraArgs @(
+    '--guard-visual-yaw-align-target-jump-gate-enabled',
+    '--guard-visual-yaw-align-target-jump-gate-profiles','triangle_triangle',
+    '--guard-visual-yaw-align-target-jump-gate-max-deg','80',
+    '--guard-visual-yaw-align-target-jump-gate-min-pred-yaw-deg','15',
+    '--guard-visual-yaw-align-target-jump-gate-block-descent'
+  )
+```
+
+Result: success `1/1`, but final yaw worsened to `6.24 deg`, `wrist_2` qpos
+span increased to `154.53 deg`, and cumulative qpos motion increased to
+`627.06 deg`. Do not promote. The new target-jump and wrist-limited candidate
+gates are useful for diagnostics only unless a later multi-seed run shows a
+net improvement.
+
+Correction-slew diagnostics, not promoted:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_multishape_eval_demo.yaml `
+  -Profile triangle_triangle -Episodes 1 -Seeds 910500 `
+  -ResultDir results\sim2real_multigeom_v2_triangle_protocol_slew20_smoke `
+  -ExtraArgs @(
+    '--guard-visual-yaw-align-correction-slew-enabled',
+    '--guard-visual-yaw-align-correction-slew-profiles','triangle_triangle',
+    '--guard-visual-yaw-align-correction-slew-max-step-deg','20',
+    '--guard-visual-yaw-align-correction-slew-min-pred-yaw-deg','15'
+  )
+
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_multishape_eval_demo.yaml `
+  -Profile triangle_triangle -Episodes 1 -Seeds 910500 `
+  -ResultDir results\sim2real_multigeom_v2_triangle_protocol_slew40_smoke `
+  -ExtraArgs @(
+    '--guard-visual-yaw-align-correction-slew-enabled',
+    '--guard-visual-yaw-align-correction-slew-profiles','triangle_triangle',
+    '--guard-visual-yaw-align-correction-slew-max-step-deg','40',
+    '--guard-visual-yaw-align-correction-slew-min-pred-yaw-deg','30'
+  )
+```
+
+Results: `slew20` kept success but worsened final yaw to `6.11 deg`,
+`wrist_2` cumulative motion to `440.86 deg`, and target cumulative motion to
+`1166.40 deg`. `slew40` collided with final yaw `40.56 deg`, `wrist_2`
+cumulative motion `974.18 deg`, and target cumulative motion `2515.42 deg`.
+Keep correction slew diagnostic-only; it reduces some instantaneous correction
+jumps but does not produce a better real-robot wrist trajectory.
+
+Target-latch diagnostic, not promoted:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_multishape_eval_demo.yaml `
+  -Profile triangle_triangle -Episodes 1 -Seeds 910500 `
+  -ResultDir results\sim2real_multigeom_v2_triangle_protocol_target_latch_relaxed_smoke `
+  -ExtraArgs @(
+    '--guard-visual-yaw-align-target-latch-enabled',
+    '--guard-visual-yaw-align-target-latch-profiles','triangle_triangle',
+    '--guard-visual-yaw-align-target-latch-steps','60',
+    '--guard-visual-yaw-align-target-latch-arm-yaw-deg','65',
+    '--guard-visual-yaw-align-target-latch-release-yaw-deg','75',
+    '--guard-visual-yaw-align-target-latch-stable-window','2',
+    '--guard-visual-yaw-align-target-latch-max-delta-deg','45'
+  )
+```
+
+Result: timeout, final yaw `30.34 deg`, final XY `0.00016 m`, target-latch
+active `915/1000` rows. Wrist travel improved numerically, but only because the
+controller froze the wrong yaw target. Keep `--guard-visual-yaw-align-target-latch-enabled`
+off for official demos.
+
+Stable-apply temporal gate diagnostic, not promoted:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_multishape_eval_demo.yaml `
+  -Profile triangle_triangle -Episodes 1 -Seeds 910500 `
+  -ResultDir results\sim2real_multigeom_v2_triangle_protocol_stable_apply_gate_smoke `
+  -ExtraArgs @(
+    '--guard-visual-yaw-align-temporal-action-gate-enabled',
+    '--guard-visual-yaw-align-temporal-action-gate-profiles','triangle_triangle',
+    '--guard-visual-yaw-align-temporal-action-gate-window','3',
+    '--guard-visual-yaw-align-temporal-action-gate-max-delta-deg','12',
+    '--guard-visual-yaw-align-temporal-action-gate-min-pred-yaw-deg','15',
+    '--guard-visual-yaw-align-temporal-action-gate-max-pred-yaw-deg','120',
+    '--guard-visual-yaw-align-temporal-action-gate-block-descent',
+    '--guard-visual-yaw-align-temporal-action-gate-reset-target'
+  )
+```
+
+Result: timeout, final yaw `55.37 deg`, final XY `0.00072 m`. This gate
+blocked useful early visual-yaw updates and left the peg below the Z gate with a
+large residual yaw error. Keep it diagnostic-only for triangle.
+
+Target-jump soft-limit commands are intentionally not kept here. The temporary
+soft-limit experiment that scaled visual-yaw correction when wrist target jump
+exceeded `80 deg` was rejected: the first triangle smoke still had worse final
+yaw (`8.80 deg`), larger `wrist_2` span (`173.71 deg`), larger cumulative
+motion (`498.99 deg`), and later absolute-correction follow-ups collided. The
+implementation was removed from `scripts\eval_guarded_policy.py`; continue
+using the triangle wrist-protocol demo command above as the recommended demo.
+
+Important caveat for triangle: use the demo command only to visualize a rollout,
+not to claim robust success. The non-demo eval wrapper can still collide on the
+same triangle seed/config because the visual-yaw loop may freeze a low-confidence
+wrong yaw basin. For performance claims, run the eval wrapper and inspect the
+trace/episode CSV, especially `guard_visual_yaw_align_raw_norm`,
+`guard_visual_yaw_align_pred_abs_error_deg`, and `shape_yaw_error_deg`.
+
+Triangle high-confidence freeze13 diagnostic, not promoted:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_multishape_eval_demo.yaml `
+  -Profile triangle_triangle `
+  -Episodes 1 `
+  -Seeds 910500 `
+  -ResultDir results\sim2real_multigeom_v2_triangle_highconf_freeze13_smoke `
+  -ExtraArgs @(
+    '--deterministic-eval',
+    '--guard-visual-yaw-align-min-raw-norm','0.12',
+    '--guard-visual-yaw-align-freeze-aligned-target-yaw-deg','13.0',
+    '--guard-visual-yaw-align-freeze-aligned-target-required-steps','3'
+  )
+
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_multishape_eval_demo.yaml `
+  -Profile triangle_triangle `
+  -Episodes 1 `
+  -Seeds 906500,907500,908500,909500,910500,911500 `
+  -ResultDir results\sim2real_multigeom_v2_triangle_highconf_freeze13_6seed `
+  -ExtraArgs @(
+    '--deterministic-eval',
+    '--guard-visual-yaw-align-min-raw-norm','0.12',
+    '--guard-visual-yaw-align-freeze-aligned-target-yaw-deg','13.0',
+    '--guard-visual-yaw-align-freeze-aligned-target-required-steps','3'
+  )
+```
+
+Result: the single `910500` diagnostic succeeds in `156` steps with final yaw
+`0.71 deg`, but the six-seed check reaches only `1/6` on triangle. Do not
+promote freeze13 into the wrapper. The wrapper remains on the previous triangle
+protocol unless these args are passed explicitly.
+
+Low-confidence re-acquire exists but is diagnostic/default-off:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_multishape_eval_demo.yaml `
+  -Profile triangle_triangle `
+  -Episodes 1 `
+  -Seeds 910500 `
+  -ResultDir results\sim2real_multigeom_v2_triangle_lowconf_reacquire_smoke `
+  -ExtraArgs @(
+    '--deterministic-eval',
+    '--guard-visual-yaw-align-low-confidence-reacquire-enabled',
+    '--guard-visual-yaw-align-low-confidence-reacquire-profiles','triangle_triangle',
+    '--guard-visual-yaw-align-low-confidence-reacquire-max-raw-norm','0.12',
+    '--guard-visual-yaw-align-low-confidence-reacquire-max-pred-yaw-deg','8.0',
+    '--guard-visual-yaw-align-reacquire-enabled',
+    '--guard-visual-yaw-align-reacquire-profiles','triangle_triangle',
+    '--guard-visual-yaw-align-reacquire-max-attempts','2'
+  )
+```
+
+Use that only to diagnose low-confidence wrong-basin events. In current tests it
+avoided collision but timed out, so it is not the promoted triangle path.
+
+Correct multishape visual-yaw eval entry:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Profile triangle_triangle `
+  -Episodes 1 `
+  -Seeds 910500 `
+  -ResultDir results\sim2real_multigeom_v2_triangle_multishape_eval_entry_smoke
+
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Profile hex_hex `
+  -Episodes 1 `
+  -Seeds 907000 `
+  -ResultDir results\sim2real_multigeom_v2_multishape_eval_entry_hex_smoke
+
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Profile rectangular_key `
+  -Episodes 1 `
+  -Seeds 907500 `
+  -ResultDir results\sim2real_multigeom_v2_multishape_eval_entry_key_smoke
+
+python scripts\analyze_visual_yaw_trace_summary.py `
+  results\sim2real_multigeom_v2_triangle_multishape_eval_entry_smoke `
+  results\sim2real_multigeom_v2_multishape_eval_entry_hex_smoke `
+  results\sim2real_multigeom_v2_multishape_eval_entry_key_smoke `
+  --output-dir results\sim2real_multigeom_v2_multishape_eval_entry_smoke_summary
+```
+
+Result: triangle/hex/key smoke all succeeded and all had visual yaw active and
+applied. Combined report:
+`results\sim2real_multigeom_v2_multishape_eval_entry_smoke_summary\visual_yaw_trace_summary.md`.
+
+Correct-entry triangle six-seed check:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Profile triangle_triangle `
+  -Episodes 1 `
+  -Seeds 906500,907500,908500,909500,910500,911500 `
+  -ResultDir results\sim2real_multigeom_v2_triangle_multishape_eval_entry_6seed
+
+python scripts\analyze_visual_yaw_trace_summary.py `
+  results\sim2real_multigeom_v2_triangle_multishape_eval_entry_6seed `
+  --output-dir results\sim2real_multigeom_v2_triangle_multishape_eval_entry_6seed\trace_summary_full
+```
+
+Result: `1/6` success, `4/6` collision, `1/6` timeout. All six had visual-yaw
+active/applied, so this is a real visual-yaw post-alignment failure, not a
+profile-gate mistake.
+
+Rejected triangle XY-drift diagnostics:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Profile triangle_triangle `
+  -Episodes 1 `
+  -Seeds 906500,907500,908500 `
+  -ResultDir results\sim2real_multigeom_v2_triangle_strict_freeze_xy_smoke `
+  -ExtraArgs @(
+    '--guard-visual-yaw-align-freeze-aligned-target-descent-xy','0.006',
+    '--guard-visual-yaw-align-freeze-aligned-target-release-xy','0.012',
+    '--guard-visual-yaw-align-hold-target-release-xy','0.012'
+  )
+
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Profile triangle_triangle `
+  -Episodes 1 `
+  -Seeds 906500,907500,908500 `
+  -ResultDir results\sim2real_multigeom_v2_triangle_descent_abort_xy_drift_smoke `
+  -ExtraArgs @(
+    '--guard-visual-yaw-align-descent-abort-enabled',
+    '--guard-visual-yaw-align-descent-abort-profiles','triangle_triangle',
+    '--guard-visual-yaw-align-descent-abort-max-attempts','2',
+    '--guard-visual-yaw-align-descent-abort-min-step','180',
+    '--guard-visual-yaw-align-descent-abort-min-xy','0.018',
+    '--guard-visual-yaw-align-descent-abort-max-z','0.020',
+    '--guard-visual-yaw-align-descent-abort-lift-target-z','0.085',
+    '--guard-visual-yaw-align-descent-abort-lift-z-tolerance','0.006',
+    '--guard-visual-yaw-align-descent-abort-lift-max-steps','50',
+    '--guard-visual-yaw-align-descent-abort-recenter-release-xy','0.006',
+    '--guard-visual-yaw-align-descent-abort-recenter-max-steps','140',
+    '--guard-visual-yaw-align-descent-abort-max-up-action','0.008',
+    '--guard-visual-yaw-align-descent-abort-max-xy-action','0.008',
+    '--guard-visual-yaw-align-descent-abort-flush-history'
+  )
+```
+
+Strict XY gating caused timeouts and one collision. Low-Z descent-abort
+triggered but mostly too late, near or below the hole plane. Do not promote
+either. Next change should add a stateful post-yaw XY re-approach phase.
+
+Post-yaw reapproach diagnostic smoke:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Profile triangle_triangle `
+  -Episodes 1 `
+  -Seeds 906500,907500,908500 `
+  -ResultDir results\sim2real_multigeom_v2_triangle_post_yaw_reapproach_defaultoff_recheck_smoke `
+  -ExtraArgs @(
+    '--guard-visual-yaw-align-post-yaw-reapproach-enabled',
+    '--guard-visual-yaw-align-post-yaw-reapproach-profiles','triangle_triangle',
+    '--guard-visual-yaw-align-post-yaw-reapproach-max-attempts','1',
+    '--guard-visual-yaw-align-post-yaw-reapproach-trigger-min-xy','0.018',
+    '--guard-visual-yaw-align-post-yaw-reapproach-trigger-max-xy','0.180',
+    '--guard-visual-yaw-align-post-yaw-reapproach-trigger-min-z','0.030',
+    '--guard-visual-yaw-align-post-yaw-reapproach-trigger-max-z','0.120',
+    '--guard-visual-yaw-align-post-yaw-reapproach-trigger-max-yaw-deg','12.0',
+    '--guard-visual-yaw-align-post-yaw-reapproach-lift-target-z','0.095',
+    '--guard-visual-yaw-align-post-yaw-reapproach-recenter-release-xy','0.006',
+    '--guard-visual-yaw-align-post-yaw-reapproach-recenter-stable-steps','3',
+    '--guard-visual-yaw-align-post-yaw-reapproach-descent-yaw-deg','10.0',
+    '--guard-visual-yaw-align-post-yaw-reapproach-descent-max-down-action','0.0025',
+    '--guard-visual-yaw-align-post-yaw-reapproach-max-up-action','0.006',
+    '--guard-visual-yaw-align-post-yaw-reapproach-max-xy-action','0.006',
+    '--guard-visual-yaw-align-post-yaw-reapproach-flush-history'
+  )
+
+python scripts\analyze_visual_yaw_trace_summary.py `
+  results\sim2real_multigeom_v2_triangle_post_yaw_reapproach_defaultoff_recheck_smoke `
+  --output-dir results\sim2real_multigeom_v2_triangle_post_yaw_reapproach_defaultoff_recheck_smoke\trace_summary
+```
+
+Rejected post-yaw options, diagnostic only:
+
+```powershell
+--guard-visual-yaw-align-post-yaw-reapproach-release-to-visual-realign
+--guard-visual-yaw-align-post-yaw-reapproach-realign-release-xy 0.008
+--guard-visual-yaw-align-post-yaw-reapproach-realign-release-min-z 0.055
+--guard-visual-yaw-align-post-yaw-reapproach-reset-target-on-release
+```
+
+This produced `0/3` on seeds `906500/907500/908500`, so it should not be
+promoted.
+
+```powershell
+--guard-visual-yaw-align-post-yaw-reapproach-block-background-targets
+```
+
+This also produced deterministic `0/3`; it cuts off the freeze/hold chain that
+the current triangle success path still depends on. Keep it default-off.
+
+Freeze-descent visual-safety diagnostic:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Profile triangle_triangle `
+  -Episodes 1 `
+  -Seeds 906500,907500,908500 `
+  -ResultDir results\sim2real_multigeom_v2_triangle_freeze_descent_visual_safety_smoke `
+  -ExtraArgs @(
+    '--guard-visual-yaw-align-post-yaw-reapproach-enabled',
+    '--guard-visual-yaw-align-post-yaw-reapproach-profiles','triangle_triangle',
+    '--guard-visual-yaw-align-post-yaw-reapproach-max-attempts','1',
+    '--guard-visual-yaw-align-post-yaw-reapproach-trigger-min-xy','0.018',
+    '--guard-visual-yaw-align-post-yaw-reapproach-trigger-max-xy','0.180',
+    '--guard-visual-yaw-align-post-yaw-reapproach-trigger-min-z','0.030',
+    '--guard-visual-yaw-align-post-yaw-reapproach-trigger-max-z','0.120',
+    '--guard-visual-yaw-align-post-yaw-reapproach-trigger-max-yaw-deg','12.0',
+    '--guard-visual-yaw-align-post-yaw-reapproach-lift-target-z','0.095',
+    '--guard-visual-yaw-align-post-yaw-reapproach-recenter-release-xy','0.006',
+    '--guard-visual-yaw-align-post-yaw-reapproach-recenter-stable-steps','3',
+    '--guard-visual-yaw-align-post-yaw-reapproach-descent-yaw-deg','10.0',
+    '--guard-visual-yaw-align-post-yaw-reapproach-descent-max-down-action','0.0025',
+    '--guard-visual-yaw-align-post-yaw-reapproach-max-up-action','0.006',
+    '--guard-visual-yaw-align-post-yaw-reapproach-max-xy-action','0.006',
+    '--guard-visual-yaw-align-post-yaw-reapproach-flush-history',
+    '--guard-visual-yaw-align-freeze-descent-visual-safety-enabled'
+  )
+
+python scripts\analyze_visual_yaw_trace_summary.py `
+  results\sim2real_multigeom_v2_triangle_freeze_descent_visual_safety_smoke `
+  --output-dir results\sim2real_multigeom_v2_triangle_freeze_descent_visual_safety_smoke\trace_summary
+```
+
+This gate is default-off. It only slows or holds Z during
+`freeze_aligned_target_descent_*` when visual confidence indicates likely
+wrong-basin risk; it does not clear the frozen target.
+
+Current safest diagnostic variant is the relaxed full-Z-block version:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Profile triangle_triangle `
+  -Episodes 1 `
+  -Seeds 906500,907500,908500 `
+  -ResultDir results\sim2real_multigeom_v2_triangle_freeze_descent_visual_safety_raw155_pred11_block_smoke `
+  -ExtraArgs @(
+    '--guard-visual-yaw-align-post-yaw-reapproach-enabled',
+    '--guard-visual-yaw-align-post-yaw-reapproach-profiles','triangle_triangle',
+    '--guard-visual-yaw-align-post-yaw-reapproach-max-attempts','1',
+    '--guard-visual-yaw-align-post-yaw-reapproach-trigger-min-xy','0.018',
+    '--guard-visual-yaw-align-post-yaw-reapproach-trigger-max-xy','0.180',
+    '--guard-visual-yaw-align-post-yaw-reapproach-trigger-min-z','0.030',
+    '--guard-visual-yaw-align-post-yaw-reapproach-trigger-max-z','0.120',
+    '--guard-visual-yaw-align-post-yaw-reapproach-trigger-max-yaw-deg','12.0',
+    '--guard-visual-yaw-align-post-yaw-reapproach-lift-target-z','0.095',
+    '--guard-visual-yaw-align-post-yaw-reapproach-recenter-release-xy','0.006',
+    '--guard-visual-yaw-align-post-yaw-reapproach-recenter-stable-steps','3',
+    '--guard-visual-yaw-align-post-yaw-reapproach-descent-yaw-deg','10.0',
+    '--guard-visual-yaw-align-post-yaw-reapproach-descent-max-down-action','0.0025',
+    '--guard-visual-yaw-align-post-yaw-reapproach-max-up-action','0.006',
+    '--guard-visual-yaw-align-post-yaw-reapproach-max-xy-action','0.006',
+    '--guard-visual-yaw-align-post-yaw-reapproach-flush-history',
+    '--guard-visual-yaw-align-freeze-descent-visual-safety-enabled',
+    '--guard-visual-yaw-align-freeze-descent-visual-safety-low-conf-max-raw-norm','0.155',
+    '--guard-visual-yaw-align-freeze-descent-visual-safety-low-conf-max-pred-yaw-deg','11.0',
+    '--guard-visual-yaw-align-freeze-descent-visual-safety-block-descent'
+  )
+```
+
+Result: `2/3`; it preserved the two passing seeds and changed `908500` from
+collision to timeout. This is safer but not promotable.
+
+Rejected follow-up:
+
+```powershell
+--guard-visual-yaw-align-freeze-descent-visual-safety-release-freeze
+```
+
+Result: `1/3`; it regressed `906500` to collision and still timed out
+`908500`.
+
+## Triangle/Hex Wrong-Basin Visual-Yaw Estimator
+
+Collect/train/evaluate the focused mid/high-Z triangle/hex visual-yaw model:
+
+```powershell
+python scripts\collect_visual_yaw_dataset.py `
+  --config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_visual_yaw_dataset_triangle_hex_wrong_basin_8k.yaml
+
+python scripts\train_visual_yaw_estimator.py `
+  --config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_visual_yaw_train_triangle_hex_wrong_basin_8k.yaml
+
+python scripts\eval_visual_yaw_estimator.py `
+  --config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_visual_yaw_eval_triangle_hex_wrong_basin_8k.yaml
+```
+
+Current offline result:
+
+- Checkpoint:
+  `results\visual_yaw_estimator_v1_tight_yaw_triangle_hex_wrong_basin_8k.pt`
+- Overall validation mean/p95: `1.60 / 5.53 deg`.
+- Triangle validation mean/p95: `1.13 / 2.87 deg`.
+- Hex validation mean/p95: `1.19 / 3.24 deg`.
+
+Online triangle diagnostic with this estimator:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Profile triangle_triangle `
+  -Episodes 1 `
+  -Seeds 906500,907500,908500 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_triangle_hex_wrong_basin_eval.yaml `
+  -ResultDir results\sim2real_multigeom_v2_triangle_hex_wrong_basin_estimator_triangle_3seed
+
+python scripts\analyze_visual_yaw_trace_summary.py `
+  results\sim2real_multigeom_v2_triangle_hex_wrong_basin_estimator_triangle_3seed `
+  --output-dir results\sim2real_multigeom_v2_triangle_hex_wrong_basin_estimator_triangle_3seed\trace_summary
+```
+
+Result: `0/3`, so do not promote the checkpoint yet.
+
+Rollout visual-yaw failure dataset diagnostic:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Profile triangle_triangle `
+  -Episodes 1 `
+  -Seeds 908500 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_triangle_hex_wrong_basin_eval.yaml `
+  -ResultDir results\sim2real_multigeom_v2_triangle_hex_wrong_basin_rollout_dataset_seed908500 `
+  -NoTriangleWristProtocol `
+  -ExtraArgs @(
+    '--guard-visual-yaw-align-wrist-limited-equivalent-target',
+    '--guard-visual-yaw-align-wrist-limited-equivalent-target-profiles','triangle_triangle',
+    '--guard-visual-yaw-align-wrist-limited-max-abs-deg','180',
+    '--guard-visual-yaw-align-min-raw-norm','0.03',
+    '--guard-visual-yaw-align-hold-xy-enabled',
+    '--guard-visual-yaw-align-hold-xy-profiles','triangle_triangle',
+    '--guard-visual-yaw-align-hold-xy-tolerance','0.0025',
+    '--guard-visual-yaw-align-hold-max-xy-action','0.006',
+    '--guard-visual-yaw-align-aligned-descent-max-down-action','0.003',
+    '--guard-visual-yaw-align-aligned-descent-max-xy-action','0.004',
+    '--visual-yaw-rollout-dataset-output','datasets/visual_yaw_rollout_triangle_908500_wrist_holdxy_stride2.npz',
+    '--visual-yaw-rollout-dataset-csv','results/visual_yaw_rollout_triangle_908500_wrist_holdxy_stride2.csv',
+    '--visual-yaw-rollout-dataset-md','results/visual_yaw_rollout_triangle_908500_wrist_holdxy_stride2.md',
+    '--visual-yaw-rollout-dataset-outcome-filter','failure',
+    '--visual-yaw-rollout-dataset-stride','2'
+  )
+```
+
+Current diagnostic result: `500` failure samples, mean prediction-vs-label yaw
+error `36.81 deg`, and `193` false-small-pred/large-truth samples. Next work
+should use these rollout samples for visual-yaw data augmentation/retraining
+before more control tuning.
+
+## Rollout-Balanced Triangle/Hex Visual-Yaw Regression
+
+Train/evaluate the rollout-balanced estimator:
+
+```powershell
+python scripts\train_visual_yaw_estimator.py `
+  --config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_visual_yaw_train_triangle_hex_wrong_basin_8k_plus_rollout_balanced.yaml
+
+python scripts\eval_visual_yaw_estimator.py `
+  --config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_visual_yaw_eval_triangle_hex_wrong_basin_8k_plus_rollout_balanced.yaml
+```
+
+Focused triangle check that currently passes `3/3`:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Profile triangle_triangle `
+  -Episodes 1 `
+  -Seeds 906500,907500,908500 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_triangle_hex_rollout_balanced_low_z_abort_strict_yaw_eval.yaml `
+  -ResultDir results\sim2real_multigeom_v2_triangle_hex_rollout_balanced_low_z_abort_strict_yaw_no_override_triangle_3seed `
+  -NoTriangleProtocolYawOverrides
+```
+
+Broader triangle regression:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Profile triangle_triangle `
+  -Episodes 5 `
+  -Seeds 906500,907500,908500,909500,910500,911500 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_triangle_hex_rollout_balanced_low_z_abort_strict_yaw_eval.yaml `
+  -ResultDir results\sim2real_multigeom_v2_rollout_balanced_strict_no_override_triangle_6seed_5ep `
+  -NoTriangleProtocolYawOverrides
+
+python scripts\analyze_visual_yaw_trace_summary.py `
+  results\sim2real_multigeom_v2_rollout_balanced_strict_no_override_triangle_6seed_5ep `
+  --output-dir results\sim2real_multigeom_v2_rollout_balanced_strict_no_override_triangle_6seed_5ep\trace_summary
+```
+
+Current result: triangle `25/30`, collision `5/30`, timeout `0/30`; do not
+promote. Low-Z abort v2 strict was `10/20` on the focused fail-seed gate, and
+narrow low-Z gate strict was `15/20`; both are diagnostic-only.
+
+Hex regression with the same triangle strict config:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Profile hex_hex `
+  -Episodes 5 `
+  -Seeds 906500,907500,908500,909500,910500,911500 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_triangle_hex_rollout_balanced_low_z_abort_strict_yaw_eval.yaml `
+  -ResultDir results\sim2real_multigeom_v2_rollout_balanced_strict_hex_6seed_5ep
+```
+
+Current result: hex `14/30`, collision `2/30`, timeout `14/30`. This is
+evidence that triangle strict settings need a per-shape runtime split; do not
+make them the multishape default.
+
+False-small-yaw diagnostic for the strict triangle `6x5` regression:
+
+```powershell
+python scripts\analyze_visual_yaw_false_small.py `
+  results\sim2real_multigeom_v2_rollout_balanced_strict_no_override_triangle_6seed_5ep `
+  --output-dir results\sim2real_multigeom_v2_rollout_balanced_strict_no_override_triangle_6seed_5ep\false_small_analysis `
+  --scope-profile triangle_triangle
+```
+
+Important outputs:
+
+- `results\sim2real_multigeom_v2_rollout_balanced_strict_no_override_triangle_6seed_5ep\false_small_analysis\visual_yaw_false_small_analysis.md`
+- `results\sim2real_multigeom_v2_rollout_balanced_strict_no_override_triangle_6seed_5ep\false_small_analysis\visual_yaw_observable_proxy_gates.csv`
+- `results\sim2real_multigeom_v2_rollout_balanced_strict_no_override_triangle_6seed_5ep\false_small_analysis\visual_yaw_observable_proxy_episodes.csv`
+
+Current interpretation: truth-based false-small yaw explains the five triangle
+collisions, but the deployable proxy `freeze_low_z_near_xy_pred_small` hits all
+`30/30` episodes and all `25/25` successes. Do not turn that proxy into a
+runtime gate; next work is improving low-Z/occluded rollout visual-yaw data or
+estimator uncertainty/candidate scoring.
+
+## Strict-Failseed v2 And Per-Profile Visual-Yaw Routing
+
+Train/evaluate the strict-failseed v2 estimator:
+
+```powershell
+python scripts\train_visual_yaw_estimator.py `
+  --config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_visual_yaw_train_triangle_hex_wrong_basin_8k_plus_rollout_balanced_plus_strict_failseeds_v2.yaml
+
+python scripts\eval_visual_yaw_estimator.py `
+  --config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_visual_yaw_eval_triangle_hex_wrong_basin_8k_plus_rollout_balanced_plus_strict_failseeds_v2.yaml
+```
+
+Triangle-only strict candidate:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Profile triangle_triangle `
+  -Episodes 5 `
+  -Seeds 906500,907500,908500,909500,910500,911500 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_triangle_strict_failseeds_v2_eval.yaml `
+  -ResultDir results\sim2real_multigeom_v2_rollout_balanced_plus_strict_failseeds_v2_triangle_6seed_5ep `
+  -NoTriangleProtocolYawOverrides
+
+python scripts\analyze_visual_yaw_trace_summary.py `
+  results\sim2real_multigeom_v2_rollout_balanced_plus_strict_failseeds_v2_triangle_6seed_5ep `
+  --output-dir results\sim2real_multigeom_v2_rollout_balanced_plus_strict_failseeds_v2_triangle_6seed_5ep\trace_summary
+```
+
+Current triangle result: `29/30`, collision `0/30`, timeout `1/30`. Treat this
+as triangle-only; do not use it as a shared triangle/hex checkpoint.
+
+Per-profile routing uses the default visual-yaw model for unspecified profiles
+and overrides selected profiles:
+
+```powershell
+--guard-visual-yaw-align-profile-models `
+  triangle_triangle:results/visual_yaw_estimator_v1_tight_yaw_triangle_hex_wrong_basin_8k_plus_rollout_balanced_plus_strict_failseeds_v2.pt
+```
+
+Current per-profile config:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Profile hex_hex `
+  -Episodes 5 `
+  -Seeds 906500,907500,908500,909500,910500,911500 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_triangle_hex_per_profile_v2_eval.yaml `
+  -ResultDir results\sim2real_multigeom_v2_per_profile_v2_hex_6seed_5ep
+
+python scripts\analyze_visual_yaw_trace_summary.py `
+  results\sim2real_multigeom_v2_per_profile_v2_hex_6seed_5ep `
+  --output-dir results\sim2real_multigeom_v2_per_profile_v2_hex_6seed_5ep\trace_summary
+```
+
+Current hex fallback result: `14/30`, collision `2/30`, timeout `14/30`.
+Shared v2 on hex was much worse: `1/30`, collision `18/30`, timeout `11/30`.
+Conclusion: profile routing isolates the triangle v2 model, but hex needs a
+hex-specific rollout dataset/model.
+
+Hex failure rollout data collection template:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Profile hex_hex `
+  -Episodes 1 `
+  -Seeds 906501 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_triangle_hex_per_profile_v2_eval.yaml `
+  -ResultDir results\sim2real_multigeom_v2_hex_rollout_dataset `
+  -ExtraArgs @(
+    '--visual-yaw-rollout-dataset-output','datasets/visual_yaw_rollout_hex_906501_stride1.npz',
+    '--visual-yaw-rollout-dataset-csv','results/visual_yaw_rollout_hex_906501_stride1.csv',
+    '--visual-yaw-rollout-dataset-md','results/visual_yaw_rollout_hex_906501_stride1.md',
+    '--visual-yaw-rollout-dataset-outcome-filter','failure',
+    '--visual-yaw-rollout-dataset-stride','1'
+  )
+```
+
+Merge/train/evaluate the hex-failure v1 estimator:
+
+```powershell
+python scripts\merge_visual_yaw_datasets.py `
+  --inputs `
+    datasets\visual_yaw_v1_tight_yaw_triangle_hex_wrong_basin_8k_plus_rollout906500_907500_908500_balanced.npz `
+    datasets\visual_yaw_rollout_hex_906501_stride1.npz `
+    datasets\visual_yaw_rollout_hex_906502_stride1.npz `
+    datasets\visual_yaw_rollout_hex_907500_stride1.npz `
+    datasets\visual_yaw_rollout_hex_907501_stride1.npz `
+    datasets\visual_yaw_rollout_hex_907503_stride1.npz `
+    datasets\visual_yaw_rollout_hex_907504_stride1.npz `
+    datasets\visual_yaw_rollout_hex_908501_stride1.npz `
+    datasets\visual_yaw_rollout_hex_908502_stride1.npz `
+    datasets\visual_yaw_rollout_hex_908504_stride1.npz `
+    datasets\visual_yaw_rollout_hex_909501_stride1.npz `
+    datasets\visual_yaw_rollout_hex_909504_stride1.npz `
+    datasets\visual_yaw_rollout_hex_910500_stride1.npz `
+    datasets\visual_yaw_rollout_hex_910502_stride1.npz `
+    datasets\visual_yaw_rollout_hex_911500_stride1.npz `
+    datasets\visual_yaw_rollout_hex_911503_stride1.npz `
+  --repeats 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 `
+  --output datasets\visual_yaw_v1_tight_yaw_triangle_hex_wrong_basin_8k_plus_rollout_balanced_plus_hex_failures_v1.npz `
+  --compressed `
+  --add-source-fields
+
+python scripts\train_visual_yaw_estimator.py `
+  --config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_visual_yaw_train_triangle_hex_wrong_basin_8k_plus_rollout_balanced_plus_hex_failures_v1.yaml
+
+python scripts\eval_visual_yaw_estimator.py `
+  --config configs\sim2real\multigeom_v2_true_fixture_tight_yaw_visual_yaw_eval_triangle_hex_wrong_basin_8k_plus_rollout_balanced_plus_hex_failures_v1.yaml
+```
+
+Current offline result: overall `0.691/2.481 deg` mean/p95;
+`hex_hex` `0.460/1.378 deg` mean/p95.
+
+Hex online regression with the current hex early-approach/descent v1 entry:
+
+```powershell
+.\scripts\sim2real\eval_multigeom_v2_visual_yaw_align.ps1 `
+  -Profile hex_hex `
+  -Episodes 5 `
+  -Seeds 906500,907500,908500,909500,910500,911500 `
+  -Config configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_triangle_v2_hex_failures_v1_hex_early_approach_descent_v1_eval.yaml `
+  -ResultDir results\sim2real_multigeom_v2_hex_early_approach_descent_v1_hex_6seed_5ep
+
+python scripts\analyze_visual_yaw_trace_summary.py `
+  results\sim2real_multigeom_v2_hex_early_approach_descent_v1_hex_6seed_5ep `
+  --output-dir results\sim2real_multigeom_v2_hex_early_approach_descent_v1_hex_6seed_5ep\trace_summary
+```
+
+Current hex result: `30/30`, collision `0`, timeout `0`. This config is
+hex-only. It fixes the old `908503` timeout by adding high-Z/far-XY early
+approach assist and allowing final descent through target-hold/crop dropouts
+after XY/yaw are already aligned.
+
+Historical hex-failures v1 checkpoint-only runtime:
+`configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_triangle_v2_hex_failures_v1_eval.yaml`
+was `29/30`, collision `0`, timeout `1`, with only failure `908503`.
+
+Current recommended per-shape entries:
+
+- Triangle:
+  `configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_triangle_strict_failseeds_v2_eval.yaml`
+  with `-NoTriangleProtocolYawOverrides`.
+- Hex:
+  `configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_triangle_v2_hex_failures_v1_hex_early_approach_descent_v1_eval.yaml`.
+
+Do not promote a single unified multishape default yet. The strict unified
+triangle+hex config reached `28/30` on triangle, timeout-only. The remaining
+work is now triangle low-Z visibility/target-maintenance, especially
+`908503/909502`.
+
+Rectangular-key current best `30/30`, collision `0/30`, timeout `0/30`: `results
+ectangular_key_low_z_verifier_v3_estimator_v2_relaxed_rawnorm_v1_6seed_5ep`.

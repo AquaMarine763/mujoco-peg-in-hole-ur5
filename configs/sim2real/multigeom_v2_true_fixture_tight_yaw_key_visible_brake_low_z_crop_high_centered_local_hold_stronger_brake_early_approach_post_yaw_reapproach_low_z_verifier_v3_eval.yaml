@@ -1,0 +1,22 @@
+# Rectangular-key post-yaw reapproach plus selective verifier v3.
+#
+# v2 still let seed 909502 time out because the verifier was activated too
+# late: the first false-small primary estimates appear around 8.5cm Z and
+# 1.8cm XY. v3 keeps the original high-Z controller, but lets the hard-frame
+# verifier override small primary yaw estimates in the near-hole approach band.
+
+base_config: multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_local_hold_stronger_brake_early_approach_post_yaw_reapproach_low_z_verifier_v2_eval.yaml
+
+guard_visual_yaw_align_low_z_verifier_max_xy: 0.025
+guard_visual_yaw_align_low_z_verifier_min_z: 0.010
+guard_visual_yaw_align_low_z_verifier_max_z: 0.120
+guard_visual_yaw_align_low_z_verifier_primary_max_yaw_deg: 6.0
+guard_visual_yaw_align_low_z_verifier_min_pred_yaw_deg: 10.0
+guard_visual_yaw_align_low_z_verifier_max_correction_deg: 25.0
+guard_visual_yaw_align_low_z_verifier_up_action: 0.0
+guard_visual_yaw_align_low_z_verifier_max_xy_action: 0.0015
+
+output_csv: results/rectangular_key_post_yaw_reapproach_low_z_verifier_v3/eval_latest.csv
+output_md: results/rectangular_key_post_yaw_reapproach_low_z_verifier_v3/eval_latest.md
+episode_output_csv: results/rectangular_key_post_yaw_reapproach_low_z_verifier_v3/eval_latest_episodes.csv
+step_output_csv: results/rectangular_key_post_yaw_reapproach_low_z_verifier_v3/eval_latest_steps.csv

@@ -1,0 +1,15 @@
+﻿# Rectangular-key low-Z verifier v3 with targeted estimator v2.
+#
+# v2 estimator is trained from the low-Z crop-high key dataset plus focused
+# seed 909502 false-small samples and seed 911504 timeout/late-drift samples.
+# Controller logic intentionally stays at v3 because v4/v5/v7 did not improve
+# the remaining timeout family and v6 regressed.
+
+base_config: multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_local_hold_stronger_brake_early_approach_post_yaw_reapproach_low_z_verifier_v3_eval.yaml
+
+guard_visual_yaw_align_model: results/visual_yaw_estimator_v2_rectangular_key_low_z_crop_high_plus_909502_911504_targeted.pt
+
+output_csv: results/rectangular_key_low_z_verifier_v3_estimator_v2/eval_latest.csv
+output_md: results/rectangular_key_low_z_verifier_v3_estimator_v2/eval_latest.md
+episode_output_csv: results/rectangular_key_low_z_verifier_v3_estimator_v2/eval_latest_episodes.csv
+step_output_csv: results/rectangular_key_low_z_verifier_v3_estimator_v2/eval_latest_steps.csv

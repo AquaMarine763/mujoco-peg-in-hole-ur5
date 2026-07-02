@@ -1,0 +1,54 @@
+# Low-Z crop-high visible-brake plus centered high-yaw local hold.
+#
+# Diagnostic only. This keeps the high-yaw-only baseline intact and tests a
+# narrower near-hole correction than centered re-acquire: when the peg is already
+# near the hole mouth but visual yaw is still in the wrong basin, apply a local
+# yaw correction and hold XY/descent briefly. It does not start the full
+# lift/recenter re-acquire state machine.
+
+base_config: multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_reacquire_high_yaw_action_selection_eval.yaml
+
+# Use the same centered-high-yaw evidence window as the previous reapply
+# diagnostic, but do not let that evidence start the full re-acquire controller.
+guard_visual_yaw_align_reacquire_centered_high_yaw_enabled: true
+guard_visual_yaw_align_reacquire_centered_high_yaw_trigger_reacquire: false
+guard_visual_yaw_align_reacquire_centered_high_yaw_min_step: 180
+guard_visual_yaw_align_reacquire_centered_high_yaw_max_xy: 0.030
+guard_visual_yaw_align_reacquire_centered_high_yaw_min_z: -0.006
+guard_visual_yaw_align_reacquire_centered_high_yaw_max_z: 0.055
+guard_visual_yaw_align_reacquire_centered_high_yaw_min_pred_yaw_deg: 120.0
+guard_visual_yaw_align_reacquire_centered_high_yaw_min_raw_norm: 0.08
+guard_visual_yaw_align_reacquire_centered_high_yaw_min_cam_std: 18.0
+guard_visual_yaw_align_reacquire_centered_high_yaw_min_crop_std: 15.0
+guard_visual_yaw_align_reacquire_centered_high_yaw_require_visible: true
+guard_visual_yaw_align_reacquire_centered_high_yaw_require_stable_delta: false
+guard_visual_yaw_align_reacquire_centered_high_yaw_reapply_latch_steps: 0
+
+guard_visual_yaw_align_centered_high_yaw_local_hold_enabled: true
+guard_visual_yaw_align_centered_high_yaw_local_hold_steps: 80
+guard_visual_yaw_align_centered_high_yaw_local_hold_max_correction_deg: 25.0
+
+# Reuse the existing wrong-basin hold action path for target retention, XY hold,
+# and descent blocking. The standard wrong-basin trigger is effectively disabled
+# so this config isolates the centered-high-yaw local trigger.
+guard_visual_yaw_align_wrong_basin_hold_enabled: true
+guard_visual_yaw_align_wrong_basin_hold_profiles: [rectangular_key]
+guard_visual_yaw_align_wrong_basin_hold_min_pred_yaw_deg: 999.0
+guard_visual_yaw_align_wrong_basin_hold_require_visible: false
+guard_visual_yaw_align_wrong_basin_hold_require_stable_delta: false
+guard_visual_yaw_align_wrong_basin_hold_steps: 80
+guard_visual_yaw_align_wrong_basin_hold_release_yaw_deg: 8.0
+guard_visual_yaw_align_wrong_basin_hold_release_xy: 0.018
+guard_visual_yaw_align_wrong_basin_hold_max_xy: 0.030
+guard_visual_yaw_align_wrong_basin_hold_min_z: 0.000
+guard_visual_yaw_align_wrong_basin_hold_max_z: 0.055
+guard_visual_yaw_align_wrong_basin_hold_max_xy_action: 0.004
+guard_visual_yaw_align_wrong_basin_hold_block_descent: true
+guard_visual_yaw_align_wrong_basin_hold_flush_history: false
+
+guard_visual_yaw_align_reacquire_descent_enabled: false
+
+output_csv: results/vy_low_z_crop_high_centered_high_yaw_local_hold/eval_latest.csv
+output_md: results/vy_low_z_crop_high_centered_high_yaw_local_hold/eval_latest.md
+episode_output_csv: results/vy_low_z_crop_high_centered_high_yaw_local_hold/eval_latest_episodes.csv
+step_output_csv: results/vy_low_z_crop_high_centered_high_yaw_local_hold/eval_latest_steps.csv

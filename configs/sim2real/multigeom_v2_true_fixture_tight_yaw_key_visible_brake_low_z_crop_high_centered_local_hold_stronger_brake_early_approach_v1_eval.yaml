@@ -1,0 +1,24 @@
+# Rectangular-key stronger-brake candidate plus high-Z/far-XY early approach.
+#
+# The 20ep per-shape routing gate on seed 906500 left three key timeouts, all
+# high/far rather than low-Z contact failures. Their final XY errors were about
+# 12.5cm, 18.2cm, and 14.2cm, with Z still about 9-13cm above target. Keep the
+# near-hole stronger-brake logic unchanged and add an early approach assist for
+# these high-Z/far-XY stalls.
+
+base_config: multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_local_hold_stronger_brake_eval.yaml
+
+guard_early_approach_assist_enabled: true
+guard_early_approach_assist_trigger_xy: 0.070
+guard_early_approach_assist_release_xy: 0.035
+guard_early_approach_assist_min_z: 0.080
+guard_early_approach_assist_max_z: 0.240
+guard_early_approach_assist_target_height: 0.140
+guard_early_approach_assist_max_xy_action: 0.008
+guard_early_approach_assist_max_up_action: 0.005
+guard_early_approach_assist_max_steps: 500
+
+output_csv: results/rectangular_key_stronger_brake_early_approach_v1/eval_latest.csv
+output_md: results/rectangular_key_stronger_brake_early_approach_v1/eval_latest.md
+episode_output_csv: results/rectangular_key_stronger_brake_early_approach_v1/eval_latest_episodes.csv
+step_output_csv: results/rectangular_key_stronger_brake_early_approach_v1/eval_latest_steps.csv

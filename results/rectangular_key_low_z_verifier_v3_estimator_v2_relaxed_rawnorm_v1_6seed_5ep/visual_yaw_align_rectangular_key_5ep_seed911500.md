@@ -1,0 +1,192 @@
+# Guarded Policy Evaluation
+
+- Generated: `2026-07-02T15:29:01`
+- Model: `D:\peg-in-hole-6yh\mujoco_peg_in_hole\checkpoints\ur5e_full\high_start\hard\correction\sac_image_bc_wrist_pose_control_state_insert_drift_2k_w10_e1.zip`
+- MuJoCo model path: `assets\ur5e_full\ur5e_peg_in_hole_full.xml`
+- Observation mode: `image`
+- Control mode: `guarded`
+- Image ablation: `normal`
+- Image ablation target: `all`
+- Control-state ablation: `normal`
+- Approach adapter: `assets\approach_adapters\approach_adapter_v8_fullcrop_balanced_seed645_dagger_xy_override.pt` enabled `True`
+- Approach adapter XY/Z gate: `0.06->0.03/0.12-0.27`
+- Approach adapter latch/min-z/max consecutive/episode steps: `True/0.08/220/0`
+- Approach adapter mode/residual limit/scale/apply Z: `override_xy/0.003/0.0/1.0/False`
+- Final insert adapter: `assets\final_insert_adapters\final_insert_adapter_handoff_alldata_e150.pt` enabled `True` mode `override`
+- Final insert adapter phase/geometry/contact required: `square_fast_settle/square_square/False`
+- Final insert adapter XY/Z/min phase/min stall gate: `0.02/0.005-0.075/0/15`
+- Final insert adapter square risk gate enabled/min stall/XY/topdown/tilted/wall: `False/0/0.0/0.0/0.0/0.0:0.0`
+- Final insert adapter action caps XY/up/down/window: `0.0012/0.005/0.0008/20`
+- Final insert adapter max consecutive/cooldown steps: `0/0`
+- Final insert adapter handoff on down/threshold: `True/-0.0001`
+- Final insert adapter handoff aligned/no-contact XY/Z: `True/0.0048/0.025-0.06`
+- Final insert adapter lift pulse enabled/active/stall/steps/period/Z: `False/80/80/10/120/0.0015`
+- Final insert macro recovery enabled/phase/geometry/contact: `False/square_fast_settle/square_square/True`
+- Final insert macro recovery gate XY/Z/active/stall/attempts: `0.006/0.025-0.055/80/80/2`
+- Final insert macro recovery lift/align/hold/action caps: `20/80/10/0.002/0.0015`
+- Final insert macro recovery abort XY/lift steps/lift action/final-servo inactive: `0.012/20/0.005/True`
+- Episodes per scenario: `5`
+- Seed: `911500`
+- Deterministic eval/thread count: `True/1`
+- Frame skip: `10`
+- Step trace CSV: `results\rectangular_key_low_z_verifier_v3_estimator_v2_relaxed_rawnorm_v1_6seed_5ep\visual_yaw_align_rectangular_key_5ep_seed911500_steps.csv`
+- Step trace outcome filter: `any`
+- Near-hole crop size/source size: `64/80`
+- Near-hole crop source size range: `None`
+- Near-hole crop offset: `(-18, -12)`
+- Include control state: `True`
+- Image frame stack: `1`
+- Wrist camera pos offset: `(-0.04, -0.04, 0.0)`
+- Wrist camera rot offset deg: `(0.0, 0.0, 0.0)`
+- Wrist camera FOV override: `100.0`
+- IK control mode: `pose`
+- IK orientation/posture/wrist-posture/anchor weight: `0.03/0.01/0.0/0.0`
+- IK continuity/wrist continuity/max wrist target delta deg/nearest wrist equivalent: `0.0/0.0/None/False`
+- Initial shape yaw hold enabled/profiles/steps/XY/Z/mode/weight/block: `False/square_square,triangle_triangle,hex_hex,rectangular_key/0/0.18/0.03-0.3/pose_tip_priority/0.35/False`
+- Guard near IK orientation weight: `0.0`
+- Guard final servo IK orientation weight: `0.06`
+- Guard final servo tip-priority IK enabled: `True`
+- Guard square pose yaw-align enabled/mode/weight: `True/pose_tip_priority/0.2`
+- Guard visual yaw-align enabled/model/profile models/mode/weight: `True/results\visual_yaw_estimator_v2_rectangular_key_low_z_crop_high_plus_909502_911504_targeted.pt/None/pose_tip_priority/0.9`
+- Guard visual yaw-align gates XY/Z/contact/raw/std/deadband/max correction/block: `0.14/0.006-0.16/0/0.015/18.0:16.0/0.5/90.0/True:2.0`
+- Guard visual yaw-align high-Z relaxed gate enabled/profiles/Z/yaw/raw/std: `False/triangle_triangle,hex_hex/0.055-0.13/20.0/0.03/18.0:16.0`
+- Guard visual yaw-align profile max-correction overrides: `None`
+- Guard visual yaw-align shortest / temporal smoothing / wrist-limited equivalent target: `False/False/False:rectangular_key:180.0`
+- Guard visual yaw-align wrist-limited candidate gates max delta/target jump/min improvement/max correction abs/IK slack/joint slack: `None/None/0.0/None/0.004/0.04`
+- Guard visual yaw-align absolute shape target enabled/profiles/abs/delta/jump/IK slack/joint slack: `False/triangle_triangle/180.0/120.0/90.0/0.004/0.04`
+- Guard visual yaw-align absolute shape target descent unlock enabled/profiles/steps/XY/Z/actions: `False/triangle_triangle/20/0.005/0.01-0.09/0.004:0.003`
+- Guard visual yaw-align correction slew enabled/profiles/max step/min yaw: `False/triangle_triangle,hex_hex,rectangular_key/20.0/0.0`
+- Guard visual yaw-align target-jump gate enabled/profiles/max/min yaw/block: `False/triangle_triangle,hex_hex,rectangular_key/80.0/0.0/False`
+- Guard visual yaw-align target latch enabled/profiles/steps/arm-release yaw/stable/max XY/Z/block: `False/triangle_triangle,hex_hex/80/25.0-65.0/3:10.0/0.18/0.0-0.18/False`
+- Guard visual yaw-align temporal action gate enabled/profiles/window/delta/min-max yaw/block/reset: `False/rectangular_key/3/12.0/30.0-120.0/False:False`
+- Guard visual yaw-align hold XY enabled/profiles/tolerance/action: `True/rectangular_key/0.0025/0.005`
+- Guard visual yaw-align target hold enabled/profiles/steps/arm yaw/release yaw/XY/Z/block: `True/rectangular_key/180/3.0/8.0/0.18/0.0-0.16/True`
+- Guard visual yaw-align low-visibility brake enabled/profiles/yaw/XY/Z/up/flush: `True/rectangular_key/12.0/0.02/0.08/0.008/True`
+- Guard visual yaw-align large-XY/low-Z brake enabled/profiles/XY/Z/up/hold/flush: `True/rectangular_key/0.04/0.045/0.012/0/True`
+- Guard visual yaw-align low-Z z-gate latch enabled/profiles/steps/XY/Z/actions/flush: `False/triangle_triangle/60/0.008:0.0015/-0.01-0.012/0.003:0.0015/False`
+- Guard visual yaw-align pre-pop guard enabled/profiles/steps/step/XY/Z/yaw/contact/actions/flush: `False/triangle_triangle/24/0/0.003:0.006:0.0012/0.004-0.014:0.0/0.0-12.0/0:1/0.0012:0.0008:0.0/False`
+- Guard visual yaw-align pre-pop near-plane brake enabled/profiles/attempts/steps/step/XY/Z/contact/actions/flush: `False/triangle_triangle/0/3/0/0.004/-0.001-0.002/1/0.0008:0.0015/False`
+- Guard visual yaw-align low-Z lateral-pop recovery enabled/profiles/attempts/step/trigger XY/Z/prev+jump/allow reacquire/lift/recenter/actions/flush: `False/rectangular_key/0/700/0.04/0.045/0.008+0.012/False/0.075:0.006:30/0.014:80/0.008:0.01/False`
+- Guard visual yaw-align post-yaw reapproach enabled/profiles/attempts/step/trigger XY/Z/yaw/visible/lift/recenter/descent/actions/reset/realign/flush: `True/rectangular_key/2/40/0.03-0.18/0.055-0.145/180.0/False/0.125:0.006:45/0.012:3:220/12.0:220:0.0025/0.006:0.008/False/True:0.02:0.095:True/True`
+- Guard visual yaw-align descent-abort enabled/profiles/attempts/step/unreliable-visual/large-yaw/trigger XYmin/Zmax/lift/recenter/actions/flush: `False/rectangular_key/0/0/False/False:45.0/0.06:0.08/0.105:0.006:60/0.018:220/0.008:0.01/False`
+- Guard visual yaw-align low-confidence re-acquire enabled/profiles/step/required/attempts/XY/Z/raw/pred yaw/gate/block-freeze: `False/triangle_triangle/-1/2/-1/0.0-0.035/0.0-0.13/0.0-0.1/0.0-8.0/False/True`
+- Guard visual yaw-align re-acquire enabled/profiles/attempts/step/trigger XY/Z/yaw/trigger visible-stable/xy-gate/centered/reset trigger-release/lift/recenter/actions/lift XY/flush/relaxed yaw/descent: `True/rectangular_key/1/280/0.03-0.075/0.0-0.1/90.0/True:True:3:10.0/True:0.055/True:180:0.03:-0.006-0.055:120.0:0.08:18.0:15.0:True:False/True:False/0.105:0.006:45/0.016:160/0.006:0.008/False:0.004/True/True:60.0:25.0:0.05-0.13:True:True:3:10.0:True/False:8.0:0.03:0.03-0.13:0.003`
+- Guard visual yaw-align centered high-yaw reapply latch steps: `0`
+- Guard visual yaw-align centered high-yaw local hold enabled/trigger re-acquire/steps/max correction: `True/False/80/25.0`
+- Guard visual yaw-align wrong-basin hold enabled/profiles/yaw/visible/stable/steps/release XY/max XY/Z/action/block/flush: `True/rectangular_key/999.0/False/False:3:12.0/80/8.0:0.018/0.03/0.0-0.055/0.004/True/False`
+- Guard visual yaw-align aligned descent enabled/yaw/XY/Z/steps/visible/down/XY action: `True/2.0/0.02/0.01-0.09/3/True/0.003/0.004`
+- Guard visual yaw-align aligned descent latch steps/release XY/yaw/Z: `90/0.02/4.0/0.0-0.095`
+- Guard visual yaw-align freeze aligned target enabled/profiles/steps/yaw/stable/source/block-until-XY/release yaw/XY/Z/visible: `False/rectangular_key/0/3.0/1/target/False:0.02/8.0/0.02/0.0-0.18/False`
+- Guard visual yaw-align freeze descent visual safety enabled/profiles/Z/low-conf raw+pred/large pred/down/block/release/visible/unsafe prediction+z gate/block active+hold XY: `False/triangle_triangle/0.0-0.13/0.12+8.0/14.0/0.001/False/False:20/False/False+False/False+False`
+- Guard visual yaw-align low-Z late-finish descent enabled/profiles/step/XY/Z/yaw/actions/flush: `False/rectangular_key/850/0.006/0.015-0.045/8.0/0.001:0.003/False`
+- Guard contact unjam IK orientation weight: `0.0`
+- Guard contact reinsert orient IK orientation weight: `0.12`
+- Guard contact reinsert high IK orientation weight: `None`
+- Guard contact reinsert tip-priority IK enabled: `True`
+- IK step limit/max iterations: `0.08/96`
+- Nominal joint damping / actuator Kp multiplier: `1.0/3.0`
+- Guard near actuator Kp enabled/multiplier: `True/3.0`
+- Guard start XY: `0.06`
+- Guard start Z above target: `0.14`
+- Guard risk XY: `0.0`
+- Guard scenario filter: `all`
+- Guard blend: `1.0`
+- Guard min policy steps: `0`
+- Guard block down when unaligned: `False`
+- Guard retry enabled: `False`
+- Guard retry stall steps: `80`
+- Guard retry XY/Z band: `0.015/0.06`
+- Guard retry lift/release/max attempts/max steps: `0.08/0.005/2/120`
+- Guard insert latch enabled: `False`
+- Guard insert latch XY/release XY: `0.005/0.009`
+- Guard insert latch resume/recenter/z tol/max down: `0.005/0.0/0.0/0.0`
+- Guard hover enabled: `False`
+- Guard hover XY/release/height/Z tol/steps/max down: `0.004/0.006/0.05/0.01/6/0.002`
+- Guard near action scale enabled: `False`
+- Guard near XY/Z/max XY/max down: `0.02/0.07/0.002/0.0015`
+- Guard fixture clearance enabled: `True`
+- Guard fixture clearance XY/Z/lift/max up: `0.02-0.09/0.052/0.1/0.005`
+- Guard fixture clearance realign enabled: `False`
+- Guard fixture clearance realign start Z/XY/max XY/max down/max steps: `0.0/0.02/0.005/0.0/240`
+- Guard fixture clearance retreat enabled/release XY/max XY: `True/0.06/0.003`
+- Guard preinsert recenter enabled: `False`
+- Guard preinsert recenter start/min Z, trigger/stable XY: `0.025/0.0/0.004/0.0035`
+- Guard preinsert recenter height/Z tol/stable/max steps/max XY/max up: `0.025/0.006/3/80/0.005/0.005`
+- Guard preinsert recenter lift before lateral: `False`
+- Guard stateful recovery enabled: `True`
+- Guard stateful recovery trigger XY/Z/stall: `0.006-0.03/0.13/100`
+- Guard stateful recovery lift/release/resume/stable/max attempts: `0.06/0.0049/0.0058/6/1`
+- Guard final servo enabled: `True`
+- Guard final servo start XY/Z/min Z: `0.035/0.1/0.01`
+- Guard final servo hover/stable/descent-start/release: `0.025/0.0049/0.014/0.014`
+- Guard final servo stable/stall/retries: `8/25/6`
+- Guard final servo align timeout steps/XY: `120/0.014`
+- Guard final servo align-hover escape enabled/steps/XY/Z: `True/20/0.006/0.06-0.1`
+- Guard final servo rearm enabled/cooldown/stable/XY/Z/contact/tilt/margin/max attempts: `False/20/3/0.006/0.02-0.06/0/6.0/-0.001/1`
+- Guard final servo priority over fixture clearance: `True`
+- Guard final servo low recenter enabled/Z/trigger/release/height/steps/max steps/stall: `True/0.025/0.0065/0.0049/0.008/1/500/0`
+- Guard final servo max XY/down/descend bias/lift/recovery steps: `0.008/0.0015/(0.0, -0.005)/0.06/320`
+- Guard final servo descend bias max clearance: `0.01`
+- Guard final servo descend bias requires stateful recovery: `True`
+- Guard final servo recovery mode/soft lift/min height/z tol/hold/max up: `lift_recenter/0.006/0.012/0.001/4/0.002`
+- Guard final servo square recovery enabled/tilt/steps/XY/Z/lift: `False/12.0/12/0.014/0.025/0.05`
+- Guard final servo square recovery escape enabled/XY/Z/height/late height/release/late release/max steps/max XY/max up/max clearance/early/pre-lift/on-trigger/flush control history: `False/0.014/0.02-0.06/0.08/False:0.055@0/0.006/0.0@0/180/0.004/0.005/0.0/False:2:0.008:0.02-0.045:0.0:require_bad_margin=False/6/False/False`
+- Guard final servo square recovery escape direct fast-settle enabled/XY/Zmin-Zmax/contact/max steps/min-max episode steps/from escape/max down@Z/max XY/fast-down margin min: `False/0.006/0.0-0.065/0/24/0-0/False:1/0.0@0.0/0.0/-1.0`
+- Guard final servo square recovery escape recenter no-up/descend enabled/XY/Z/contact/margin/max down: `False/False/0.02/0.045-0.075/0/-0.0015/0.0015`
+- Guard final servo square recovery escape recenter drift-lift enabled/min phase/XY/Z/contact/yaw/tilt: `False/4/0.02/0.035-0.05/0/3.4/999999.0`
+- Guard final servo square recovery escape late recenter descend enabled/min episode/min phase/XY/Z/contact/margin/tilt/max down/max XY/hold release@Z: `False/0/0/0.009/0.04-0.055/0/-0.003--0.0003/2.5/0.0015/0.004/False@0.0`
+- Guard final servo square recovery escape late clean direct finish enabled/min episode/min phase/brake/XY/Z/contact/margins/yaw/tilt: `False/940/5/4/0.0025/0.038-0.048/0/-0.0015:0.0003/5.5/2.2`
+- Guard final servo square recovery escape no-contact XY-pop recenter enabled/XY/Z/contact/max pop-hold/margins/yaw/tilt: `False/0.014-0.035/0.035-0.055/0/999999/-1.0:-1.0/180.0/180.0`
+- Guard final servo square recovery escape early-risk enabled/steps/XY/Z/margin: `False/3/0.008/0.028-0.06/-0.0003`
+- Guard final servo split recovery enabled: `True`
+- Guard final servo contact reinsert enabled: `True`
+- Guard final servo contact unjam steps/tilt/XY/Z/lift/release/max up/wall bias: `6/12.0/0.014/0.025/0.035/0.0048/0.005/0.0035`
+- Guard final servo contact reinsert orient hold/tilt/steps/max steps/max XY/tip lock/gain/max offset/descend max: `True/10.0/4/100/0.0/False/2.0/0.004/260`
+- Guard final servo contact reinsert high reapproach enabled/height/release/stable/max steps/max XY/max up: `False/0.055/0.0045/4/180/0.005/0.005`
+- Guard final servo contact reinsert micro align enabled/Z/XY/release/tilt/max/stall/progress/max XY/up: `False/0.012/0.0068/0.005/9.0/120/40/3e-05/0.0015/0.0`
+- Guard final servo near-miss steps/XY/Z/contact/tilt/max steps/max down/bias: `30/0.0068/0.06/1/8.0/500/0.0025/(0.0035, 0.0035)`
+- Guard final servo square fast settle enabled/XY/Z/release/contact/tilt/max steps/max XY/low-Z XY@Z/max down/low-Z down@Z: `True/0.008/0.06/0.005/8/14.0/260/0.008/0.0@0.0/0.002/0.0@0.0`
+- Guard final servo square fast settle late down boost enabled/max down/max XY/XY/Z/brake/contact/phase/margin/clean: `False/0.0025/0.001/0.0025/0.02-0.06/3/0/10/-1.0/0`
+- Guard final servo square fast settle low-Z contact down guard enabled/min step/wall/XY/Z/brake/max up: `False/0/1/0.004/0.03/4/0.001`
+- Guard final servo square fast settle contact-pop hold enabled/steps/wall/XY/Z/contact/phase/brake/attempts/max up: `False/4/1/0.01-0.024/0.02-0.042/8/0/0/2/0.0`
+- Guard final servo square fast settle contact-pop hold recenter enabled/phase/XY/Z/contact/margins/yaw/tilt: `False/2/0.016-0.026/0.036-0.045/2/-0.0015:0.0005/1.25/3.5`
+- Guard final servo square fast settle contact-pop exhausted recenter enabled/attempts/XY/Z/contact/margins/yaw/tilt: `False/3/0.008-0.016/0.034-0.044/2/0.0004:0.001/1.6/1.6`
+- Guard final servo square fast settle no-contact pop-hold enabled/steps/XY/Z/contact/brake/pop attempts/pop phase/attempts/margins/yaw/tilt/max up: `False/4/0.014-0.035/0.035-0.055/0/4/999999/1/1/-0.0045:0.0/5.0/5.0/0.0015`
+- Guard final servo square fast settle pre-pop guard enabled/steps/XY/Z/contact/phase/brake/soft-hold/attempts/margins/yaw/tilt/max up: `False/3/0.003/0.024-0.033/4/8-0/4/1/2/0.0-0.00075:0.0007-0.0/1.0/0.0-1.3/0.001`
+- Guard final servo square fast settle pre-pop limit enabled/max XY/max down: `False/0.001/0.0006`
+- Guard final servo square fast settle severe-pop reapproach enabled/XY/Z/contact/brake/min step/attempts/height/pre-lift/margins/yaw/tilt: `False/0.018-0.035/0.035-0.055/2/4/0/1/0.07/True/-0.006:0.0/6.0/6.0`
+- Guard final servo square fast settle clearance hold enabled/steps/XY/Z/margin/wall/contact/brake/phase/attempts/max up: `False/8/0.0025/0.02-0.035/-0.001-0.0/0/4/3/12/2/0.0008`
+- Guard final servo square fast settle low-Z relief enabled/wall/XY/Z/margin/contact/brake/phase/attempts/lift/steps/release/max up/max XY/wide recenter: `False/1/0.0025/0.02-0.035/-0.0012-0.0/4/3/12/2/0.004@0.04/8:8/0.002/0.002/0.001/False:start>=0.0:xy<=0.035:z<=0.05:steps=24:pop>=999999:popxy<=0.035`
+- Guard final servo square fast settle low-Z stall relief enabled/XY/Z/margin/contact/brake/phase/stall/attempts/hold: `False/0.0025/0.026-0.032/0.0002-0.001/0/4/38/12/1/False:4:0.0:min_contact_pop=0`
+- Guard final servo square fast settle contact soft-hold enabled/steps/XY/Z/margin/yaw/tilt/wall/contact/phase/episode step/subsequent phase/subsequent episode step/subsequent Z max/subsequent margin min/attempts/max up/extend: `False/4/0.004/0.02-0.04/0.0-1.0/1.5/2.0/1/8/8/0/8/0/0.0/-1.0/3/0.001/False:0:8@0`
+- Guard final servo square fast settle contact soft-hold release-continue enabled/steps/XY/Z/margin/yaw/tilt/contact/max XY/max down: `False/20/0.0035/0.018-0.04/0.0002/1.5/2.0/0/0.001/0.001`
+- Guard final servo square fast settle contact soft-hold release contact-brake enabled/wall/XY/Z/contact/margin/yaw/tilt/max phase/min soft-hold/soft-hold-first: `False/1/0.0-0.004/0.02-0.04/8/-1.0/2.0/2.5/0/0/False`
+- Guard final servo square fast settle contact soft-hold release pop-hold enabled/steps/wall/XY/Z/contact/margin/yaw/tilt/max phase/min soft-hold/max attempts/max up: `False/3/1/0.009-0.014/0.03-0.037/8/-1.0/1.0/3.0/2/2/1/0.0005`
+- Guard final servo square fast settle contact soft-hold large-pop recenter enabled/XY/Z/contact/margins/yaw/tilt: `False/0.018-0.035/0.035-0.05/0/-0.0015:0.001/1.25/3.2`
+- Guard final servo square fast settle late finish continue enabled/step/XY/Z/margin/topdown/yaw/tilt/contact: `False/850/0.003/0.018-0.034/0.0002/-1.0/1.5/2.0/8`
+- Guard final servo square fast settle late escape veto enabled/step/XY/Z/contact/margin/topdown/yaw/tilt: `False/900/0.012/0.036-0.04/0/-0.001/0.0005/1.5/1.6`
+- Guard final servo square contact brake enabled/wall/XY/Z/lift/release/stable/max steps/max attempts/max XY/max up/clearance/margin/require bad margin/repeat margin/exhausted escape/reset/exhausted continue: `False/1/0.008/0.02-0.045/0.012@0.06/0.005/1/50/2/0.003/0.003/0.0/0.0/False/False:-0.001/False/False/False:0:0.01:0.02-0.045:4:8.0:-0.0015:-1.0:180.0`
+- Guard final servo square contact brake release flush enabled/steps/min attempts/min step/XY/Z/contact: `False/3/2/0/0.004/0.02-0.035/8`
+- Guard final servo square contact brake preemptive hold enabled/wall/steps/min attempts/XY/Z/max up/clearance/margin/require bad margin/yaw min/expanded XY/clean release: `False/1/8/0/0.004/0.02-0.04/0.003/0.0/0.0/False/0.0/False:0.008@0.034:margin>=-0.0005:yaw<=0.0/False:brake<=0:contact<=0:xy<=0.0045:z=0.02-0.045:margin>=0.0002:tilt<=2.0`
+- Guard final servo square contact brake preemptive hold pop recenter enabled/phase/XY/Z/contact/margins/yaw/tilt: `False/1/0.01-0.026/0.036-0.045/1/-0.0035:0.0005/1.25/4.6`
+- Guard final servo square contact brake late lift release enabled/brake/phase/step/contact/XY/Z/margin/yaw/tilt: `False/0/1/0/0/0.003/0.02-0.045/0.0002/1.5/2.0`
+- Guard final servo square high-Z descend enabled/stall/XY/Z/contact/tilt/margin/max/max XY/down/low-Z XY/down/staged/mid/hold/low-Z brake: `False/18/0.0055/0.026-0.045/1/3.0/-0.0015/90/0.0/0.0025/0.0@0.0/0.0@0.0/False:0.001:0.0015@0.034/8:2:1:0.0055:0.003/False:4@0.03:0.0`
+- Guard final servo square margin/yaw settle enabled/stall/XY/Z/contact/margin/yaw/lift/max attempts: `False/12/0.008/0.026-0.045/8/0.0/4.0/0.018/1`
+- Guard approach recenter enabled/requires stateful recovery: `True/True`
+- Guard approach recenter XY window/stable/bias: `0.018-0.03/0.017/(0.0, 0.0)`
+- Guard approach recenter Z window/height/tolerance/max steps: `0.045-0.075/0.07/0.012/220`
+- Guard early approach assist enabled: `True`
+- Guard early approach assist XY/Z/target/max steps: `0.07->0.035/0.08-0.24/0.14/500`
+- Guarded oracle mode: `guarded_two_stage`
+- Guarded align/insert XY: `0.02/0.005`
+- Guarded max XY/down/up action: `0.008/0.0035/0.005`
+- Guarded prediction steps: `0.0`
+- Guarded hold Z until insert: `False`
+- Guarded lift before lateral: `False`
+- Guarded lift-before-lateral XY/Z margin: `0.02/0.01`
+- Contact recovery XY/Z/lift/Z tol/max down: `0.005/0.05/0.06/0.01/0.001`
+- Timeout progress XY/Z/max down: `0.01/0.06/0.0015`
+
+| Scenario | Level | Mode | Image | Image target | Control state | Guard | Success | Collision | Timeout | Mean return | Mean steps | Guard steps | Retry steps | Latch steps | Hover steps | Near limited | Fixture steps | Fixture realign | Preinsert | Approach rec | Adapter | Final insert adapter | Final insert pulse | Final insert macro | Visual yaw | Early approach | Stateful rec | Final servo | Final servo descend | Final XY | Final Z |
+| --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| hard_full_light_bucket | full_light_geometry | guarded | normal | all | normal | True | 1.000 | 0.000 | 0.000 | 560.177 | 360.2 | 360.2 (1.00) | 0.0 (0.00) | 0.0 (0.00, down 0.00) | 0.0 (0.00, latched 0.00, block 0.00) | 0.0 (0.00) | 0.0 (0.00) | 0.0 (0.00) | 0.0 (0.00, trig 0.00, rel 0.00) | 0.0 (0.00, trig 0.00, rel 0.00) | 70.4 (0.20) | 0.0 (0.00) | 0.0 | 0.0 (0.00, trig 0.00) | 257.2 (0.71, block 206.8) | 42.0 (0.12, trig 1.00, rel 0.00) | 0.0 (0.00, trig 0.00, rel 0.00) | 264.2 (0.73, trig 1.00, rearm 0.00, rec 1.00) | 30.6 (0.12) | 0.00183 | 0.00911 |

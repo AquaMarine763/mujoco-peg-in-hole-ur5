@@ -1,0 +1,31 @@
+# Rectangular-key post-yaw reapproach plus selective low-Z visual-yaw verifier.
+#
+# This keeps the original post-yaw reapproach estimator/controller for high-Z
+# approach so the previous high/far recovery behavior is preserved. The
+# seed-909502 hard-frame estimator is used only as a final-descent verifier
+# when the primary estimator says yaw is already small near the hole.
+
+base_config: multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_local_hold_stronger_brake_early_approach_post_yaw_reapproach_v1_eval.yaml
+
+guard_visual_yaw_align_low_z_verifier_enabled: true
+guard_visual_yaw_align_low_z_verifier_model: results/visual_yaw_estimator_v1_tight_yaw_key_focus_8k_plus_seed909502_false_small_v1.pt
+guard_visual_yaw_align_low_z_verifier_profiles: [rectangular_key]
+guard_visual_yaw_align_low_z_verifier_max_xy: 0.008
+guard_visual_yaw_align_low_z_verifier_min_z: 0.010
+guard_visual_yaw_align_low_z_verifier_max_z: 0.050
+guard_visual_yaw_align_low_z_verifier_primary_max_yaw_deg: 4.0
+guard_visual_yaw_align_low_z_verifier_min_pred_yaw_deg: 8.0
+guard_visual_yaw_align_low_z_verifier_max_correction_deg: 12.0
+guard_visual_yaw_align_low_z_verifier_require_visible: true
+guard_visual_yaw_align_low_z_verifier_min_raw_norm: 0.03
+guard_visual_yaw_align_low_z_verifier_min_cam_std: 8.0
+guard_visual_yaw_align_low_z_verifier_min_crop_std: 8.0
+guard_visual_yaw_align_low_z_verifier_up_action: 0.003
+guard_visual_yaw_align_low_z_verifier_max_xy_action: 0.0015
+guard_visual_yaw_align_low_z_verifier_block_descent: true
+guard_visual_yaw_align_low_z_verifier_flush_history: true
+
+output_csv: results/rectangular_key_post_yaw_reapproach_low_z_verifier_v1/eval_latest.csv
+output_md: results/rectangular_key_post_yaw_reapproach_low_z_verifier_v1/eval_latest.md
+episode_output_csv: results/rectangular_key_post_yaw_reapproach_low_z_verifier_v1/eval_latest_episodes.csv
+step_output_csv: results/rectangular_key_post_yaw_reapproach_low_z_verifier_v1/eval_latest_steps.csv

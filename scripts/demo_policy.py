@@ -16,6 +16,7 @@ from stable_baselines3 import A2C, PPO, SAC
 
 from peg_in_hole_mujoco.approach_adapter import ApproachAdapterPolicy
 from peg_in_hole_mujoco.final_insert_adapter import FinalInsertAdapterPolicy
+from peg_in_hole_mujoco.visual_yaw_runtime import VisualYawRuntime
 from peg_in_hole_mujoco import (
     GuardedPolicyConfig,
     GuardedPolicyController,
@@ -26,9 +27,11 @@ from peg_in_hole_mujoco import (
 )
 from peg_in_hole_mujoco.sim_config import parse_args_with_config
 from scripts.eval_guarded_policy import (
+    VisualYawAlignResult,
     apply_approach_adapter,
     apply_final_insert_adapter,
     apply_guard_square_pose_yaw_align,
+    apply_guard_visual_yaw_align,
     final_insert_progress_features,
     maybe_apply_final_insert_lift_pulse,
 )
@@ -142,6 +145,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--geometry-square-peg-half-size-range", nargs=2, type=float, default=(0.0105, 0.0125))
     parser.add_argument("--geometry-mixed-square-probability", type=float, default=0.5)
+    parser.add_argument(
+        "--enable-peg-tip-visual-helpers",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
     parser.add_argument("--contact-friction-multiplier-range", nargs=2, type=float, default=(0.7, 1.3))
     parser.add_argument("--contact-solref-time-multiplier-range", nargs=2, type=float, default=(0.8, 1.25))
     parser.add_argument("--contact-solref-damping-multiplier-range", nargs=2, type=float, default=(0.8, 1.2))
@@ -162,6 +170,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--initial-tip-z-above-range", nargs=2, type=float, default=(0.15, 0.25))
     parser.add_argument("--initial-tip-xy-offset-range", nargs=2, type=float, default=(0.08, 0.16))
     parser.add_argument("--initial-tip-xy-angle-range-deg", nargs=2, type=float, default=(0.0, 360.0))
+    parser.add_argument("--initial-shape-yaw-error-range-deg", nargs=2, type=float, default=None)
+    parser.add_argument("--initial-shape-yaw-ik-orientation-weight", type=float, default=0.45)
+    parser.add_argument("--initial-shape-yaw-ik-max-iterations", type=int, default=96)
     parser.add_argument("--initial-ik-max-attempts", type=int, default=20)
     parser.add_argument(
         "--ik-control-mode",
@@ -183,6 +194,56 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=0.25,
     )
+    parser.add_argument("--guard-visual-yaw-align-enabled", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-model", type=Path, default=None)
+    parser.add_argument("--guard-visual-yaw-align-device", default="auto")
+    parser.add_argument(
+        "--guard-visual-yaw-align-profiles",
+        nargs="+",
+        default=["rectangular_key"],
+    )
+    parser.add_argument(
+        "--guard-visual-yaw-align-activation-mode",
+        choices=["final_servo", "near_control"],
+        default="final_servo",
+    )
+    parser.add_argument("--guard-visual-yaw-align-max-xy", type=float, default=0.014)
+    parser.add_argument("--guard-visual-yaw-align-min-z", type=float, default=0.010)
+    parser.add_argument("--guard-visual-yaw-align-max-z", type=float, default=0.080)
+    parser.add_argument("--guard-visual-yaw-align-max-wall-contact", type=int, default=0)
+    parser.add_argument("--guard-visual-yaw-align-min-raw-norm", type=float, default=0.08)
+    parser.add_argument("--guard-visual-yaw-align-min-cam-std", type=float, default=18.0)
+    parser.add_argument("--guard-visual-yaw-align-min-crop-std", type=float, default=16.0)
+    parser.add_argument("--guard-visual-yaw-align-deadband-deg", type=float, default=2.0)
+    parser.add_argument("--guard-visual-yaw-align-max-correction-deg", type=float, default=10.0)
+    parser.add_argument("--guard-visual-yaw-align-block-descent", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-block-descent-deg", type=float, default=6.0)
+    parser.add_argument("--guard-visual-yaw-align-recenter-after-yaw-enabled", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-recenter-release-xy", type=float, default=0.006)
+    parser.add_argument("--guard-visual-yaw-align-recenter-block-descent", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-latch-enabled", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-latch-steps", type=int, default=80)
+    parser.add_argument("--guard-visual-yaw-align-latch-max-xy", type=float, default=0.18)
+    parser.add_argument("--guard-visual-yaw-align-latch-min-z", type=float, default=0.0)
+    parser.add_argument("--guard-visual-yaw-align-latch-max-z", type=float, default=0.18)
+    parser.add_argument("--guard-visual-yaw-align-aligned-descent-enabled", action="store_true")
+    parser.add_argument("--guard-visual-yaw-align-aligned-descent-yaw-deg", type=float, default=4.0)
+    parser.add_argument("--guard-visual-yaw-align-aligned-descent-xy", type=float, default=0.020)
+    parser.add_argument("--guard-visual-yaw-align-aligned-descent-min-z", type=float, default=0.010)
+    parser.add_argument("--guard-visual-yaw-align-aligned-descent-max-z", type=float, default=0.180)
+    parser.add_argument("--guard-visual-yaw-align-aligned-descent-required-steps", type=int, default=2)
+    parser.add_argument("--guard-visual-yaw-align-aligned-descent-max-down-action", type=float, default=0.003)
+    parser.add_argument("--guard-visual-yaw-align-aligned-descent-max-xy-action", type=float, default=0.005)
+    parser.add_argument(
+        "--guard-visual-yaw-align-ik-control-mode",
+        choices=["pose", "pose_tip_priority"],
+        default="pose_tip_priority",
+    )
+    parser.add_argument(
+        "--guard-visual-yaw-align-ik-orientation-weight",
+        type=float,
+        default=0.18,
+    )
     parser.add_argument("--guard-contact-unjam-ik-orientation-weight", type=float, default=None)
     parser.add_argument("--guard-contact-reinsert-orient-ik-orientation-weight", type=float, default=None)
     parser.add_argument("--guard-contact-reinsert-high-ik-orientation-weight", type=float, default=None)
@@ -192,6 +253,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ik-max-iterations", type=int, default=24)
     parser.add_argument("--success-xy-tolerance", type=float, default=0.005)
     parser.add_argument("--success-z-tolerance", type=float, default=0.01)
+    parser.add_argument("--success-shape-yaw-tolerance-deg", type=float, default=None)
+    parser.add_argument(
+        "--success-shape-yaw-profiles",
+        nargs="+",
+        default=["square_square", "triangle_triangle", "hex_hex", "slot_slot", "rectangular_key"],
+    )
     parser.add_argument("--approach-xy-tolerance", type=float, default=0.06)
     parser.add_argument("--approach-height", type=float, default=0.08)
     parser.add_argument("--staged-xy-weight", type=float, default=2.0)
@@ -617,6 +684,13 @@ def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
         initial_tip_z_above_range=tuple(args.initial_tip_z_above_range),
         initial_tip_xy_offset_range=tuple(args.initial_tip_xy_offset_range),
         initial_tip_xy_angle_range_deg=tuple(args.initial_tip_xy_angle_range_deg),
+        initial_shape_yaw_error_range_deg=(
+            tuple(args.initial_shape_yaw_error_range_deg)
+            if args.initial_shape_yaw_error_range_deg is not None
+            else None
+        ),
+        initial_shape_yaw_ik_orientation_weight=args.initial_shape_yaw_ik_orientation_weight,
+        initial_shape_yaw_ik_max_iterations=args.initial_shape_yaw_ik_max_iterations,
         initial_ik_max_attempts=args.initial_ik_max_attempts,
         ik_control_mode=args.ik_control_mode,
         ik_orientation_weight=args.ik_orientation_weight,
@@ -625,6 +699,8 @@ def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
         ik_max_iterations=args.ik_max_iterations,
         success_xy_tolerance=args.success_xy_tolerance,
         success_z_tolerance=args.success_z_tolerance,
+        success_shape_yaw_tolerance_deg=args.success_shape_yaw_tolerance_deg,
+        success_shape_yaw_profiles=tuple(args.success_shape_yaw_profiles),
         approach_xy_tolerance=args.approach_xy_tolerance,
         approach_height=args.approach_height,
         staged_xy_weight=args.staged_xy_weight,
@@ -660,6 +736,7 @@ def make_env(args: argparse.Namespace) -> PegInHoleMujocoEnv:
         dynamics_actuator_kp_multiplier_range=tuple(args.dynamics_actuator_kp_multiplier_range),
         nominal_joint_damping_multiplier=args.nominal_joint_damping_multiplier,
         nominal_actuator_kp_multiplier=args.nominal_actuator_kp_multiplier,
+        enable_peg_tip_visual_helpers=args.enable_peg_tip_visual_helpers,
     )
 
 
@@ -1344,10 +1421,13 @@ def trajectory_row(
     final_insert_adapter_lift_pulse_active: bool = False,
     final_insert_adapter_lift_pulse_steps_remaining: int = 0,
     guard_square_pose_yaw_align_active: bool = False,
+    guard_visual_yaw_align_result: VisualYawAlignResult | None = None,
     info: dict[str, Any],
     terminated: bool,
     truncated: bool,
 ) -> dict[str, Any]:
+    visual_yaw = guard_visual_yaw_align_result or VisualYawAlignResult()
+    visual_yaw_prediction = visual_yaw.prediction
     row: dict[str, Any] = {
         "episode": episode,
         "step": step,
@@ -1422,8 +1502,53 @@ def trajectory_row(
             final_insert_adapter_lift_pulse_steps_remaining
         ),
         "guard_square_pose_yaw_align_active": bool(guard_square_pose_yaw_align_active),
+        "guard_visual_yaw_align_active": bool(visual_yaw.active),
+        "guard_visual_yaw_align_applied": bool(visual_yaw.applied),
+        "guard_visual_yaw_align_blocked_down": bool(visual_yaw.blocked_down),
+        "guard_visual_yaw_align_reason": str(visual_yaw.reason),
+        "guard_visual_yaw_align_profile": (
+            str(visual_yaw_prediction.profile)
+            if visual_yaw_prediction is not None
+            else ""
+        ),
+        "guard_visual_yaw_align_pred_signed_error_deg": (
+            float(visual_yaw_prediction.signed_error_deg)
+            if visual_yaw_prediction is not None
+            else float("nan")
+        ),
+        "guard_visual_yaw_align_pred_abs_error_deg": (
+            float(visual_yaw_prediction.abs_error_deg)
+            if visual_yaw_prediction is not None
+            else float("nan")
+        ),
+        "guard_visual_yaw_align_correction_deg": float(visual_yaw.correction_deg),
+        "guard_visual_yaw_align_raw_norm": (
+            float(visual_yaw_prediction.raw_norm)
+            if visual_yaw_prediction is not None
+            else float("nan")
+        ),
+        "guard_visual_yaw_align_cam_std": (
+            float(visual_yaw_prediction.cam_std)
+            if visual_yaw_prediction is not None
+            else float("nan")
+        ),
+        "guard_visual_yaw_align_crop_std": (
+            float(visual_yaw_prediction.crop_std)
+            if visual_yaw_prediction is not None
+            else float("nan")
+        ),
         "success": bool(info.get("insertion_success", False)),
         "collision": bool(info.get("collision", False)),
+        "success_shape_yaw_required": bool(
+            info.get("success_shape_yaw_required", False)
+        ),
+        "success_shape_yaw_ok": bool(info.get("success_shape_yaw_ok", True)),
+        "success_shape_yaw_error_deg": float(
+            info.get("success_shape_yaw_error_deg", float("nan"))
+        ),
+        "success_shape_yaw_tolerance_deg": float(
+            info.get("success_shape_yaw_tolerance_deg", float("nan"))
+        ),
         "geometry_profile": str(info.get("geometry_profile", "")),
         "geometry_name": str(info.get("geometry_name", "")),
         "peg_shape": str(info.get("peg_shape", "")),
@@ -1439,6 +1564,10 @@ def trajectory_row(
         "ik_orientation_error": float(info.get("ik_orientation_error", float("nan"))),
         "ik_iterations": int(info.get("ik_iterations", -1)),
         "peg_tilt_angle_deg": float(info.get("peg_tilt_angle_deg", float("nan"))),
+        "shape_yaw_signed_error_deg": float(
+            info.get("shape_yaw_signed_error_deg", float("nan"))
+        ),
+        "shape_yaw_error_deg": float(info.get("shape_yaw_error_deg", float("nan"))),
         "joint_limit_min_normalized_margin": float(
             info.get("joint_limit_min_normalized_margin", float("nan"))
         ),
@@ -1613,6 +1742,10 @@ def main() -> None:
         raise ValueError("--guard-near-actuator-kp-multiplier must be positive.")
     if args.ik_orientation_weight < 0.0:
         raise ValueError("--ik-orientation-weight cannot be negative.")
+    if args.initial_shape_yaw_ik_orientation_weight < 0.0:
+        raise ValueError("--initial-shape-yaw-ik-orientation-weight cannot be negative.")
+    if args.initial_shape_yaw_ik_max_iterations < 1:
+        raise ValueError("--initial-shape-yaw-ik-max-iterations must be positive.")
     if (
         args.guard_near_ik_orientation_weight is not None
         and args.guard_near_ik_orientation_weight < 0.0
@@ -1646,6 +1779,88 @@ def main() -> None:
         raise ValueError(
             "--guard-square-pose-yaw-align-ik-orientation-weight cannot be negative."
         )
+    if (
+        args.success_shape_yaw_tolerance_deg is not None
+        and args.success_shape_yaw_tolerance_deg < 0.0
+    ):
+        raise ValueError("--success-shape-yaw-tolerance-deg cannot be negative.")
+    valid_success_yaw_profiles = {
+        "square_square",
+        "triangle_triangle",
+        "hex_hex",
+        "slot_slot",
+        "rectangular_key",
+    }
+    unsupported_success_yaw_profiles = (
+        set(args.success_shape_yaw_profiles) - valid_success_yaw_profiles
+    )
+    if unsupported_success_yaw_profiles:
+        raise ValueError(
+            "--success-shape-yaw-profiles contains unsupported profile(s): "
+            + ", ".join(sorted(unsupported_success_yaw_profiles))
+        )
+    if args.guard_visual_yaw_align_enabled:
+        if args.guard_visual_yaw_align_model is None:
+            raise ValueError(
+                "--guard-visual-yaw-align-enabled requires --guard-visual-yaw-align-model."
+            )
+        if args.observation_mode != "image":
+            raise ValueError("--guard-visual-yaw-align requires image observations.")
+        if not args.include_near_hole_crop:
+            raise ValueError("--guard-visual-yaw-align requires --include-near-hole-crop.")
+    if args.guard_visual_yaw_align_max_xy <= 0.0:
+        raise ValueError("--guard-visual-yaw-align-max-xy must be positive.")
+    if args.guard_visual_yaw_align_min_z < 0.0:
+        raise ValueError("--guard-visual-yaw-align-min-z cannot be negative.")
+    if args.guard_visual_yaw_align_max_z <= args.guard_visual_yaw_align_min_z:
+        raise ValueError("--guard-visual-yaw-align-max-z must be greater than min-z.")
+    if args.guard_visual_yaw_align_max_wall_contact < 0:
+        raise ValueError("--guard-visual-yaw-align-max-wall-contact cannot be negative.")
+    if args.guard_visual_yaw_align_min_raw_norm < 0.0:
+        raise ValueError("--guard-visual-yaw-align-min-raw-norm cannot be negative.")
+    if args.guard_visual_yaw_align_min_cam_std < 0.0:
+        raise ValueError("--guard-visual-yaw-align-min-cam-std cannot be negative.")
+    if args.guard_visual_yaw_align_min_crop_std < 0.0:
+        raise ValueError("--guard-visual-yaw-align-min-crop-std cannot be negative.")
+    if args.guard_visual_yaw_align_deadband_deg < 0.0:
+        raise ValueError("--guard-visual-yaw-align-deadband-deg cannot be negative.")
+    if args.guard_visual_yaw_align_max_correction_deg <= 0.0:
+        raise ValueError("--guard-visual-yaw-align-max-correction-deg must be positive.")
+    if args.guard_visual_yaw_align_block_descent_deg < 0.0:
+        raise ValueError("--guard-visual-yaw-align-block-descent-deg cannot be negative.")
+    if args.guard_visual_yaw_align_recenter_release_xy < 0.0:
+        raise ValueError("--guard-visual-yaw-align-recenter-release-xy cannot be negative.")
+    if args.guard_visual_yaw_align_latch_steps < 0:
+        raise ValueError("--guard-visual-yaw-align-latch-steps cannot be negative.")
+    if args.guard_visual_yaw_align_latch_max_xy <= 0.0:
+        raise ValueError("--guard-visual-yaw-align-latch-max-xy must be positive.")
+    if args.guard_visual_yaw_align_latch_min_z < 0.0:
+        raise ValueError("--guard-visual-yaw-align-latch-min-z cannot be negative.")
+    if args.guard_visual_yaw_align_latch_max_z <= args.guard_visual_yaw_align_latch_min_z:
+        raise ValueError("--guard-visual-yaw-align-latch-max-z must exceed latch-min-z.")
+    if args.guard_visual_yaw_align_aligned_descent_yaw_deg < 0.0:
+        raise ValueError("--guard-visual-yaw-align-aligned-descent-yaw-deg cannot be negative.")
+    if args.guard_visual_yaw_align_aligned_descent_xy <= 0.0:
+        raise ValueError("--guard-visual-yaw-align-aligned-descent-xy must be positive.")
+    if args.guard_visual_yaw_align_aligned_descent_min_z < 0.0:
+        raise ValueError("--guard-visual-yaw-align-aligned-descent-min-z cannot be negative.")
+    if (
+        args.guard_visual_yaw_align_aligned_descent_max_z
+        <= args.guard_visual_yaw_align_aligned_descent_min_z
+    ):
+        raise ValueError(
+            "--guard-visual-yaw-align-aligned-descent-max-z must exceed min-z."
+        )
+    if args.guard_visual_yaw_align_aligned_descent_required_steps < 1:
+        raise ValueError(
+            "--guard-visual-yaw-align-aligned-descent-required-steps must be >= 1."
+        )
+    if args.guard_visual_yaw_align_aligned_descent_max_down_action < 0.0:
+        raise ValueError("--guard-visual-yaw-align-aligned-descent-max-down-action cannot be negative.")
+    if args.guard_visual_yaw_align_aligned_descent_max_xy_action < 0.0:
+        raise ValueError("--guard-visual-yaw-align-aligned-descent-max-xy-action cannot be negative.")
+    if args.guard_visual_yaw_align_ik_orientation_weight < 0.0:
+        raise ValueError("--guard-visual-yaw-align-ik-orientation-weight cannot be negative.")
     if args.approach_adapter_enabled:
         if args.approach_adapter is None:
             raise ValueError("--approach-adapter-enabled requires --approach-adapter.")
@@ -2018,6 +2233,15 @@ def main() -> None:
         if args.final_insert_adapter_enabled and args.final_insert_adapter is not None
         else None
     )
+    visual_yaw_estimator = (
+        VisualYawRuntime(
+            args.guard_visual_yaw_align_model,
+            device=args.guard_visual_yaw_align_device,
+        )
+        if args.guard_visual_yaw_align_enabled
+        and args.guard_visual_yaw_align_model is not None
+        else None
+    )
     guarded_controller = (
         GuardedPolicyController(make_guarded_config(args)) if args.guarded_policy else None
     )
@@ -2049,6 +2273,9 @@ def main() -> None:
             episode_final_insert_adapter_steps = 0
             episode_final_insert_adapter_lift_pulse_steps = 0
             episode_guard_square_pose_yaw_align_steps = 0
+            episode_guard_visual_yaw_align_steps = 0
+            episode_guard_visual_yaw_align_blocked_steps = 0
+            episode_guard_visual_yaw_align_aligned_descent_stable_steps = 0
             approach_adapter_latched = False
             approach_adapter_latch_steps = 0
             final_insert_progress_history: list[tuple[float, float]] = []
@@ -2105,6 +2332,7 @@ def main() -> None:
                 final_insert_adapter_reason = "inactive"
                 final_insert_adapter_lift_pulse_active = False
                 guard_square_pose_yaw_align_active = False
+                guard_visual_yaw_align_result = VisualYawAlignResult()
 
                 base_policy_action, _ = model.predict(obs, deterministic=True)
                 base_policy_action = np.asarray(base_policy_action, dtype=np.float32).reshape(3)
@@ -2371,6 +2599,72 @@ def main() -> None:
                 episode_guard_square_pose_yaw_align_steps += int(
                     guard_square_pose_yaw_align_active
                 )
+                guard_visual_yaw_align_result = apply_guard_visual_yaw_align(
+                    env,
+                    visual_yaw_estimator,
+                    obs,
+                    guarded_step,
+                    pre_info,
+                    args,
+                )
+                visual_prediction = guard_visual_yaw_align_result.prediction
+                visual_aligned = bool(
+                    visual_prediction is not None
+                    and visual_prediction.valid
+                    and visual_prediction.abs_error_deg
+                    <= args.guard_visual_yaw_align_aligned_descent_yaw_deg
+                )
+                if visual_aligned:
+                    episode_guard_visual_yaw_align_aligned_descent_stable_steps += 1
+                else:
+                    episode_guard_visual_yaw_align_aligned_descent_stable_steps = 0
+                visual_yaw_aligned_descent_ready = bool(
+                    args.guard_visual_yaw_align_aligned_descent_enabled
+                    and visual_prediction is not None
+                    and visual_prediction.valid
+                    and visual_prediction.abs_error_deg
+                    <= args.guard_visual_yaw_align_aligned_descent_yaw_deg
+                    and float(pre_info.get("dist_xy", np.inf))
+                    <= args.guard_visual_yaw_align_aligned_descent_xy
+                    and args.guard_visual_yaw_align_aligned_descent_min_z
+                    <= pre_z_above_target
+                    <= args.guard_visual_yaw_align_aligned_descent_max_z
+                    and episode_guard_visual_yaw_align_aligned_descent_stable_steps
+                    >= args.guard_visual_yaw_align_aligned_descent_required_steps
+                )
+                if guard_visual_yaw_align_result.blocked_down:
+                    action = np.asarray(action, dtype=np.float32).copy()
+                    action[2] = max(float(action[2]), 0.0)
+                if visual_yaw_aligned_descent_ready:
+                    action = np.asarray(action, dtype=np.float32).copy()
+                    action[0] = float(
+                        np.clip(
+                            action[0],
+                            -args.guard_visual_yaw_align_aligned_descent_max_xy_action,
+                            args.guard_visual_yaw_align_aligned_descent_max_xy_action,
+                        )
+                    )
+                    action[1] = float(
+                        np.clip(
+                            action[1],
+                            -args.guard_visual_yaw_align_aligned_descent_max_xy_action,
+                            args.guard_visual_yaw_align_aligned_descent_max_xy_action,
+                        )
+                    )
+                    action[2] = float(
+                        np.clip(
+                            action[2],
+                            -args.guard_visual_yaw_align_aligned_descent_max_down_action,
+                            args.guard_visual_yaw_align_aligned_descent_max_down_action,
+                        )
+                    )
+                episode_guard_visual_yaw_align_steps += int(
+                    guard_visual_yaw_align_result.active
+                    or guard_visual_yaw_align_result.applied
+                )
+                episode_guard_visual_yaw_align_blocked_steps += int(
+                    guard_visual_yaw_align_result.blocked_down
+                )
                 obs, reward, terminated, truncated, info = env.step(action)
                 episode_return += reward
                 frames.append(
@@ -2470,6 +2764,7 @@ def main() -> None:
                         guard_square_pose_yaw_align_active=(
                             guard_square_pose_yaw_align_active
                         ),
+                        guard_visual_yaw_align_result=guard_visual_yaw_align_result,
                         info=info,
                         terminated=terminated,
                         truncated=truncated,
@@ -2480,7 +2775,10 @@ def main() -> None:
                         "episode={episode} return={ret:.3f} success={success} "
                         "collision={collision} steps={steps} guard_steps={guard_steps} "
                         "retry_count={retry_count} adapter_steps={approach_steps}/"
-                        "{final_steps}/{yaw_steps} dist_xy={dist_xy:.5f} dist_z={dist_z:.5f}".format(
+                        "{final_steps}/{yaw_steps} visual_yaw_steps={visual_yaw_steps} "
+                        "visual_yaw_blocked={visual_yaw_blocked} "
+                        "dist_xy={dist_xy:.5f} dist_z={dist_z:.5f} "
+                        "shape_yaw={shape_yaw:.2f}".format(
                             episode=episode + 1,
                             ret=episode_return,
                             success=info["insertion_success"],
@@ -2499,8 +2797,15 @@ def main() -> None:
                             approach_steps=episode_approach_adapter_steps,
                             final_steps=episode_final_insert_adapter_steps,
                             yaw_steps=episode_guard_square_pose_yaw_align_steps,
+                            visual_yaw_steps=episode_guard_visual_yaw_align_steps,
+                            visual_yaw_blocked=(
+                                episode_guard_visual_yaw_align_blocked_steps
+                            ),
                             dist_xy=info["dist_xy"],
                             dist_z=info["dist_z"],
+                            shape_yaw=float(
+                                info.get("shape_yaw_error_deg", float("nan"))
+                            ),
                         )
                     )
                     break

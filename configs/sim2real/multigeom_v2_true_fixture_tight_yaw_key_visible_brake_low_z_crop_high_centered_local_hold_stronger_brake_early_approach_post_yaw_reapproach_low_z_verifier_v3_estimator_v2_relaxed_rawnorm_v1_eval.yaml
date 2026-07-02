@@ -1,0 +1,16 @@
+# Rectangular-key low-Z verifier v3 with estimator v2 and relaxed raw-norm gate.
+#
+# Estimator v2 predicts the 909502/911504 yaw labels much better offline, but
+# its raw output norm is lower around 170-180 deg key-yaw states. The first
+# focused online test therefore never activated visual-yaw correction and all
+# episodes timed out with good XY/Z but ~175 deg shape-yaw error. This config
+# keeps the v3 controller and only relaxes the primary estimator confidence gate.
+
+base_config: multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_local_hold_stronger_brake_early_approach_post_yaw_reapproach_low_z_verifier_v3_estimator_v2_eval.yaml
+
+guard_visual_yaw_align_min_raw_norm: 0.015
+
+output_csv: results/rectangular_key_low_z_verifier_v3_estimator_v2_relaxed_rawnorm_v1/eval_latest.csv
+output_md: results/rectangular_key_low_z_verifier_v3_estimator_v2_relaxed_rawnorm_v1/eval_latest.md
+episode_output_csv: results/rectangular_key_low_z_verifier_v3_estimator_v2_relaxed_rawnorm_v1/eval_latest_episodes.csv
+step_output_csv: results/rectangular_key_low_z_verifier_v3_estimator_v2_relaxed_rawnorm_v1/eval_latest_steps.csv

@@ -1,6 +1,6 @@
 # Project Plan And Status
 
-Last updated: 2026-06-24
+Last updated: 2026-07-02
 
 This file records the current project status, known metrics, and next planned steps. Keep it current when a milestone changes.
 
@@ -19,6 +19,156 @@ Current sim-to-real packaging work: v148/v149 has been organized as `sim2real_mu
 
 Current active research branch: `feature/multigeom-v2-visual-yaw-align`. The new branch entry is `SIM2REAL_MULTIGEOM_V2_VISUAL_YAW_ALIGN.md`; use it first for the current visual-yaw-alignment commands, current safe baseline, and the next evaluation loop.
 
+2026-06-30 triangle/hex rollout-balanced update: merged triangle failure
+rollout snapshots with the triangle/hex wrong-basin visual-yaw dataset and
+trained
+`results\visual_yaw_estimator_v1_tight_yaw_triangle_hex_wrong_basin_8k_plus_rollout_balanced.pt`.
+Offline validation is strong (`1.219 deg` mean, `3.686 deg` p95), and a
+focused triangle check reached `3/3` only after adding
+`-NoTriangleProtocolYawOverrides` so the wrapper no longer relaxes YAML yaw
+thresholds. The broader regression rejected promotion: triangle strict low-Z
+abort is `25/30`, collision `5/30`, timeout `0/30`; low-Z abort v2 is
+`10/20` on focused fail seeds; narrow low-Z gate is `15/20`; hex with the same
+triangle strict config is only `14/30`, collision `2/30`, timeout `14/30`.
+Conclusion: keep the rollout-balanced estimator and low-Z gates
+diagnostic-only. Next work should split per-shape runtime configs and fix the
+low-Z triangle false-small-yaw failure mode, rather than adding more
+lift/recenter attempts.
+
+2026-06-30 strict-failseed v2/per-profile update: collected the five strict
+triangle collision failseeds (`906501`, `907502`, `910503`, `910504`,
+`911501`), merged them into
+`datasets\visual_yaw_v1_tight_yaw_triangle_hex_wrong_basin_8k_plus_rollout_balanced_plus_strict_failseeds_v2.npz`,
+and trained
+`results\visual_yaw_estimator_v1_tight_yaw_triangle_hex_wrong_basin_8k_plus_rollout_balanced_plus_strict_failseeds_v2.pt`.
+Triangle improved to `29/30`, collision `0/30`, timeout `1/30`, but hex with
+the shared v2 checkpoint collapsed to `1/30`, collision `18/30`, timeout
+`11/30`. Implemented profile-specific visual-yaw checkpoint routing via
+`--guard-visual-yaw-align-profile-models` and added
+`configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_triangle_strict_failseeds_v2_eval.yaml`
+plus
+`configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_triangle_hex_per_profile_v2_eval.yaml`.
+The per-profile hex fallback run is `14/30`, collision `2/30`, timeout
+`14/30`, which confirms v2 is isolated from hex but hex still needs its own
+rollout data/model. Current next step: collect hex failure rollout yaw data and
+train a hex-specific estimator instead of promoting shared v2.
+
+2026-06-30 hex-failure v1 update: collected 16 failed hex rollouts from the
+per-profile fallback run and merged 15 usable datasets into
+`datasets\visual_yaw_v1_tight_yaw_triangle_hex_wrong_basin_8k_plus_rollout_balanced_plus_hex_failures_v1.npz`
+(`27059` samples). Trained
+`results\visual_yaw_estimator_v1_tight_yaw_triangle_hex_wrong_basin_8k_plus_rollout_balanced_plus_hex_failures_v1.pt`.
+Offline hex validation is strong (`0.460/1.378 deg` mean/p95). Online hex
+improved to `29/30`, collision `0`, timeout `1`, with the only timeout being
+the visual-inactive `908503` outlier. A unified strict triangle+hex config is
+not yet promotable because triangle was `28/30` timeout-only; keep separate
+per-shape entries for now: triangle strict-failseed v2 (`29/30`) and hex
+hex-failures v1 (`29/30`). Next focus is the remaining visual-inactive/high-yaw
+timeout seeds, especially `908503`.
+
+2026-07-01 hex early-approach/descent update: diagnosed hex `908503` as two
+separate runtime issues, not a yaw-estimator failure. First, it never entered
+the guard/visual-yaw work zone (`visual active/applied 0/0`, closest XY about
+`43 mm` while high), so
+`configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_triangle_v2_hex_failures_v1_hex_early_approach_v1_eval.yaml`
+adds a hex-only high-Z/far-XY early approach assist. That moved the episode
+into final-servo but it still timed out at `6-8 cm` above the fixture because
+visual target-hold/crop gates kept blocking descent after yaw and XY were
+already aligned. The promoted hex diagnostic entry is now
+`configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_triangle_v2_hex_failures_v1_hex_early_approach_descent_v1_eval.yaml`:
+hex-only profile routing to the hex-failures v1 checkpoint, early approach
+assist, target-hold descent unblocked, and slightly stronger aligned/near-miss
+descent. It reached `30/30`, collision `0/30`, timeout `0/30` on the same
+hex six-seed x five-episode gate. Trace summary:
+`results\sim2real_multigeom_v2_hex_early_approach_descent_v1_hex_6seed_5ep\trace_summary\visual_yaw_trace_summary.md`.
+Do not use this as a unified multishape default yet; triangle remains separate
+at `29/30` with one timeout, and its residual `908503/909502` failures are a
+different low-Z visibility/target-maintenance problem.
+
+2026-07-01 triangle wrist-rotation diagnostic: current triangle demo seed
+`910500` still shows real wrist over-rotation, not just a rendering artifact.
+The old trace has `wrist_2` span about `322.9 deg` and near/insert span about
+`207.9/206.0 deg`. Added default-off runtime hooks in
+`scripts\eval_guarded_policy.py` for equivalent-basin latching and pre-active
+hold-target override. Several smoke variants were rejected: equivalent-basin
+latch alone reduced little (`wrist_2` span about `310.7 deg`) and caused
+collision; strong pre-active target hold reduced `wrist_2` span to about
+`142.2 deg` but timed out at high Z; hard IK wrist target clipping caused
+collision/large XY excursions. The demo wrapper was restored so these
+diagnostics are not enabled by default. Next useful direction is not another
+generic latch; implement an absolute shape-yaw target/controller that chooses a
+real-robot-safe wrist branch once at high Z, then freezes low-Z insertion
+unless a bounded re-acquire is explicitly triggered.
+
+2026-07-01 triangle absolute-shape target update: implemented the next
+triangle wrist-safety path. `peg_in_hole_mujoco\envs\peg_in_hole_env.py` now
+has `set_pose_ik_target_to_nearest_shape_hole_yaw`, which chooses an absolute
+hole-frame shape-yaw target across shape symmetries using wrist/IK/joint-margin
+costs instead of repeatedly adding relative visual-yaw corrections. Added
+default-off eval flags:
+`--guard-visual-yaw-align-absolute-shape-target*` and
+`--guard-visual-yaw-align-absolute-shape-target-descent-unlock*`. The
+triangle wrappers now enable this protocol by default for `triangle_triangle`:
+absolute shape target, `freeze-aligned-target-source target`, and a
+deployment-style descent unlock when an absolute target has been held near the
+hole but the visual-yaw estimator keeps reporting a false-large residual.
+
+Validation sequence:
+
+- `results\triangle_abs_shape_target_smoke`: absolute target with old
+  `freeze source=current` still timed out; it froze a real `~18 deg` yaw error.
+- `results\triangle_abs_shape_target_freeze_target_smoke`: switching freeze to
+  `target` made seed `910500` succeed, collision `0`, timeout `0`, with
+  `wrist_2` span `115.9 deg`.
+- `results\triangle_abs_shape_target_wrapper_10ep`: before descent unlock,
+  wrapper eval was only `2/10`; failures were timeout-only with true yaw already
+  near `0.6 deg`, but visual predictions around `20 deg` kept blocking descent.
+- `results\triangle_abs_shape_target_unlock_wrapper_10ep_v2`: after descent
+  unlock, seeds `910500-910509` reached `10/10`, collision `0/10`, timeout
+  `0/10`; final yaw is `0.58-0.71 deg`. Wrist motion is much better than the
+  old `322.9 deg` demo, but not fully solved: most `wrist_2` spans are
+  `104-125 deg`, with outliers `193/213/226 deg`, and one episode has
+  `wrist_1/wrist_3` spans around `165/177 deg`. Next step is generate the new
+  triangle demo, inspect visual wrist motion, then run a broader multi-seed
+  triangle gate before promoting/tagging.
+
+
+2026-07-02 triangle wrist-safe v3 / hex early-approach default update: triangle wrist over-rotation is now gated out in the current sim validation. The v3 triangle gate `results\triangle_wrist_safe_v3_gate_120ep` reached `116/120` success, collision `0/120`, timeout `4/120`, and `0/120` wrist-span outliers above `180 deg`. The six inspected triangle demo seeds all succeed with final shape-yaw error about `0.6-0.7 deg` and wrist_2 spans about `110-123 deg`: `results\triangle_wrist_safe_v3_demos\demo_triangle_triangle_seed906504.gif`, `907508`, `908510`, `910505`, `910500`, and `910501`. This is now good enough to treat the old full-spin triangle failure as fixed in sim, pending the user's visual review of the GIFs.
+
+Hex was rechecked before changing defaults. The generic multishape visual-yaw config is only `14/20` on seed `906500` because high-Z/far-XY starts and descent blocking still produce timeouts/collisions. The existing hex-only early-approach/descent config was revalidated on a broader gate: `results\hex_early_approach_descent_gate_120ep` reached `120/120`, collision `0/120`, timeout `0/120`. The short wrappers now route `hex_hex` to `configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_triangle_v2_hex_failures_v1_hex_early_approach_descent_v1_eval.yaml` by default, and the demo wrapper uses the new `configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_hex_early_approach_descent_v1_demo.yaml`. A smoke verified the new default wrapper at `results\hex_default_wrapper_verify_3ep` (`3/3`) and generated the current hex demo at `results\hex_early_approach_descent_demos\demo_hex_hex_seed906500.gif`.
+
+2026-07-02 per-shape routing completion: square and rectangular-key were added to the same short-wrapper routing layer. `square_square` now defaults to the stable v148/v149 stack through `configs\sim2real\multigeom_v1_eval.yaml` because the generic v2 tight-yaw visual-yaw config regressed square to `0/5`; v148/v149 historical validation is `720/720`, collision `0/720`, timeout `0/720`, and the wrapper recheck `results\square_default_wrapper_verify_5ep` is `5/5`. `rectangular_key` first defaulted to the stronger-brake candidate (`112/120`, collision `0/120`, timeout `8/120`), then moved to the post-yaw reapproach v1 candidate after the remaining failure was diagnosed as high-Z/far-XY timeout after a large visual-yaw correction rather than low-Z contact jam. The current rectangular-key default is `configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_local_hold_stronger_brake_early_approach_post_yaw_reapproach_v1_eval.yaml`; direct seed `906500` key validation is `20/20`, collision `0/20`, timeout `0/20`. Demo defaults now write to `results\square_v148_demos\demo_square_square_seed906500.gif` and `results\rectangular_key_post_yaw_reapproach_demos\demo_rectangular_key_seed906500.gif`. The current after-routing smoke gate `results\visual_yaw_align_post_yaw_reapproach_default_20ep` is `80/80` across `square_square`, `triangle_triangle`, `hex_hex`, and `rectangular_key`, with zero collision and zero timeout.
+
+
+2026-07-02 rectangular-key estimator v2 / relaxed raw-norm update: addressed the
+rectangular-key promotion blocker from `29/30` to a clean `30/30` six-seed gate.
+Collected the remaining seed `911504` timeout rollout into
+`datasetsisual_yaw_key_seed911504_v3_timeout_rollout.npz`, filtered the
+near-hole/high-Z and late-drift failure frames into
+`datasetsisual_yaw_key_seed911504_v3_timeout_rollout_targeted_v1.npz` (`83`
+samples), merged it with the low-Z crop-high key dataset and the seed `909502`
+false-small correction set, and trained
+`resultsisual_yaw_estimator_v2_rectangular_key_low_z_crop_high_plus_909502_911504_targeted.pt`.
+Offline targeted seed `911504` error improved from v1 `16.24 deg` mean / `22.11 deg`
+p95 / `49.4%` bad fraction to v2 `1.89 deg` mean / `5.09 deg` p95 / `0%` bad
+fraction. The first online v2 attempt failed because raw confidence was lower
+around `170-180 deg`, so
+`configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_local_hold_stronger_brake_early_approach_post_yaw_reapproach_low_z_verifier_v3_estimator_v2_relaxed_rawnorm_v1_eval.yaml`
+keeps the v3 controller, uses estimator v2, and relaxes only
+`guard_visual_yaw_align_min_raw_norm` to `0.015`. Validation:
+`results
+ectangular_key_low_z_verifier_v3_estimator_v2_relaxed_rawnorm_v1_6seed_5ep`
+reached `30/30`, collision `0/30`, timeout `0/30`; `911504` now succeeds in
+`313` steps with final yaw error `2.82 deg`. Triangle regression
+`results	riangle_wrist_safe_v3_estimator_v2_relaxed_rawnorm_v1_regression_3seed_5ep`
+reached `15/15`, collision `0/15`, timeout `0/15`. This is the current best
+rectangular-key candidate. Next step: update the rectangular-key short-wrapper
+routing/demo config to this candidate, generate a key demo for seed `911504`,
+run a four-shape wrapper smoke gate, then decide whether to push/tag.
+
+2026-07-02 rectangular-key multi-seed diagnostic: the post-yaw reapproach v1 candidate reached `29/30`, collision `1/30`, timeout `0/30` on `results\rectangular_key_post_yaw_reapproach_v1_6seed_5ep`. The remaining failure is seed `909502`, episode `2`, and is now a low-Z visual-yaw false-small collision rather than the earlier high-Z/far-XY timeout. The trace reaches near-hole XY/Z, but the visual-yaw estimate drops to about `0-3 deg` while true key yaw remains around `14-24 deg`, so the controller authorizes descent and collides. False-small analysis lives at `results\rectangular_key_post_yaw_reapproach_v1_6seed_5ep\false_small_analysis\visual_yaw_false_small_analysis.md`: `126` false-small rows, `78` in the failed episode, and `19` low-Z false-small rows all in the failed episode. A triangle quick regression after the key changes reached `15/15`, collision `0`, timeout `0`.
+
+Rejected rectangular-key diagnostics: `post_yaw_reapproach_hold_descent_v1` and `post_yaw_reapproach_low_z_zgate_v1` both avoided the focused collision by converting seed `909502` into a timeout, but neither recovered the episode. Do not promote these variants. Current next step: keep per-shape deployment routing, but do not push/tag this key candidate as a release. Focus next on key low-Z visual-yaw reliability: targeted hard-frame collection around false-small states, a key-focused estimator/confidence check, or a visual verification routine before final descent. Avoid adding more broad runtime gates based only on predicted-small yaw because the observable proxies also hit successful episodes.
 2026-06-23 low-Z visual-evidence update: extended
 `scripts\scan_visual_yaw_views.py` with a `final_descent` candidate group and
 explicit low-Z sampling controls. The low-Z scan uses `tip_z_above_range
@@ -70,6 +220,100 @@ remaining failures finish above `150 deg` yaw error. Next step should inspect
 why these cases do not enter or complete re-acquire, then add a precise
 state condition for resetting/preserving the IK yaw target in the high-yaw
 basin.
+
+2026-06-24 centered high-yaw re-acquire diagnostic: added default-off runtime
+support plus config
+`configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_reacquire_centered_high_yaw_eval.yaml`.
+The candidate adds a near-centered high-yaw trigger, preserves the IK target on
+trigger, keeps local re-acquire descent disabled, and lowers only this
+diagnostic's crop visibility threshold to `15.0`. It exposed a real gating
+issue: isolated seed `911513` can be rescued once the strict crop gate is
+relaxed. However, batched evaluation is worse than the high-yaw-only control:
+on seeds `908500,911500`, high-yaw-only recheck is `38/40`, collision `0`,
+timeout `2`, while centered/crop15 is `37/40`, collision `0`, timeout `3`.
+Do not promote this candidate. Keep the current high-yaw-only diagnostic as the
+best same-six-seed number. Next work should avoid lowering global crop
+thresholds and instead add state-specific reapply/target-retention logic after
+a near-centered high-yaw evidence window. Report:
+`results\visual_yaw_low_z_crop_high_centered_reacquire_diagnostic.md`.
+
+2026-06-24 centered high-yaw local-reapply latch update: added state-specific
+centered high-yaw evidence reuse in `scripts\eval_guarded_policy.py` plus
+config
+`configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_reapply_eval.yaml`.
+This keeps the global visual-yaw crop gate at `16.0`; only a near-centered
+high-yaw evidence window may use local `crop_std >= 15.0`, and only inside an
+80-step reapply latch. The config preserves the existing IK yaw target on
+trigger and keeps re-acquire-local descent disabled. Targeted singleton
+`911513` now succeeds with zero collision and final yaw error about `0.51 deg`
+inside the six-seed run. The same `908500,911500` 40ep regression gate is
+`38/40`, collision `0`, timeout `2`, matching high-yaw-only and avoiding the
+centered/crop15 regression (`37/40`). The full six-seed 120ep gate is
+`112/120`, collision `0/120`, timeout `8/120`, matching but not improving the
+high-yaw-only candidate. Keep centered local reapply diagnostic-only for now:
+it fixes high-yaw-only failures `908503` and `911513`, but adds timeouts
+`910512` and `911517`, shifting the residual set rather than improving the
+headline success rate.
+Report:
+`results\visual_yaw_low_z_crop_high_centered_reapply_diagnostic.md`.
+
+2026-06-24 centered high-yaw target-reset/local-hold diagnostics: tested two
+narrower follow-ups to the centered reapply result. First, config
+`configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_reapply_reset_eval.yaml`
+keeps the centered evidence/latch but restores standard re-acquire target
+reset. It fixes isolated `910512` and preserves isolated `911513`, but the full
+six-seed gate is only `110/120`, collision `0/120`, timeout `10/120`, so it is
+rejected. Second, added default-off local-hold support in
+`scripts\eval_guarded_policy.py` plus config
+`configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_local_hold_eval.yaml`.
+This disables centered-triggered full re-acquire and instead uses centered
+high-yaw evidence to arm a short wrong-basin-style XY/yaw hold. The focused
+`908500,911500` gate improves to `39/40`, collision `0/40`, timeout `1/40`,
+with local hold firing on `908503` and `911513`. However the full six-seed gate
+is `111/120`, collision `1/120`, timeout `8/120`, below the high-yaw-only
+headline. Keep both follow-ups diagnostic-only; the current best headline
+remains high-yaw-only `112/120`, collision `0/120`, timeout `8/120`. Reports:
+`results\visual_yaw_low_z_crop_high_centered_reapply_reset_diagnostic.md` and
+`results\visual_yaw_low_z_crop_high_centered_local_hold_diagnostic.md`.
+
+2026-06-24 stronger large-XY/low-Z brake diagnostic: added
+`configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_local_hold_stronger_brake_eval.yaml`.
+It keeps centered local hold unchanged and only increases
+`guard_visual_yaw_align_large_xy_low_z_brake_up_action` from `0.008` to
+`0.012`, targeting the two collisions seen in the current-code high-yaw-only
+rerun. Full six-seed result is `112/120`, collision `0/120`, timeout `8/120`
+with seed split `906500 18/20`, `907500 20/20`, `908500 20/20`,
+`909500 18/20`, `910500 18/20`, `911500 18/20`. It ties the historical
+high-yaw-only headline and is cleaner than the current-code high-yaw-only rerun
+`109/120`, collision `2/120`, timeout `9/120`. Treat this as the safer
+current-code candidate, not as a new promotion by success rate. Failure analysis
+shows `7` timeout_wrong_yaw_basin and `1` timeout_yaw_not_aligned; no collision.
+Next work should target wrong-yaw-basin re-acquire coverage rather than further
+brake tuning. Reports:
+`results\visual_yaw_low_z_crop_high_centered_local_hold_stronger_brake_diagnostic.md`,
+`results\visual_yaw_low_z_crop_high_centered_local_hold_stronger_brake_failure_analysis.md`,
+`results\visual_yaw_low_z_crop_high_high_yaw_current_rerun_diagnostic.md`, and
+`results\visual_yaw_low_z_crop_high_high_yaw_current_failure_analysis.md`.
+
+2026-06-24 approach-adapter extension diagnostics: added two config-only probes
+on top of the stronger-brake candidate. First,
+`configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_local_hold_stronger_brake_adapter_long_eval.yaml`
+raises `approach_adapter_max_steps` to `420`, per-episode adapter budget to
+`700`, latched min-Z to `0.060`, and XY residual to `0.004`. On the eight known
+stronger-brake failures it reaches only `2/8`, collision `0/8`, timeout `6/8`;
+it rescues `906510` and `910512`, but leaves high-Z/far-XY no-guard failures
+and yaw-basin timeouts. Second,
+`configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_local_hold_stronger_brake_adapter_longer_eval.yaml`
+raises the adapter cap to `700` and episode budget to `900`; on the four
+remaining failures it is `0/4`. Do not promote either or run full 120ep unless a
+new approach policy/guard changes the mechanism. The useful conclusion is that
+remaining failures are no longer mainly near-hole insertion corrections; they
+need high-Z/far-XY approach recovery or retrained approach-adapter data.
+Reports:
+`results\visual_yaw_low_z_crop_high_adapter_long_known_failures_diagnostic.md`,
+`results\visual_yaw_low_z_crop_high_adapter_long_known_failures_analysis.md`,
+`results\visual_yaw_low_z_crop_high_adapter_longer_remaining_failures_diagnostic.md`, and
+`results\visual_yaw_low_z_crop_high_adapter_longer_remaining_failures_analysis.md`.
 
 2026-06-23 key-yaw recovery update: added a default-off low-Z lateral-pop
 recovery hook in `scripts\eval_guarded_policy.py` plus diagnostic config
@@ -5222,6 +5466,531 @@ Current decision:
   tuning to a more explicit low-Z lateral-pop / delayed-action recovery, or to
   improving the visual-confidence pipeline before re-acquire is allowed to
   change descent behavior.
+
+## 2026-06-25 z190 Keyhole Safety Reproducibility And Brake Diagnostics
+
+- Added evaluation/reproducibility helpers in `scripts\eval_guarded_policy.py`:
+  - `--deterministic-eval` and `--deterministic-eval-torch-threads` for
+    repeatability audits.
+  - profile-scoped low-visibility and large-XY/low-Z brake profiles.
+  - default-off large-XY/low-Z brake hold steps.
+  - default-off low-Z lateral-pop override during re-acquire.
+- Current safe rectangular-key reference remains:
+  `configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_local_hold_stronger_brake_eval.yaml`
+  with `112/120`, collision `0/120`, timeout `8/120`.
+- The higher-success z190 reference remains diagnostic only:
+  `configs\sim2real\multigeom_v2_true_fixture_tight_yaw_key_visible_brake_low_z_crop_high_centered_local_hold_stronger_brake_early_approach_adapter_long_z190_eval.yaml`
+  with `117/120`, collision `1/120`, timeout `2/120`.
+- Rejected candidates:
+  - `z190_key_safety1`: standard `909500/20ep` was `18/20`,
+    collision `2/20` (`909502`, `909506`).
+  - `z190_pop_safety1`: standard `909500/20ep` was `18/20`,
+    collision `0`, timeout `2`; it converts the observed collision into
+    timeouts but does not improve success.
+  - `z190_pop_safety1_lowz2`: single runs were inconsistent and repeated
+    deterministic `909500/20ep` checks settled at `18/20`, collision `2/20`.
+    Full `120ep` also had a `909506` collision. Do not promote.
+  - `z190_pop_safety1_early_pop1`: `909500/20ep` was `18/20`,
+    collision `1/20`, timeout `1/20`; allowing pop to interrupt re-acquire
+    destabilized `909502`.
+  - `z190_pop_safety1_hold_brake1`: `909500/20ep` was `18/20`,
+    collision `1/20`, timeout `1/20`; persistent brake still triggers too late
+    for `909506`.
+  - `z190_pop_safety1_no_reacq_descent1`: `909500/20ep` was `18/20`,
+    collision `1/20`, timeout `1/20`; disabling re-acquire descent does not
+    address the early `align_hover` collision path.
+- Interpretation:
+  - `909502` is mostly a late low-Z lateral drift / wrong visual basin case.
+  - `909506` collides earlier during `align_hover`: XY is still large and yaw
+    is wrong, then Z drops quickly before large-XY/low-Z brake can become
+    protective.
+  - Repeated small recovery/brake patches either convert collision to timeout
+    or introduce new collision risk. The next useful implementation should
+    explicitly constrain the `align_hover` phase at low altitude: cap downward
+    motion and lateral motion when rectangular-key XY is still large or visual
+    yaw is unreliable, before entering the low-Z brake window.
+
+## 2026-06-28 Eval-Backed Visual-Yaw Demo
+
+- Added GIF rendering support to `scripts\eval_guarded_policy.py` through
+  `--demo-output`, `--demo-render-cameras`, and
+  `--demo-policy-observation-panel`.
+- Updated `scripts\sim2real\demo_multigeom_v2_visual_yaw_align.ps1` so it
+  records the same eval-backed guarded visual-yaw stack used for success-rate
+  reporting, instead of the simpler rendering-only demo loop.
+- Added
+  `configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_eval_demo.yaml`,
+  which inherits the low-Z crop-high rectangular-key visual-yaw config.
+- Smoke demo:
+  `results\sim2real_multigeom_v2_visual_yaw_align_eval_demo_smoke\demo_rectangular_key_seed907500.gif`.
+  Result was success `1/1`, collision `0`. Trace shows visual yaw active for
+  `137` rows; predicted yaw moved from about `172 deg` to about `1 deg`, and
+  final true `shape_yaw_error_deg` was about `0.32 deg`.
+- Interpretation: the demo now directly shows the wrist-yaw alignment before
+  insertion for a successful rectangular-key episode. It is a visual demo of
+  the existing eval-backed stack, not a new promoted controller.
+
+## 2026-06-28 Multi-Shape Alignment Demo Set
+
+- Added
+  `configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_multishape_eval_demo.yaml`
+  for eval-backed GIF demos on the current yaw-estimator-supported profiles:
+  `rectangular_key`, `triangle_triangle`, and `hex_hex`.
+- Generated successful visual-yaw estimator demos in
+  `results\sim2real_multigeom_v2_visual_yaw_align_multishape_demo`:
+  - `demo_rectangular_key_seed907500.gif`: success, final yaw error about
+    `0.64 deg`, `427` steps, visual-yaw active rows `79`.
+  - `demo_triangle_triangle_seed910500.gif`: success, final yaw error about
+    `2.49 deg`, `432` steps, visual-yaw active rows `333`.
+  - `demo_hex_hex_seed907000.gif`: success, final yaw error about `5.02 deg`,
+    `208` steps, visual-yaw active rows `14`.
+- Generated a square comparison demo:
+  `demo_square_square_pose_yaw_seed906500.gif`, success `1/1`, `210` steps,
+  final yaw error about `0.46 deg`, using the v148 square pose-yaw route rather
+  than the visual-yaw estimator route.
+- Addressed the user's concern that the key demo wrist rotated too far:
+  - Added trace columns for wrist qpos/target/step delta and IK target
+    metadata.
+  - Added IK continuity weights, optional wrist target clipping support, and
+    controlled initial shape-yaw reset sampling.
+  - Promoted a key-only initial yaw hold in the multishape demo config.
+  - Kept global visual correction at `90 deg` for triangle/hex, but added
+    `rectangular_key:20.0 deg` profile max-correction.
+  - The older key trace had `wrist_2` span `153.48 deg` and max yaw error
+    `174.92 deg`; the current official key trace has `wrist_2` span
+    `53.11 deg`, max yaw error `57.08 deg`, and final yaw `0.64 deg`.
+  - Do not default to a hard `6 deg` wrist target clip; that probe made the key
+    path timeout. Real-robot wrist limits should be handled next with
+    equivalent-yaw shortest-path target selection and UR5e joint-limit checks.
+- Added a diagnostic default-off shortest-equivalent visual-yaw target switch:
+  `guard_visual_yaw_align_shortest_equivalent_target`.
+  - It is kept off in
+    `configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_multishape_eval_demo.yaml`.
+  - Key/hex/default-off rechecks stayed successful:
+    key seed `907500` `1/1`, final yaw `0.61 deg`, `wrist_2` span `53.04 deg`;
+    hex seed `907000` `1/1`, final yaw `4.41 deg`, `wrist_2` span `135.84 deg`.
+  - Triangle default-off recheck succeeds: seed `910500`, `1/1`, final yaw
+    `2.32 deg`, `wrist_2` span `323.00 deg`.
+  - Turning shortest-equivalent on for the same triangle seed collided at step
+    `148`, final yaw `6.64 deg`, `wrist_2` span `460.89 deg`. Do not promote
+    the current greedy version.
+  - Next useful work: build a gated candidate selector that evaluates
+    equivalent yaw targets against IK target error, XY/Z drift, joint-limit
+    margin, and contact-risk proxies before selecting the lowest-wrist-motion
+    candidate.
+- Important result: enabling the current visual-yaw estimator route directly
+  for `square_square` caused collisions/timeouts across the seed scan, so do
+  not present square as solved by visual-yaw yet. Keep square on v148 pose-yaw
+  until a square-specific visual-yaw runtime is debugged.
+- `slot_slot` is not covered by the current visual-yaw estimator checkpoint.
+  A slot-inclusive yaw dataset/model is required before generating a comparable
+  slot visual-yaw alignment demo.
+
+## 2026-06-28 Wrist Trace Diagnostic For Visual-Yaw Demos
+
+- Added `scripts\analyze_wrist_trace.py`, an offline trace tool that computes
+  raw span, unwrapped span, cumulative absolute motion, max per-step motion,
+  target span/jumps, and wrap-like jump counts for `wrist_1/2/3` from guarded
+  eval/demo CSV traces.
+- Generated
+  `results\sim2real_multigeom_v2_wrist_trace_diagnostics_20260628\wrist_trace_summary.md`
+  and `.csv` using the official key/triangle/hex/square demo traces, the older
+  key trace, and the triangle shortest-equivalent/temporal-smoothing probes.
+- Diagnostic conclusion:
+  - Current rectangular-key `wrist_2` unwrapped span is `53.11 deg`, improved
+    from the older key trace `153.48 deg`.
+  - Current triangle `wrist_2` unwrapped span is `322.94 deg`, cumulative
+    motion `443.54 deg`, with zero wrap-like qpos jumps. The large turn seen in
+    the GIF is therefore real joint travel, not just angle-display wrapping.
+  - Current hex `wrist_2` unwrapped span is `137.23 deg`.
+  - Greedy shortest-equivalent target is rejected because it collided on
+    triangle and raised `wrist_2` span to `460.89 deg`.
+  - Temporal equivalent smoothing improves correction continuity but not
+    triangle wrist travel, so the next useful work is IK branch/joint-objective
+    control and real UR5e wrist-wrap/joint-limit checks.
+- Next implementation direction:
+  1. Try conservative IK/hold diagnostics that penalize large absolute wrist
+     travel and target jumps while preserving key success.
+  2. Run one-seed key/triangle/hex smoke plus wrist trace diagnostics.
+  3. Promote only if success is unchanged and triangle/hex wrist travel drops
+     without introducing collisions/timeouts.
+
+## 2026-06-29 Triangle Wrist Protocol Smoke
+
+- Added a triangle-specific wrist protocol to the visual-yaw eval/demo wrapper
+  path. The protocol combines wrist-limited equivalent target selection,
+  triangle-only lower raw-norm gating, hold-XY, hold-target, and
+  freeze-aligned-target recenter-before-descent.
+- Added `-NoTriangleWristProtocol` to the top-level eval/demo wrappers for
+  reproducing the old behavior when needed.
+- Validation:
+  - `triangle_triangle`, seed `910500`: wrapper smoke success `1/1`,
+    collision `0`, timeout `0`, final yaw `1.96 deg`.
+  - New triangle demo:
+    `results\sim2real_multigeom_v2_triangle_wrist_protocol_demo\demo_triangle_triangle_seed910500.gif`,
+    success `1/1`, final yaw `2.16 deg`.
+  - Wrist analysis:
+    `wrist_2` span dropped from the older official triangle demo
+    `322.93 deg` to `144.97 deg`; cumulative motion dropped from
+    `443.54 deg` to `390.87 deg`.
+  - Non-triangle wrapper rechecks stayed successful on default paths:
+    `hex_hex` seed `907000` success `1/1`; `rectangular_key` seed `907500`
+    success `1/1`.
+- Current interpretation:
+  - This fixes the most visible triangle demo issue: wrist no longer makes a
+    near-full turn before insertion.
+  - It is not yet a general wrist-safe controller. It is scoped to triangle
+    because earlier full-protocol probes broke hex/key.
+  - Next step is a broader wrist-aware IK/equivalent-yaw selector that reduces
+    target jumps and cumulative wrist travel without relying on a
+    shape-specific scripted phase.
+
+## 2026-06-29 Wrist-Aware Candidate Gate Diagnostics
+
+- Implemented default-off diagnostics for visual-yaw wrist target selection:
+  - extra gates in
+    `set_pose_ik_target_by_wrist_limited_equivalent_planar_yaw_correction`:
+    max wrist delta, max target jump, min wrist improvement, and max equivalent
+    correction.
+  - trace field
+    `guard_visual_yaw_align_equivalent_wrist_target_jump_deg`.
+  - default-off runtime target-jump gate:
+    `guard_visual_yaw_align_target_jump_gate_*`.
+- Validation:
+  - Static checks passed:
+    `python -B -m py_compile scripts\eval_guarded_policy.py peg_in_hole_mujoco\envs\peg_in_hole_env.py`
+    and `git diff --check`.
+  - Default rechecks after adding the diagnostic code stayed successful:
+    triangle seed `910500` success, final yaw `0.63 deg`; hex seed `907000`
+    success, final yaw `4.41 deg`; rectangular-key seed `907500` success,
+    final yaw `0.43 deg`.
+- Experimental conclusion:
+  - Running the conservative wrist-limited selector without the triangle
+    freeze/recenter protocol timed out: final XY was about `0.14 m` and final
+    yaw about `53.1 deg`. So candidate yaw selection alone is not sufficient.
+  - Adding the stricter wrist-limited candidate gates inside the triangle
+    protocol kept success but worsened cumulative wrist/target motion and final
+    yaw (`7.50 deg` vs `2.16 deg` in the prior demo).
+  - Adding target-jump gate `80 deg` kept success and reduced max target jump
+    (`103 deg` to `79 deg`) but worsened qpos span/cumulative motion and final
+    yaw (`6.24 deg`).
+  - Adding correction slew was also rejected. `slew20` kept success and reduced
+    the largest correction jump, but final yaw worsened to `6.11 deg`,
+    `wrist_2` cumulative motion increased to `440.86 deg`, and target
+    cumulative motion increased to `1166.40 deg`. `slew40` collided with final
+    yaw `40.56 deg`, `wrist_2` cumulative motion `974.18 deg`, and target
+    cumulative motion `2515.42 deg`.
+- Current decision:
+  - Keep the new gates as diagnostics only.
+  - Do not promote them into the default demo/config.
+  - The current recommended triangle visual-yaw demo remains the
+    triangle-specific freeze/recenter protocol without the new target-jump gate.
+  - Next useful work should target smoother target generation, not hard
+    rejection after a large target has already been computed.
+
+## 2026-06-29 Visual-Yaw Target-Latch Diagnostic
+
+- Implemented default-off target-latch controls and trace fields:
+  `guard_visual_yaw_align_target_latch_*`.
+- Purpose: test whether reusing a stable visual-yaw IK target can reduce
+  frame-to-frame equivalent-target jumps and wrist travel.
+- Validation:
+  - default-off triangle recheck, seed `910500`: success, final yaw `3.95 deg`.
+  - relaxed target-latch, same seed: timeout, final yaw `30.34 deg`, final XY
+    `0.00016 m`, latch active `915/1000` rows.
+  - Wrist metrics improved superficially (`wrist_2` cumulative motion
+    `390.87 deg` to `290.83 deg`), but the controller froze an incorrect yaw
+    basin and never inserted.
+- Decision: keep target latch diagnostic-only and disabled in wrappers/configs.
+  Do not tune latch length next. The next controller should continue yaw
+  correction with confidence weighting or slow target generation instead of
+  freezing a single early target.
+
+2026-06-29 stable-apply gate follow-up:
+
+- Used the existing default-off temporal action gate as a stable-apply filter:
+  reset the IK target and block descent when triangle visual-yaw predictions
+  were not stable over a 3-frame / 12-degree window.
+- Result on `triangle_triangle`, seed `910500`: timeout, final yaw
+  `55.37 deg`, final XY `0.00072 m`.
+- Failure mode: the gate rejected early target updates, then the peg descended
+  under the visual-yaw Z gate with a large residual yaw error. This lowered some
+  target-jump metrics but did not solve insertion.
+- Decision: do not pursue more post-hoc hard gates for this issue. The next
+  useful work should modify target generation itself: confidence-weighted yaw
+  corrections, low-pass target blending that still tracks residual error, or
+  better yaw-estimator data for triangle/hex under the exact wrist camera view.
+
+2026-06-29 target-jump soft-limit diagnostic:
+
+- Tested a temporary target-jump soft limiter that scaled the visual-yaw
+  correction down when the wrist target jump exceeded `80 deg`.
+- First triangle protocol smoke succeeded, but metrics worsened: final yaw
+  `8.80 deg`, `wrist_2` span `173.71 deg`, cumulative `wrist_2` motion
+  `498.99 deg`, and target jumps still reached `119.35 deg`.
+- Absolute-correction follow-ups collided and pushed wrist travel further out
+  of range.
+- Decision: the soft-limiter implementation was removed from
+  `scripts\eval_guarded_policy.py`. Do not continue scalar target-jump
+  shrinkage. Next work should move toward confidence-aware target generation,
+  better triangle/hex yaw-estimator data under the wrist camera, and scoring
+  candidate targets by IK/wrist/contact risk before applying them.
+
+2026-06-29 triangle eval/demo divergence:
+
+- After removing the soft limiter, rechecked the triangle wrist protocol on
+  seed `910500`.
+- The demo wrapper can still render a successful GIF, but the non-demo eval
+  wrapper with the same config/seed can collide. Config lines match; the trace
+  divergence starts as tiny numerical differences and then the visual-yaw loop
+  falls into different yaw basins.
+- Failure mechanism: freeze-aligned-target may arm when visual predicted yaw is
+  only `1-3 deg`, but true `shape_yaw_error_deg` is still around `30 deg`.
+  Those bad freeze frames have low confidence (`raw_norm` about `0.08`) versus
+  the successful demo freeze (`raw_norm` about `0.14`).
+- A stricter `raw_norm >= 0.12` freeze gate avoided the collision on the tested
+  seed but timed out around `32 deg` yaw because the camera view did not regain
+  reliable yaw evidence.
+- Current decision: do not promote the triangle GIF as robust evidence. The
+  next work should implement confidence-aware re-acquire / target generation
+  that either regains a reliable view or keeps correcting yaw, rather than
+  freezing on a low-confidence small predicted residual.
+
+2026-06-29 triangle high-confidence freeze diagnostic:
+
+- Implemented a default-off low-confidence visual-yaw re-acquire mechanism in
+  `scripts\eval_guarded_policy.py`. It detects the dangerous pattern "small
+  predicted yaw + low raw_norm" and runs the existing lift/recenter re-acquire
+  sequence. On triangle seed `910500`, it avoided the old collision but timed
+  out: with default `min-step=700`, it triggered too late; with `min-step=300`,
+  it triggered repeatedly and consumed the insertion window.
+- Trace analysis suggested a single-seed alternative: the current yaw estimator
+  reports useful triangle alignment as a biased `11-13 deg` residual at high
+  confidence (`raw_norm` about `0.13-0.22`), while the bad wrong-basin freezes
+  report `1-3 deg` at low confidence. A diagnostic run with
+  `min_raw_norm=0.12`, `freeze_yaw=13 deg`, and `stable_steps=3` fixed
+  triangle seed `910500`: success `1/1`, `156` steps, final yaw `0.71 deg`.
+- Broader validation rejected promotion:
+  - `triangle_triangle`, seeds `906500/907500/908500/909500/910500/911500`:
+    `1/6`, zero collision, five timeouts. Most failed seeds ended near XY/Z
+    success but around `55 deg` yaw error.
+  - `hex_hex`, same six seeds: `3/6`, one collision, two timeouts.
+  - `rectangular_key`, same six seeds: `1/6`, zero collision, five timeouts.
+- Current decision: do not promote freeze13 into the wrapper. The wrapper was
+  returned to the previous triangle protocol. Keep low-confidence re-acquire
+  and freeze13 as diagnostics only. The next useful work is not another scalar
+  gate; it is better per-shape yaw estimation/target generation and a
+  multi-seed validation matrix before any demo/result is promoted.
+
+2026-06-29 multishape visual-yaw eval entry correction:
+
+- Added `configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_multishape_eval.yaml`
+  and pointed both visual-yaw eval wrappers at it. This prevents triangle/hex
+  from accidentally using the old rectangular-key-only config and reporting
+  `visual_yaw_align_steps=0`.
+- Added `scripts\analyze_visual_yaw_trace_summary.py` to summarize whether
+  visual yaw was active/applied, final yaw, gate reasons, freeze/hold/block
+  steps, and low-confidence rows.
+- Correct-entry smoke passed for triangle/hex/key:
+  `triangle_triangle` seed `910500` success with final yaw `1.62 deg`,
+  `hex_hex` seed `907000` success with final yaw `5.02 deg`, and
+  `rectangular_key` seed `907500` success with final yaw `0.47 deg`; all had
+  visual yaw active and applied.
+- Correct-entry triangle six-seed eval is not stable:
+  `1/6` success, `4/6` collision, `1/6` timeout. All six had visual-yaw
+  active/applied, so the blocker is not missing visual control. It is
+  post-yaw XY drift / premature descent after freeze-aligned-target. Collision
+  seeds finish around `20-34 mm` XY below the hole plane, and first freeze
+  descent often starts around `19-20 mm` XY while still high.
+- Strict freeze/hold XY gating and low-Z descent-abort were rejected. Strict
+  XY gating caused timeouts and one collision; descent-abort triggered too
+  late near/below the hole plane and failed `0/3`.
+- Next implementation direction: add a stateful post-yaw XY re-approach phase.
+  After visual yaw alignment, hold the aligned orientation, keep/lift to a
+  safe Z, re-center XY to a tight band, then release descent only after yaw and
+  XY are stable. Validate with `analyze_visual_yaw_trace_summary.py` before
+  generating new demos.
+
+2026-06-30 triangle post-yaw reapproach diagnostics:
+
+- Implemented default-off post-yaw reapproach trace fields and CLI controls in
+  `scripts\eval_guarded_policy.py`, plus summary counts in
+  `scripts\analyze_visual_yaw_trace_summary.py`.
+- Added deterministic eval to
+  `scripts\sim2real\eval_multigeom_v2_true_fixture_tight_yaw_visual_yaw_align.ps1`
+  so wrapper runs now pass `--deterministic-eval --deterministic-eval-torch-threads 1`.
+- Three-seed triangle post-yaw reapproach smoke showed that the failure is not
+  simply missing recenter: the controller can pull XY back near `5-6 mm`, but
+  the visual-yaw estimate can still be biased/noisy and the later
+  freeze-aligned descent can drift into a wrong yaw basin or low-Z lateral pop.
+- Rejected follow-ups:
+  - `--guard-visual-yaw-align-post-yaw-reapproach-release-to-visual-realign`
+    with `realign_release_xy=8 mm`, `min_z=55 mm`: `0/3` on seeds
+    `906500/907500/908500`; it broke seeds that previously could succeed.
+  - `--guard-visual-yaw-align-post-yaw-reapproach-block-background-targets`:
+    deterministic `0/3`; blocking the freeze/hold chain removes a behavior the
+    current triangle success path depends on.
+- Keep both options default-off and diagnostic only.
+- Next useful direction: do not cut off freeze/hold. Instead add a conservative
+  freeze-descent refinement: during freeze-aligned descent, continue visual yaw
+  confidence checks and slow/hold descent when the predicted yaw/confidence
+  pattern indicates wrong-basin risk. Validate with deterministic 3-seed, then
+  six-seed before any demo promotion.
+
+2026-06-30 freeze-descent visual-safety implementation:
+
+- Added default-off runtime controls in `scripts\eval_guarded_policy.py`:
+  `guard_visual_yaw_align_freeze_descent_visual_safety_*`.
+- Scope: only applies during `freeze_aligned_target_descent_*`; it does not
+  clear the frozen IK target and does not reset the freeze/hold chain.
+- Runtime evidence uses only visual-yaw prediction/confidence:
+  - `low_conf_small_pred`: raw norm below threshold while predicted residual
+    yaw is small, the pattern previously associated with false alignment.
+  - `large_pred`: visual estimator again sees a large residual yaw during
+    frozen descent.
+- Action effect: default behavior slows downward action to a small cap
+  (`0.001`) instead of the normal aligned-descent down action; an optional
+  `--guard-visual-yaw-align-freeze-descent-visual-safety-block-descent` switch
+  can turn it into a full Z hold for diagnostics.
+- Trace summary now reports
+  `guard_visual_yaw_align_freeze_descent_visual_safety` and reason counts.
+- Next validation: deterministic 3-seed triangle smoke with post-yaw
+  reapproach enabled plus this visual-safety gate. If it improves over the
+  unstable `1/3` baseline without breaking the previous success path, expand
+  to the corrected six-seed triangle matrix. If it stays flat or regresses,
+  keep it diagnostic-only and move toward better triangle/hex yaw estimator
+  data or candidate target scoring.
+
+2026-06-30 freeze-descent visual-safety validation:
+
+- Deterministic triangle smoke on `906500/907500/908500`:
+  - default safety thresholds (`raw<=0.12`, `pred<=8 deg`, slow down to
+    `0.001`): `2/3`, with `908500` still colliding. The gate fired only once,
+    so it was too narrow for the actual wrong-basin trace.
+  - relaxed thresholds (`raw<=0.155`, `pred<=11 deg`, slow down): `2/3`; the
+    failing seed fired `74` safety rows but still slowly descended into
+    collision.
+  - relaxed thresholds plus `--guard-visual-yaw-align-freeze-descent-visual-safety-block-descent`:
+    `2/3`; `908500` changed from collision to timeout, final XY about `49 mm`,
+    final Z about `87 mm`, final yaw about `33 deg`. This is safer but not a
+    success.
+  - relaxed thresholds plus `--guard-visual-yaw-align-freeze-descent-visual-safety-release-freeze`:
+    `1/3`; `906500` regressed to collision and `908500` still timed out. Do
+    not promote release-freeze.
+- Current conclusion: freeze-descent visual safety is useful as a collision
+  brake, not as a recovery policy. The failing trace is mainly a biased
+  triangle yaw estimate: while XY is near `2 mm`, true yaw can remain around
+  `25 deg` and the estimator reports only `8-10 deg`. Next useful work should
+  improve triangle visual-yaw target generation/estimation or add a deliberate
+  high-Z visual re-acquire controller, not just keep tuning down-action caps.
+
+2026-06-30 triangle/hex wrong-basin visual-yaw estimator and rollout mismatch:
+
+- Added focused configs:
+  - `configs\sim2real\multigeom_v2_true_fixture_tight_yaw_visual_yaw_dataset_triangle_hex_wrong_basin_8k.yaml`
+  - `configs\sim2real\multigeom_v2_true_fixture_tight_yaw_visual_yaw_train_triangle_hex_wrong_basin_8k.yaml`
+  - `configs\sim2real\multigeom_v2_true_fixture_tight_yaw_visual_yaw_eval_triangle_hex_wrong_basin_8k.yaml`
+  - `configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_triangle_hex_wrong_basin_eval.yaml`
+- Collected `8192` focused samples at mid/high Z with triangle-heavy profile
+  weighting: triangle `4096`, hex `2048`, square/key `1024` each.
+- Trained `results\visual_yaw_estimator_v1_tight_yaw_triangle_hex_wrong_basin_8k.pt`.
+  Offline validation looked strong: overall mean `1.60 deg`, p95 `5.53 deg`;
+  triangle mean `1.13 deg`, p95 `2.87 deg`; hex mean `1.19 deg`, p95
+  `3.24 deg`.
+- Online insertion did not improve. Triangle seeds `906500/907500/908500`
+  with the new estimator produced `0/3`; the full protocol timed out on the
+  first two and collided on `908500`. A no-protocol/wrist+holdXY-only
+  ablation also produced `0/3`.
+- Added default-off rollout visual-yaw dataset diagnostics to
+  `scripts\eval_guarded_policy.py`:
+  `--visual-yaw-rollout-dataset-output`,
+  `--visual-yaw-rollout-dataset-csv`,
+  `--visual-yaw-rollout-dataset-md`,
+  `--visual-yaw-rollout-dataset-outcome-filter`, and
+  `--visual-yaw-rollout-dataset-stride`.
+- The rollout diagnostic on triangle seed `908500` exposed the real blocker:
+  `datasets\visual_yaw_rollout_triangle_908500_wrist_holdxy_stride2.npz`
+  has `500` failure samples with mean prediction-vs-label yaw error
+  `36.81 deg`; `193` samples have true yaw `>=30 deg` while predicted yaw is
+  `<=8 deg`.
+- Updated diagnosis: static IK-placed visual-yaw data is not enough. The
+  estimator is accurate on its own held-out distribution but fails on the
+  actual closed-loop rollout distribution, likely due to occlusion/viewpoint
+  and state-distribution shift. The next step should be failure-rollout visual
+  yaw data augmentation/retraining, then re-run the same 3-seed online test.
+
+2026-06-30 false-small-yaw trace diagnostic:
+
+- Added `scripts\analyze_visual_yaw_false_small.py`, an offline simulator-truth
+  diagnostic for visual-yaw step traces. It writes per-episode, per-event,
+  truth-gate, observable-proxy-gate, and observable-proxy-episode CSV/MD
+  reports.
+- Ran it on
+  `results\sim2real_multigeom_v2_rollout_balanced_strict_no_override_triangle_6seed_5ep`.
+  Truth-based false-small yaw (`pred<=4 deg`, `truth>=12 deg`) is highly
+  correlated with the five collision failures: `743` false-small rows, `5/5`
+  failed episodes hit, and only `4` rows in successful episodes.
+- However, the deployable proxy check rejects a simple runtime gate. The
+  observable condition `freeze_low_z_near_xy_pred_small` hits all `30/30`
+  episodes, including all `25` successes. It has `254` failed rows and `1104`
+  success rows; success max-run reaches `22`, while failures are only `4-5`.
+- Conclusion: the false-small pattern is a real failure mechanism, but without
+  true yaw it is not separable from normal aligned descent using current runtime
+  fields. Do not add a `pred small + freeze descent + low Z + near XY` control
+  gate. Next useful work is low-Z/occluded rollout visual-yaw data improvement
+  or estimator uncertainty/candidate scoring, then re-run the strict triangle
+  `6x5` matrix.
+
+2026-07-01 triangle low-Z pop recovery v12-v16:
+
+- Added a default-off `guard_visual_yaw_align_pre_pop_near_plane_brake_*`
+  diagnostic hook in `scripts\eval_guarded_policy.py`. It is scoped to active
+  visual-yaw pre-pop guard and records active/triggered/attempt/steps fields in
+  the step trace.
+- Hard smoke for all candidates used `triangle_triangle`, seed `909500`,
+  `3` episodes, and `-NoTriangleProtocolYawOverrides`.
+- v12 local post-pop recovery:
+  `configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_triangle_strict_failseeds_v2_low_z_reacquire_v12_local_pop_recovery_eval.yaml`
+  -> `2/3`, collision `1`, timeout `0`.
+- v13 short near-plane brake:
+  `configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_triangle_strict_failseeds_v2_low_z_reacquire_v13_pre_pop_near_plane_brake_eval.yaml`
+  -> `2/3`, collision `1`, timeout `0`; gate was too narrow.
+- v14 wider zero-XY brake:
+  `configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_triangle_strict_failseeds_v2_low_z_reacquire_v14_pre_pop_near_plane_zero_xy_brake_eval.yaml`
+  -> `2/3`, collision `1`, timeout `0`; brake triggered but XY still popped.
+- v15 sustained stronger brake:
+  `configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_triangle_strict_failseeds_v2_low_z_reacquire_v15_pre_pop_near_plane_sustained_hold_eval.yaml`
+  -> `2/3`, collision `0`, timeout `1`; safer but still times out after broad
+  recovery.
+- v16 v15 plus local pop recovery:
+  `configs\sim2real\multigeom_v2_true_fixture_visual_yaw_align_triangle_strict_failseeds_v2_low_z_reacquire_v16_hold_plus_local_pop_recovery_eval.yaml`
+  -> `2/3`, collision `1`, timeout `0`.
+- Do not promote v12-v16. Current conclusion is that near-plane action braking
+  alone does not solve triangle `909502`; the pop persists even with commanded
+  XY zero, suggesting contact/tilt/control-lag coupling. Local post-pop lift
+  converts timeout risk into collision risk.
+- Next useful direction: replace the generic high recover/reacquire after
+  low-Z pop with a bounded local recovery state that preserves final-servo
+  target and tilt safety, or improve triangle final-insert contact/pose tuning
+  before adding more gates.
+
+2026-07-02 triangle wrist-safe absolute target v3:
+
+- Implemented wrist-safe absolute shape-target v3 for `triangle_triangle`.
+- Root cause of the remaining large wrist spans was not only visual-yaw target selection; many outliers came from high-start initial IK choosing an equivalent wrist basin far from rest before visual yaw alignment began.
+- Code changes:
+  - `peg_in_hole_mujoco/envs/peg_in_hole_env.py` now applies nearest wrist-equivalent normalization inside absolute shape-yaw candidate scoring.
+  - Absolute shape target scoring now strongly penalizes wrist target jump, wrist delta, and wrist distance from rest.
+  - Added `max_wrist_target_delta_from_rest_deg` gate for absolute shape target candidates.
+  - Added `initial_shape_yaw_max_wrist_rest_delta_deg` so high-start initialization prefers wrist-safe yaw-error poses instead of starting in a far wrist basin.
+  - Triangle wrappers now enable `--ik-nearest-wrist-target-equivalent`, `--ik-max-wrist-target-delta-deg 8`, `--initial-shape-yaw-max-wrist-rest-delta-deg 130`, and `--initial-ik-max-attempts 80`.
+- Validation:
+  - Targeted hard seeds `906504, 907508, 908510, 910505, 910500, 910501`: `6/6` success, collision `0/6`, timeout `0/6`.
+  - 120 episode gate in `results\triangle_wrist_safe_v3_gate_120ep`: success `116/120` (`96.67%`), collision `0/120`, timeout `4/120`.
+  - Wrist outliers `>180 deg`: `0/120`, down from `54/120` in the previous absolute-shape-target gate.
+  - Wrist spans after v3 gate: wrist_1 p95 `40.3 deg`, wrist_2 p95 `125.7 deg`, wrist_3 p95 `22.7 deg`; max wrist_2 span `129.4 deg`.
+- Interpretation: triangle is now functionally successful and much closer to real-robot-safe wrist behavior. Remaining issue is timeout-only, not collision or wrist over-rotation.
+- Next step: generate v3 triangle demos for representative seeds, visually confirm "align wrist then insert", then either tune timeout recovery lightly or propagate wrist-safe protocol to hex/key.
 
 ## When To Update This File
 
